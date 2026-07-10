@@ -1,0 +1,121 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto py-8 px-4 font-arabic" dir="rtl">
+    <div class="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
+        
+        <!-- Header -->
+        <div class="p-6 bg-gradient-to-r from-teal-600 to-teal-800 text-white flex justify-between items-center">
+            <div class="flex items-center gap-4">
+                <div class="w-14 h-14 bg-white/20 rounded-full flex items-center justify-center text-2xl font-bold backdrop-blur-sm">
+                    <i class="fas fa-list-check"></i>
+                </div>
+                <div>
+                    <h2 class="text-2xl font-black">تخصيص القائمة الجانبية</h2>
+                    <p class="text-teal-100 mt-1 opacity-90">تحديد الأقسام التي تظهر للمستخدم: <span class="font-bold text-white">{{ user_obj.username }}</span></p>
+                </div>
+            </div>
+            <a href="{% url 'user_detail' user_obj.pk %}" class="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-xl transition text-sm font-bold backdrop-blur-sm">
+                <i class="fas fa-arrow-left ml-2"></i> رجوع
+            </a>
+        </div>
+
+        <!-- Form -->
+        <form method="post" class="p-8 bg-gray-50/50">
+            {% csrf_token %}
+            
+            <div class="mb-8 bg-amber-50 border-r-4 border-amber-400 p-4 rounded-l-lg text-sm text-amber-800 shadow-sm">
+                <i class="fas fa-info-circle ml-2"></i> <strong>ملاحظة:</strong> تحديد المربع الرئيسي يُظهر القسم في القائمة الجانبية. تحديد المربعات الفرعية يُظهر الروابط الداخلية لهذا القسم.
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {% for m in modules %}
+                <div class="border rounded-2xl overflow-hidden bg-white shadow-sm hover:shadow-md transition-all {% if m.has_access %}border-teal-300 ring-1 ring-teal-50{% else %}border-gray-200{% endif %}">
+                    
+                    <!-- Main Module Header -->
+                    <label class="flex items-center justify-between p-4 cursor-pointer transition-colors border-b {% if m.has_access %}bg-teal-50/30{% elif m.is_denied %}bg-red-50/30{% else %}bg-gray-50 hover:bg-gray-100{% endif %}">
+                        <div class="flex items-center gap-3">
+                            <input type="checkbox" name="modules" value="{{ m.id }}" class="w-5 h-5 text-teal-600 border-gray-300 rounded focus:ring-teal-500" {% if m.has_access %}checked{% endif %}>
+                            <span class="font-bold text-gray-800 flex items-center gap-2">
+                                <i class="{{ m.icon }} w-5 text-center {% if m.has_access %}text-teal-600{% elif m.is_denied %}text-red-400{% else %}text-gray-400{% endif %}"></i> {{ m.name }}
+                            </span>
+                        </div>
+                        {% if m.is_denied %}
+                            <span class="text-[10px] text-red-600 bg-red-100 px-2 py-0.5 rounded-full font-bold shadow-sm">محجوب</span>
+                        {% elif m.is_direct %}
+                            <span class="text-[10px] text-teal-600 bg-teal-100 px-2 py-0.5 rounded-full font-bold shadow-sm">مخصصة</span>
+                        {% else %}
+                            {% if m.has_access %}
+                                <span class="text-[10px] text-gray-500 font-bold bg-gray-200 px-2 py-0.5 rounded-full shadow-sm">موروثة</span>
+                            {% endif %}
+                        {% endif %}
+                    </label>
+
+                    <!-- Sub Links -->
+                    {% if m.sub_links %}
+                    <div class="p-4 space-y-3 bg-white">
+                        {% for sub in m.sub_links %}
+                        <label class="flex items-center gap-3 cursor-pointer group p-2 rounded-lg hover:bg-gray-50 transition-colors {% if sub.has_access %}bg-gray-50{% endif %} border border-transparent {% if sub.has_access %}border-gray-100{% endif %} {% if sub.is_denied %}opacity-40 cursor-not-allowed{% endif %}">
+                            <input type="checkbox" name="modules" value="{{ sub.id }}" class="w-4 h-4 text-teal-500 border-gray-300 rounded focus:ring-teal-500" {% if sub.has_access %}checked{% endif %} {% if m.is_denied %}disabled{% endif %}>
+                            <span class="text-sm text-gray-600 group-hover:text-teal-700 transition-colors flex items-center gap-2 font-medium">
+                                <i class="{{ sub.icon }} w-4 text-center {% if sub.has_access %}text-teal-500{% else %}opacity-40{% endif %}"></i> {{ sub.name }}
+                            </span>
+                            
+                            {% if sub.is_denied %}
+                                <span class="text-[9px] text-red-500 border border-red-100 bg-red-50 px-1.5 py-0.5 rounded-full mr-auto">محجوبة</span>
+                            {% elif sub.is_direct %}
+                                <span class="text-[9px] text-teal-500 border border-teal-100 bg-teal-50 px-1.5 py-0.5 rounded-full mr-auto">مخصصة</span>
+                            {% elif sub.has_access %}
+                                <span class="text-[9px] text-gray-400 border border-gray-100 bg-gray-50 px-1.5 py-0.5 rounded-full mr-auto">موروثة</span>
+                            {% endif %}
+                        </label>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+
+            <div class="mt-8 pt-6 border-t border-gray-100 flex justify-end">
+                <button type="submit" class="px-8 py-3 bg-teal-600 text-white rounded-xl font-black text-lg hover:bg-teal-700 shadow-lg shadow-teal-200 transition-all active:scale-95 flex items-center gap-3">
+                    <i class="fas fa-save"></i> حفظ الصلاحيات المتقدمة
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const moduleGroups = document.querySelectorAll('.grid > div');
+        
+        moduleGroups.forEach(group => {
+            const parentCheckbox = group.querySelector('input[type="checkbox"][value]:not([value*=":"])');
+            const childCheckboxes = group.querySelectorAll('input[type="checkbox"][value*=":"]');
+            
+            if (parentCheckbox && childCheckboxes.length > 0) {
+                // If child is checked, ensure parent is checked
+                childCheckboxes.forEach(child => {
+                    child.addEventListener('change', function() {
+                        if (this.checked && !parentCheckbox.checked) {
+                            parentCheckbox.checked = true;
+                        }
+                    });
+                });
+                
+                // If parent is unchecked, uncheck all children
+                parentCheckbox.addEventListener('change', function() {
+                    if (!this.checked) {
+                        childCheckboxes.forEach(child => {
+                            child.checked = false;
+                        });
+                    } else {
+                        // Optional: if parent is checked, maybe we want to check all children by default?
+                        // Actually, leaving them unchecked is better for granular control.
+                    }
+                });
+            }
+        });
+    });
+</script>
+{% endblock %}

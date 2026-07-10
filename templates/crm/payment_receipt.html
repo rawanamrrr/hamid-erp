@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>سند قبض {{ payment.display_voucher }}</title>
+    <script src="/static/vendor/js/tailwind.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;700&family=Inconsolata:wght@700&display=swap');
+        body { font-family: 'IBM Plex Sans Arabic', sans-serif; background-color: #525252; margin: 0; padding: 20px 0; }
+        .receipt { width: 80mm; background: #fff; margin: 0 auto; padding: 5mm; font-size: 12px; color: #000; }
+        .dashed-line { border-top: 1px dashed #000; margin: 8px 0; width: 100%; }
+        .num { font-family: 'Inconsolata', monospace; font-weight: 700; }
+        @media print {
+            body { background: none; margin: 0; padding: 0; }
+            .no-print { display: none !important; }
+            .receipt { width: 100%; margin: 0; padding: 0; box-shadow: none; }
+            @page { margin: 0; size: auto; }
+        }
+    </style>
+</head>
+<body>
+    <div class="no-print fixed top-0 w-full bg-white p-2 shadow flex justify-between z-50">
+        <button onclick="window.close(); setTimeout(function(){ if (window.history.length > 1) window.history.back(); }, 50)" class="px-4 py-1 bg-gray-200 rounded font-bold">إغلاق</button>
+        <button onclick="window.print()" class="px-4 py-1 bg-black text-white rounded font-bold">طباعة الإيصال</button>
+    </div>
+    <div class="h-10 no-print"></div>
+
+    <div class="receipt">
+        <div class="text-center mb-4">
+            {% if sys_settings.logo_base64 %}
+            <img src="{{ sys_settings.logo_base64 }}" class="mx-auto h-16 mb-2 grayscale object-contain">
+            {% endif %}
+            <h1 class="text-xl font-bold">{{ sys_settings.shop_name }}</h1>
+            {% if payment.transaction_type == 'payment' %}
+            <h2 class="font-bold border-2 border-black inline-block px-2 mt-1 rounded">سند قبض نقدية</h2>
+            {% else %}
+            <h2 class="font-bold border-2 border-black inline-block px-2 mt-1 rounded bg-red-50 text-red-800">سند سحب مديونية</h2>
+            {% endif %}
+        </div>
+
+        <div class="dashed-line"></div>
+
+        <div class="space-y-2 text-sm">
+            <div class="flex justify-between"><span>رقم السند:</span><span class="num">{{ payment.display_voucher }}</span></div>
+            <div class="flex justify-between"><span>التاريخ:</span><span class="num">{{ payment.created_at|date:"Y-m-d H:i" }}</span></div>
+            <div class="flex justify-between"><span>اسم العميل:</span><span class="font-bold">{{ customer.first_name }} {{ customer.last_name }}</span></div>
+            <div class="flex justify-between"><span>المسؤول (الكاشير):</span><span>{{ payment.user.username }}</span></div>
+        </div>
+
+        <div class="dashed-line"></div>
+
+        <div class="text-center my-4">
+            {% if payment.transaction_type == 'payment' %}
+            <p class="text-sm mb-1">المبلغ المستلم</p>
+            {% else %}
+            <p class="text-sm mb-1">قيمة المديونية</p>
+            {% endif %}
+            <div class="text-3xl font-bold num border border-black p-2 rounded bg-gray-50">{{ payment.amount }} <span class="text-sm font-normal">ج.م</span></div>
+        </div>
+
+        <div class="mb-4">
+            <p class="font-bold underline text-sm">وذلك عن:</p>
+            <p class="text-sm mt-1 border-b border-dotted pb-1">{{ payment.notes|default:"-" }}</p>
+        </div>
+
+        <div class="dashed-line"></div>
+
+        <!-- رصيد العميل الحالي -->
+        <div class="bg-gray-100 p-2 rounded text-center">
+            <p class="text-xs text-gray-600">رصيد العميل الحالي (الآن)</p>
+            <p class="font-bold num text-lg dir-ltr">
+                {% with balance=customer.get_balance %}
+                    {% if balance > 0 %}
+                        <span class="text-red-600">{{ balance }} (عليه)</span>
+                    {% elif balance < 0 %}
+                        <!-- تم التعديل هنا: استخدام stringformat وحذف أول حرف (السالب) لعرض الرقم موجب -->
+                        <span class="text-green-600">{{ balance|stringformat:".2f"|slice:"1:" }} (له)</span>
+                    {% else %}
+                        0.00 (خالص)
+                    {% endif %}
+                {% endwith %}
+            </p>
+        </div>
+
+        <div class="text-center text-[10px] mt-4">
+            <p>توقيع المستلم</p>
+            <p class="mt-4">........................</p>
+        </div>
+    </div>
+</body>
+</html>

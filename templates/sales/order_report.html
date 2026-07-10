@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>تقرير المبيعات</title>
+    <script src="/static/vendor/js/tailwind.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;700&family=Inconsolata:wght@700&display=swap');
+        body { font-family: 'IBM Plex Sans Arabic', sans-serif; background: #525252; padding: 20px; }
+        
+        .report-page {
+            background: white;
+            margin: 0 auto;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .page-a4 { width: 210mm; min-height: 297mm; }
+        .page-thermal { width: 80mm; padding: 10px; font-size: 12px; }
+
+        @media print {
+            body { background: none; padding: 0; }
+            .no-print { display: none !important; }
+            .report-page { width: 100%; box-shadow: none; margin: 0; }
+            @page { margin: 0; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="no-print fixed top-0 left-0 right-0 bg-white p-3 shadow flex justify-between items-center z-50">
+        <div class="flex gap-2">
+            <button onclick="setMode('a4')" class="px-3 py-1 bg-blue-100 text-blue-800 rounded font-bold">A4 / A5</button>
+            <button onclick="setMode('thermal')" class="px-3 py-1 bg-orange-100 text-orange-800 rounded font-bold">حراري (Thermal)</button>
+        </div>
+        <button onclick="window.print()" class="px-4 py-1 bg-black text-white rounded font-bold">طباعة التقرير</button>
+    </div>
+    <div class="h-16 no-print"></div>
+
+    <div id="reportPage" class="report-page page-a4">
+        
+        <div class="text-center border-b pb-4 mb-4">
+            <h1 class="text-2xl font-bold">{{ sys_settings.shop_name }}</h1>
+            <h2 class="text-lg text-gray-600 mt-1">تقرير مبيعات وتحصيل</h2>
+            <div class="text-sm mt-2 flex justify-center gap-4 text-gray-500">
+                {% if date_from %}<span>من: {{ date_from }}</span>{% endif %}
+                {% if date_to %}<span>إلى: {{ date_to }}</span>{% endif %}
+                {% if not date_from and not date_to %}<span>تقرير شامل</span>{% endif %}
+            </div>
+        </div>
+
+        <!-- Stats -->
+        <div class="grid grid-cols-3 gap-4 mb-6 text-center">
+            <div class="bg-gray-50 p-2 rounded border">
+                <div class="text-xs text-gray-500">عدد العمليات</div>
+                <div class="font-bold text-lg">{{ count }}</div>
+            </div>
+            <div class="bg-gray-50 p-2 rounded border">
+                <div class="text-xs text-gray-500">إجمالي المبيعات</div>
+                <div class="font-bold text-lg">{{ total_amount|floatformat:2 }}</div>
+            </div>
+            <div class="bg-gray-50 p-2 rounded border border-green-200">
+                <div class="text-xs text-gray-500">إجمالي التحصيل (كاش)</div>
+                <div class="font-bold text-lg text-green-700">{{ total_collected|floatformat:2 }}</div>
+            </div>
+        </div>
+
+        <table class="w-full text-right border-collapse">
+            <thead>
+                <tr class="border-b-2 border-black">
+                    <th class="py-2 text-sm">#</th>
+                    <th class="py-2 text-sm">التاريخ</th>
+                    <th class="py-2 text-sm">العميل</th>
+                    <th class="py-2 text-sm">القيمة</th>
+                    <th class="py-2 text-sm text-left">المدفوع</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y">
+                {% for order in orders %}
+                <tr>
+                    <td class="py-2 text-sm font-mono">{{ order.id }}</td>
+                    <td class="py-2 text-sm text-gray-600">{{ order.created_at|date:"Y-m-d H:i" }}</td>
+                    <td class="py-2 text-sm">{{ order.customer.first_name|default:"عميل نقدي" }}</td>
+                    <td class="py-2 text-sm">{{ order.total_amount }}</td>
+                    <td class="py-2 text-sm font-bold text-left text-green-700">{{ order.received_amount }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+            <tfoot>
+                <tr class="border-t-2 border-black">
+                    <th colspan="3" class="py-3 text-left">الإجمالي:</th>
+                    <th class="py-3">{{ total_amount|floatformat:2 }}</th>
+                    <th class="py-3 text-left font-black text-lg text-green-800">{{ total_collected|floatformat:2 }}</th>
+                </tr>
+            </tfoot>
+        </table>
+
+        <div class="mt-8 text-center text-xs text-gray-400">
+            تمت الطباعة: {% now "Y-m-d H:i" %} بواسطة {{ request.user.username }}
+        </div>
+    </div>
+
+    <script>
+        function setMode(mode) {
+            const page = document.getElementById('reportPage');
+            if(mode === 'thermal') {
+                page.className = 'report-page page-thermal';
+            } else {
+                page.className = 'report-page page-a4';
+            }
+        }
+    </script>
+</body>
+</html>

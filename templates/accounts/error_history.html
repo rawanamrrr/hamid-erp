@@ -1,0 +1,167 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="space-y-6 animate-fade-in-up">
+    <!-- Header -->
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+        <div>
+            <h2 class="text-2xl font-bold text-gray-800 flex items-center gap-2">
+                <span class="bg-red-100 text-red-600 p-2 rounded-lg"><i class="fas fa-bug"></i></span>
+                {{ title }}
+            </h2>
+            <p class="text-gray-500 mt-1 text-sm">تتبع وإصلاح الأخطاء التقنية (500) التي تواجه المستخدمين في النظام بصورة فورية.</p>
+        </div>
+    </div>
+
+    <!-- Filters & Search -->
+    <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
+        <form method="get" class="flex flex-wrap gap-4 items-end">
+            <div class="flex-1 min-w-[300px]">
+                <label class="block text-xs font-bold text-gray-500 mb-1">بحث في رسالة الخطأ أو النوع</label>
+                <div class="relative">
+                    <span class="absolute inset-y-0 left-0 flex items-center pl-3">
+                        <i class="fas fa-search text-gray-400"></i>
+                    </span>
+                    <input type="text" name="q" value="{{ request.GET.q }}" class="w-full py-2 pl-10 pr-4 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:border-red-500 outline-none transition" placeholder="مثال: KeyError, ValueError...">
+                </div>
+            </div>
+            <button type="submit" class="px-6 py-2 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 transition">بحث</button>
+            <a href="{% url 'error_history' %}" class="px-6 py-2 bg-gray-100 text-gray-600 rounded-xl font-bold hover:bg-gray-200 transition">إعادة تعيين</a>
+        </form>
+        <div class="mt-4 pt-4 border-t border-gray-100">
+            <form method="post" action="{% url 'restart_gunicorn' %}" onsubmit="return confirm('سيتم تنفيذ: sudo pkill gunicorn ثم sudo systemctl start gunicorn. هل تريد المتابعة؟');">
+                {% csrf_token %}
+                <button type="submit" class="px-6 py-2 bg-amber-600 text-white rounded-xl font-bold hover:bg-amber-700 transition flex items-center gap-2">
+                    <i class="fas fa-rotate"></i>
+                    إعادة تشغيل Gunicorn
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Error List -->
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full text-right">
+                <thead>
+                    <tr class="bg-gray-50 border-b border-gray-100">
+                        <th class="px-6 py-4 text-sm font-bold text-gray-600">التاريخ والوقت</th>
+                        <th class="px-6 py-4 text-sm font-bold text-gray-600">المسار (URL)</th>
+                        <th class="px-6 py-4 text-sm font-bold text-gray-600">نوع الخطأ</th>
+                        <th class="px-6 py-4 text-sm font-bold text-gray-600">المصدر</th>
+                        <th class="px-6 py-4 text-sm font-bold text-gray-600">المستخدم</th>
+                        <th class="px-6 py-4 text-sm font-bold text-gray-600">الحالة</th>
+                        <th class="px-6 py-4 text-sm font-bold text-gray-600 text-center">الإجراءات</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-50">
+                    {% for error in errors %}
+                    <tr class="hover:bg-gray-50/50 transition-colors group">
+                        <td class="px-6 py-4 text-sm text-gray-700">
+                            <div class="font-bold">{{ error.timestamp|date:"Y-m-d" }}</div>
+                            <div class="text-[10px] text-gray-400">{{ error.timestamp|time:"H:i:s" }}</div>
+                        </td>
+                        <td class="px-6 py-4 text-sm text-gray-700">
+                            <code class="px-2 py-1 bg-gray-100 rounded-md text-red-600 font-mono text-[11px]">{{ error.path }}</code>
+                        </td>
+                        <td class="px-6 py-4">
+                            <span class="px-3 py-1 bg-red-100 text-red-700 rounded-full text-xs font-bold">{{ error.exception_type }}</span>
+                        </td>
+                        <td class="px-6 py-4">
+                            {% if error.source == 'FRONTEND' %}
+                                <span class="px-2 py-1 bg-amber-100 text-amber-700 rounded text-[10px] font-bold border border-amber-200">
+                                    <i class="fas fa-desktop ml-1"></i> المتصفح
+                                </span>
+                            {% else %}
+                                <span class="px-2 py-1 bg-indigo-100 text-indigo-700 rounded text-[10px] font-bold border border-indigo-200">
+                                    <i class="fas fa-server ml-1"></i> السيرفر
+                                </span>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4 text-sm text-gray-700">
+                            {% if error.user %}
+                                <div class="font-bold">{{ error.user.username }}</div>
+                                <div class="text-[10px] text-gray-400">{{ error.ip_address }}</div>
+                            {% else %}
+                                <span class="text-gray-400 italic">زائر مجهول</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4">
+                            {% if error.is_resolved %}
+                                <span class="flex items-center gap-1 text-green-600 text-xs font-bold">
+                                    <i class="fas fa-check-circle"></i> تم الحل
+                                </span>
+                            {% else %}
+                                <span class="flex items-center gap-1 text-orange-600 text-xs font-bold">
+                                    <i class="fas fa-exclamation-circle ring-2 ring-orange-100 rounded-full p-0.5 animate-pulse"></i> قيد الانتظار
+                                </span>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4 text-center">
+                            <button onclick="toggleTraceback('tb-{{ error.id }}')" class="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition mr-2" title="عرض التفاصيل">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                            {% if not error.is_resolved %}
+                            <a href="{% url 'resolve_error' error.id %}" class="p-2 text-green-600 hover:bg-green-50 rounded-lg transition" title="تحديد كمحلول">
+                                <i class="fas fa-check-double"></i>
+                            </a>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <!-- Traceback Row (Hidden by default) -->
+                    <tr id="tb-{{ error.id }}" class="hidden bg-gray-900 text-gray-300">
+                        <td colspan="6" class="p-6">
+                            <div class="flex justify-between items-center mb-4">
+                                <h4 class="text-red-400 font-bold flex items-center gap-2">
+                                    <i class="fas fa-code"></i> Traceback Details
+                                </h4>
+                                <button onclick="toggleTraceback('tb-{{ error.id }}')" class="text-gray-500 hover:text-white"><i class="fas fa-times"></i></button>
+                            </div>
+                            <div class="bg-black/50 p-4 rounded-xl border border-gray-800 font-mono text-[10px] leading-relaxed overflow-x-auto whitespace-pre">
+{{ error.traceback }}
+                            </div>
+                            <div class="mt-4 grid grid-cols-2 gap-4 text-xs">
+                                <div class="p-3 bg-gray-800 rounded-lg">
+                                    <span class="text-gray-500">User Agent:</span>
+                                    <p class="mt-1 text-indigo-300 truncate" title="{{ error.user_agent }}">{{ error.user_agent }}</p>
+                                </div>
+                                <div class="p-3 bg-gray-800 rounded-lg">
+                                    <span class="text-gray-500">Error Message:</span>
+                                    <p class="mt-1 text-red-300">{{ error.message }}</p>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="px-6 py-20 text-center text-gray-500 italic">
+                            <div class="w-16 h-16 bg-gray-100 text-gray-300 rounded-full flex items-center justify-center mx-auto mb-4">
+                                <i class="fas fa-shield-cat text-2xl"></i>
+                            </div>
+                            النظام يعمل بكفاءة! لا توجد سجلات أخطاء غير محلولة حالياً.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+    function toggleTraceback(id) {
+        const row = document.getElementById(id);
+        row.classList.toggle('hidden');
+    }
+</script>
+
+<style>
+    @keyframes fadeInUp {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    .animate-fade-in-up { animation: fadeInUp 0.4s ease-out; }
+</style>
+{% endblock %}

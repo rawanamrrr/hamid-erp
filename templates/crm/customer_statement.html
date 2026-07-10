@@ -1,0 +1,89 @@
+﻿{% extends 'base.html' %}
+{% load humanize %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="space-y-5 max-w-5xl mx-auto">
+    <div class="flex items-center justify-between print:hidden">
+        <h1 class="text-2xl font-black text-gray-800">كشف حساب العميل</h1>
+        <div class="flex gap-2">
+            <a href="{% url 'customer_detail' customer.id %}" class="px-4 py-2 bg-gray-100 rounded-lg font-bold text-sm">رجوع</a>
+            <a href="?date_from={{ date_from }}&date_to={{ date_to }}&print=1" class="px-4 py-2 bg-indigo-600 text-white rounded-lg font-bold text-sm">طباعة</a>
+        </div>
+    </div>
+
+    <!-- Header -->
+    <div class="bg-white p-5 rounded-xl border flex flex-wrap justify-between gap-4">
+        <div>
+            <div class="text-lg font-black text-gray-800">{{ sys_settings.shop_name|default:'المتجر' }}</div>
+            <div class="text-sm text-gray-500">كشف حساب — {{ customer.first_name }} {{ customer.last_name }}</div>
+            {% if customer.phone %}<div class="text-xs text-gray-400">{{ customer.phone }}</div>{% endif %}
+        </div>
+        <div class="text-sm text-gray-500">
+            {% if date_from or date_to %}<div>الفترة: {{ date_from|default:'البداية' }} ← {{ date_to|default:'الآن' }}</div>{% endif %}
+            <div>تاريخ الطباعة: {% now "Y-m-d H:i" %}</div>
+        </div>
+    </div>
+
+    <form method="get" class="flex flex-wrap items-end gap-3 bg-white p-4 rounded-xl border print:hidden">
+        <div><label class="block text-xs font-bold text-gray-500 mb-1">من</label><input type="date" name="date_from" value="{{ date_from }}" class="p-2 border rounded-lg"></div>
+        <div><label class="block text-xs font-bold text-gray-500 mb-1">إلى</label><input type="date" name="date_to" value="{{ date_to }}" class="p-2 border rounded-lg"></div>
+        <button class="px-4 py-2 bg-indigo-600 text-white rounded-lg font-bold">تطبيق</button>
+        {% if date_from or date_to %}<a href="{% url 'customer_statement' customer.id %}" class="px-4 py-2 bg-gray-100 rounded-lg font-bold">الكل</a>{% endif %}
+    </form>
+
+    <div class="bg-white rounded-xl border overflow-hidden">
+        <table class="w-full text-sm">
+            <thead class="bg-gray-50 text-gray-500 text-xs">
+                <tr>
+                    <th class="py-3 px-4 text-right">التاريخ</th>
+                    <th class="py-3 px-4 text-right">البيان</th>
+                    <th class="py-3 px-4 text-right">المرجع</th>
+                    <th class="py-3 px-4 text-left">مدين (عليه)</th>
+                    <th class="py-3 px-4 text-left">دائن (له)</th>
+                    <th class="py-3 px-4 text-left">الرصيد</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y">
+                <tr class="bg-amber-50 font-bold">
+                    <td class="py-2 px-4" colspan="5">رصيد مرحّل / افتتاحي</td>
+                    <td class="py-2 px-4 text-left dir-ltr">{{ statement.opening|floatformat:2|intcomma }}</td>
+                </tr>
+                {% for r in statement.rows %}
+                <tr class="hover:bg-gray-50">
+                    <td class="py-2 px-4 text-gray-500 whitespace-nowrap">{{ r.date|date:"Y-m-d" }}</td>
+                    <td class="py-2 px-4 font-bold text-gray-700">{{ r.doc }}</td>
+                    <td class="py-2 px-4 text-gray-400 text-xs">{{ r.ref }}</td>
+                    <td class="py-2 px-4 text-left dir-ltr text-red-600">{% if r.debit %}{{ r.debit|floatformat:2|intcomma }}{% endif %}</td>
+                    <td class="py-2 px-4 text-left dir-ltr text-green-600">{% if r.credit %}{{ r.credit|floatformat:2|intcomma }}{% endif %}</td>
+                    <td class="py-2 px-4 text-left dir-ltr font-bold">{{ r.balance|floatformat:2|intcomma }}</td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="6" class="py-8 text-center text-gray-400">لا توجد حركات في هذه الفترة</td></tr>
+                {% endfor %}
+            </tbody>
+            <tfoot class="bg-gray-800 text-white font-black">
+                <tr>
+                    <td class="py-3 px-4" colspan="3">الإجمالي / الرصيد الختامي</td>
+                    <td class="py-3 px-4 text-left dir-ltr">{{ statement.total_debit|floatformat:2|intcomma }}</td>
+                    <td class="py-3 px-4 text-left dir-ltr">{{ statement.total_credit|floatformat:2|intcomma }}</td>
+                    <td class="py-3 px-4 text-left dir-ltr">{{ statement.closing|floatformat:2|intcomma }}</td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+
+    <div class="text-center text-sm">
+        {% if statement.closing > 0 %}
+            <span class="inline-block px-4 py-2 bg-red-50 text-red-700 rounded-full font-bold">العميل مدين بمبلغ {{ statement.closing|floatformat:2|intcomma }} ج.م</span>
+        {% elif statement.closing < 0 %}
+            <span class="inline-block px-4 py-2 bg-green-50 text-green-700 rounded-full font-bold">للعميل رصيد دائن {{ statement.closing|floatformat:2|intcomma }} ج.م</span>
+        {% else %}
+            <span class="inline-block px-4 py-2 bg-gray-100 text-gray-600 rounded-full font-bold">الحساب متزن (صفر)</span>
+        {% endif %}
+    </div>
+</div>
+
+{% if print_mode %}<script>window.onload = function(){ window.print(); };</script>{% endif %}
+{% endblock %}

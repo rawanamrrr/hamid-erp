@@ -1,0 +1,75 @@
+﻿{% extends 'base.html' %}
+{% load humanize %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+<div class="max-w-4xl mx-auto space-y-5">
+    <div class="flex items-center justify-between print:hidden">
+        <h1 class="text-2xl font-black text-gray-800">عرض سعر {{ q.display_number }}</h1>
+        <div class="flex gap-2">
+            <a href="?print=1" class="px-4 py-2 bg-gray-700 text-white rounded-lg font-bold text-sm">طباعة</a>
+            <a href="{% url 'quotation_list' %}" class="px-4 py-2 bg-gray-100 rounded-lg font-bold text-sm">رجوع</a>
+        </div>
+    </div>
+
+    <div class="bg-white p-5 rounded-xl border flex flex-wrap justify-between gap-4">
+        <div>
+            <div class="text-lg font-black text-gray-800">{{ q.display_customer }}</div>
+            <div class="text-xs text-gray-400">رقم العرض: {{ q.display_number }}{% if q.valid_until %} · صالح حتى: {{ q.valid_until|date:"Y-m-d" }}{% endif %}</div>
+        </div>
+        <div class="text-sm">الحالة: <span class="px-2 py-0.5 rounded text-xs font-bold {% if q.status == 'accepted' %}bg-green-100 text-green-700{% elif q.status == 'rejected' %}bg-red-100 text-red-700{% elif q.status == 'converted' %}bg-indigo-100 text-indigo-700{% else %}bg-gray-100 text-gray-600{% endif %}">{{ q.get_status_display }}</span></div>
+    </div>
+
+    <div class="bg-white rounded-xl border overflow-hidden">
+        <table class="w-full text-sm">
+            <thead class="bg-gray-50 text-gray-500 text-xs"><tr>
+                <th class="py-2 px-4 text-right">الصنف</th><th class="py-2 px-4 text-left">الكمية</th>
+                <th class="py-2 px-4 text-left">سعر الوحدة</th><th class="py-2 px-4 text-left">الإجمالي</th><th class="py-2 px-4 print:hidden"></th>
+            </tr></thead>
+            <tbody class="divide-y">
+                {% for i in q.items.all %}
+                <tr>
+                    <td class="py-2 px-4 font-bold text-gray-700">{{ i.product.name|default:i.description }}</td>
+                    <td class="py-2 px-4 text-left dir-ltr">{{ i.quantity|floatformat:2 }}</td>
+                    <td class="py-2 px-4 text-left dir-ltr">{{ i.unit_price|floatformat:2 }}</td>
+                    <td class="py-2 px-4 text-left dir-ltr font-bold">{{ i.line_total|floatformat:2|intcomma }}</td>
+                    <td class="py-2 px-4 text-left print:hidden">{% if q.status != 'converted' %}<form method="post" action="{% url 'quotation_delete_item' i.id %}" class="inline">{% csrf_token %}<button class="text-red-500 text-xs hover:underline">حذف</button></form>{% endif %}</td>
+                </tr>
+                {% empty %}<tr><td colspan="5" class="py-6 text-center text-gray-400">لا توجد بنود</td></tr>{% endfor %}
+            </tbody>
+            <tfoot class="bg-gray-800 text-white font-black"><tr><td class="py-3 px-4" colspan="3">الإجمالي</td><td class="py-3 px-4 text-left dir-ltr">{{ q.total|floatformat:2|intcomma }}</td><td class="print:hidden"></td></tr></tfoot>
+        </table>
+    </div>
+
+    {% if q.notes %}<div class="bg-amber-50 border border-amber-100 rounded-xl p-4 text-sm text-gray-700">{{ q.notes }}</div>{% endif %}
+
+    {% if q.status != 'converted' %}
+    <div class="print:hidden grid grid-cols-1 md:grid-cols-2 gap-5">
+        <form method="post" action="{% url 'quotation_add_item' q.id %}" class="bg-white p-4 rounded-xl border flex flex-wrap items-end gap-2">
+            {% csrf_token %}
+            <div class="flex-1 min-w-[140px]">
+                <label class="block text-xs font-bold text-gray-500 mb-1">الصنف</label>
+                <select name="product_id" class="w-full p-2 border rounded-lg text-sm">
+                    <option value="">— يدوي —</option>
+                    {% for p in products %}<option value="{{ p.id }}">{{ p.name }}</option>{% endfor %}
+                </select>
+            </div>
+            <input type="number" name="quantity" step="0.01" value="1" class="w-20 p-2 border rounded-lg text-sm" placeholder="كمية">
+            <input type="number" name="unit_price" step="0.01" class="w-24 p-2 border rounded-lg text-sm" placeholder="السعر" required>
+            <button class="px-4 py-2 bg-teal-600 text-white rounded-lg font-bold text-sm">+ بند</button>
+        </form>
+        <form method="post" action="{% url 'quotation_set_status' q.id %}" class="bg-white p-4 rounded-xl border flex items-end gap-2">
+            {% csrf_token %}
+            <div class="flex-1">
+                <label class="block text-xs font-bold text-gray-500 mb-1">تحديث الحالة</label>
+                <select name="status" class="w-full p-2 border rounded-lg text-sm">
+                    <option value="draft">مسودة</option><option value="sent">مُرسل</option>
+                    <option value="accepted">مقبول</option><option value="rejected">مرفوض</option>
+                </select>
+            </div>
+            <button class="px-4 py-2 bg-indigo-600 text-white rounded-lg font-bold text-sm">حفظ</button>
+        </form>
+    </div>
+    {% endif %}
+</div>
+{% if print_mode %}<script>window.onload=function(){window.print();};</script>{% endif %}
+{% endblock %}

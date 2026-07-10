@@ -1,0 +1,111 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto space-y-6">
+    
+    <!-- Header -->
+    <div class="flex items-center justify-between">
+        <h1 class="text-2xl font-bold text-gray-800">{{ title }}</h1>
+        <a href="{% url 'shipping_dashboard' %}" class="text-gray-500 hover:text-gray-700">عودة للوحة التحكم</a>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        
+        <!-- Order Details (Read Only) -->
+        <div class="bg-white p-6 rounded-lg shadow h-fit">
+            <h2 class="text-lg font-bold mb-4 border-b pb-2">تفاصيل الفاتورة #{{ order.id }}</h2>
+            
+            <div class="space-y-3">
+                <div class="flex justify-between">
+                    <span class="text-gray-600">العميل:</span>
+                    <span class="font-bold">{{ order.customer.first_name }} {{ order.customer.last_name }}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-gray-600">الهاتف:</span>
+                    <span class="font-bold" dir="ltr">{{ order.customer.phone }}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-gray-600">إجمالي المبلغ:</span>
+                    <span class="font-bold text-teal-600">{{ order.total_amount }} ج.م</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-gray-600">المدفوع:</span>
+                    <span class="font-bold text-green-600">{{ order.received_amount }} ج.م</span>
+                </div>
+                <div class="flex justify-between border-t pt-2">
+                    <span class="text-gray-600 font-bold">المطلوب تحصيله (COD):</span>
+                    <span class="font-bold text-red-600">{{ order.remaining_amount }} ج.م</span>
+                </div>
+            </div>
+
+            <div class="mt-6">
+                <h3 class="font-bold text-sm text-gray-500 mb-2">الأصناف:</h3>
+                <ul class="text-sm space-y-1 list-disc list-inside text-gray-700">
+                    {% for item in order.items.all %}
+                    <li>{{ item.product.name }} ({{ item.quantity }} {{ item.product.get_unit_measure_display }})</li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+
+        <!-- Shipment Form -->
+        <div class="bg-white p-6 rounded-lg shadow">
+            <h2 class="text-lg font-bold mb-4 border-b pb-2">بيانات الشحن</h2>
+            <form method="post" class="space-y-4">
+                {% csrf_token %}
+                
+                <div>
+                    <label class="block text-gray-700 text-sm font-bold mb-1">طريقة التسليم</label>
+                    {{ form.delivery_type }}
+                </div>
+
+                <div id="shipping_fields">
+                    <div>
+                        <label class="block text-gray-700 text-sm font-bold mb-1 mt-3">شركة الشحن (اختياري)</label>
+                        {{ form.shipping_company }}
+                    </div>
+
+                    <div>
+                        <label class="block text-gray-700 text-sm font-bold mb-1 mt-3">رقم البوليصة / التتبع</label>
+                        {{ form.tracking_number }}
+                    </div>
+
+                    <div>
+                        <label class="block text-gray-700 text-sm font-bold mb-1 mt-3">عنوان الشحن التفصيلي</label>
+                        {{ form.shipping_address }}
+                        <p class="text-xs text-gray-500 mt-1">تم ملء هذا الحقل تلقائياً من بيانات العميل المسجلة.</p>
+                    </div>
+                </div>
+
+                <div class="pt-4 border-t mt-4 flex justify-end gap-2">
+                    <a href="{% url 'order_list' %}" class="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300">إلغاء</a>
+                    <button type="submit" class="px-6 py-2 bg-teal-600 text-white rounded hover:bg-teal-700 font-bold">
+                        إنشاء الشحنة
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Simple logic to toggle shipping fields based on delivery type
+    const typeSelect = document.getElementById('delivery_type');
+    const shipFields = document.getElementById('shipping_fields');
+
+    function toggleFields() {
+        if(typeSelect.value === 'pickup') {
+            // Optional: Hide address/company fields if pickup is selected
+            // For now we keep them visible but you can hide them if you want logic:
+            // shipFields.style.display = 'none';
+        } else {
+            // shipFields.style.display = 'block';
+        }
+    }
+    
+    typeSelect.addEventListener('change', toggleFields);
+    toggleFields(); // Init
+</script>
+{% endblock %}

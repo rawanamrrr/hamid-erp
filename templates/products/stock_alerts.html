@@ -1,0 +1,137 @@
+{% extends 'base.html' %}
+{% block title %}تنبيهات المخزون{% endblock %}
+{% block content %}
+<div class="max-w-6xl mx-auto space-y-6">
+  <div class="flex items-center justify-between">
+    <div>
+      <h1 class="text-2xl font-bold text-gray-800">تنبيهات المخزون</h1>
+      <p class="text-sm text-gray-500 mt-1">{{ low_count }} منتج نواقص • {{ out_count }} منتج منتهي</p>
+    </div>
+    <div class="flex gap-2">
+      <a href="{% url 'purchase_order_create' %}" class="inline-flex items-center gap-2 bg-teal-600 hover:bg-teal-700 text-white px-4 py-2.5 rounded-xl font-semibold transition text-sm">
+        <i class="fas fa-shopping-cart"></i> إنشاء أمر شراء
+      </a>
+    </div>
+  </div>
+
+  <!-- Summary Cards -->
+  <div class="grid grid-cols-2 gap-4">
+    <div class="bg-orange-50 border border-orange-200 rounded-2xl p-4 flex items-center gap-4">
+      <div class="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center text-orange-600 text-xl">⚠️</div>
+      <div>
+        <p class="text-2xl font-bold text-orange-700">{{ low_count }}</p>
+        <p class="text-sm text-orange-600">منتج وصل للحد الأدنى</p>
+      </div>
+    </div>
+    <div class="bg-red-50 border border-red-200 rounded-2xl p-4 flex items-center gap-4">
+      <div class="w-12 h-12 bg-red-100 rounded-xl flex items-center justify-center text-red-600 text-xl">🚫</div>
+      <div>
+        <p class="text-2xl font-bold text-red-700">{{ out_count }}</p>
+        <p class="text-sm text-red-600">منتج مخزون منتهي</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+    <div class="flex border-b border-gray-100">
+      <button onclick="showTab('low')" id="tab-low" class="tab-btn active-tab flex-1 py-3 text-sm font-semibold">
+        ⚠️ نواقص ({{ low_count }})
+      </button>
+      <button onclick="showTab('out')" id="tab-out" class="tab-btn flex-1 py-3 text-sm font-semibold text-gray-500">
+        🚫 منتهي ({{ out_count }})
+      </button>
+    </div>
+
+    <!-- Low Stock Tab -->
+    <div id="panel-low" class="tab-panel">
+      <table class="w-full text-sm">
+        <thead class="bg-orange-50">
+          <tr>
+            <th class="px-4 py-3 text-right font-semibold text-gray-600">المنتج</th>
+            <th class="px-4 py-3 text-center font-semibold text-gray-600">القسم</th>
+            <th class="px-4 py-3 text-center font-semibold text-gray-600">الكمية الحالية</th>
+            <th class="px-4 py-3 text-center font-semibold text-gray-600">الحد الأدنى</th>
+            <th class="px-4 py-3 text-center font-semibold text-gray-600">المورد</th>
+            <th class="px-4 py-3 text-center font-semibold text-gray-600">إجراء</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in low_stock %}
+          <tr class="border-b border-gray-50 hover:bg-orange-50/50 transition">
+            <td class="px-4 py-3">
+              <a href="{% url 'product_detail' p.pk %}" class="font-medium text-gray-800 hover:text-teal-600">{{ p.name }}</a>
+              <p class="text-xs text-gray-400">{{ p.sku }}</p>
+            </td>
+            <td class="px-4 py-3 text-center text-gray-600">{{ p.category.name|default:"—" }}</td>
+            <td class="px-4 py-3 text-center">
+              <span class="bg-orange-100 text-orange-700 font-bold px-2 py-0.5 rounded-full">
+                {% if sys_settings.market_type == 'pharmacy' and p.strips_per_box > 1 %}
+                  {{ p.box_count }} ع-{{ p.remaining_strips }} ش
+                {% else %}
+                  {{ p.stock_quantity }}
+                {% endif %}
+              </span>
+            </td>
+            <td class="px-4 py-3 text-center text-gray-500">{{ p.low_stock_threshold }}</td>
+            <td class="px-4 py-3 text-center text-gray-600">{{ p.supplier.name|default:"—" }}</td>
+            <td class="px-4 py-3 text-center">
+              <a href="{% url 'purchase_order_create' %}?supplier={{ p.supplier_id|default:'' }}" class="text-teal-600 hover:text-teal-800 text-xs bg-teal-50 px-2 py-1 rounded-lg">
+                <i class="fas fa-shopping-cart ml-1"></i>أمر شراء
+              </a>
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="6" class="px-4 py-8 text-center text-gray-400">✅ لا توجد منتجات نواقص</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Out of Stock Tab -->
+    <div id="panel-out" class="tab-panel hidden">
+      <table class="w-full text-sm">
+        <thead class="bg-red-50">
+          <tr>
+            <th class="px-4 py-3 text-right font-semibold text-gray-600">المنتج</th>
+            <th class="px-4 py-3 text-center font-semibold text-gray-600">القسم</th>
+            <th class="px-4 py-3 text-center font-semibold text-gray-600">المورد</th>
+            <th class="px-4 py-3 text-center font-semibold text-gray-600">إجراء</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in out_of_stock %}
+          <tr class="border-b border-gray-50 hover:bg-red-50/50 transition">
+            <td class="px-4 py-3">
+              <a href="{% url 'product_detail' p.pk %}" class="font-medium text-gray-800 hover:text-teal-600">{{ p.name }}</a>
+              <p class="text-xs text-gray-400">{{ p.sku }}</p>
+            </td>
+            <td class="px-4 py-3 text-center text-gray-600">{{ p.category.name|default:"—" }}</td>
+            <td class="px-4 py-3 text-center text-gray-600">{{ p.supplier.name|default:"—" }}</td>
+            <td class="px-4 py-3 text-center">
+              <a href="{% url 'purchase_order_create' %}" class="text-teal-600 hover:text-teal-800 text-xs bg-teal-50 px-2 py-1 rounded-lg">
+                <i class="fas fa-shopping-cart ml-1"></i>أمر شراء
+              </a>
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="4" class="px-4 py-8 text-center text-gray-400">✅ لا توجد منتجات منتهية</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<style>
+.active-tab { color: #0d9488; border-bottom: 2px solid #0d9488; }
+</style>
+<script>
+function showTab(name) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active-tab'));
+  document.getElementById('panel-' + name).classList.remove('hidden');
+  document.getElementById('tab-' + name).classList.add('active-tab');
+}
+</script>
+{% endblock %}

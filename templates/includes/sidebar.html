@@ -1,0 +1,637 @@
+{% load rbac_tags %}
+<style>
+/* ── Top Navigation Bar ─────────────────────────────── */
+#topnav { position: relative; }
+
+.tnav-dropdown { position: relative; }
+
+.tnav-dropdown-menu {
+    display: none;
+    position: fixed;
+    min-width: 200px;
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.10);
+    z-index: 999;
+    padding: 6px;
+}
+
+.tnav-dropdown.open .tnav-dropdown-menu { display: block; }
+
+.tnav-link {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 8px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 700;
+    color: #374151;
+    white-space: nowrap;
+    transition: background 0.15s, color 0.15s;
+    cursor: pointer;
+    border: none;
+    background: none;
+    text-decoration: none;
+}
+.tnav-link:hover { background: #f3f4f6; color: #111827; }
+.tnav-link.active { background: #1e293b; color: #fff; }
+.tnav-link.active:hover { background: #0f172a; }
+
+/* Links inside the navigation row */
+#topnav-items .tnav-link { color: #fff; }
+#topnav-items .tnav-link i { color: #2dd4bf; }
+#topnav-items .tnav-link:hover { background: rgba(255,255,255,0.10); color: #fff; }
+#topnav-items .tnav-link.active { background: #0d9488; color: #fff; }
+#topnav-items .tnav-link.active:hover { background: #0f766e; }
+#topnav-items .tnav-link.active i { color: #fff; }
+
+.tnav-sub {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #4b5563;
+    text-decoration: none;
+    transition: background 0.15s, color 0.15s;
+    white-space: nowrap;
+}
+.tnav-sub:hover { background: #f9fafb; color: #111827; }
+.tnav-sub.active { color: #4f46e5; font-weight: 800; }
+.tnav-sub { break-inside: avoid; }
+
+.tnav-section-label {
+    font-size: 10px;
+    font-weight: 900;
+    color: #9ca3af;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    padding: 6px 12px 2px;
+    break-inside: avoid;
+    break-after: avoid;
+}
+
+#sidebar-stock-alert { display:none; }
+
+/* Hide nav items immediately (before JS re-shows favorites) to avoid a flash of the full navbar */
+html.fav-only-mode #topnav-items > *:not(.fav-show) { display: none; }
+</style>
+
+<!-- ══ TOP NAVIGATION BAR ══ -->
+<nav id="topnav" class="bg-white border-b border-gray-200 shadow-sm shrink-0 z-50 font-arabic">
+
+    <!-- Top row: brand + search + guide + notifications + user -->
+    <div class="flex items-center justify-between px-3 py-2 border-b border-gray-100 gap-2">
+
+        <!-- Brand -->
+        <a href="{% url 'dashboard' %}" class="flex items-center gap-2 shrink-0 px-2 group">
+            <div class="w-8 h-8 flex items-center justify-center bg-gradient-to-br from-slate-700 to-slate-900 text-white rounded-xl shadow-sm group-hover:rotate-6 transition-transform shrink-0">
+                {% if sys_settings.logo_base64 %}
+                    <img src="{{ sys_settings.logo_base64 }}" alt="Logo" class="max-w-[80%] max-h-[80%] object-contain rounded">
+                {% else %}
+                    <i class="fas fa-store text-xs"></i>
+                {% endif %}
+            </div>
+            <span class="text-sm font-black text-gray-900 hidden lg:block truncate max-w-[160px]">{{ sys_settings.shop_name|default:"نظام المبيعات" }}</span>
+        </a>
+
+        <!-- ── Right tools ── -->
+        <div class="flex items-center gap-1 shrink-0">
+
+            <!-- User Guide -->
+            <a href="{% url 'user_guide' %}" class="tnav-link hidden md:flex" title="دليل المستخدم">
+                <i class="fas fa-book-open text-xs text-teal-500"></i>
+                <span class="hidden xl:inline text-xs">الدليل</span>
+            </a>
+
+            {% if request.user|can_access:"settings:view" or request.user.is_superuser %}
+            <!-- إعدادات النظام (icon-only) -->
+            <a href="{% url 'settings_view' %}" class="tnav-link {% if 'settings' in request.path %}active{% endif %}" title="إعدادات النظام">
+                <i class="fas fa-gear text-xs"></i>
+            </a>
+            {% endif %}
+
+            <!-- Favorites toggle: filters navbar to show only saved shortcuts -->
+            <button type="button" id="favToggleBtn" class="tnav-link" onclick="toggleFavOnly()" title="إظهار المفضلة فقط">
+                <i class="fas fa-star text-xs text-gray-400" id="favStarIcon"></i>
+            </button>
+
+            <!-- Notifications -->
+            <div class="relative" id="notification-container">
+                <button onclick="toggleNotifications()" class="tnav-link relative" title="الإشعارات">
+                    <i class="fas fa-bell text-xs"></i>
+                    <span id="notification-badge" class="hidden absolute -top-1 -right-1 w-4 h-4 text-[9px] font-black text-white bg-red-500 rounded-full flex items-center justify-center">0</span>
+                </button>
+                <div id="notification-dropdown" class="absolute left-0 mt-2 w-80 bg-white border border-gray-200 rounded-xl shadow-2xl z-50 hidden" style="top:100%">
+                    <div class="px-4 py-3 border-b border-gray-100 flex justify-between items-center">
+                        <h3 class="text-sm font-black text-gray-700">الإشعارات</h3>
+                        <button onclick="markAllRead()" class="text-xs text-teal-600 hover:underline font-bold">قراءة الكل</button>
+                    </div>
+                    <ul id="notification-list" class="max-h-64 overflow-y-auto divide-y divide-gray-100">
+                        <li class="px-4 py-3 text-sm text-gray-500 text-center">لا توجد إشعارات جديدة</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Search -->
+            <div class="relative hidden lg:block">
+                <form action="{% url 'global_search' %}" method="GET" class="flex items-center">
+                    <div class="relative">
+                        <i class="fas fa-search absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none"></i>
+                        <input type="text" name="q" value="{{ request.GET.q }}" placeholder="بحث..." class="w-40 xl:w-56 h-8 pr-8 pl-3 text-xs font-bold text-gray-700 bg-gray-50 border border-gray-200 rounded-lg focus:border-teal-400 focus:ring-2 focus:ring-teal-100 focus:bg-white outline-none transition-all">
+                    </div>
+                </form>
+            </div>
+
+            <!-- User menu -->
+            <div class="tnav-dropdown" id="dd-user">
+                <button type="button" class="tnav-link" onclick="toggleDd('dd-user')">
+                    <div class="w-6 h-6 rounded-lg bg-gradient-to-br from-teal-600 to-emerald-600 text-white text-[10px] font-black flex items-center justify-center shrink-0">
+                        {{ request.user.first_name|first|default:request.user.username|first|upper }}
+                    </div>
+                    <span class="hidden md:block text-xs max-w-[80px] truncate">{{ request.user.first_name|default:request.user.username }}</span>
+                    <i class="fas fa-chevron-down text-[9px] opacity-50"></i>
+                </button>
+                <div class="tnav-dropdown-menu" style="min-width:190px;">
+                    <div class="px-3 py-2 border-b border-gray-100 mb-1">
+                        <p class="text-sm font-black text-gray-900">{{ request.user.get_full_name|default:request.user.username }}</p>
+                        {% if request.user.profile.is_master %}
+                        <p class="text-[10px] text-amber-600 font-black flex items-center gap-1"><i class="fas fa-crown text-[9px]"></i> مالك النظام</p>
+                        {% else %}
+                        <p class="text-[10px] text-gray-400 font-bold">{{ request.user.groups.first.name|default:"مسؤول" }}</p>
+                        {% endif %}
+                        {% if system_license %}
+                        <a href="{% url 'license_activation' %}" class="text-[10px] font-bold mt-0.5 flex items-center gap-1
+                            {% if system_license.system_locked or not system_license.is_signature_valid %}text-red-500
+                            {% elif system_license.is_grace_period_active %}text-amber-500
+                            {% elif system_license.days_remaining <= 7 %}text-orange-500
+                            {% else %}text-gray-400{% endif %}">
+                            <i class="fas {% if system_license.system_locked %}fa-lock{% elif not system_license.is_signature_valid %}fa-triangle-exclamation{% else %}fa-calendar-check{% endif %} text-[9px]"></i>
+                            {% if system_license.system_locked %}نظام مقفل{% elif not system_license.is_signature_valid %}اشتراك منتهٍ{% elif system_license.is_grace_period_active %}سماح: {{ system_license.formatted_remaining }}{% else %}{{ system_license.formatted_remaining }} متبقٍ{% endif %}
+                        </a>
+                        {% endif %}
+                    </div>
+                    <a href="{% url 'customize_shortcuts' %}" class="tnav-sub"><i class="fas fa-star text-amber-400 w-4"></i> المفضلة</a>
+                    {% url 'my_profile' as my_profile_url %}
+                    <a href="{{ my_profile_url }}" class="tnav-sub"><i class="fas fa-user text-teal-400 w-4"></i> ملفي الشخصي</a>
+                    <div class="border-t border-gray-100 my-1"></div>
+                    <a href="{% url 'logout' %}" class="tnav-sub text-red-500 hover:text-red-600"><i class="fas fa-power-off w-4"></i> تسجيل خروج</a>
+                </div>
+            </div>
+
+            <!-- Browser-style page navigation (the desktop app window has no native
+                 back/forward controls, so we add our own at the outer edge, like a browser toolbar) -->
+            <div class="flex items-center gap-0.5 shrink-0 border-r border-gray-200 pr-1.5 mr-0.5">
+                <button type="button" onclick="window.history.forward()" class="tnav-link" title="التالي">
+                    <i class="fas fa-arrow-right text-xs"></i>
+                </button>
+                <button type="button" onclick="window.history.back()" class="tnav-link" title="رجوع">
+                    <i class="fas fa-arrow-left text-xs"></i>
+                </button>
+            </div>
+        </div>
+        <!-- End Right Tools -->
+    </div>
+
+    <!-- Bottom row: navigation links (wraps to a new row instead of scrolling) -->
+    <div class="flex items-start px-3 py-1.5 gap-1 min-h-12 bg-slate-900">
+        <div class="flex items-center flex-nowrap gap-0.5 flex-1 py-1 overflow-x-auto no-scrollbar" id="topnav-items">
+
+            <!-- الرئيسية -->
+            <a href="{% url 'dashboard' %}" class="tnav-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">
+                <i class="fas fa-th-large text-xs"></i>
+                <span>الرئيسية</span>
+            </a>
+
+            <!-- الكاشير -->
+            <a href="{% url 'pos_view' %}" class="tnav-link {% if '/sales/pos/' in request.path %}active{% endif %}">
+                <i class="fas fa-calculator text-xs"></i>
+                <span>الكاشير</span>
+            </a>
+
+            {% if request.user|can_access:"pos:view" or request.user.is_superuser %}
+            <!-- شاشة الويتر -->
+            <a href="{% url 'restaurant:waiter_tables' %}" class="tnav-link {% with vn=request.resolver_match.view_name %}{% if vn == 'restaurant:waiter_tables' or vn == 'restaurant:waiter_order' %}active{% endif %}{% endwith %}">
+                <i class="fas fa-chair text-xs"></i>
+                <span>الويتر</span>
+            </a>
+
+            <!-- شاشة الكاشير: قائمة الطلبات الواردة -->
+            <a href="{% url 'restaurant:cashier_dashboard' %}" class="tnav-link {% if request.resolver_match.view_name == 'restaurant:cashier_dashboard' %}active{% endif %}">
+                <i class="fas fa-cash-register text-xs"></i>
+                <span>الطلبات الواردة</span>
+            </a>
+
+            <!-- شاشة المطبخ -->
+            <a href="{% url 'restaurant:kds' %}" class="tnav-link {% if request.resolver_match.view_name == 'restaurant:kds' %}active{% endif %}">
+                <i class="fas fa-kitchen-set text-xs"></i>
+                <span>المطبخ</span>
+            </a>
+
+            <!-- شاشة الدليفري -->
+            <a href="{% url 'restaurant:delivery_dashboard' %}" class="tnav-link {% if request.resolver_match.view_name == 'restaurant:delivery_dashboard' %}active{% endif %}">
+                <i class="fas fa-motorcycle text-xs"></i>
+                <span>الدليفري</span>
+            </a>
+
+            <!-- الجرد والودائع dropdown -->
+            <div class="tnav-dropdown" id="dd-restaurant">
+                {% with vn=request.resolver_match.view_name %}
+                <button type="button" class="tnav-link {% if 'restaurant:' in vn %}active{% endif %}" onclick="toggleDd('dd-restaurant')">
+                    <i class="fas fa-mug-saucer text-xs"></i>
+                    <span>الجرد والودائع</span>
+                    <i class="fas fa-chevron-down text-[9px] opacity-50"></i>
+                </button>
+                <div class="tnav-dropdown-menu" style="min-width:200px">
+                    <a href="{% url 'restaurant:custody_list' %}" class="tnav-sub {% if vn == 'restaurant:custody_list' %}active{% endif %}"><i class="fas fa-hand-holding-dollar text-red-400 w-4"></i> الودائع (وديعة)</a>
+                    <a href="{% url 'restaurant:reconciliation_report' %}" class="tnav-sub {% if vn == 'restaurant:reconciliation_report' %}active{% endif %}"><i class="fas fa-scale-balanced text-emerald-400 w-4"></i> تقرير الجرد اليومي</a>
+                    <a href="{% url 'restaurant:waiter_sales_report' %}" class="tnav-sub {% if vn == 'restaurant:waiter_sales_report' %}active{% endif %}"><i class="fas fa-chart-column text-slate-400 w-4"></i> ريبورت مبيعات الويترز</a>
+                    <a href="{% url 'restaurant:driver_owed_report' %}" class="tnav-sub {% if vn == 'restaurant:driver_owed_report' %}active{% endif %}"><i class="fas fa-clipboard-list text-slate-400 w-4"></i> ريبورت مديونية الطيارين</a>
+                    <a href="{% url 'restaurant:category_sales_report' %}" class="tnav-sub {% if vn == 'restaurant:category_sales_report' %}active{% endif %}"><i class="fas fa-layer-group text-slate-400 w-4"></i> مبيعات كل قسم</a>
+                    <a href="{% url 'restaurant:product_sales_report' %}" class="tnav-sub {% if vn == 'restaurant:product_sales_report' %}active{% endif %}"><i class="fas fa-mug-hot text-slate-400 w-4"></i> أفضل الأصناف مبيعاً</a>
+                    <a href="{% url 'restaurant:raw_material_usage_report' %}" class="tnav-sub {% if vn == 'restaurant:raw_material_usage_report' %}active{% endif %}"><i class="fas fa-flask text-teal-400 w-4"></i> استهلاك المواد الخام</a>
+                    <a href="{% url 'restaurant:setup' %}" class="tnav-sub {% if vn == 'restaurant:setup' %}active{% endif %}"><i class="fas fa-gear text-slate-400 w-4"></i> إعداد الترابيزات والطيارين</a>
+                </div>
+                {% endwith %}
+            </div>
+            {% endif %}
+
+            {% if request.user|can_access:"financial:view" or request.user.is_superuser %}
+            <!-- الخزنة والشيفتات dropdown -->
+            <div class="tnav-dropdown" id="dd-vault">
+                {% with vn=request.resolver_match.view_name %}
+                <button type="button" class="tnav-link {% if vn == 'financial:dashboard' or vn == 'financial:start_shift' or vn == 'financial:shift_history' or vn == 'financial:shift_x_report' or vn == 'financial:add_transaction' or vn == 'financial:withdrawal' or vn == 'financial:account_list' or vn == 'financial:account_create' %}active{% endif %}" onclick="toggleDd('dd-vault')">
+                    <i class="fas fa-vault text-xs"></i>
+                    <span>الخزنة والشيفتات</span>
+                    <i class="fas fa-chevron-down text-[9px] opacity-50"></i>
+                </button>
+                <div class="tnav-dropdown-menu" style="min-width:200px">
+                    <a href="{% url 'financial:dashboard' %}" class="tnav-sub {% if vn == 'financial:dashboard' %}active{% endif %}"><i class="fas fa-vault text-teal-400 w-4"></i> لوحة الخزنة</a>
+                    <a href="{% url 'financial:start_shift' %}" class="tnav-sub {% if vn == 'financial:start_shift' %}active{% endif %}"><i class="fas fa-door-open text-emerald-400 w-4"></i> فتح وردية</a>
+                    <a href="{% url 'financial:shift_history' %}" class="tnav-sub {% if vn == 'financial:shift_history' %}active{% endif %}"><i class="fas fa-clock-rotate-left text-slate-400 w-4"></i> سجل الورديات</a>
+                    <a href="{% url 'financial:shift_x_report' %}" class="tnav-sub {% if vn == 'financial:shift_x_report' %}active{% endif %}"><i class="fas fa-receipt text-indigo-400 w-4"></i> تقرير الوردية (X)</a>
+                    <a href="{% url 'financial:add_transaction' %}" class="tnav-sub {% if vn == 'financial:add_transaction' %}active{% endif %}"><i class="fas fa-plus text-emerald-400 w-4"></i> إضافة عملية مالية</a>
+                    <a href="{% url 'financial:withdrawal' %}" class="tnav-sub {% if vn == 'financial:withdrawal' %}active{% endif %}"><i class="fas fa-hand-holding-dollar text-red-400 w-4"></i> سحب نقدي</a>
+                    <a href="{% url 'financial:account_list' %}" class="tnav-sub {% if vn == 'financial:account_list' %}active{% endif %}"><i class="fas fa-book text-slate-400 w-4"></i> دليل الحسابات</a>
+                    <a href="{% url 'financial:account_create' %}" class="tnav-sub {% if vn == 'financial:account_create' %}active{% endif %}"><i class="fas fa-plus text-slate-400 w-4"></i> إضافة حساب مالي</a>
+                </div>
+                {% endwith %}
+            </div>
+            {% endif %}
+
+            {% if request.user|can_access:"sales:view" or request.user.is_superuser %}
+            <!-- المبيعات dropdown -->
+            <div class="tnav-dropdown" id="dd-sales">
+                {% with vn=request.resolver_match.view_name %}
+                <button type="button" class="tnav-link {% if '/sales/' in request.path and '/sales/pos/' not in request.path %}active{% endif %}" onclick="toggleDd('dd-sales')">
+                    <i class="fas fa-chart-line text-xs"></i>
+                    <span>المبيعات</span>
+                    <i class="fas fa-chevron-down text-[9px] opacity-50"></i>
+                </button>
+                <div class="tnav-dropdown-menu" style="min-width:240px; max-height:70vh; overflow-y:auto;">
+                    <a href="{% url 'order_list' %}" class="tnav-sub {% if vn == 'order_list' %}active{% endif %}"><i class="fas fa-file-invoice text-indigo-400 w-4"></i> سجل الفواتير</a>
+                    <a href="{% url 'voided_register' %}" class="tnav-sub {% if vn == 'voided_register' %}active{% endif %}"><i class="fas fa-ban text-red-400 w-4"></i> الفواتير الملغاة</a>
+                    <a href="{% url 'sold_items_list' %}" class="tnav-sub {% if vn == 'sold_items_list' %}active{% endif %}"><i class="fas fa-boxes-stacked text-teal-400 w-4"></i> مبيعات الأصناف</a>
+                    <a href="{% url 'sold_items_report' %}" class="tnav-sub {% if vn == 'sold_items_report' %}active{% endif %}"><i class="fas fa-chart-simple text-teal-400 w-4"></i> تقرير مبيعات الأصناف</a>
+                    <a href="{% url 'refund_view' %}" class="tnav-sub {% if vn == 'refund_view' %}active{% endif %}"><i class="fas fa-rotate-left text-rose-400 w-4"></i> مرتجع جديد</a>
+                    <a href="{% url 'returns_register' %}" class="tnav-sub {% if vn == 'returns_register' %}active{% endif %}"><i class="fas fa-clock-rotate-left text-rose-400 w-4"></i> سجل المرتجعات</a>
+                    <a href="{% url 'oversold_register' %}" class="tnav-sub {% if vn == 'oversold_register' %}active{% endif %}"><i class="fas fa-triangle-exclamation text-amber-500 w-4"></i> سجل مبيعات تجاوزت المخزون المتاح</a>
+                    <a href="{% url 'expense_list' %}" class="tnav-sub {% if vn == 'expense_list' %}active{% endif %}"><i class="fas fa-receipt text-orange-400 w-4"></i> المصروفات</a>
+                </div>
+                {% endwith %}
+            </div>
+
+            <!-- التقارير dropdown -->
+            <div class="tnav-dropdown" id="dd-reports">
+                {% with vn=request.resolver_match.view_name %}
+                <button type="button" class="tnav-link {% if vn == 'financial:salary_list' or vn == 'financial:advance_list' or vn == 'financial:deal_list' or vn == 'financial:daily_summary' or vn == 'financial:profitability' or vn == 'financial:sales_analytics' or vn == 'financial:financial_position' or vn == 'financial:income_statement' or vn == 'financial:trial_balance' or vn == 'financial:vat_report' %}active{% endif %}" onclick="toggleDd('dd-reports')">
+                    <i class="fas fa-chart-pie text-xs"></i>
+                    <span>التقارير</span>
+                    <i class="fas fa-chevron-down text-[9px] opacity-50"></i>
+                </button>
+                <div class="tnav-dropdown-menu" style="min-width:240px; max-height:70vh; overflow-y:auto;">
+                    <p class="tnav-section-label">الموظفون</p>
+                    <a href="{% url 'financial:salary_list' %}" class="tnav-sub {% if vn == 'financial:salary_list' %}active{% endif %}"><i class="fas fa-money-bill-wave text-green-400 w-4"></i> رواتب الموظفين</a>
+                    <a href="{% url 'financial:advance_list' %}" class="tnav-sub {% if vn == 'financial:advance_list' %}active{% endif %}"><i class="fas fa-hand-holding-dollar text-green-400 w-4"></i> السلف</a>
+                    <a href="{% url 'financial:deal_list' %}" class="tnav-sub {% if vn == 'financial:deal_list' %}active{% endif %}"><i class="fas fa-tags text-purple-400 w-4"></i> العروض والخصومات</a>
+
+                    <p class="tnav-section-label">التقارير المالية</p>
+                    <a href="{% url 'financial:daily_summary' %}" class="tnav-sub {% if vn == 'financial:daily_summary' %}active{% endif %}"><i class="fas fa-calendar-day text-indigo-400 w-4"></i> ملخص اليوم</a>
+                    <a href="{% url 'financial:profitability' %}" class="tnav-sub {% if vn == 'financial:profitability' %}active{% endif %}"><i class="fas fa-sack-dollar text-emerald-400 w-4"></i> الربحية</a>
+                    <a href="{% url 'financial:sales_analytics' %}" class="tnav-sub {% if vn == 'financial:sales_analytics' %}active{% endif %}"><i class="fas fa-chart-line text-blue-400 w-4"></i> تحليلات المبيعات</a>
+                    <a href="{% url 'financial:financial_position' %}" class="tnav-sub {% if vn == 'financial:financial_position' %}active{% endif %}"><i class="fas fa-scale-unbalanced text-slate-400 w-4"></i> المركز المالي</a>
+                    <a href="{% url 'financial:income_statement' %}" class="tnav-sub {% if vn == 'financial:income_statement' %}active{% endif %}"><i class="fas fa-chart-pie text-fuchsia-400 w-4"></i> قائمة الدخل</a>
+                    <a href="{% url 'financial:trial_balance' %}" class="tnav-sub {% if vn == 'financial:trial_balance' %}active{% endif %}"><i class="fas fa-balance-scale text-slate-400 w-4"></i> ميزان المراجعة</a>
+                    <a href="{% url 'financial:vat_report' %}" class="tnav-sub {% if vn == 'financial:vat_report' %}active{% endif %}"><i class="fas fa-percent text-amber-400 w-4"></i> تقرير ضريبة القيمة المضافة</a>
+                </div>
+                {% endwith %}
+            </div>
+            {% endif %}
+
+            {% if request.user|can_access:"products:view" or request.user.is_superuser %}
+            <!-- إدارة المستودعات dropdown -->
+            <div class="tnav-dropdown" id="dd-warehouses">
+                {% with vn=request.resolver_match.view_name %}
+                <button type="button" class="tnav-link {% if vn == 'warehouse_list' or vn == 'warehouse_create' or vn == 'stock_transfer' or vn == 'transaction_list' or vn == 'transaction_create' or vn == 'stocktake_list' or vn == 'stock_alerts' or vn == 'stock_valuation' or vn == 'expiry_report' %}active{% endif %}" onclick="toggleDd('dd-warehouses')">
+                    <i class="fas fa-warehouse text-xs"></i>
+                    <span>إدارة المستودعات</span>
+                    <i class="fas fa-chevron-down text-[9px] opacity-50"></i>
+                </button>
+                <div class="tnav-dropdown-menu" style="min-width:220px; max-height:70vh; overflow-y:auto;">
+                    <a href="{% url 'raw_material_list' %}" class="tnav-sub {% if vn == 'raw_material_list' %}active{% endif %}"><i class="fas fa-flask text-teal-400 w-4"></i> المواد الخام (خامات)</a>
+                    <a href="{% url 'warehouse_list' %}" class="tnav-sub {% if vn == 'warehouse_list' %}active{% endif %}"><i class="fas fa-warehouse text-emerald-400 w-4"></i> قائمة المستودعات</a>
+                    <a href="{% url 'warehouse_create' %}" class="tnav-sub {% if vn == 'warehouse_create' %}active{% endif %}"><i class="fas fa-plus text-emerald-400 w-4"></i> إضافة مخزن</a>
+                    <a href="{% url 'stock_transfer' %}" class="tnav-sub {% if vn == 'stock_transfer' %}active{% endif %}"><i class="fas fa-right-left text-blue-400 w-4"></i> تحويل بين المستودعات</a>
+                    <a href="{% url 'transaction_list' %}" class="tnav-sub {% if vn == 'transaction_list' %}active{% endif %}"><i class="fas fa-arrows-rotate text-blue-400 w-4"></i> حركة المخزون</a>
+                    <a href="{% url 'transaction_create' %}" class="tnav-sub {% if vn == 'transaction_create' %}active{% endif %}"><i class="fas fa-plus text-blue-400 w-4"></i> إضافة حركة مخزون</a>
+                    <a href="{% url 'stocktake_list' %}" class="tnav-sub {% if vn == 'stocktake_list' %}active{% endif %}"><i class="fas fa-clipboard-check text-purple-400 w-4"></i> الجرد</a>
+                    <a href="{% url 'stock_alerts' %}" class="tnav-sub {% if vn == 'stock_alerts' %}active{% endif %}"><i class="fas fa-triangle-exclamation text-red-400 w-4"></i> تنبيهات النواقص</a>
+                    <a href="{% url 'stock_valuation' %}" class="tnav-sub {% if vn == 'stock_valuation' %}active{% endif %}"><i class="fas fa-coins text-amber-400 w-4"></i> تقييم المخزون</a>
+                    <a href="{% url 'expiry_report' %}" class="tnav-sub {% if vn == 'expiry_report' %}active{% endif %}"><i class="fas fa-hourglass-end text-rose-400 w-4"></i> تقرير الصلاحية</a>
+                </div>
+                {% endwith %}
+            </div>
+
+            <!-- المشتريات والموردين dropdown -->
+            <div class="tnav-dropdown" id="dd-purchasing">
+                {% with vn=request.resolver_match.view_name %}
+                <button type="button" class="tnav-link {% if vn == 'supplier_list' or vn == 'supplier_create' or vn == 'supplier_price_comparison' or vn == 'purchase_invoice_create' or vn == 'purchase_invoice_list' or vn == 'purchase_return_create' or vn == 'purchase_order_list' or vn == 'purchase_order_create' or vn == 'ap_aging' %}active{% endif %}" onclick="toggleDd('dd-purchasing')">
+                    <i class="fas fa-truck-loading text-xs"></i>
+                    <span>المشتريات والموردين</span>
+                    <i class="fas fa-chevron-down text-[9px] opacity-50"></i>
+                </button>
+                <div class="tnav-dropdown-menu" style="min-width:220px; max-height:70vh; overflow-y:auto;">
+                    <a href="{% url 'supplier_list' %}" class="tnav-sub {% if vn == 'supplier_list' %}active{% endif %}"><i class="fas fa-truck text-orange-400 w-4"></i> قائمة الموردين</a>
+                    <a href="{% url 'supplier_create' %}" class="tnav-sub {% if vn == 'supplier_create' %}active{% endif %}"><i class="fas fa-plus text-orange-400 w-4"></i> إضافة مورد</a>
+                    <a href="{% url 'supplier_price_comparison' %}" class="tnav-sub {% if vn == 'supplier_price_comparison' %}active{% endif %}"><i class="fas fa-scale-balanced text-orange-400 w-4"></i> مقارنة أسعار الموردين</a>
+                    <a href="{% url 'purchase_invoice_create' %}" class="tnav-sub {% if vn == 'purchase_invoice_create' %}active{% endif %}"><i class="fas fa-file-circle-plus text-indigo-400 w-4"></i> فاتورة شراء جديدة</a>
+                    <a href="{% url 'purchase_invoice_list' %}" class="tnav-sub {% if vn == 'purchase_invoice_list' %}active{% endif %}"><i class="fas fa-file-invoice text-indigo-400 w-4"></i> سجل فواتير الشراء</a>
+                    <a href="{% url 'purchase_return_create' %}" class="tnav-sub {% if vn == 'purchase_return_create' %}active{% endif %}"><i class="fas fa-rotate-left text-rose-400 w-4"></i> مرتجع شراء</a>
+                    <a href="{% url 'purchase_order_list' %}" class="tnav-sub {% if vn == 'purchase_order_list' %}active{% endif %}"><i class="fas fa-clipboard-list text-slate-400 w-4"></i> أوامر الشراء (PO)</a>
+                    <a href="{% url 'purchase_order_create' %}" class="tnav-sub {% if vn == 'purchase_order_create' %}active{% endif %}"><i class="fas fa-plus text-slate-400 w-4"></i> إضافة أمر شراء</a>
+                    <a href="{% url 'ap_aging' %}" class="tnav-sub {% if vn == 'ap_aging' %}active{% endif %}"><i class="fas fa-hourglass-half text-amber-400 w-4"></i> أعمار ديون الموردين</a>
+                    <div id="sidebar-stock-alert" class="hidden mx-3 mt-1 px-2 py-1 bg-red-50 text-red-600 text-[11px] font-bold rounded-lg flex items-center gap-1.5">
+                        <i class="fas fa-triangle-exclamation text-xs"></i> تنبيه: أصناف منتهية
+                    </div>
+                </div>
+                {% endwith %}
+            </div>
+            {% endif %}
+
+            {% if request.user|can_access:"crm:view" or request.user.is_superuser %}
+            <!-- قاعدة بيانات العملاء dropdown -->
+            <div class="tnav-dropdown" id="dd-customers">
+                {% with vn=request.resolver_match.view_name %}
+                <button type="button" class="tnav-link {% if vn == 'customer_list' or vn == 'customer_create' or vn == 'customer_import' or vn == 'ar_aging' %}active{% endif %}" onclick="toggleDd('dd-customers')">
+                    <i class="fas fa-users-viewfinder text-xs"></i>
+                    <span>قاعدة بيانات العملاء</span>
+                    <i class="fas fa-chevron-down text-[9px] opacity-50"></i>
+                </button>
+                <div class="tnav-dropdown-menu" style="min-width:200px">
+                    <a href="{% url 'customer_list' %}" class="tnav-sub {% if vn == 'customer_list' %}active{% endif %}"><i class="fas fa-users text-indigo-400 w-4"></i> قائمة العملاء</a>
+                    <a href="{% url 'customer_create' %}" class="tnav-sub {% if vn == 'customer_create' %}active{% endif %}"><i class="fas fa-user-plus text-indigo-400 w-4"></i> إضافة عميل</a>
+                    <a href="{% url 'customer_list' %}?import=1" class="tnav-sub {% if vn == 'customer_import' %}active{% endif %}"><i class="fas fa-file-import text-teal-400 w-4"></i> استيراد عملاء</a>
+                    <a href="{% url 'ar_aging' %}" class="tnav-sub {% if vn == 'ar_aging' %}active{% endif %}"><i class="fas fa-hourglass-half text-amber-400 w-4"></i> أعمار ديون العملاء</a>
+                </div>
+                {% endwith %}
+            </div>
+            {% endif %}
+
+            {% if request.user|can_access:"products:view" or request.user.is_superuser %}
+            <!-- إدارة الأصناف dropdown -->
+            <div class="tnav-dropdown" id="dd-products">
+                {% with vn=request.resolver_match.view_name %}
+                <button type="button" class="tnav-link {% if vn == 'product_list' or vn == 'product_create' or vn == 'bulk_product_add' or vn == 'import_products_excel' or vn == 'low_stock_report' or vn == 'costing_view' or vn == 'category_list' or vn == 'kind_list' or vn == 'unit_list' %}active{% endif %}" onclick="toggleDd('dd-products')">
+                    <i class="fas fa-barcode text-xs"></i>
+                    <span>إدارة المنيو</span>
+                    <i class="fas fa-chevron-down text-[9px] opacity-50"></i>
+                </button>
+                <div class="tnav-dropdown-menu" style="min-width:210px; max-height:70vh; overflow-y:auto;">
+                    <a href="{% url 'product_list' %}" class="tnav-sub {% if vn == 'product_list' %}active{% endif %}"><i class="fas fa-list text-teal-400 w-4"></i> قائمة الأصناف</a>
+                    <a href="{% url 'product_create' %}" class="tnav-sub {% if vn == 'product_create' %}active{% endif %}"><i class="fas fa-plus text-teal-400 w-4"></i> إضافة صنف</a>
+                    {% if market_type != 'cafe' %}
+                    <a href="{% url 'bulk_product_add' %}" class="tnav-sub {% if vn == 'bulk_product_add' %}active{% endif %}"><i class="fas fa-layer-group text-teal-400 w-4"></i> إضافة أصناف بالجملة</a>
+                    {% endif %}
+                    <a href="{% url 'product_list' %}?import=1" class="tnav-sub {% if vn == 'import_products_excel' %}active{% endif %}"><i class="fas fa-file-import text-teal-400 w-4"></i> استيراد أصناف</a>
+                    <a href="{% url 'low_stock_report' %}" class="tnav-sub {% if vn == 'low_stock_report' %}active{% endif %}"><i class="fas fa-triangle-exclamation text-red-400 w-4"></i> النواقص</a>
+                    <a href="{% url 'costing_view' %}" class="tnav-sub {% if vn == 'costing_view' %}active{% endif %}"><i class="fas fa-calculator text-emerald-400 w-4"></i> أداة التكليف</a>
+                    <p class="tnav-section-label">الفئات والتصنيفات</p>
+                    <a href="{% url 'category_list' %}" class="tnav-sub {% if vn == 'category_list' %}active{% endif %}"><i class="fas fa-folder-tree text-indigo-400 w-4"></i> الفئات (الكاتيجوري)</a>
+                    <a href="{% url 'kind_list' %}" class="tnav-sub {% if vn == 'kind_list' %}active{% endif %}"><i class="fas fa-tags text-indigo-400 w-4"></i> الأنواع</a>
+                    <a href="{% url 'size_list' %}" class="tnav-sub {% if vn == 'size_list' %}active{% endif %}"><i class="fas fa-ruler text-indigo-400 w-4"></i> الأحجام</a>
+                    <a href="{% url 'restaurant:modifier_group_list' %}" class="tnav-sub {% if vn == 'restaurant:modifier_group_list' %}active{% endif %}"><i class="fas fa-list-check text-indigo-400 w-4"></i> الإضافات والاختيارات</a>
+                    <a href="{% url 'unit_list' %}" class="tnav-sub {% if vn == 'unit_list' %}active{% endif %}"><i class="fas fa-weight-hanging text-indigo-400 w-4"></i> وحدات القياس</a>
+                </div>
+                {% endwith %}
+            </div>
+            {% endif %}
+
+            {% if request.user|can_access:"users:view" or request.user.is_superuser %}
+            <!-- الأدوار والصلاحيات dropdown -->
+            <div class="tnav-dropdown" id="dd-roles">
+                <button type="button" class="tnav-link {% if 'users' in request.path and 'logs' not in request.path and 'error' not in request.path %}active{% endif %}" onclick="toggleDd('dd-roles')">
+                    <i class="fas fa-user-shield text-xs"></i>
+                    <span>الأدوار والصلاحيات</span>
+                    <i class="fas fa-chevron-down text-[9px] opacity-50"></i>
+                </button>
+                <div class="tnav-dropdown-menu" style="min-width:180px">
+                    <a href="{% url 'user_list' %}" class="tnav-sub {% if 'users' in request.path and 'logs' not in request.path and 'error' not in request.path %}active{% endif %}"><i class="fas fa-users-gear text-indigo-400 w-4"></i> المستخدمين</a>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Master-only dropdown -->
+            {% if request.user.profile.is_master %}
+            <div class="tnav-dropdown" id="dd-master">
+                <button type="button" class="tnav-link {% if 'logs' in request.path or 'error' in request.path or 'approvals' in request.path or 'transactions' in request.path or 'history' in request.path or 'licensing' in request.path or 'roles' in request.path %}active{% endif %}" onclick="toggleDd('dd-master')">
+                    <i class="fas fa-crown text-amber-500 text-xs"></i>
+                    <span>أدوات المالك</span>
+                    <i class="fas fa-chevron-down text-[9px] opacity-50"></i>
+                </button>
+                <div class="tnav-dropdown-menu" style="min-width:220px">
+                    <a href="{% url 'license_activation' %}" class="tnav-sub {% if 'licensing' in request.path %}active{% endif %}"><i class="fas fa-key text-amber-400 w-4"></i> إدارة الترخيص</a>
+                    <a href="{% url 'activity_logs' %}" class="tnav-sub {% if 'logs' in request.path %}active{% endif %}"><i class="fas fa-clipboard-list text-blue-400 w-4"></i> سجل الأنشطة</a>
+                    {% if request.user|can_access:"sales:manage" or request.user.is_superuser %}
+                    <a href="{% url 'approvals_log' %}" class="tnav-sub {% if 'approvals' in request.path %}active{% endif %}"><i class="fas fa-user-shield text-indigo-400 w-4"></i> سجل الاعتمادات</a>
+                    {% endif %}
+                    <a href="{% url 'error_history' %}" class="tnav-sub {% if 'error' in request.path %}active{% endif %}"><i class="fas fa-triangle-exclamation text-red-400 w-4"></i> سجل الأخطاء</a>
+                    <a href="{% url 'financial:all_transactions' %}" class="tnav-sub {% if 'transactions' in request.path %}active{% endif %}"><i class="fas fa-money-bill-transfer text-green-400 w-4"></i> كل الحركات المالية</a>
+                    <a href="{% url 'financial:shift_history' %}" class="tnav-sub {% if 'history' in request.path %}active{% endif %}"><i class="fas fa-clock-rotate-left text-slate-400 w-4"></i> سجل الورديات</a>
+                    {% if request.user.is_superuser %}
+                    <a href="{% url 'role_list' %}" class="tnav-sub {% if 'roles' in request.path %}active{% endif %}"><i class="fas fa-key text-amber-400 w-4"></i> إدارة الأدوار</a>
+                    {% endif %}
+                    <a href="{% url 'settings_view' %}" class="tnav-sub"><i class="fas fa-store text-amber-400 w-4"></i> نوع المتجر: {{ sys_settings.get_market_type_display|default:"غير محدد" }}</a>
+                </div>
+            </div>
+            {% endif %}
+
+        </div>
+        <!-- End Nav Items -->
+    </div>
+
+    <!-- Favorites JSON (kept for compatibility) -->
+    {{ user_favorites|json_script:"fav-urls-data" }}
+</nav>
+
+<!-- Audio for notifications -->
+<audio id="notification-sound" src="{% if sys_settings.notification_sound %}{{ sys_settings.notification_sound.url }}{% else %}/static/sounds/notification.mp3{% endif %}" preload="auto"></audio>
+
+<script>
+// ── Dropdown toggle ──────────────────────────────────
+// Once a menu is portaled to <body> it's no longer a DOM descendant of its dropdown,
+// so a plain `dropdown.querySelector(...)` stops finding it on the next open — look it
+// up by the owner id we stamp on it instead.
+function findDdMenu(dropdown) {
+    return dropdown.querySelector('.tnav-dropdown-menu')
+        || document.querySelector(`.tnav-dropdown-menu[data-dd-owner="${dropdown.id}"]`);
+}
+
+function positionDropdown(dropdown) {
+    const trigger = dropdown.querySelector(':scope > button, :scope > a');
+    const menu = findDdMenu(dropdown);
+    if (!trigger || !menu) return;
+    // fitTopnavItems() applies CSS `zoom` to the nav bar so its items fit on one row.
+    // A `position:fixed` element left nested inside a zoomed ancestor still has its own
+    // left/top scaled by that ancestor's zoom on top of the screen coordinates we compute
+    // here — moving it out to <body> (unzoomed) while open is what makes those coordinates
+    // actually line up under the trigger instead of landing far to the left. The CSS rule
+    // that shows it (`.tnav-dropdown.open .tnav-dropdown-menu`) is a descendant selector
+    // that no longer matches once portaled, so visibility is set directly here instead.
+    if (menu.parentElement !== document.body) {
+        menu.dataset.ddOwner = dropdown.id;
+        document.body.appendChild(menu);
+    }
+    menu.style.display = 'block';
+    const rect = trigger.getBoundingClientRect();
+    menu.style.top = (rect.bottom + 6) + 'px';
+    menu.style.left = '0px';
+    const menuWidth = menu.offsetWidth || 200;
+    let left = rect.right - menuWidth; // align right edge of menu to right edge of trigger (RTL)
+    if (left < 8) left = 8;
+    if (left + menuWidth > window.innerWidth - 8) left = window.innerWidth - menuWidth - 8;
+    menu.style.left = left + 'px';
+}
+
+function closeAllDd() {
+    document.querySelectorAll('.tnav-dropdown.open').forEach(d => d.classList.remove('open'));
+    document.querySelectorAll('.tnav-dropdown-menu[data-dd-owner]').forEach(menu => {
+        menu.style.display = 'none';
+    });
+}
+
+function toggleDd(id) {
+    const dropdown = document.getElementById(id);
+    const wasOpen = dropdown.classList.contains('open');
+    closeAllDd();
+    if (!wasOpen) {
+        dropdown.classList.add('open');
+        positionDropdown(dropdown);
+    }
+}
+
+document.addEventListener('click', function(e) {
+    // A portaled-out menu (see positionDropdown) is no longer a DOM descendant of its
+    // .tnav-dropdown trigger, so a click inside it also counts as "not outside".
+    if (!e.target.closest('.tnav-dropdown') && !e.target.closest('.tnav-dropdown-menu')) closeAllDd();
+    if (!e.target.closest('#notification-container')) {
+        const dd = document.getElementById('notification-dropdown');
+        if (dd) dd.classList.add('hidden');
+    }
+});
+window.addEventListener('resize', closeAllDd);
+document.addEventListener('scroll', closeAllDd, true);
+
+// ── Auto-fit nav items to always stay on one row (no wrap, no scroll) ──
+function fitTopnavItems() {
+    const items = document.getElementById('topnav-items');
+    if (!items) return;
+    items.style.zoom = 1;
+    // Force reflow before measuring
+    const scrollW = items.scrollWidth;
+    const clientW = items.clientWidth;
+    if (scrollW > clientW && clientW > 0) {
+        const ratio = clientW / scrollW;
+        items.style.zoom = Math.max(ratio - 0.01, 0.55);
+    }
+}
+window.addEventListener('resize', fitTopnavItems);
+window.addEventListener('load', fitTopnavItems);
+document.addEventListener('DOMContentLoaded', () => {
+    fitTopnavItems();
+    setTimeout(fitTopnavItems, 200);
+    applyFavOnly();
+});
+
+// ── Favorites-only filter ─────────────────────────────
+let favOnlyActive = localStorage.getItem('favOnlyActive') === '1';
+function getFavUrls() {
+    const tag = document.getElementById('fav-urls-data');
+    if (!tag) return [];
+    try {
+        const data = JSON.parse(tag.textContent);
+        return data.map(d => (typeof d === 'object' ? d.url : d));
+    } catch (e) { return []; }
+}
+function toggleFavOnly() {
+    favOnlyActive = !favOnlyActive;
+    localStorage.setItem('favOnlyActive', favOnlyActive ? '1' : '0');
+    document.documentElement.classList.toggle('fav-only-mode', favOnlyActive);
+    applyFavOnly();
+}
+function applyFavOnly() {
+    const items = document.getElementById('topnav-items');
+    const icon = document.getElementById('favStarIcon');
+    if (!items) return;
+    const favUrls = getFavUrls();
+    Array.from(items.children).forEach(child => {
+        if (!favOnlyActive) {
+            child.classList.remove('fav-show');
+            child.querySelectorAll('.tnav-sub[href]').forEach(a => { a.style.display = ''; });
+            return;
+        }
+        let match = false;
+        if (child.tagName === 'A') {
+            match = favUrls.includes(child.getAttribute('href'));
+        } else {
+            child.querySelectorAll('.tnav-sub[href]').forEach(a => {
+                const isFav = favUrls.includes(a.getAttribute('href'));
+                a.style.display = isFav ? '' : 'none';
+                if (isFav) match = true;
+            });
+        }
+        child.classList.toggle('fav-show', match);
+    });
+    if (icon) {
+        icon.classList.toggle('text-amber-400', favOnlyActive);
+        icon.classList.toggle('text-gray-400', !favOnlyActive);
+    }
+    fitTopnavItems();
+}
+applyFavOnly();
+
+// ── Stock alert badge ────────────────────────────────
+document.addEventListener('DOMContentLoaded', function() {
+    fetch('/products/api/inventory/alerts-count/')
+        .then(r => r.json())
+        .then(data => {
+            const dot = document.getElementById('sidebar-stock-alert');
+            if (dot && data.count > 0) {
+                dot.classList.remove('hidden');
+                dot.querySelector('i').title = `${data.count} أصناف منتهية أو قاربت على الانتهاء`;
+            }
+        }).catch(() => {});
+});
+
+// ── Sidebar search: noop (kept for base.html compatibility) ──
+function toggleSidebar() {}
+</script>
+
+<style>
+    .no-scrollbar::-webkit-scrollbar { width: 0; height: 0; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    .font-arabic { font-family: 'Cairo', sans-serif; }
+</style>

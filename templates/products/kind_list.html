@@ -1,0 +1,77 @@
+{% extends 'base.html' %}
+{% block title %}الأنواع{% endblock %}
+{% block content %}
+<div class="max-w-5xl mx-auto space-y-6">
+  <div class="flex items-center justify-between">
+    <div>
+      <h1 class="text-2xl font-bold text-gray-800">الأنواع</h1>
+      <p class="text-sm text-gray-500 mt-1">أنواع المنتجات داخل كل قسم</p>
+    </div>
+    <a href="{% url 'kind_create' %}" class="inline-flex items-center gap-2 bg-teal-600 hover:bg-teal-700 text-white px-5 py-2.5 rounded-xl font-semibold transition shadow-md">
+      <i class="fas fa-plus"></i> نوع جديد
+    </a>
+  </div>
+
+  <!-- Filter by Category -->
+  <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 flex gap-3 flex-wrap">
+    <input id="searchInput" type="text" placeholder="بحث..." class="flex-1 min-w-48 px-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-200 text-sm">
+    <select id="catFilter" class="px-4 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none">
+      <option value="">كل الأقسام</option>
+      {% for cat in categories %}<option value="{{ cat.id }}">{{ cat.name }}</option>{% endfor %}
+    </select>
+  </div>
+
+  <!-- Grouped by Category -->
+  {% regroup kinds by category as kinds_by_cat %}
+  {% for group in kinds_by_cat %}
+  <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden kind-group" data-cat-id="{{ group.grouper.id }}">
+    <div class="bg-teal-50 px-4 py-3 border-b border-teal-100 flex items-center justify-between cursor-pointer" onclick="toggleGroup(this)">
+      <span class="font-semibold text-teal-800">📁 {{ group.grouper.name }}</span>
+      <span class="text-xs text-teal-600">{{ group.list|length }} نوع <i class="fas fa-chevron-down mr-2"></i></span>
+    </div>
+    <div class="group-body">
+      <table class="w-full text-sm">
+        <tbody>
+          {% for kind in group.list %}
+          <tr class="border-b border-gray-50 hover:bg-gray-50 transition kind-row">
+            <td class="px-4 py-3 font-medium text-gray-800">{{ kind.name }}</td>
+            <td class="px-4 py-3 text-center">
+              {% if kind.is_active %}<span class="bg-green-100 text-green-700 px-2 py-0.5 rounded-full text-xs">نشط</span>
+              {% else %}<span class="bg-red-100 text-red-700 px-2 py-0.5 rounded-full text-xs">غير نشط</span>{% endif %}
+            </td>
+            <td class="px-4 py-3 text-center">
+              <div class="flex items-center justify-center gap-2">
+                <a href="{% url 'kind_update' kind.pk %}" class="text-teal-600 hover:text-teal-800 p-1.5 rounded-lg hover:bg-teal-50 transition"><i class="fas fa-edit"></i></a>
+                <form method="post" action="{% url 'kind_delete' kind.pk %}" class="inline" onsubmit="return confirm('حذف هذا النوع؟')">
+                  {% csrf_token %}<button class="text-red-500 hover:text-red-700 p-1.5 rounded-lg hover:bg-red-50 transition"><i class="fas fa-trash"></i></button>
+                </form>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% empty %}
+  <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 text-center text-gray-400">لا توجد أنواع بعد. <a href="{% url 'kind_create' %}" class="text-teal-600 underline">أضف أول نوع</a></div>
+  {% endfor %}
+</div>
+
+<script>
+function toggleGroup(el) {
+  el.nextElementSibling.style.display = el.nextElementSibling.style.display === 'none' ? '' : 'none';
+}
+document.getElementById('catFilter').addEventListener('change', function() {
+  document.querySelectorAll('.kind-group').forEach(g => {
+    g.style.display = (!this.value || g.dataset.catId === this.value) ? '' : 'none';
+  });
+});
+document.getElementById('searchInput').addEventListener('input', function() {
+  const q = this.value.toLowerCase();
+  document.querySelectorAll('.kind-row').forEach(r => {
+    r.style.display = r.textContent.toLowerCase().includes(q) ? '' : 'none';
+  });
+});
+</script>
+{% endblock %}

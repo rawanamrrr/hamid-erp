@@ -1,0 +1,95 @@
+{% extends 'base.html' %}
+{% block title %}تقرير الجرد اليومي{% endblock %}
+{% block content %}
+<div class="p-4">
+    <div class="flex items-center justify-between mb-4">
+        <h1 class="text-2xl font-bold">تقرير الجرد اليومي — {{ day }}{% if branch %} — {{ branch.name }}{% endif %}</h1>
+        <form method="get" class="flex items-center gap-2">
+            <input type="date" name="day" value="{{ day|date:'Y-m-d' }}" class="border rounded-lg px-3 py-2 text-sm">
+            <button class="px-3 py-2 bg-slate-700 text-white rounded-lg text-sm">عرض</button>
+        </form>
+    </div>
+
+    <!-- Cash / Visa / Payment methods -->
+    <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+        <div class="bg-white rounded-xl border p-4">
+            <div class="text-xs text-gray-500 mb-1">كاش</div>
+            <div class="text-xl font-bold">{{ summary.sales.cash }}</div>
+        </div>
+        <div class="bg-white rounded-xl border p-4">
+            <div class="text-xs text-gray-500 mb-1">فيزا</div>
+            <div class="text-xl font-bold">{{ summary.sales.visa }}</div>
+        </div>
+        <div class="bg-white rounded-xl border p-4">
+            <div class="text-xs text-gray-500 mb-1">محفظة</div>
+            <div class="text-xl font-bold">{{ summary.sales.wallet }}</div>
+        </div>
+        <div class="bg-white rounded-xl border p-4">
+            <div class="text-xs text-gray-500 mb-1">إنستا باي</div>
+            <div class="text-xl font-bold">{{ summary.sales.instapay }}</div>
+        </div>
+        <div class="bg-white rounded-xl border p-4">
+            <div class="text-xs text-gray-500 mb-1">آجل (CL) / غير محصّل</div>
+            <div class="text-xl font-bold text-amber-600">{{ summary.credit_sales }}</div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <!-- Held custodies: who still has cash -->
+        <div class="bg-white rounded-xl border p-4">
+            <div class="flex justify-between items-center mb-3">
+                <h2 class="font-semibold">معاه فلوس ولسه ما سلمهاش (وديعة)</h2>
+                <span class="font-bold text-red-600">{{ held_total }} ج.م</span>
+            </div>
+            <table class="w-full text-sm">
+                <thead class="text-gray-500">
+                    <tr><th class="text-right py-1">الاسم</th><th class="text-right py-1">النوع</th><th class="text-right py-1">المبلغ</th></tr>
+                </thead>
+                <tbody>
+                    {% for c in held %}
+                    <tr class="border-t">
+                        <td class="py-1">{{ c.holder_name }}</td>
+                        <td class="py-1">{{ c.get_kind_display }}</td>
+                        <td class="py-1 font-bold">{{ c.amount }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="3" class="py-3 text-center text-gray-400">لا يوجد أحد معاه فلوس غير مُسلَّمة.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Settled custodies today -->
+        <div class="bg-white rounded-xl border p-4">
+            <div class="flex justify-between items-center mb-3">
+                <h2 class="font-semibold">تم تسليمه للخزنة اليوم</h2>
+                <span class="font-bold text-emerald-600">{{ settled_total }} ج.م</span>
+            </div>
+            <table class="w-full text-sm">
+                <thead class="text-gray-500">
+                    <tr><th class="text-right py-1">الاسم</th><th class="text-right py-1">النوع</th><th class="text-right py-1">المبلغ</th></tr>
+                </thead>
+                <tbody>
+                    {% for c in settled %}
+                    <tr class="border-t">
+                        <td class="py-1">{{ c.holder_name }}</td>
+                        <td class="py-1">{{ c.get_kind_display }}</td>
+                        <td class="py-1 font-bold">{{ c.amount }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="3" class="py-3 text-center text-gray-400">لا توجد تسليمات اليوم.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-xl border p-4 mt-4">
+        <h2 class="font-semibold mb-2">صافي الكاش</h2>
+        <div class="text-sm text-gray-600">
+            وارد: {{ summary.cash_in }} ج.م — صادر: {{ summary.cash_out }} ج.م —
+            <span class="font-bold">صافي: {{ summary.net_cash }} ج.م</span>
+        </div>
+    </div>
+</div>
+{% endblock %}

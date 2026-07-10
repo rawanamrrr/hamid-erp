@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>طلب غير صالح (400) | النظام</title>
+    <script src="/static/vendor/js/tailwind.js"></script>
+    <link rel="stylesheet" href="/static/vendor/fontawesome/css/all.min.css">
+    <style>
+        @keyframes float-tilt {
+            0% { transform: translateY(0) rotate(-2deg); }
+            50% { transform: translateY(-15px) rotate(2deg); }
+            100% { transform: translateY(0) rotate(-2deg); }
+        }
+        @keyframes glitch {
+            0% { clip-path: inset(20% 0 80% 0); transform: translate(-2px, 2px); }
+            20% { clip-path: inset(60% 0 10% 0); transform: translate(2px, -2px); }
+            40% { clip-path: inset(40% 0 50% 0); transform: translate(2px, 2px); }
+            60% { clip-path: inset(80% 0 5% 0); transform: translate(-2px, -2px); }
+            80% { clip-path: inset(10% 0 70% 0); transform: translate(2px, -2px); }
+            100% { clip-path: inset(30% 0 50% 0); transform: translate(-2px, 2px); }
+        }
+        .animate-float-tilt { animation: float-tilt 4s ease-in-out infinite; }
+        .glitch-effect:hover { animation: glitch 0.5s cubic-bezier(.25, .46, .45, .94) both infinite; color: #f97316; }
+    </style>
+</head>
+<body class="bg-orange-50 flex items-center justify-center min-h-screen font-sans selection:bg-orange-200">
+    <!-- Wavy Background -->
+    <div class="absolute inset-0 z-0 pointer-events-none opacity-20" style="background-image: repeating-radial-gradient(circle at 0 0, transparent 0, #f97316 10px), repeating-linear-gradient(#ffedd5, #f97316); background-blend-mode: multiply;"></div>
+
+    <div class="z-10 bg-white p-10 rounded-3xl shadow-2xl max-w-lg w-full text-center border-t-8 border-orange-500 relative">
+        <!-- Floating Elements -->
+        <i class="fas fa-times absolute top-10 right-10 text-orange-200 text-3xl animate-pulse"></i>
+        <i class="fas fa-question absolute bottom-20 left-10 text-orange-200 text-4xl animate-bounce" style="animation-duration: 4s;"></i>
+
+        <div class="relative w-32 h-32 mx-auto mb-8 flex items-center justify-center animate-float-tilt">
+            <div class="relative z-10 w-28 h-28 bg-orange-100 rounded-2xl flex items-center justify-center shadow-lg border-4 border-white transform rotate-3 hover:rotate-12 transition-transform duration-300">
+                <i class="fas fa-unlink text-5xl text-orange-500"></i>
+            </div>
+        </div>
+
+        <h1 class="text-6xl font-extrabold text-gray-900 mb-2 tracking-tight glitch-effect transition-colors">400</h1>
+        <h2 class="text-2xl font-bold text-gray-800 mb-4">طلب غير صالح</h2>
+        <p class="text-gray-500 mb-8 leading-relaxed">
+            الطلب الذي أرسله المتصفح إلى الخادم لا يمكن فهمه أو يحتوي على بنية غير صحيحة.<br>
+            يرجى التأكد من البيانات والمحاولة مرة أخرى.
+        </p>
+
+        <div class="flex flex-col sm:flex-row gap-4 justify-center items-center">
+            <button onclick="window.history.back()" class="px-6 py-3 bg-orange-600 text-white font-bold rounded-xl hover:bg-orange-700 transition shadow-lg shadow-orange-200 flex items-center gap-2 transform hover:-translate-y-1 w-full sm:w-auto justify-center">
+                <i class="fas fa-undo"></i> عودة محاولة الإرسال
+            </button>
+            <a href="/" class="px-6 py-3 bg-gray-100 text-gray-700 font-bold rounded-xl hover:bg-gray-200 transition shadow-sm border border-gray-200 flex items-center gap-2 transform hover:-translate-y-1 w-full sm:w-auto justify-center">
+                <i class="fas fa-home"></i> الرئيسية
+            </a>
+        </div>
+    </div>
+</body>
+</html>

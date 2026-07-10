@@ -1,0 +1,35 @@
+{% extends 'base.html' %}
+{% block title %}ريبورت مبيعات الويترز{% endblock %}
+{% block content %}
+<div class="p-4">
+    <h1 class="text-2xl font-bold mb-4">مبيعات كل ويتر{% if branch %} — {{ branch.name }}{% endif %}</h1>
+    <table class="w-full bg-white rounded-xl border overflow-hidden">
+        <thead class="bg-gray-50 text-sm text-gray-600">
+            <tr>
+                <th class="p-3 text-right">الويتر</th>
+                <th class="p-3 text-right">عدد الفواتير</th>
+                <th class="p-3 text-right">الفواتير المكتملة</th>
+                <th class="p-3 text-right">الفواتير الملغاة</th>
+                <th class="p-3 text-right">متوسط قيمة الفاتورة</th>
+                <th class="p-3 text-right">إجمالي المبيعات</th>
+                <th class="p-3 text-right"></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for r in rows %}
+            <tr class="border-t text-sm">
+                <td class="p-3">{{ r.waiter__first_name|default:r.waiter__username }} {{ r.waiter__last_name }}</td>
+                <td class="p-3">{{ r.orders_count }}</td>
+                <td class="p-3">{{ r.completed_orders }}</td>
+                <td class="p-3 {% if r.voided_count %}text-red-600 font-bold{% endif %}">{{ r.voided_count }}</td>
+                <td class="p-3">{{ r.avg_order_value|floatformat:2 }}</td>
+                <td class="p-3 font-bold">{{ r.total_sales }}</td>
+                <td class="p-3"><a href="{% url 'restaurant:waiter_sales_detail' r.waiter__id %}" class="text-emerald-600 font-semibold">تفاصيل الأصناف</a></td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="7" class="p-4 text-center text-gray-500">لا توجد بيانات.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

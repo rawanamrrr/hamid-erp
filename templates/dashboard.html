@@ -1,0 +1,1100 @@
+﻿{% extends 'base.html' %}
+
+{% block content %}
+<style>
+    /* ===== DASHBOARD DESIGN SYSTEM ===== */
+    :root {
+        --radius-card: 1.5rem;
+        --shadow-card: 0 4px 30px rgba(0, 0, 0, 0.03);
+        --shadow-hover: 0 10px 40px rgba(0, 0, 0, 0.08);
+    }
+    
+    .db-card {
+        background: rgba(255, 255, 255, 0.95);
+        border-radius: var(--radius-card);
+        box-shadow: var(--shadow-card);
+        border: 1px solid rgba(241, 245, 249, 0.8);
+        overflow: hidden;
+        transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s ease;
+    }
+    
+    .db-card:hover {
+        box-shadow: var(--shadow-hover);
+    }
+
+    .db-card-header {
+        padding: 1.25rem 1.5rem;
+        border-bottom: 1px solid #f1f5f9;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        background: linear-gradient(135deg, #fafbff 0%, #f8fafc 100%);
+    }
+
+    .db-section-label {
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+    }
+
+    .db-section-label .label-bar {
+        width: 4px;
+        height: 22px;
+        border-radius: 3px;
+    }
+
+    .kpi-card {
+        position: relative;
+        border-radius: var(--radius-card);
+        padding: 1.5rem;
+        overflow: hidden;
+        transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s ease;
+        border: 1px solid rgba(255, 255, 255, 0.75);
+    }
+
+    .kpi-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 12px 30px rgba(0, 0, 0, 0.08);
+    }
+
+    .kpi-card .kpi-glow {
+        position: absolute;
+        top: -30px; 
+        right: -30px;
+        width: 120px; 
+        height: 120px;
+        border-radius: 50%;
+        opacity: 0.12;
+        filter: blur(25px);
+        transition: opacity 0.3s;
+    }
+
+    .kpi-card:hover .kpi-glow {
+        opacity: 0.25;
+    }
+
+    .fin-badge {
+        display: inline-flex; 
+        align-items: center; 
+        gap: 6px;
+        padding: 4px 10px; 
+        border-radius: 100px;
+        font-size: 11px; 
+        font-weight: 700;
+    }
+
+    .scrollbar-hide::-webkit-scrollbar { 
+        display: none; 
+    }
+    
+    .scrollbar-hide { 
+        -ms-overflow-style: none; 
+        scrollbar-width: none; 
+    }
+
+    .amount-in { 
+        color: #059669; 
+        font-weight: 800; 
+        font-family: monospace; 
+    }
+    
+    .amount-out { 
+        color: #dc2626; 
+        font-weight: 800; 
+        font-family: monospace; 
+    }
+    
+    .amount-transfer { 
+        color: #2563eb; 
+        font-weight: 800; 
+        font-family: monospace; 
+    }
+
+    @keyframes fadeUp {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    
+    .fade-up { 
+        animation: fadeUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) both; 
+    }
+    
+    .fade-up-1 { animation-delay: 0.05s; }
+    .fade-up-2 { animation-delay: 0.1s; }
+    .fade-up-3 { animation-delay: 0.15s; }
+    .fade-up-4 { animation-delay: 0.2s; }
+    .fade-up-5 { animation-delay: 0.25s; }
+
+    .date-pill {
+        display: inline-flex; 
+        align-items: center; 
+        gap: 6px;
+        background: rgba(99, 102, 241, 0.08);
+        color: #4f46e5;
+        border-radius: 100px;
+        padding: 4px 12px;
+        font-size: 12px; 
+        font-weight: 700;
+    }
+
+    /* Tabs Styling */
+    .tab-btn {
+        transition: all 0.2s ease;
+    }
+    
+    .tab-btn.active {
+        background-color: #6366f1;
+        color: white;
+        box-shadow: 0 4px 12px rgba(99, 102, 241, 0.2);
+    }
+</style>
+
+<div class="space-y-7" dir="rtl">
+
+    <!-- ===== HEADER BAR ===== -->
+    <div class="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-5 fade-up">
+        <div>
+            <div class="flex items-center gap-3 mb-1">
+                <div class="w-11 h-11 rounded-2xl bg-gradient-to-br from-slate-600 to-indigo-500 flex items-center justify-center shadow-lg shadow-indigo-100">
+                    <i class="fas fa-chart-line text-white text-lg"></i>
+                </div>
+                <h1 class="text-2xl font-black text-gray-900">لوحة التحكم</h1>
+            </div>
+            <p class="text-gray-400 text-sm mr-14">
+                مرحباً، إليك نظرة شاملة على أداء متجرك
+                {% if date_from or date_to %}
+                <span class="date-pill mr-2">
+                    <i class="fas fa-calendar-alt text-[10px]"></i>
+                    {{ date_from|default:"بداية" }} ← {{ date_to|default:"اليوم" }}
+                </span>
+                {% else %}
+                <span class="date-pill mr-2"><i class="fas fa-circle text-[8px] animate-pulse"></i> مباشر (اليوم)</span>
+                {% endif %}
+            </p>
+        </div>
+
+        <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full xl:w-auto">
+            <!-- Quick Date Ranges -->
+            <div class="flex items-center gap-1 bg-gray-100/80 p-1 rounded-2xl border border-gray-200 no-print self-center">
+                <button type="button" onclick="setRange('today')" class="px-3 py-1.5 text-xs font-bold rounded-xl transition-all hover:bg-white hover:shadow text-gray-600 hover:text-indigo-600" id="btn-today">اليوم</button>
+                <button type="button" onclick="setRange('yesterday')" class="px-3 py-1.5 text-xs font-bold rounded-xl transition-all hover:bg-white hover:shadow text-gray-600 hover:text-indigo-600">أمس</button>
+                <button type="button" onclick="setRange('7days')" class="px-3 py-1.5 text-xs font-bold rounded-xl transition-all hover:bg-white hover:shadow text-gray-600 hover:text-indigo-600">7 أيام</button>
+                <button type="button" onclick="setRange('thisMonth')" class="px-3 py-1.5 text-xs font-bold rounded-xl transition-all hover:bg-white hover:shadow text-gray-600 hover:text-indigo-600">الشهر</button>
+            </div>
+
+            <!-- Custom Date Filter Form -->
+            <form id="filterForm" method="get" class="flex items-center gap-2 bg-white px-3 py-2 rounded-2xl border border-gray-200 shadow-sm">
+                <i class="fas fa-calendar text-gray-300 text-sm"></i>
+                <input type="date" id="date_from" name="date_from" value="{{ date_from|default:'' }}" class="text-sm text-gray-700 bg-transparent focus:outline-none w-28 border-none p-0">
+                <span class="text-gray-300 text-xs font-bold">←</span>
+                <input type="date" id="date_to" name="date_to" value="{{ date_to|default:'' }}" class="text-sm text-gray-700 bg-transparent focus:outline-none w-28 border-none p-0">
+                <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-xl text-xs font-black transition-colors">تصفية</button>
+                {% if date_from or date_to %}
+                <a href="{% url 'dashboard' %}" class="text-gray-300 hover:text-red-400 transition-colors mr-1" title="إلغاء الفلاتر">
+                    <i class="fas fa-times"></i>
+                </a>
+                {% endif %}
+            </form>
+
+            <!-- Action Buttons -->
+            {% if can_open_shift %}
+            <a href="{% url 'financial:start_shift' %}" class="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-sm font-bold shadow-lg shadow-emerald-100 transition-all hover:scale-105 whitespace-nowrap">
+                <i class="fas fa-door-open"></i> فتح وردية
+            </a>
+            {% endif %}
+            {% if can_close_shift %}
+            <a href="{% url 'financial:close_shift' open_shift.pk %}" class="flex items-center gap-2 px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-2xl text-sm font-bold shadow-lg shadow-rose-100 transition-all hover:scale-105 whitespace-nowrap">
+                <i class="fas fa-lock"></i> إغلاق وردية
+            </a>
+            {% endif %}
+            <a href="{% url 'pos_view' %}" class="flex items-center gap-2 px-4 py-2.5 bg-slate-700 hover:bg-slate-800 text-white rounded-2xl text-sm font-bold shadow-lg shadow-gray-200 transition-all hover:scale-105 whitespace-nowrap">
+                <i class="fas fa-cash-register"></i> نقطة بيع
+            </a>
+            <a href="{% url 'purchase_invoice_create' %}" class="flex items-center gap-2 px-4 py-2.5 bg-slate-600 hover:bg-slate-700 text-white rounded-2xl text-sm font-bold shadow-lg shadow-gray-200 transition-all hover:scale-105 whitespace-nowrap">
+                <i class="fas fa-file-invoice"></i> فاتورة شراء
+            </a>
+        </div>
+    </div>
+
+    <!-- ===== COHESIVE KPI MATRIX GRID ===== -->
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-5 fade-up fade-up-1">
+        <!-- Revenue -->
+        {% if show_widget_revenue %}
+        <div class="kpi-card bg-gradient-to-br from-indigo-50 to-white border border-indigo-100/50">
+            <div class="kpi-glow bg-indigo-400"></div>
+            <div class="relative z-10">
+                <div class="flex items-center justify-between mb-3">
+                    <div class="w-10 h-10 rounded-2xl bg-indigo-100/50 text-indigo-600 flex items-center justify-center">
+                        <i class="fas fa-money-bill-wave"></i>
+                    </div>
+                    <span class="text-[10px] font-black bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-lg">مباشر</span>
+                </div>
+                <p class="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-1">إجمالي الإيرادات (بعد المرتجعات)</p>
+                <p class="text-2xl font-black text-gray-800">{{ revenue|floatformat:0 }}<span class="text-sm font-bold text-gray-400 mr-1">ج.م</span></p>
+                {% if total_returns %}
+                <p class="text-[10px] text-gray-400 mt-1">بعد خصم مرتجعات بقيمة {{ total_returns|floatformat:0 }} ج.م</p>
+                {% endif %}
+                <div id="revenue-sparkline" class="mt-3 h-8"></div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Items Sold -->
+        {% if show_widget_items_sold %}
+        <div class="kpi-card bg-gradient-to-br from-emerald-50 to-white border border-emerald-100/50">
+            <div class="kpi-glow bg-emerald-400"></div>
+            <div class="relative z-10">
+                <div class="flex items-center justify-between mb-3">
+                    <div class="w-10 h-10 rounded-2xl bg-emerald-100/50 text-emerald-600 flex items-center justify-center">
+                        <i class="fas fa-boxes-stacked"></i>
+                    </div>
+                </div>
+                <p class="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-1">القطع المباعة</p>
+                <p class="text-2xl font-black text-gray-800">{{ total_items_sold|floatformat:0 }}<span class="text-sm font-bold text-gray-400 mr-1">قطعة</span></p>
+                <div id="sold-sparkline" class="mt-3 h-8"></div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Sales Ops -->
+        <div class="kpi-card bg-gradient-to-br from-amber-50 to-white border border-amber-100/50">
+            <div class="kpi-glow bg-amber-400"></div>
+            <div class="relative z-10">
+                <div class="flex items-center justify-between mb-3">
+                    <div class="w-10 h-10 rounded-2xl bg-amber-100/50 text-amber-600 flex items-center justify-center">
+                        <i class="fas fa-receipt"></i>
+                    </div>
+                </div>
+                <p class="text-[10px] font-black text-amber-400 uppercase tracking-widest mb-1">عمليات البيع</p>
+                <p class="text-2xl font-black text-gray-800">{{ total_sales_ops }}<span class="text-sm font-bold text-gray-400 mr-1">فاتورة</span></p>
+                <div id="ops-sparkline" class="mt-3 h-8"></div>
+            </div>
+        </div>
+
+        <!-- Stock Value -->
+        {% if show_widget_stock_value %}
+        <div class="kpi-card bg-gradient-to-br from-rose-50 to-white border border-rose-100/50">
+            <div class="kpi-glow bg-rose-400"></div>
+            <div class="relative z-10">
+                <div class="flex items-center justify-between mb-3">
+                    <div class="w-10 h-10 rounded-2xl bg-rose-100/50 text-rose-600 flex items-center justify-center">
+                        <i class="fas fa-warehouse"></i>
+                    </div>
+                </div>
+                <p class="text-[10px] font-black text-rose-400 uppercase tracking-widest mb-1">قيمة المخزون</p>
+                <p class="text-2xl font-black text-gray-800">{{ stock_value|floatformat:0 }}<span class="text-sm font-bold text-gray-400 mr-1">ج.م</span></p>
+                <div id="stock-sparkline" class="mt-3 h-8"></div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- ===== SECOND KPI ROW: FINANCIAL & TREASURY GRADIENTS ===== -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-5 fade-up fade-up-2">
+        <!-- Tailoring Revenue (clothes-only — factory/tailoring isn't part of cafe mode) -->
+        {% if show_widget_revenue and mp.key == 'clothes' %}
+        <div class="kpi-card bg-gradient-to-br from-amber-400 to-orange-500 text-white">
+            <div class="kpi-glow bg-white"></div>
+            <div class="relative z-10 flex items-center justify-between">
+                <div>
+                    <p class="text-[11px] font-black text-amber-50 uppercase tracking-widest mb-1">إيرادات أوامر الشغل</p>
+                    <p class="text-3xl font-black">{{ tailoring_revenue|floatformat:2 }} <span class="text-sm font-normal">ج.م</span></p>
+                    <p class="text-[11px] text-amber-50/80 mt-1">إجمالي تكلفة أوامر التفصيل (مُضافة لإجمالي الإيرادات)</p>
+                </div>
+                <div class="w-14 h-14 bg-white/10 rounded-2xl flex items-center justify-center backdrop-blur-sm">
+                    <i class="fas fa-scissors text-xl"></i>
+                </div>
+            </div>
+            <div class="mt-4 pt-4 border-t border-white/10 flex justify-between items-center">
+                <a href="{% url 'factory_list' %}" class="text-xs font-bold text-amber-50 hover:text-white transition-colors flex items-center gap-1.5">
+                    <i class="fas fa-arrow-left text-[10px]"></i> عرض أوامر الشغل
+                </a>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if show_widget_cash_summary %}
+        <!-- Cash Liquidity -->
+        <div class="kpi-card bg-gradient-to-br from-emerald-400 to-teal-500 text-white">
+            <div class="kpi-glow bg-white"></div>
+            <div class="relative z-10 flex items-center justify-between">
+                <div>
+                    <p class="text-[11px] font-black text-emerald-50 uppercase tracking-widest mb-1">السيولة النقدية</p>
+                    <p class="text-3xl font-black">{{ total_cash_liquidity|floatformat:2 }} <span class="text-sm font-normal">ج.م</span></p>
+                    <p class="text-[11px] text-emerald-50/80 mt-1">إجمالي جميع الخزائن والحسابات النشطة</p>
+                </div>
+                <div class="w-14 h-14 bg-white/10 rounded-2xl flex items-center justify-center backdrop-blur-sm">
+                    <i class="fas fa-wallet text-xl"></i>
+                </div>
+            </div>
+            <div class="mt-4 pt-4 border-t border-white/10 flex justify-between items-center">
+                <a href="{% url 'financial:account_list' %}" class="text-xs font-bold text-emerald-50 hover:text-white transition-colors flex items-center gap-1.5">
+                    <i class="fas fa-arrow-left text-[10px]"></i> عرض الحسابات والخزائن
+                </a>
+            </div>
+        </div>
+
+        <!-- Supplier Debts -->
+        <div class="kpi-card bg-gradient-to-br from-rose-400 to-pink-500 text-white">
+            <div class="kpi-glow bg-white"></div>
+            <div class="relative z-10 flex items-center justify-between">
+                <div>
+                    <p class="text-[11px] font-black text-rose-50 uppercase tracking-widest mb-1">ديون الموردين</p>
+                    <p class="text-3xl font-black">{{ total_supplier_debt|floatformat:2 }} <span class="text-sm font-normal">ج.م</span></p>
+                    <p class="text-[11px] text-rose-50/80 mt-1">المبالغ المستحقة من فواتير مؤكدة</p>
+                </div>
+                <div class="w-14 h-14 bg-white/10 rounded-2xl flex items-center justify-center backdrop-blur-sm">
+                    <i class="fas fa-file-invoice-dollar text-xl"></i>
+                </div>
+            </div>
+            <div class="mt-4 pt-4 border-t border-white/10 flex justify-between items-center">
+                <a href="{% url 'supplier_list' %}" class="text-xs font-bold text-rose-50 hover:text-white transition-colors flex items-center gap-1.5">
+                    <i class="fas fa-arrow-left text-[10px]"></i> عرض مديونيات الموردين
+                </a>
+            </div>
+        </div>
+
+        <!-- Net Financial Balance -->
+        <div class="kpi-card {% if net_financial_balance >= 0 %}bg-gradient-to-br from-indigo-400 to-blue-500{% else %}bg-gradient-to-br from-orange-400 to-rose-500{% endif %} text-white">
+            <div class="kpi-glow bg-white"></div>
+            <div class="relative z-10 flex items-center justify-between">
+                <div>
+                    <p class="text-[11px] font-black text-indigo-50 uppercase tracking-widest mb-1">صافي الموقف المالي</p>
+                    <p class="text-3xl font-black">{{ net_financial_balance|floatformat:2 }} <span class="text-sm font-normal">ج.م</span></p>
+                    <p class="text-[11px] {% if net_financial_balance >= 0 %}text-indigo-50/80{% else %}text-orange-50{% endif %} mt-1">
+                        {% if net_financial_balance >= 0 %}رأس المال بعد خصم مستحقات الموردين{% else %}⚠ تجاوزت الديون السيولة المتوفرة{% endif %}
+                    </p>
+                </div>
+                <div class="w-14 h-14 bg-white/10 rounded-2xl flex items-center justify-center backdrop-blur-sm">
+                    <i class="fas fa-balance-scale text-xl"></i>
+                </div>
+            </div>
+            <div class="mt-4 pt-4 border-t border-white/10 flex justify-between items-center">
+                <a href="{% url 'financial:all_transactions' %}" class="text-xs font-bold text-indigo-50 hover:text-white transition-colors flex items-center gap-1.5">
+                    <i class="fas fa-arrow-left text-[10px]"></i> السجل المالي العام
+                </a>
+            </div>
+        {% endif %}
+        </div>
+    </div>
+
+    <!-- ===== TWO COLUMN ROW: INTERACTIVE TABS ACTIVITY HUB + INVENTORY SIDEBAR ===== -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 fade-up fade-up-3">
+        
+        <!-- Interactive Tabs Operations Hub (Left, 2 Columns) -->
+        <div class="lg:col-span-2 db-card flex flex-col">
+            <div class="db-card-header flex-col sm:flex-row gap-3">
+                <div class="db-section-label">
+                    <span class="label-bar bg-slate-500"></span>
+                    <div>
+                        <h2 class="text-base font-black text-gray-900">مركز العمليات والتدفقات اللحظي</h2>
+                        <p class="text-xs text-gray-400 mt-0.5">يعرض كافة التحركات اليومية بشكل متناسق ومبوب</p>
+                    </div>
+                </div>
+                <!-- Tabs Selector -->
+                <div class="flex items-center gap-1.5 bg-gray-100 p-1 rounded-xl self-center border border-gray-200">
+                    <button type="button" onclick="switchTab('financial-tab')" id="btn-financial-tab" class="tab-btn active px-3.5 py-1.5 text-xs font-bold rounded-lg text-gray-600 active whitespace-nowrap">
+                        <i class="fas fa-wallet ml-1"></i> الخزائن والمعاملات المالية
+                    </button>
+                    <button type="button" onclick="switchTab('stock-tab')" id="btn-stock-tab" class="tab-btn px-3.5 py-1.5 text-xs font-bold rounded-lg text-gray-600 whitespace-nowrap">
+                        <i class="fas fa-boxes-stacked ml-1"></i> حركات السلع والمخزون
+                    </button>
+                </div>
+            </div>
+
+            <!-- Tab Content 1: Financial Transactions -->
+            <div id="financial-tab-content" class="tab-pane block overflow-x-auto flex-1">
+                <table class="w-full text-right min-w-[650px]">
+                    <thead class="bg-gray-50 border-b border-gray-100">
+                        <tr class="text-[11px] font-black text-gray-400 uppercase tracking-widest">
+                            <th class="px-5 py-3">الحساب</th>
+                            <th class="px-5 py-3">النوع</th>
+                            <th class="px-5 py-3">المبلغ</th>
+                            <th class="px-5 py-3">البيان</th>
+                            <th class="px-5 py-3 text-center">الموظف</th>
+                            <th class="px-5 py-3 text-left">التوقيت</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-50">
+                        {% for tx in recent_financial_transactions %}
+                        <tr class="hover:bg-indigo-50/20 transition-colors">
+                            <td class="px-5 py-3">
+                                <div class="flex items-center gap-2">
+                                    <span class="w-2 h-2 rounded-full 
+                                        {% if tx.transaction_type == 'SUPPLIER_PAYMENT' %}bg-rose-500
+                                        {% elif tx.transaction_type in 'SALE,INCOME,DEPOSIT' %}bg-emerald-500
+                                        {% elif tx.transaction_type == 'TRANSFER' %}bg-blue-500
+                                        {% else %}bg-orange-500{% endif %}">
+                                    </span>
+                                    <span class="font-bold text-gray-800 text-sm">{{ tx.account.name }}</span>
+                                </div>
+                            </td>
+                            <td class="px-5 py-3">
+                                {% if tx.transaction_type == 'SUPPLIER_PAYMENT' %}
+                                    <span class="fin-badge bg-rose-50 text-rose-700 border border-rose-100/50"><i class="fas fa-arrow-up text-[8px]"></i> {{ tx.get_transaction_type_display }}</span>
+                                {% elif tx.transaction_type == 'SALE' %}
+                                    <span class="fin-badge bg-indigo-50 text-indigo-700 border border-indigo-100/50"><i class="fas fa-cash-register text-[8px]"></i> {{ tx.get_transaction_type_display }}</span>
+                                {% elif tx.transaction_type == 'INCOME' %}
+                                    <span class="fin-badge bg-emerald-50 text-emerald-700 border border-emerald-100/50"><i class="fas fa-arrow-down text-[8px]"></i> {{ tx.get_transaction_type_display }}</span>
+                                {% elif tx.transaction_type == 'DEPOSIT' %}
+                                    <span class="fin-badge bg-teal-50 text-teal-700 border border-teal-100/50"><i class="fas fa-piggy-bank text-[8px]"></i> {{ tx.get_transaction_type_display }}</span>
+                                {% elif tx.transaction_type == 'EXPENSE' %}
+                                    <span class="fin-badge bg-orange-50 text-orange-700 border border-orange-100/50"><i class="fas fa-minus text-[8px]"></i> {{ tx.get_transaction_type_display }}</span>
+                                {% elif tx.transaction_type == 'WITHDRAWAL' %}
+                                    <span class="fin-badge bg-amber-50 text-amber-700 border border-amber-100/50"><i class="fas fa-hand-holding-usd text-[8px]"></i> {{ tx.get_transaction_type_display }}</span>
+                                {% elif tx.transaction_type == 'TRANSFER' %}
+                                    <span class="fin-badge bg-blue-50 text-blue-700 border border-blue-100/50"><i class="fas fa-exchange-alt text-[8px]"></i> {{ tx.get_transaction_type_display }}</span>
+                                {% elif tx.transaction_type == 'REFUND' %}
+                                    <span class="fin-badge bg-purple-50 text-purple-700 border border-purple-100/50"><i class="fas fa-undo text-[8px]"></i> {{ tx.get_transaction_type_display }}</span>
+                                {% else %}
+                                    <span class="fin-badge bg-gray-100 text-gray-600">{{ tx.get_transaction_type_display }}</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-5 py-3">
+                                {% if tx.transaction_type in 'SALE,INCOME,DEPOSIT' %}
+                                    <span class="amount-in">+{{ tx.amount|floatformat:2 }} ج.م</span>
+                                {% elif tx.transaction_type in 'EXPENSE,WITHDRAWAL,SUPPLIER_PAYMENT,REFUND' %}
+                                    <span class="amount-out">-{{ tx.amount|floatformat:2 }} ج.م</span>
+                                {% else %}
+                                    <span class="amount-transfer">{{ tx.amount|floatformat:2 }} ج.م</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-5 py-3 max-w-[200px] truncate" title="{{ tx.description }}">
+                                <span class="text-sm text-gray-600">{{ tx.description }}</span>
+                            </td>
+                            <td class="px-5 py-3 text-center">
+                                <span class="text-xs font-bold text-gray-500 bg-gray-100 px-2 py-1 rounded-lg">{{ tx.created_by.username|default:"تلقائي" }}</span>
+                            </td>
+                            <td class="px-5 py-3 text-left">
+                                <span class="text-sm font-bold text-gray-700 block">{{ tx.created_at|date:"h:i A" }}</span>
+                                <span class="text-[10px] text-gray-400 block">{{ tx.created_at|date:"Y/m/d" }}</span>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="6" class="px-6 py-12 text-center">
+                                <div class="flex flex-col items-center gap-3 text-gray-400">
+                                    <div class="w-12 h-12 bg-gray-100 rounded-2xl flex items-center justify-center">
+                                        <i class="fas fa-wallet text-xl text-gray-300"></i>
+                                    </div>
+                                    <span class="text-xs font-bold">لا توجد معاملات مالية مسجلة اليوم</span>
+                                    <span class="text-[10px] text-gray-300">قم بتغيير الفترة الزمنية أو تأكيد فواتير لمشاهدة البيانات</span>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                <div class="p-4 border-t border-gray-100 bg-gray-50/50 flex justify-end">
+                    <a href="{% url 'financial:all_transactions' %}" class="flex items-center gap-1.5 text-xs font-bold text-indigo-600 hover:text-indigo-800 transition-colors">
+                        <i class="fas fa-external-link-alt text-[10px]"></i> كشف الخزائن والمعاملات الكامل
+                    </a>
+                </div>
+            </div>
+
+            <!-- Tab Content 2: Stock Movements -->
+            <div id="stock-tab-content" class="tab-pane hidden overflow-x-auto flex-1">
+                <table class="w-full text-right min-w-[600px]">
+                    <thead class="bg-gray-50 border-b border-gray-100">
+                        <tr class="text-[11px] font-black text-gray-400 uppercase tracking-widest">
+                            <th class="px-5 py-3">المنتج</th>
+                            <th class="px-5 py-3">النوع</th>
+                            <th class="px-5 py-3 text-center">الكمية</th>
+                            <th class="px-5 py-3 text-left">التوقيت</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-50">
+                        {% for tx in recent_transactions %}
+                        <tr class="hover:bg-indigo-50/20 transition-colors">
+                            <td class="px-5 py-3">
+                                <span class="font-bold text-gray-800 text-sm block">{{ tx.product.name }}</span>
+                                <span class="text-xs text-gray-400 font-mono">{{ tx.product.sku }}</span>
+                            </td>
+                            <td class="px-5 py-3">
+                                {% if tx.transaction_type == 'IN' %}
+                                    <span class="fin-badge bg-emerald-50 text-emerald-700 border border-emerald-100/50"><i class="fas fa-arrow-down text-[8px]"></i> توريد مخزن</span>
+                                {% elif tx.transaction_type == 'OUT' %}
+                                    <span class="fin-badge bg-blue-50 text-blue-700 border border-blue-100/50"><i class="fas fa-shopping-cart text-[8px]"></i> بيع قطاعي</span>
+                                {% else %}
+                                    <span class="fin-badge bg-orange-50 text-orange-700 border border-orange-100/50"><i class="fas fa-undo text-[8px]"></i> مرتجع مخزن</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-5 py-3 text-center">
+                                <span class="font-black text-gray-800 bg-gray-100 px-2.5 py-1 rounded-lg text-xs">{{ tx.quantity|floatformat:1 }}</span>
+                            </td>
+                            <td class="px-5 py-3 text-left">
+                                <span class="font-bold text-gray-700 text-sm block">{{ tx.created_at|date:"h:i A" }}</span>
+                                <span class="text-[10px] text-gray-400 block">{{ tx.created_at|date:"Y/m/d" }}</span>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="4" class="px-6 py-12 text-center">
+                                <div class="flex flex-col items-center gap-3 text-gray-400">
+                                    <div class="w-12 h-12 bg-gray-100 rounded-2xl flex items-center justify-center">
+                                        <i class="fas fa-boxes-stacked text-xl text-gray-300"></i>
+                                    </div>
+                                    <span class="text-xs font-bold">لا توجد حركات مخزنية مسجلة</span>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                <div class="p-4 border-t border-gray-100 bg-gray-50/50 flex justify-end">
+                    <a href="{% url 'transaction_list' %}" class="flex items-center gap-1.5 text-xs font-bold text-indigo-600 hover:text-indigo-800 transition-colors">
+                        <i class="fas fa-external-link-alt text-[10px]"></i> السجل الكامل لحركات المخزون
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Inventory quick stats & actions sidebar (Right, 1 Column) -->
+        <div class="db-card flex flex-col">
+            <div class="db-card-header">
+                <div class="db-section-label">
+                    <span class="label-bar bg-amber-500"></span>
+                    <h2 class="text-base font-black text-gray-900">أدوات وإحصائيات المخزون</h2>
+                </div>
+            </div>
+            <div class="p-4 flex-1 space-y-3">
+                <a href="{% url 'product_list' %}" class="flex items-center justify-between p-3 bg-gray-50 hover:bg-teal-50/50 rounded-2xl border border-transparent hover:border-teal-100 transition-all group">
+                    <div class="flex items-center gap-3">
+                        <div class="w-9 h-9 bg-white rounded-xl shadow-sm text-teal-600 group-hover:bg-teal-100 flex items-center justify-center transition-colors">
+                            <i class="fas fa-box text-sm"></i>
+                        </div>
+                        <span class="font-bold text-gray-700 text-sm">إجمالي السلع والمنتجات</span>
+                    </div>
+                    <span class="font-black text-gray-900 text-lg">{{ total_products }}</span>
+                </a>
+                <a href="{% url 'supplier_list' %}" class="flex items-center justify-between p-3 bg-gray-50 hover:bg-orange-50/50 rounded-2xl border border-transparent hover:border-orange-100 transition-all group">
+                    <div class="flex items-center gap-3">
+                        <div class="w-9 h-9 bg-white rounded-xl shadow-sm text-orange-600 group-hover:bg-orange-100 flex items-center justify-center transition-colors">
+                            <i class="fas fa-truck text-sm"></i>
+                        </div>
+                        <span class="font-bold text-gray-700 text-sm">الموردون النشطون</span>
+                    </div>
+                    <span class="font-black text-gray-900 text-lg">{{ total_suppliers }}</span>
+                </a>
+                {% if policies.inventory.warn_low_stock %}
+                <a href="{% url 'product_list' %}?stock_status=low" class="flex items-center justify-between p-3 {% if low_stock_count > 0 %}bg-red-50/80 border border-red-100{% else %}bg-gray-50 border border-transparent{% endif %} rounded-2xl hover:shadow-sm transition-all group">
+                    <div class="flex items-center gap-3">
+                        <div class="w-9 h-9 bg-white rounded-xl shadow-sm {% if low_stock_count > 0 %}text-red-500{% else %}text-gray-400{% endif %} flex items-center justify-center">
+                            <i class="fas fa-exclamation-triangle text-sm"></i>
+                        </div>
+                        <span class="font-bold {% if low_stock_count > 0 %}text-red-700{% else %}text-gray-700{% endif %} text-sm">منتجات قاربت على النفاد</span>
+                    </div>
+                    <span class="font-black {% if low_stock_count > 0 %}text-red-600{% else %}text-gray-900{% endif %} text-lg">{{ low_stock_count }}</span>
+                </a>
+                {% endif %}
+                <a href="{% url 'product_list' %}?stock_status=out" class="flex items-center justify-between p-3 {% if out_of_stock_count > 0 %}bg-gray-900 text-white{% else %}bg-gray-50{% endif %} rounded-2xl transition-all group">
+                    <div class="flex items-center gap-3">
+                        <div class="w-9 h-9 {% if out_of_stock_count > 0 %}bg-white/10{% else %}bg-white{% endif %} rounded-xl shadow-sm {% if out_of_stock_count > 0 %}text-white{% else %}text-gray-400{% endif %} flex items-center justify-center">
+                            <i class="fas fa-times-circle text-sm"></i>
+                        </div>
+                        <span class="font-bold text-sm">منتجات نفدت تماماً</span>
+                    </div>
+                    <span class="font-black {% if out_of_stock_count > 0 %}text-yellow-400{% else %}text-gray-900{% endif %} text-lg">{{ out_of_stock_count }}</span>
+                </a>
+                {% if near_expiry_batch_count > 0 %}
+                <a href="{% url 'expiry_report' %}" class="flex items-center justify-between p-3 bg-amber-50/80 border border-amber-200 rounded-2xl hover:shadow-sm transition-all group">
+                    <div class="flex items-center gap-3">
+                        <div class="w-9 h-9 bg-white rounded-xl shadow-sm text-amber-600 flex items-center justify-center">
+                            <i class="fas fa-hourglass-half text-sm"></i>
+                        </div>
+                        <span class="font-bold text-amber-800 text-sm">منتجات قاربت على انتهاء الصلاحية</span>
+                    </div>
+                    <span class="font-black text-amber-700 text-lg">{{ near_expiry_batch_count }}</span>
+                </a>
+                {% endif %}
+                {% if expired_batch_count > 0 %}
+                <a href="{% url 'expiry_report' %}" class="flex items-center justify-between p-3 bg-red-50/80 border border-red-200 rounded-2xl hover:shadow-sm transition-all group">
+                    <div class="flex items-center gap-3">
+                        <div class="w-9 h-9 bg-white rounded-xl shadow-sm text-red-600 flex items-center justify-center">
+                            <i class="fas fa-skull-crossbones text-sm"></i>
+                        </div>
+                        <span class="font-bold text-red-700 text-sm">منتجات منتهية الصلاحية</span>
+                    </div>
+                    <span class="font-black text-red-700 text-lg">{{ expired_batch_count }}</span>
+                </a>
+                {% endif %}
+                {% if can_view_profit and oversold_count > 0 %}
+                <a href="{% url 'oversold_register' %}" class="flex items-center justify-between p-3 bg-amber-50/80 border border-amber-200 rounded-2xl hover:shadow-sm transition-all group">
+                    <div class="flex items-center gap-3">
+                        <div class="w-9 h-9 bg-white rounded-xl shadow-sm text-amber-600 flex items-center justify-center">
+                            <i class="fas fa-triangle-exclamation text-sm"></i>
+                        </div>
+                        <div class="flex flex-col">
+                            <span class="font-bold text-amber-800 text-sm">مبيعات تجاوزت المخزون المتاح</span>
+                            <span class="text-[10px] text-amber-600">نقص إجمالي: {{ oversold_qty_total|floatformat:-2 }}</span>
+                        </div>
+                    </div>
+                    <span class="font-black text-amber-700 text-lg">{{ oversold_count }}</span>
+                </a>
+                {% endif %}
+
+                <div class="pt-3 border-t border-gray-100 grid grid-cols-2 gap-2">
+                    <a href="{% url 'bulk_audit' %}" class="flex flex-col items-center justify-center p-3 bg-gray-50 hover:bg-indigo-50 border border-gray-100 hover:border-indigo-150 rounded-2xl transition-all group text-center">
+                        <i class="fas fa-clipboard-check text-indigo-600 text-lg mb-1 group-hover:scale-110 transition-transform"></i>
+                        <span class="text-xs font-bold text-gray-700">جرد المخزون</span>
+                    </a>
+                    <a href="{% url 'category_list' %}" class="flex flex-col items-center justify-center p-3 bg-gray-50 hover:bg-indigo-50 border border-gray-100 hover:border-indigo-150 rounded-2xl transition-all group text-center">
+                        <i class="fas fa-tags text-indigo-600 text-lg mb-1 group-hover:scale-110 transition-transform"></i>
+                        <span class="text-xs font-bold text-gray-700">أقسام المنتجات</span>
+                    </a>
+                </div>
+
+                {% if can_view_profit %}
+                <div class="pt-1 space-y-2">
+                    <a href="{% url 'sales_profit_report' %}?date_from={{ date_from }}&date_to={{ date_to }}" class="flex items-center justify-center gap-2 w-full py-2.5 bg-indigo-900 hover:bg-black text-white text-xs font-black rounded-2xl transition-colors">
+                        <i class="fas fa-chart-bar"></i> تقرير الأرباح التفصيلي المالي
+                    </a>
+                    <a href="{% url 'margin_report' %}" class="flex items-center justify-center gap-2 w-full py-2.5 bg-white border border-gray-200 text-gray-700 hover:border-indigo-300 text-xs font-black rounded-2xl transition-colors">
+                        <i class="fas fa-print text-gray-400"></i> طباعة كشف هوامش الربح A4
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== PRODUCT CAROUSEL WIDGET (Most Sold Products) ===== -->
+    <div class="db-card fade-up fade-up-3">
+        <div class="db-card-header">
+            <div class="db-section-label">
+                <span class="label-bar bg-orange-500"></span>
+                <div>
+                    <h2 class="text-base font-black text-gray-900">أكثر السلع والمنتجات مبيعاً ورواجاً</h2>
+                    <p class="text-xs text-gray-400 mt-0.5">مبيعات المنتجات المرتفعة للفترة الحالية</p>
+                </div>
+            </div>
+            <div class="relative w-64">
+                <i class="fas fa-search absolute right-3 top-1/2 -translate-y-1/2 text-gray-300 text-xs"></i>
+                <input type="text" id="widget-search" placeholder="ابحث بالاسم أو SKU..." class="w-full pr-8 pl-4 py-1.5 rounded-xl text-xs border border-gray-200 focus:border-indigo-400 focus:ring-0 bg-white text-gray-700 placeholder-gray-300">
+            </div>
+        </div>
+        <div class="relative group">
+            <button onclick="scrollWidget('right')" class="absolute left-3 top-1/2 -translate-y-1/2 z-20 bg-white/90 shadow border border-gray-100 w-9 h-9 rounded-full flex items-center justify-center text-gray-500 hover:text-indigo-600 opacity-0 group-hover:opacity-100 transition-all hidden md:flex">
+                <i class="fas fa-chevron-left text-xs"></i>
+            </button>
+            <button onclick="scrollWidget('left')" class="absolute right-3 top-1/2 -translate-y-1/2 z-20 bg-white/90 shadow border border-gray-100 w-9 h-9 rounded-full flex items-center justify-center text-gray-500 hover:text-indigo-600 opacity-0 group-hover:opacity-100 transition-all hidden md:flex">
+                <i class="fas fa-chevron-right text-xs"></i>
+            </button>
+            <div id="products-track" class="flex overflow-x-auto pb-5 gap-4 snap-x snap-mandatory scrollbar-hide px-5 py-4" style="scroll-behavior:smooth">
+                <!-- JS rendered product cards -->
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== PREMIUM AI BUSINESS INTELLIGENCE HUB ===== -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 fade-up fade-up-4">
+        
+        <!-- Column 1: Data Health & Catalog Compass -->
+        <div class="db-card flex flex-col">
+            <div class="db-card-header">
+                <div class="db-section-label">
+                    <span class="label-bar bg-purple-500"></span>
+                    <div>
+                        <h2 class="text-base font-black text-gray-900">بوصلة صحة البيانات الكتالوجية</h2>
+                        <p class="text-xs text-gray-400 mt-0.5">مؤشرات اكتمال الكروت للمنتجات</p>
+                    </div>
+                </div>
+                <span id="health-score-badge" class="fin-badge bg-gray-100 text-gray-500 animate-pulse">جاري التحميل...</span>
+            </div>
+            <div class="p-5 flex-1 flex flex-col justify-between">
+                <div>
+                    <div class="flex justify-center mb-4 min-h-[170px] items-center">
+                        <canvas id="healthChart" style="max-height:180px; max-width:180px;"></canvas>
+                    </div>
+                    <div id="product-health-content" class="space-y-2 max-h-[180px] overflow-y-auto scrollbar-hide">
+                        <!-- Filled by JS -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Column 2: Margin Optimization and Pricing opportunities -->
+        <div class="db-card flex flex-col">
+            <div class="db-card-header">
+                <div class="db-section-label">
+                    <span class="label-bar bg-emerald-500"></span>
+                    <div>
+                        <h2 class="text-base font-black text-gray-900">فرص تعديل أسعار السلع والهوامش</h2>
+                        <p class="text-xs text-gray-400 mt-0.5">توصيات ذكية لتحسين الإيرادات والأرباح</p>
+                    </div>
+                </div>
+                <span id="price-impact-badge" class="fin-badge bg-amber-100 text-amber-700 animate-pulse font-bold text-xs">تحميل...</span>
+            </div>
+            <div class="p-4 flex-1">
+                <div id="price-suggestions-content" class="space-y-2 max-h-[350px] overflow-y-auto scrollbar-hide">
+                    <!-- Filled by JS -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Column 3: Restocking & CRM Alerts -->
+        <div class="db-card flex flex-col">
+            <div class="db-card-header">
+                <div class="db-section-label">
+                    <span class="label-bar bg-rose-500"></span>
+                    <div>
+                        <h2 class="text-base font-black text-gray-900">اقتراحات التوريد وإشعارات العملاء</h2>
+                        <p class="text-xs text-gray-400 mt-0.5">تنبيهات نواقص ونشاط العملاء المقترح</p>
+                    </div>
+                </div>
+            </div>
+            <div class="p-4 flex-1">
+                <div id="crm-suggestions-content" class="space-y-2 max-h-[350px] overflow-y-auto scrollbar-hide">
+                    <!-- Filled by JS -->
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+</div>
+
+<!-- ===== SCRIPTS ===== -->
+<script>
+    // --- Smooth Interactive Tab Switcher ---
+    function switchTab(tabId) {
+        document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+        document.querySelectorAll('.tab-pane').forEach(pane => {
+            pane.classList.add('hidden');
+            pane.classList.remove('block');
+        });
+        
+        document.getElementById('btn-' + tabId).classList.add('active');
+        const activePane = document.getElementById(tabId + '-content');
+        activePane.classList.remove('hidden');
+        activePane.classList.add('block');
+    }
+
+    // --- Correct Local Time Date Range Picker ---
+    function setRange(range) {
+        const today = new Date();
+        // Custom local date formatter (fixes UTC-split bug)
+        const fmt = d => {
+            const year = d.getFullYear();
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        };
+        
+        let df, dt;
+        if (range === 'today') { 
+            df = dt = fmt(today); 
+        } else if (range === 'yesterday') {
+            const y = new Date(today); 
+            y.setDate(today.getDate() - 1);
+            df = dt = fmt(y);
+        } else if (range === '7days') {
+            const s = new Date(today); 
+            s.setDate(today.getDate() - 6);
+            df = fmt(s); 
+            dt = fmt(today);
+        } else if (range === 'thisMonth') {
+            df = fmt(new Date(today.getFullYear(), today.getMonth(), 1));
+            dt = fmt(today);
+        }
+        
+        document.getElementById('date_from').value = df;
+        document.getElementById('date_to').value = dt;
+        document.getElementById('filterForm').submit();
+    }
+
+    // --- Charting and sparklines ---
+    document.addEventListener('DOMContentLoaded', function() {
+        const opts = {
+            chart: { type: 'area', height: 32, sparkline: { enabled: true }, animations: { enabled: true, easing: 'easeinout', speed: 700 } },
+            stroke: { curve: 'smooth', width: 2 },
+            fill: { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.4, opacityTo: 0.02, stops: [0, 100] } },
+            tooltip: { enabled: false }
+        };
+        new ApexCharts(document.querySelector('#revenue-sparkline'), { ...opts, colors: ['#6366f1'], series: [{ data: [30,40,35,50,49,60,70,91,125] }] }).render();
+        new ApexCharts(document.querySelector('#sold-sparkline'), { ...opts, colors: ['#3b82f6'], series: [{ data: [20,30,25,40,39,50,60,81,105] }] }).render();
+        new ApexCharts(document.querySelector('#ops-sparkline'), { ...opts, colors: ['#14b8a6'], series: [{ data: [15,25,20,35,34,45,55,76,95] }] }).render();
+        new ApexCharts(document.querySelector('#stock-sparkline'), { ...opts, colors: ['#f59e0b'], series: [{ data: [50,45,60,55,70,65,80,75,90] }] }).render();
+    });
+
+    // --- Health Chart ---
+    const healthData = {{ health_graph_json|safe }};
+    const ctx = document.getElementById('healthChart').getContext('2d');
+    new Chart(ctx, {
+        type: 'polarArea',
+        data: {
+            labels: healthData.labels,
+            datasets: [{ data: healthData.values, backgroundColor: healthData.colors, borderWidth: 0 }]
+        },
+        options: {
+            responsive: true, 
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    backgroundColor: 'rgba(15,23,42,0.9)',
+                    titleFont: { family: 'Cairo', size: 12, weight: 'bold' },
+                    bodyFont: { family: 'Cairo', size: 10 },
+                    padding: 8, 
+                    cornerRadius: 8
+                }
+            },
+            scales: { r: { grid: { color: 'rgba(0,0,0,0.03)' }, ticks: { display: false } } }
+        }
+    });
+
+    // --- Horizontal carousel render ---
+    const productsData = {{ products_widget_json|safe }};
+    const track = document.getElementById('products-track');
+    const searchInput = document.getElementById('widget-search');
+
+    function renderCards(filterText = '') {
+        track.innerHTML = '';
+        const filtered = productsData.filter(p =>
+            p.name.toLowerCase().includes(filterText.toLowerCase()) ||
+            p.sku.toLowerCase().includes(filterText.toLowerCase())
+        );
+        if (filtered.length === 0) {
+            track.innerHTML = '<div class="w-full text-center py-10 text-gray-400 text-xs bg-gray-50 rounded-2xl border border-dashed border-gray-200 my-1 mx-2">لا توجد منتجات مطابقة للبحث</div>';
+            return;
+        }
+        filtered.forEach(p => {
+            const maxVal = Math.max(...p.history, 1);
+            const bars = p.history.map(val => {
+                const h = Math.max((val/maxVal)*100, 8);
+                const active = val > 0;
+                return `<div class="flex flex-col justify-end h-full relative group/b">
+                    <div class="w-2 rounded-full mx-px transition-all ${active ? 'bg-indigo-400 hover:bg-indigo-600' : 'bg-gray-200'}" style="height:${h}%"></div>
+                    ${active ? `<div class="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-[9px] px-1.5 py-0.5 rounded opacity-0 group-hover/b:opacity-100 whitespace-nowrap z-10">${val}</div>` : ''}
+                </div>`;
+            }).join('');
+
+            const card = document.createElement('a');
+            card.href = p.url;
+            card.className = 'min-w-[270px] bg-white rounded-2xl shadow-sm border border-gray-100 p-4 snap-start flex flex-col hover:shadow-md hover:border-indigo-150 hover:-translate-y-1 transition-all duration-300 cursor-pointer relative overflow-hidden group/card';
+            card.innerHTML = `
+                <div class="absolute -right-4 -top-4 w-16 h-16 bg-gradient-to-bl from-indigo-50 to-transparent rounded-full z-0 group-hover/card:scale-150 transition-transform duration-500"></div>
+                <div class="relative z-10 flex-1">
+                    <div class="flex justify-between items-start mb-3">
+                        <div class="flex-1 min-w-0">
+                            <h4 class="font-bold text-gray-800 text-sm truncate" title="${p.name}">${p.name}</h4>
+                            <span class="text-[10px] text-gray-400 font-mono bg-gray-100 px-1.5 py-0.5 rounded mt-1 inline-block">${p.sku}</span>
+                        </div>
+                        <div class="text-center bg-gray-50 px-2 py-1 rounded-xl border border-gray-100 mr-2 flex-shrink-0">
+                            <span class="block text-[8px] text-gray-400">مخزون</span>
+                            <span class="font-black text-base ${p.stock <= 5 ? 'text-red-500' : 'text-gray-800'}">${p.stock}</span>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2 mb-3">
+                        <div class="bg-indigo-50/50 rounded-xl p-2 border border-indigo-50">
+                            <span class="text-[9px] text-indigo-400 font-bold block">مباع</span>
+                            <span class="font-black text-indigo-700 text-sm">${p.sold}</span>
+                        </div>
+                        <div class="bg-emerald-50/50 rounded-xl p-2 border border-emerald-50">
+                            <span class="text-[9px] text-emerald-500 font-bold block">الإيراد</span>
+                            <span class="font-black text-emerald-700 text-sm">${p.revenue.toLocaleString()}</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="border-t border-gray-100 pt-2 mt-auto">
+                    <div class="flex justify-between items-end h-8">
+                        <span class="text-[9px] font-bold text-gray-300">آخر 7 أيام</span>
+                        <div class="flex items-end h-6 gap-0.5">${bars}</div>
+                    </div>
+                </div>
+            `;
+            track.appendChild(card);
+        });
+    }
+    renderCards();
+    searchInput.addEventListener('input', e => renderCards(e.target.value));
+
+    function scrollWidget(direction) {
+        const amt = 290;
+        track.scrollBy({ left: direction === 'left' ? amt : -amt, behavior: 'smooth' });
+    }
+
+    // --- Dynamic AI suggestions & Pricing updates ---
+    document.addEventListener('DOMContentLoaded', () => {
+        fetchProductHealth();
+        fetchProductSuggestions();
+        fetchPriceSuggestions();
+    });
+
+    function getDismissedSuggestions(key) {
+        try { return JSON.parse(localStorage.getItem(key)) || []; } catch(e) { return []; }
+    }
+    
+    function dismissSuggestion(key, id, elementId) {
+        const d = getDismissedSuggestions(key);
+        if (!d.includes(id)) { 
+            d.push(id); 
+            localStorage.setItem(key, JSON.stringify(d)); 
+        }
+        const el = document.getElementById(elementId);
+        if (el) el.remove();
+    }
+
+    async function fetchProductHealth() {
+        try {
+            const res = await fetch("{% url 'product_health_api' %}");
+            const data = await res.json();
+            const badge = document.getElementById('health-score-badge');
+            const content = document.getElementById('product-health-content');
+            if (!badge || !content) return;
+            badge.classList.remove('animate-pulse','bg-gray-200','text-gray-500');
+            const score = data.overall_health_score;
+            badge.classList.add(score>=90?'bg-green-100':'score>=60'?'bg-orange-100':'bg-red-100', score>=90?'text-green-700':score>=60?'text-orange-700':'text-red-700');
+            badge.innerText = score + '%';
+            
+            let html = `<div class="bg-gray-50 rounded-xl p-2.5 mb-2 flex justify-around border border-gray-100">
+                <div class="text-center"><span class="block text-base font-black text-green-600">${data.complete_count}</span><span class="text-[9px] text-gray-400">سليم</span></div>
+                <div class="text-center border-x border-gray-200 px-3"><span class="block text-base font-black text-orange-500">${data.needs_review_count}</span><span class="text-[9px] text-gray-400">بحاجة لمراجعة</span></div>
+                <div class="text-center"><span class="block text-base font-black text-red-500">${data.incomplete_count}</span><span class="text-[9px] text-gray-400">ناقص</span></div>
+            </div><div class="space-y-2">`;
+            
+            if (!data.incomplete_products.length) {
+                html += `<div class="text-center py-4 text-xs text-gray-400 italic">كل المنتجات مكتملة! 🎉</div>`;
+            } else {
+                data.incomplete_products.forEach(p => {
+                    html += `<div class="flex justify-between items-center bg-white border border-gray-100 rounded-lg p-2 hover:shadow-sm">
+                        <a href="/products/${p.id}/edit/" class="text-xs font-bold text-indigo-600 hover:underline">${p.name}</a>
+                        <span class="text-xs font-black ${p.score>=60?'text-orange-500':'text-red-500'}">${p.score}%</span>
+                    </div>`;
+                });
+            }
+            content.innerHTML = html + '</div>';
+        } catch(e) {
+            const el = document.getElementById('product-health-content');
+            if (el) el.innerHTML = '<div class="text-center text-red-400 text-xs py-4">خطأ في تحميل البيانات</div>';
+        }
+    }
+
+    async function fetchProductSuggestions() {
+        try {
+            const res = await fetch("{% url 'smart_suggestions_api' %}");
+            const data = await res.json();
+            const content = document.getElementById('crm-suggestions-content');
+            if (!content) return;
+            const dismissed = getDismissedSuggestions('dismissed_product_sug');
+            const visible = data.suggestions.filter(s => !dismissed.includes(`${s.type}_${s.product_id}`));
+            let html = '<div class="space-y-2">';
+            
+            if (!visible.length) {
+                html += `<div class="text-center py-6 text-xs text-gray-400 italic">لا توجد اقتراحات حالية</div>`;
+            } else {
+                visible.forEach(s => {
+                    const elId = `psug_${s.type}_${s.product_id}`;
+                    const bg = s.priority==='high'?'bg-red-50 border-red-100':s.priority==='medium'?'bg-orange-50 border-orange-100':'bg-blue-50 border-blue-100';
+                    const iconClr = s.priority==='high'?'text-red-500':s.priority==='medium'?'text-orange-500':'text-blue-500';
+                    html += `<div id="${elId}" class="${bg} border rounded-xl p-3 relative group">
+                        <button onclick="dismissSuggestion('dismissed_product_sug','${s.type}_${s.product_id}','${elId}')" class="absolute top-2 left-2 text-gray-300 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"><i class="fas fa-times text-xs"></i></button>
+                        <div class="flex gap-2">
+                            <div class="${iconClr} mt-0.5"><i class="fas ${s.icon}"></i></div>
+                            <div>
+                                <h4 class="font-bold text-gray-800 text-xs">${s.product_name}</h4>
+                                <p class="text-[11px] text-gray-600 mt-0.5">${s.message_ar}</p>
+                                <a href="${s.action_url}" class="inline-block mt-2 text-[9px] bg-white border border-gray-200 px-2 py-0.5 rounded font-bold hover:bg-gray-50">${s.action_label}</a>
+                            </div>
+                        </div>
+                    </div>`;
+                });
+            }
+            content.innerHTML = html + '</div>';
+        } catch(e) {}
+    }
+
+    async function updatePriceAjax(productId, newPrice, elId) {
+        try {
+            Swal.fire({
+                title: 'جاري التحديث وتأمين السعر الجديد...',
+                allowOutsideClick: false,
+                didOpen: () => Swal.showLoading()
+            });
+            const fd = new FormData();
+            fd.append('product_id', productId); 
+            fd.append('new_price', newPrice);
+            
+            const res = await fetch("{% url 'update_price_api' %}", { 
+                method: 'POST', 
+                body: fd, 
+                headers: {'X-CSRFToken': '{{ csrf_token }}'} 
+            });
+            const data = await res.json();
+            if (data.status === 'success') { 
+                Swal.fire({
+                    title: 'نجاح!',
+                    text: 'تم تحديث سعر البيع للسلعة وتدوينه بالدفاتر بنجاح 🎉',
+                    icon: 'success',
+                    timer: 1500
+                });
+                dismissSuggestion('dismissed_price_sug', `price_${productId}_${newPrice}`, elId);
+            } else {
+                Swal.fire('خطأ في التنفيذ', data.message, 'error');
+            }
+        } catch(e) { 
+            Swal.fire('خطأ برمجى', 'حدث خطأ غير متوقع أثناء إرسال الطلب', 'error'); 
+        }
+    }
+
+    async function fetchPriceSuggestions() {
+        try {
+            const res = await fetch("{% url 'price_suggestions_api' %}");
+            const data = await res.json();
+            const content = document.getElementById('price-suggestions-content');
+            const badge = document.getElementById('price-impact-badge');
+            if (!content || !badge) return;
+            badge.classList.remove('animate-pulse','bg-amber-100','text-amber-700');
+            
+            if (data.total_impact > 0) { 
+                badge.classList.add('bg-emerald-100','text-emerald-700'); 
+                badge.innerHTML = `+${data.total_impact.toLocaleString()} ج.م <span class="text-[8px] font-normal font-sans mr-0.5">عائد متوقع</span>`; 
+            } else {
+                badge.innerText = 'جاهز';
+            }
+            
+            const dismissed = getDismissedSuggestions('dismissed_price_sug');
+            // Keyed on (product_id, suggested_price) — not just product_id — so dismissing
+            // today's suggestion doesn't permanently silence future, different suggestions
+            // for the same product (e.g. after cost changes again later).
+            const visible = [...data.warnings, ...data.opportunities].filter(s => !dismissed.includes(`price_${s.product_id}_${s.suggested_price}`));
+            let html = '<div class="space-y-2">';
+            
+            if (!visible.length) {
+                html += `<div class="text-center py-6 text-xs text-gray-400 italic">لا توجد اقتراحات لأسعار وهوامش السلع</div>`;
+            } else {
+                visible.forEach(s => {
+                    const elId = `pricesug_${s.product_id}`;
+                    const isOpp = s.action_type === 'increase';
+                    const bg = isOpp ? 'bg-emerald-50 border-emerald-100' : 'bg-red-50 border-red-100';
+                    const icon = isOpp ? 'fa-arrow-trend-up text-emerald-500' : 'fa-triangle-exclamation text-red-500';
+                    html += `<div id="${elId}" class="${bg} border rounded-xl p-3 relative group">
+                        <button onclick="dismissSuggestion('dismissed_price_sug','price_${s.product_id}_${s.suggested_price}','${elId}')" class="absolute top-2 left-2 text-gray-300 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"><i class="fas fa-times text-xs"></i></button>
+                        <div class="flex gap-2">
+                            <div class="mt-0.5"><i class="fas ${icon}"></i></div>
+                            <div class="w-full">
+                                <h4 class="font-bold text-gray-800 text-xs pr-3 truncate">${s.product_name}</h4>
+                                <p class="text-[11px] text-gray-600 mt-0.5">${s.reason_ar}</p>
+                                <div class="flex justify-between items-center mt-2 bg-white px-2 py-1 rounded border border-gray-100">
+                                    <div class="text-center">
+                                        <span class="block text-[8px] text-gray-400">الحالي</span>
+                                        <span class="text-xs font-bold line-through text-gray-400">${s.current_price}</span>
+                                    </div>
+                                    <i class="fas fa-arrow-left text-gray-300 text-[10px]"></i>
+                                    <div class="text-center">
+                                        <span class="block text-[8px] text-gray-400">المقترح</span>
+                                        <span class="text-xs font-bold text-emerald-600">${s.suggested_price}</span>
+                                    </div>
+                                </div>
+                                <button onclick="updatePriceAjax(${s.product_id},${s.suggested_price},'${elId}')" class="mt-2 w-full bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-bold py-1 rounded transition-colors shadow">تطبيق السعر الموصى به</button>
+                            </div>
+                        </div>
+                    </div>`;
+                });
+            }
+            content.innerHTML = html + '</div>';
+        } catch(e) {}
+    }
+</script>
+
+{% endblock %}

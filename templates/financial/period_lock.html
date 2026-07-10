@@ -1,0 +1,47 @@
+{% extends 'base.html' %}
+{% block title %}إغلاق الفترة المحاسبية{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto space-y-6">
+    <h1 class="text-2xl font-black text-gray-800">إغلاق الفترة المحاسبية</h1>
+
+    <div class="bg-white p-5 rounded-xl border">
+        {% if lock.locked_up_to %}
+            <div class="flex items-center gap-3 mb-4">
+                <span class="px-3 py-1 bg-red-100 text-red-700 rounded-full font-bold text-sm">مغلق</span>
+                <span class="text-gray-700">الدفاتر مغلقة حتى تاريخ <b>{{ lock.locked_up_to }}</b></span>
+            </div>
+            <p class="text-sm text-gray-500 mb-4">
+                لا يمكن تعديل أو إلغاء أي فاتورة بتاريخ {{ lock.locked_up_to }} أو قبله
+                إلا لمن يملك صلاحية الإدارة المالية.
+            </p>
+            <form method="post" onsubmit="return confirm('فتح الفترة سيسمح بتعديل الفواتير القديمة. متأكد؟');">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="unlock">
+                <button class="px-5 py-2.5 bg-gray-700 text-white rounded-lg font-bold">فتح الفترة (إلغاء الإغلاق)</button>
+            </form>
+        {% else %}
+            <div class="flex items-center gap-3 mb-4">
+                <span class="px-3 py-1 bg-green-100 text-green-700 rounded-full font-bold text-sm">مفتوح</span>
+                <span class="text-gray-700">لا يوجد إغلاق حالياً — كل الفترات قابلة للتعديل.</span>
+            </div>
+        {% endif %}
+    </div>
+
+    <form method="post" class="bg-white p-5 rounded-xl border space-y-4">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="lock">
+        <div>
+            <label class="block text-sm font-bold text-gray-700 mb-1">إغلاق حتى تاريخ</label>
+            <input type="date" name="locked_up_to" value="{{ lock.locked_up_to|date:'Y-m-d' }}" required
+                   class="w-full p-2.5 border rounded-lg">
+            <p class="text-xs text-gray-500 mt-1">كل الحركات في هذا اليوم وما قبله ستُقفل ضد التعديل.</p>
+        </div>
+        <div>
+            <label class="block text-sm font-bold text-gray-700 mb-1">ملاحظات (اختياري)</label>
+            <input type="text" name="note" value="{{ lock.note }}" class="w-full p-2.5 border rounded-lg" placeholder="مثال: إقفال شهر مايو">
+        </div>
+        <button class="px-5 py-2.5 bg-indigo-600 text-white rounded-lg font-bold">حفظ / تحديث الإغلاق</button>
+    </form>
+</div>
+{% endblock %}

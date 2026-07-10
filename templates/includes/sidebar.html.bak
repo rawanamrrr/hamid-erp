@@ -1,0 +1,384 @@
+{% load rbac_tags %}
+<!-- Sidebar Sidebar -->
+<aside id="sidebar" class="fixed inset-y-0 right-0 z-50 w-64 h-screen px-4 py-8 overflow-y-auto transition-transform duration-300 transform translate-x-full bg-white border-l shadow-sm lg:translate-x-0 lg:static lg:inset-auto rtl:border-r rtl:border-l-0 border-gray-200 font-arabic">
+    
+    <!-- Logo & Brand -->
+    <a href="{% url 'dashboard' %}" class="flex items-center gap-4 px-2 mb-10 group animate-fade-in-left">
+        <div class="w-12 h-12 flex items-center justify-center bg-gradient-to-br from-teal-500 to-teal-700 text-white rounded-2xl shadow-xl group-hover:rotate-6 transition-all duration-300">
+            {% if sys_settings.logo_base64 %}
+                <img src="{{ sys_settings.logo_base64 }}" alt="Logo" class="max-w-[80%] max-h-[80%] object-contain rounded-md">
+            {% else %}
+                <i class="fas fa-store text-xl"></i>
+            {% endif %}
+        </div>
+        <div class="flex flex-col">
+            <span class="text-xl font-black text-gray-900 tracking-tight leading-none mb-1 group-hover:text-teal-600 smooth-transition">
+                {{ sys_settings.shop_name|default:"تكس تايل POS" }}
+            </span>
+            <span class="text-[10px] text-teal-600 font-bold uppercase tracking-widest opacity-80">نظام الإدارة المتكامل</span>
+        </div>
+    </a>
+
+    <!-- Navigation Menu -->
+    <div class="flex flex-col justify-between flex-1">
+        <nav class="space-y-2" id="sidebar-nav">
+            
+            <!-- Dashboard -->
+            <a href="{% url 'dashboard' %}" class="flex items-center px-4 py-3 text-gray-700 smooth-transition rounded-xl hover:bg-teal-50 hover:text-teal-700 hover:shadow-sm group {% if request.resolver_match.url_name == 'dashboard' %}bg-teal-50 text-teal-700 font-bold ring-1 ring-teal-100 shadow-sm shadow-teal-50{% endif %}">
+                <i class="fas fa-th-large ml-3 w-5 text-center smooth-transition group-hover:scale-110"></i>
+                <span class="text-sm">لوحة التحكم</span>
+                {% if request.resolver_match.url_name == 'dashboard' %}
+                <div class="mr-auto w-1.5 h-1.5 bg-teal-600 rounded-full animate-pulse"></div>
+                {% endif %}
+            </a>
+
+            <!-- POS Section -->
+            {% if request.user|can_access:"pos:view" or request.user.is_superuser %}
+            <div class="pt-4 pb-2">
+                <p class="px-4 text-[10px] font-black text-teal-600 uppercase tracking-widest mb-2 opacity-60">نظام البيع</p>
+                {% if request.user|can_access:"pos:desktop" or request.user.is_superuser %}
+                <a href="{% url 'pos_view' %}" class="hidden lg:flex items-center px-4 py-3.5 text-white rounded-2xl bg-gradient-to-r from-teal-600 to-teal-700 shadow-lg shadow-teal-100 transform active:scale-95 transition-all group {% if '/sales/pos/' == request.path %}ring-4 ring-teal-100 font-black scale-[1.02]{% endif %}">
+                    <i class="fas fa-calculator ml-3 w-5 text-center text-teal-100 smooth-transition group-hover:rotate-12"></i>
+                    <span class="text-sm">كاشير الكمبيوتر</span>
+                    <span class="mr-auto bg-white/20 text-white text-[9px] px-1.5 py-0.5 rounded font-black uppercase">F1</span>
+                </a>
+                {% endif %}
+                <!-- Mobile POS -->
+                {% if request.user|can_access:"pos:mobile" or request.user.is_superuser %}
+                <a href="{% url 'pos_mobile' %}" class="flex lg:hidden items-center px-4 py-3.5 text-white rounded-2xl bg-gradient-to-r from-teal-600 to-teal-700 shadow-lg shadow-teal-100 transform active:scale-95 transition-all {% if '/mobile/' in request.path %}ring-4 ring-teal-100 font-black scale-[1.02]{% endif %}">
+                    <i class="fas fa-mobile-alt ml-3 w-5 text-center text-teal-100"></i>
+                    <span class="text-sm">موبايل كاشير</span>
+                </a>
+                {% endif %}
+            </div>
+            {% endif %}
+
+            <!-- Financials Dash -->
+            {% if request.user|can_access:"financial:view" or request.user.is_superuser %}
+            <a href="{% url 'financial:dashboard' %}" class="flex items-center px-4 py-3 text-gray-700 transition-all rounded-xl hover:bg-teal-50 hover:text-teal-700 {% if 'financial' in request.path %}bg-teal-50 text-teal-700 font-bold ring-1 ring-teal-100{% endif %}">
+                <i class="fas fa-vault ml-3 w-5 text-center"></i>
+                <span class="text-sm">الخزنة والشيفتات</span>
+            </a>
+            {% endif %}
+
+            <div class="space-y-1 pt-2">
+                <!-- Group: Sales Drodown -->
+                {% if request.user|can_access:"sales:view" or request.user.is_superuser %}
+                <div class="dropdown-container">
+                    <button type="button" class="dropdown-btn flex items-center justify-between w-full px-4 py-3 text-gray-700 font-medium transition-all rounded-xl hover:bg-gray-100 group">
+                        <div class="flex items-center">
+                            <i class="fas fa-chart-line ml-3 w-5 text-center text-gray-500 group-hover:text-teal-600 transition-colors"></i>
+                            <span class="text-sm">المبيعات والتشغيل</span>
+                        </div>
+                        <i class="fas fa-chevron-down text-[10px] transition-transform duration-300 dropdown-arrow opacity-50"></i>
+                    </button>
+                    <div class="dropdown-content hidden px-2 mt-1 space-y-1 overflow-hidden transition-all duration-300 border-r-2 border-dashed border-gray-100 mr-4">
+                        {% if request.user|can_access:"sales:orders" or request.user.is_superuser %}
+                        <a href="{% url 'order_list' %}" class="flex items-center px-4 py-2.5 text-[13px] text-gray-600 rounded-lg hover:bg-teal-50 hover:text-teal-700 transition-all {% if '/sales/orders/' == request.path %}bg-teal-50 text-teal-700 font-bold{% endif %}">
+                            <i class="fas fa-file-invoice-dollar ml-3 w-4 text-center opacity-70 border-l border-gray-100 pl-2"></i> سجل الفواتير
+                        </a>
+                        {% endif %}
+                        {% if request.user|can_access:"sales:reports" or request.user.is_superuser %}
+                        <a href="{% url 'sold_items_list' %}" class="flex items-center px-4 py-2.5 text-[13px] text-gray-600 rounded-lg hover:bg-teal-50 hover:text-teal-700 transition-all {% if 'sales/list' in request.path %}bg-teal-50 text-teal-700 font-bold{% endif %}">
+                            <i class="fas fa-chart-pie ml-3 w-4 text-center opacity-70"></i> تقارير الأصناف
+                        </a>
+                        {% endif %}
+                        {% if request.user|can_access:"sales:refunds" or request.user.is_superuser %}
+                        <a href="{% url 'refund_view' %}" class="flex items-center px-4 py-2.5 text-[13px] text-gray-600 rounded-lg hover:bg-teal-50 hover:text-teal-700 transition-all {% if '/sales/refund/' == request.path %}bg-teal-50 text-teal-700 font-bold{% endif %}">
+                            <i class="fas fa-reply-all ml-3 w-4 text-center opacity-70"></i> تسجيل مرتجع
+                        </a>
+                        {% endif %}
+                        {% if request.user|can_access:"sales:expenses" or request.user.is_superuser %}
+                        <a href="{% url 'expense_list' %}" class="flex items-center px-4 py-2.5 text-[13px] text-gray-600 rounded-lg hover:bg-teal-50 hover:text-teal-700 transition-all {% if '/sales/expenses/' in request.path %}bg-teal-50 text-teal-700 font-bold{% endif %}">
+                            <i class="fas fa-receipt ml-3 w-4 text-center opacity-70"></i> المصروفات
+                        </a>
+                        {% endif %}
+                        {% if request.user|can_access:"financial:statement" or request.user.is_superuser %}
+                        <a href="{% url 'financial_statement' %}" class="flex items-center px-4 py-2.5 text-[13px] text-gray-600 rounded-lg hover:bg-teal-50 hover:text-teal-700 transition-all {% if 'finance-statement' in request.path %}bg-teal-50 text-teal-700 font-bold{% endif %}">
+                            <i class="fas fa-wallet ml-3 w-4 text-center opacity-70"></i> كشف الحساب
+                        </a>
+                        {% endif %}
+                        {% if request.user|can_access:"sales:factory" or request.user.is_superuser %}
+                        <a href="{% url 'factory_list' %}" class="flex items-center px-4 py-2.5 text-[13px] text-gray-600 rounded-lg hover:bg-teal-50 hover:text-teal-700 transition-all {% if 'factory' in request.path %}bg-teal-50 text-teal-700 font-bold{% endif %}">
+                            <i class="fas fa-industry ml-3 w-4 text-center opacity-70"></i> إدارة المصنع
+                        </a>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Group: Shipping Drodown -->
+                {% if request.user|can_access:"shipping:view" or request.user.is_superuser %}
+                <div class="dropdown-container">
+                    <button type="button" class="dropdown-btn flex items-center justify-between w-full px-4 py-3 text-gray-700 font-medium transition-all rounded-xl hover:bg-gray-100 group">
+                        <div class="flex items-center">
+                            <i class="fas fa-truck-fast ml-3 w-5 text-center text-gray-500 group-hover:text-teal-600 transition-colors"></i>
+                            <span class="text-sm">الشحن والأونلاين</span>
+                        </div>
+                        <i class="fas fa-chevron-down text-[10px] transition-transform duration-300 dropdown-arrow opacity-50"></i>
+                    </button>
+                    <div class="dropdown-content hidden px-2 mt-1 space-y-1 overflow-hidden transition-all duration-300 border-r-2 border-dashed border-gray-100 mr-4">
+                        {% if request.user|can_access:"shipping:dashboard" or request.user.is_superuser %}
+                        <a href="{% url 'shipping_dashboard' %}" class="flex items-center px-4 py-2.5 text-[13px] text-gray-600 rounded-lg hover:bg-teal-50 hover:text-teal-700 transition-all {% if '/shipping/' == request.path %}bg-teal-50 text-teal-700 font-bold{% endif %}">
+                            <i class="fas fa-box-open ml-3 w-4 text-center opacity-70"></i> متابعة الشحن
+                        </a>
+                        {% endif %}
+                        {% if request.user|can_access:"shipping:companies" or request.user.is_superuser %}
+                        <a href="{% url 'company_list' %}" class="flex items-center px-4 py-2.5 text-[13px] text-gray-600 rounded-lg hover:bg-teal-50 hover:text-teal-700 transition-all {% if '/shipping/companies/' in request.path %}bg-teal-50 text-teal-700 font-bold{% endif %}">
+                            <i class="fas fa-shipping-fast ml-3 w-4 text-center opacity-70"></i> شركات الشحن
+                        </a>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Group: Products Drodown -->
+                {% if request.user|can_access:"products:view" or request.user.is_superuser %}
+                <div class="dropdown-container">
+                    <button type="button" class="dropdown-btn flex items-center justify-between w-full px-4 py-3 text-gray-700 font-medium transition-all rounded-xl hover:bg-gray-100 group">
+                        <div class="flex items-center">
+                            <i class="fas fa-box-open ml-3 w-5 text-center text-gray-500 group-hover:text-teal-600 transition-colors"></i>
+                            <span class="text-sm">إدارة المنتجات</span>
+                        </div>
+                        <i class="fas fa-chevron-down text-[10px] transition-transform duration-300 dropdown-arrow opacity-50"></i>
+                    </button>
+                    <div class="dropdown-content hidden px-2 mt-1 space-y-1 overflow-hidden transition-all duration-300 border-r-2 border-dashed border-gray-100 mr-4">
+                        {% if request.user|can_access:"products:list" or request.user.is_superuser %}
+                        <a href="{% url 'product_list' %}" class="flex items-center px-4 py-2.5 text-[13px] text-gray-600 rounded-lg hover:bg-teal-50 hover:text-teal-700 transition-all {% if '/products/' == request.path %}bg-teal-50 text-teal-700 font-bold{% endif %}">
+                            <i class="fas fa-barcode ml-3 w-4 text-center opacity-70"></i> قائمة المنتجات
+                        </a>
+                        {% endif %}
+                        {% if request.user|can_access:"products:bulk_add" or request.user.is_superuser %}
+                        <a href="{% url 'bulk_product_add' %}" class="flex items-center px-4 py-2.5 text-[13px] text-gray-600 rounded-lg hover:bg-teal-50 hover:text-teal-700 transition-all {% if 'bulk-add' in request.path %}bg-teal-50 text-teal-700 font-bold{% endif %}">
+                            <i class="fas fa-plus-circle ml-3 w-4 text-center opacity-70"></i> إضافة منتجات (Bulk)
+                        </a>
+                        {% endif %}
+                        {% if request.user|can_access:"products:costing" or request.user.is_superuser %}
+                        <a href="{% url 'costing_view' %}" class="flex items-center px-4 py-2.5 text-[13px] text-gray-600 rounded-lg hover:bg-teal-50 hover:text-teal-700 transition-all {% if 'costing' in request.path %}bg-teal-50 text-teal-700 font-bold{% endif %}">
+                            <i class="fas fa-calculator ml-3 w-4 text-center opacity-70"></i> حساب التكاليف
+                        </a>
+                        {% endif %}
+                        {% if request.user|can_access:"products:alerts" or request.user.is_superuser %}
+                        <a href="{% url 'stock_alerts' %}" class="flex items-center px-4 py-2.5 text-[13px] text-gray-600 rounded-lg hover:bg-teal-50 hover:text-teal-700 transition-all {% if 'stock-alerts' in request.path %}bg-teal-50 text-teal-700 font-bold{% endif %}">
+                            <i class="fas fa-bell ml-3 w-4 text-center opacity-70 text-amber-500"></i> تنبيهات النواقص
+                        </a>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Group: Inventory Drodown -->
+                {% if request.user|can_access:"inventory:view" or request.user.is_superuser %}
+                <div class="dropdown-container">
+                    <button type="button" class="dropdown-btn flex items-center justify-between w-full px-4 py-3 text-gray-700 font-medium transition-all rounded-xl hover:bg-gray-100 group">
+                        <div class="flex items-center">
+                            <i class="fas fa-warehouse ml-3 w-5 text-center text-gray-500 group-hover:text-teal-600 transition-colors"></i>
+                            <span class="text-sm">المخازن والمشتريات</span>
+                        </div>
+                        <i class="fas fa-chevron-down text-[10px] transition-transform duration-300 dropdown-arrow opacity-50"></i>
+                    </button>
+                    <div class="dropdown-content hidden px-2 mt-1 space-y-1 overflow-hidden transition-all duration-300 border-r-2 border-dashed border-gray-100 mr-4">
+                        {% if request.user|can_access:"inventory:warehouses" or request.user.is_superuser %}
+                        <a href="{% url 'warehouse_list' %}" class="flex items-center px-4 py-2.5 text-[13px] text-gray-600 rounded-lg hover:bg-teal-50 hover:text-teal-700 transition-all {% if '/products/warehouses/' in request.path %}bg-teal-50 text-teal-700 font-bold{% endif %}">
+                            <i class="fas fa-building ml-3 w-4 text-center opacity-70"></i> إدارة المخازن
+                        </a>
+                        {% endif %}
+                        {% if request.user|can_access:"inventory:transactions" or request.user.is_superuser %}
+                        <a href="{% url 'transaction_list' %}" class="flex items-center px-4 py-2.5 text-[13px] text-gray-600 rounded-lg hover:bg-teal-50 hover:text-teal-700 transition-all {% if 'transactions' in request.path %}bg-teal-50 text-teal-700 font-bold{% endif %}">
+                            <i class="fas fa-history ml-3 w-4 text-center opacity-70"></i> حركات المخزن
+                        </a>
+                        {% endif %}
+                        {% if request.user|can_access:"inventory:transfer" or request.user.is_superuser %}
+                        <a href="{% url 'stock_transfer' %}" class="flex items-center px-4 py-2.5 text-[13px] text-gray-600 rounded-lg hover:bg-teal-50 hover:text-teal-700 transition-all {% if 'transfer' in request.path %}bg-teal-50 text-teal-700 font-bold{% endif %}">
+                            <i class="fas fa-exchange-alt ml-3 w-4 text-center opacity-70"></i> تحويل مخزون
+                        </a>
+                        {% endif %}
+                        {% if request.user|can_access:"inventory:audit" or request.user.is_superuser %}
+                        <a href="{% url 'bulk_audit' %}" class="flex items-center px-4 py-2.5 text-[13px] text-gray-600 rounded-lg hover:bg-teal-50 hover:text-teal-700 transition-all {% if 'audit' in request.path %}bg-teal-50 text-teal-700 font-bold{% endif %}">
+                            <i class="fas fa-clipboard-check ml-3 w-4 text-center opacity-70"></i> جرد المخزون
+                        </a>
+                        {% endif %}
+                        {% if request.user|can_access:"inventory:purchase_orders" or request.user.is_superuser %}
+                        <a href="{% url 'purchase_order_list' %}" class="flex items-center px-4 py-2.5 text-[13px] text-gray-600 rounded-lg hover:bg-teal-50 hover:text-teal-700 transition-all {% if 'purchase-orders' in request.path %}bg-teal-50 text-teal-700 font-bold{% endif %}">
+                            <i class="fas fa-file-invoice ml-3 w-4 text-center opacity-70"></i> أوامر الشراء
+                        </a>
+                        {% endif %}
+                        {% if request.user|can_access:"inventory:suppliers" or request.user.is_superuser %}
+                        <a href="{% url 'supplier_list' %}" class="flex items-center px-4 py-2.5 text-[13px] text-gray-600 rounded-lg hover:bg-teal-50 hover:text-teal-700 transition-all {% if 'supplier' in request.path %}bg-teal-50 text-teal-700 font-bold{% endif %}">
+                            <i class="fas fa-truck-field ml-3 w-4 text-center opacity-70"></i> الموردين
+                        </a>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Group: Master Data Drodown -->
+                {% if request.user|can_access:"master_data:view" or request.user.is_superuser %}
+                <div class="dropdown-container">
+                    <button type="button" class="dropdown-btn flex items-center justify-between w-full px-4 py-3 text-gray-700 font-medium transition-all rounded-xl hover:bg-gray-100 group">
+                        <div class="flex items-center">
+                            <i class="fas fa-database ml-3 w-5 text-center text-gray-500 group-hover:text-teal-600 transition-colors"></i>
+                            <span class="text-sm">البيانات الأساسية</span>
+                        </div>
+                        <i class="fas fa-chevron-down text-[10px] transition-transform duration-300 dropdown-arrow opacity-50"></i>
+                    </button>
+                    <div class="dropdown-content hidden px-2 mt-1 space-y-1 overflow-hidden transition-all duration-300 border-r-2 border-dashed border-gray-100 mr-4">
+                        {% if request.user|can_access:"master_data:categories" or request.user.is_superuser %}
+                        <a href="{% url 'category_list' %}" class="flex items-center px-4 py-2.5 text-[13px] text-gray-600 rounded-lg hover:bg-teal-50 hover:text-teal-700 transition-all {% if 'categories' in request.path %}bg-teal-50 text-teal-700 font-bold{% endif %}">
+                            <i class="fas fa-tags ml-3 w-4 text-center opacity-70"></i> الأقسام
+                        </a>
+                        {% endif %}
+                        {% if request.user|can_access:"master_data:kinds" or request.user.is_superuser %}
+                        <a href="{% url 'kind_list' %}" class="flex items-center px-4 py-2.5 text-[13px] text-gray-600 rounded-lg hover:bg-teal-50 hover:text-teal-700 transition-all {% if 'kinds' in request.path %}bg-teal-50 text-teal-700 font-bold{% endif %}">
+                            <i class="fas fa-list ml-3 w-4 text-center opacity-70"></i> الأنواع
+                        </a>
+                        {% endif %}
+                        {% if request.user|can_access:"master_data:sizes" or request.user.is_superuser %}
+                        <a href="{% url 'size_list' %}" class="flex items-center px-4 py-2.5 text-[13px] text-gray-600 rounded-lg hover:bg-teal-50 hover:text-teal-700 transition-all {% if 'sizes' in request.path %}bg-teal-50 text-teal-700 font-bold{% endif %}">
+                            <i class="fas fa-ruler ml-3 w-4 text-center opacity-70"></i> المقاسات
+                        </a>
+                        {% endif %}
+                        {% if request.user|can_access:"master_data:units" or request.user.is_superuser %}
+                        <a href="{% url 'unit_list' %}" class="flex items-center px-4 py-2.5 text-[13px] text-gray-600 rounded-lg hover:bg-teal-50 hover:text-teal-700 transition-all {% if 'units' in request.path %}bg-teal-50 text-teal-700 font-bold{% endif %}">
+                            <i class="fas fa-weight ml-3 w-4 text-center opacity-70"></i> وحدات القياس
+                        </a>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- CRM Link -->
+                {% if request.user|can_access:"crm:view" or request.user.is_superuser %}
+                <a href="{% url 'customer_list' %}" class="flex items-center px-4 py-3 text-gray-700 transition-all rounded-xl hover:bg-teal-50 hover:text-teal-700 {% if 'crm/customers' in request.path %}bg-teal-50 text-teal-700 font-bold ring-1 ring-teal-100{% endif %}">
+                    <i class="fas fa-users ml-3 w-5 text-center"></i>
+                    <span class="text-sm">العملاء (CRM)</span>
+                </a>
+                {% endif %}
+
+                <!-- RBAC & User Management Section -->
+                {% if request.user|can_access:"users:view" or request.user.is_superuser %}
+                <div class="pt-4 pb-2">
+                    <p class="px-4 text-[10px] font-black text-indigo-600 uppercase tracking-widest mb-2 opacity-60">إدارة الصلاحيات</p>
+                    {% if request.user|can_access:"users:view" or request.user.is_superuser %}
+                    <a href="{% url 'user_list' %}" class="flex items-center px-4 py-3 text-gray-700 transition-all rounded-xl hover:bg-indigo-50 hover:text-indigo-700 {% if 'users' in request.path %}bg-indigo-50 text-indigo-700 font-bold ring-1 ring-indigo-100{% endif %}">
+                        <i class="fas fa-users-gear ml-3 w-5 text-center"></i>
+                        <span class="text-sm">المستخدمين والأدوار</span>
+                    </a>
+                    {% endif %}
+                    {% if request.user|can_access:"users:logs" or request.user.is_superuser %}
+                    <a href="{% url 'activity_logs' %}" class="flex items-center px-4 py-3 text-gray-700 transition-all rounded-xl hover:bg-indigo-50 hover:text-indigo-700 {% if 'logs' in request.path %}bg-indigo-50 text-indigo-700 font-bold ring-1 ring-indigo-100{% endif %}">
+                        <i class="fas fa-history ml-3 w-5 text-center"></i>
+                        <span class="text-sm">سجلات الأنشطة</span>
+                    </a>
+                    {% endif %}
+                    {% if request.user|can_access:"users:errors" or request.user.is_superuser %}
+                    <a href="{% url 'error_history' %}" class="flex items-center px-4 py-3 text-gray-700 transition-all rounded-xl hover:bg-red-50 hover:text-red-700 {% if 'error' in request.path %}bg-red-50 text-red-700 font-bold ring-1 ring-red-100{% endif %}">
+                        <i class="fas fa-bug ml-3 w-5 text-center"></i>
+                        <span class="text-sm">سجل أخطاء النظام</span>
+                    </a>
+                    {% endif %}
+                    {% if request.user|can_access:"users:broadcast" or request.user.is_superuser %}
+                    <a href="{% url 'broadcast_notification' %}" class="flex items-center px-4 py-3 text-gray-700 transition-all rounded-xl hover:bg-teal-50 hover:text-teal-700 {% if 'broadcast' in request.path %}bg-teal-50 text-teal-700 font-bold ring-1 ring-teal-100{% endif %}">
+                        <i class="fas fa-bullhorn ml-3 w-5 text-center"></i>
+                        <span class="text-sm">بث إشعار عام</span>
+                    </a>
+                    {% endif %}
+                </div>
+                {% endif %}
+
+                <!-- Group: Admin Drodown -->
+                {% if request.user|can_access:"settings:view" or request.user.is_superuser %}
+                <div class="dropdown-container">
+                    <button type="button" class="dropdown-btn flex items-center justify-between w-full px-4 py-3 text-gray-700 font-medium transition-all rounded-xl hover:bg-gray-100 group">
+                        <div class="flex items-center">
+                            <i class="fas fa-user-shield ml-3 w-5 text-center text-gray-500 group-hover:text-teal-600 transition-colors"></i>
+                            <span class="text-sm">الإدارة والنظام</span>
+                        </div>
+                        <i class="fas fa-chevron-down text-[10px] transition-transform duration-300 dropdown-arrow opacity-50"></i>
+                    </button>
+                    <div class="dropdown-content hidden px-2 mt-1 space-y-1 overflow-hidden transition-all duration-300 border-r-2 border-dashed border-gray-100 mr-4">
+                        <!-- Assuming cameras might be a sub-link, let's just make it available if settings:view is active for now, or we can add it explicitly. I will leave it as is or add settings:view to both -->
+                        <a href="{% url 'camera_dashboard' %}" class="flex items-center px-4 py-2.5 text-[13px] text-gray-600 rounded-lg hover:bg-teal-50 hover:text-teal-700 transition-all {% if 'camera' in request.path %}bg-teal-50 text-teal-700 font-bold{% endif %}">
+                            <i class="fas fa-video ml-3 w-4 text-center opacity-70"></i> الكاميرات
+                        </a>
+                        {% if request.user|can_access:"settings:view" or request.user.is_superuser %}
+                        <a href="{% url 'settings_view' %}" class="flex items-center px-4 py-2.5 text-[13px] text-gray-600 rounded-lg hover:bg-teal-50 hover:text-teal-700 transition-all {% if 'settings' in request.path %}bg-teal-50 text-teal-700 font-bold{% endif %}">
+                            <i class="fas fa-sliders ml-3 w-4 text-center opacity-70"></i> الإعدادات
+                        </a>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </nav>
+
+        <!-- Profile & Logout -->
+        <div class="mt-auto pt-6">
+            <div class="p-3 bg-gray-50 rounded-xl mb-4 flex items-center gap-3">
+                <div class="w-10 h-10 rounded-full bg-teal-600 flex items-center justify-center text-white font-bold">
+                    {{ request.user.first_name|first|default:request.user.username|first|upper }}
+                </div>
+                <div>
+                    <p class="text-sm font-bold text-gray-800">{{ request.user.first_name|default:request.user.username }}</p>
+                    <p class="text-[10px] text-gray-500 uppercase">{{ request.user.groups.first.name|default:"موظف" }}</p>
+                </div>
+            </div>
+            <a href="{% url 'logout' %}" class="flex items-center px-3 py-2.5 text-red-600 transition-all rounded-lg hover:bg-red-50 group">
+                <svg class="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
+                <span class="text-sm font-bold">تسجيل خروج</span>
+            </a>
+        </div>
+    </div>
+</aside>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const containers = document.querySelectorAll('.dropdown-container');
+        
+        containers.forEach(container => {
+            const btn = container.querySelector('.dropdown-btn');
+            const content = container.querySelector('.dropdown-content');
+            const arrow = container.querySelector('.dropdown-arrow');
+            
+            // Auto-open if a child is active
+            const hasActiveChild = content.querySelector('.bg-teal-50');
+            if (hasActiveChild) {
+                content.classList.remove('hidden');
+                arrow.classList.add('rotate-180');
+                btn.classList.add('bg-gray-50', 'text-teal-700');
+            }
+
+            btn.addEventListener('click', () => {
+                const isHidden = content.classList.contains('hidden');
+                
+                // Close all others (Optionally)
+                // containers.forEach(other => {
+                //    if(other !== container) {
+                //        other.querySelector('.dropdown-content').classList.add('hidden');
+                //        other.querySelector('.dropdown-arrow').classList.remove('rotate-180');
+                //    }
+                // });
+
+                if (isHidden) {
+                    content.classList.remove('hidden');
+                    arrow.classList.add('rotate-180');
+                } else {
+                    content.classList.add('hidden');
+                    arrow.classList.remove('rotate-180');
+                }
+            });
+        });
+    });
+</script>
+
+<style>
+    @font-face {
+        font-family: 'ArabicFont';
+        src: url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap');
+    }
+    .font-arabic {
+        font-family: 'Cairo', sans-serif;
+    }
+</style>

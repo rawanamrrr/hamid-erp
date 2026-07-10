@@ -1,0 +1,99 @@
+﻿{% extends 'base.html' %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+<div class="max-w-5xl mx-auto space-y-6">
+  <div class="flex items-center justify-between flex-wrap gap-3">
+    <div>
+      <h1 class="text-2xl font-bold text-gray-800">حساب المورد — {{ supplier.name }}</h1>
+      <p class="text-sm text-gray-500 mt-1">{{ supplier.get_supplier_type_display }} • {{ supplier.phone }}</p>
+    </div>
+    <div class="flex gap-2 flex-wrap">
+      <a href="{% url 'supplier_statement_pdf' supplier.pk %}?from={{ date_from }}&to={{ date_to }}"
+         class="inline-flex items-center gap-2 bg-teal-600 hover:bg-teal-700 text-white px-4 py-2.5 rounded-xl text-sm font-semibold transition">
+        <i class="fas fa-file-pdf"></i> كشف حساب PDF
+      </a>
+      <a href="{% url 'purchase_order_create' %}?supplier={{ supplier.pk }}"
+         class="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl text-sm font-semibold transition">
+        <i class="fas fa-shopping-cart"></i> أمر شراء
+      </a>
+    </div>
+  </div>
+
+  <!-- Summary Cards -->
+  <div class="grid grid-cols-3 gap-4">
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+      <p class="text-xs text-gray-400 mb-1">إجمالي المشتريات</p>
+      <p class="text-xl font-bold text-gray-800">{{ total_debit|floatformat:2 }}</p>
+    </div>
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+      <p class="text-xs text-gray-400 mb-1">إجمالي المدفوع</p>
+      <p class="text-xl font-bold text-green-600">{{ total_credit|floatformat:2 }}</p>
+    </div>
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+      <p class="text-xs text-gray-400 mb-1">الرصيد الختامي</p>
+      <p class="text-xl font-bold {% if closing_balance > 0 %}text-red-600{% else %}text-green-600{% endif %}">
+        {{ closing_balance|floatformat:2 }}
+      </p>
+      <p class="text-xs {% if closing_balance > 0 %}text-red-400{% else %}text-green-400{% endif %}">
+        {% if closing_balance > 0 %}عليك{% else %}لك{% endif %}
+      </p>
+    </div>
+  </div>
+
+  <!-- Date Filter -->
+  <form class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 flex gap-3 items-center flex-wrap">
+    <label class="text-sm font-medium text-gray-600">من:</label>
+    <input type="date" name="from" value="{{ date_from }}" class="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-200">
+    <label class="text-sm font-medium text-gray-600">إلى:</label>
+    <input type="date" name="to" value="{{ date_to }}" class="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-200">
+    <button type="submit" class="bg-teal-600 text-white px-4 py-2 rounded-xl text-sm font-semibold">تصفية</button>
+    <a href="{% url 'supplier_account' supplier.pk %}" class="text-gray-500 text-sm px-3 py-2 hover:text-gray-700">إعادة تعيين</a>
+  </form>
+
+  <!-- Ledger Table -->
+  <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+    <table class="w-full text-sm">
+      <thead class="bg-gray-50 border-b border-gray-100">
+        <tr>
+          <th class="px-4 py-3 text-right font-semibold text-gray-600">التاريخ</th>
+          <th class="px-4 py-3 text-right font-semibold text-gray-600">المرجع</th>
+          <th class="px-4 py-3 text-right font-semibold text-gray-600">البيان</th>
+          <th class="px-4 py-3 text-center font-semibold text-red-600">مدين (عليك)</th>
+          <th class="px-4 py-3 text-center font-semibold text-green-600">دائن (لك)</th>
+          <th class="px-4 py-3 text-center font-semibold text-gray-600">الرصيد</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for e in entries %}
+        <tr class="border-b border-gray-50 hover:bg-gray-50 transition">
+          <td class="px-4 py-3 text-gray-500 text-xs">{{ e.date|date:"Y-m-d" }}</td>
+          <td class="px-4 py-3 font-mono text-xs text-gray-600">{{ e.ref }}</td>
+          <td class="px-4 py-3 text-gray-700">{{ e.desc|truncatechars:50 }}</td>
+          <td class="px-4 py-3 text-center">
+            {% if e.debit > 0 %}<span class="text-red-600 font-semibold">{{ e.debit|floatformat:2 }}</span>{% else %}—{% endif %}
+          </td>
+          <td class="px-4 py-3 text-center">
+            {% if e.credit > 0 %}<span class="text-green-600 font-semibold">{{ e.credit|floatformat:2 }}</span>{% else %}—{% endif %}
+          </td>
+          <td class="px-4 py-3 text-center font-bold {% if e.balance > 0 %}text-red-600{% else %}text-green-600{% endif %}">
+            {{ e.balance|floatformat:2 }}
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="6" class="px-4 py-8 text-center text-gray-400">لا توجد حركات في هذه الفترة</td></tr>
+        {% endfor %}
+      </tbody>
+      <tfoot class="border-t-2 border-gray-200 bg-gray-50">
+        <tr>
+          <td colspan="3" class="px-4 py-3 text-right font-bold text-gray-700">الإجمالي</td>
+          <td class="px-4 py-3 text-center font-bold text-red-600">{{ total_debit|floatformat:2 }}</td>
+          <td class="px-4 py-3 text-center font-bold text-green-600">{{ total_credit|floatformat:2 }}</td>
+          <td class="px-4 py-3 text-center font-bold text-lg {% if closing_balance > 0 %}text-red-600{% else %}text-green-600{% endif %}">
+            {{ closing_balance|floatformat:2 }}
+          </td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+</div>
+{% endblock %}

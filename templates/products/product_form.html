@@ -1,0 +1,1073 @@
+{% extends 'base.html' %}
+{% load widget_tweaks %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="p-4 bg-gray-50/50">
+  <div class="bg-white rounded-2xl shadow-xl border border-gray-100 w-full max-w-5xl mx-auto overflow-hidden">
+
+    <!-- Header -->
+    <div class="bg-white px-8 py-5 border-b border-gray-100 flex flex-col md:flex-row justify-between items-center sticky top-0 z-10 gap-4">
+      <div class="flex items-center gap-4">
+        <div class="w-12 h-12 bg-teal-600 text-white shadow-lg shadow-teal-100 rounded-2xl flex items-center justify-center text-xl">
+          <i class="fa-solid fa-cube"></i>
+        </div>
+        <div>
+          <h2 class="text-2xl font-black text-gray-800 tracking-tight">{{ title }}</h2>
+          <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">Product Engine v4.0</p>
+        </div>
+      </div>
+
+      <!-- Quick Shortcuts Bar (Premium) -->
+      <div class="flex items-center gap-2 bg-gray-50 p-1.5 rounded-2xl border border-gray-100 shadow-sm overflow-x-auto no-scrollbar max-w-full">
+        <a href="{% url 'dashboard' %}" class="flex items-center gap-2 px-4 py-2 bg-white hover:bg-amber-50 text-slate-600 hover:text-amber-600 rounded-xl border border-transparent hover:border-amber-100 transition-all font-bold text-xs whitespace-nowrap shadow-sm group">
+          <i class="fa-solid fa-house text-slate-400 group-hover:text-amber-500"></i> الرئيسية
+        </a>
+        <a href="{% url 'product_list' %}" class="flex items-center gap-2 px-4 py-2 bg-white hover:bg-teal-50 text-slate-600 hover:text-teal-600 rounded-xl border border-transparent hover:border-teal-100 transition-all font-bold text-xs whitespace-nowrap shadow-sm group">
+          <i class="fa-solid fa-boxes-stacked text-slate-400 group-hover:text-teal-500"></i> قائمة المنتجات
+        </a>
+        <a href="{% url 'transaction_create' %}" class="flex items-center gap-2 px-4 py-2 bg-white hover:bg-blue-50 text-slate-600 hover:text-blue-600 rounded-xl border border-transparent hover:border-blue-100 transition-all font-bold text-xs whitespace-nowrap shadow-sm group">
+          <i class="fa-solid fa-arrow-up-right-dots text-slate-400 group-hover:text-blue-500"></i> إضافة كمية (وارد)
+        </a>
+        <div class="w-[1px] h-6 bg-gray-200 mx-1"></div>
+        <a href="{% url 'product_list' %}" class="w-10 h-10 flex items-center justify-center bg-gray-200/50 text-gray-500 hover:bg-red-500 hover:text-white rounded-xl transition-all active:scale-95">
+          <i class="fa-solid fa-xmark"></i>
+        </a>
+      </div>
+    </div>
+
+    <!-- Form -->
+    <form method="post" class="p-8 space-y-8" id="productForm">
+      {% csrf_token %}
+
+      {% if form.non_field_errors %}
+      <div class="bg-red-50 border-r-4 border-red-500 text-red-700 p-4 rounded-lg flex items-start gap-3">
+        <i class="fa-solid fa-circle-exclamation mt-1"></i>
+        <div>{{ form.non_field_errors }}</div>
+      </div>
+      {% endif %}
+
+      <!-- ══════════════ SECTION 1: BASIC ══════════════ -->
+      <div class="bg-indigo-50/30 p-6 rounded-2xl border border-indigo-100/50">
+        <h3 class="text-lg font-bold text-gray-800 mb-5 flex items-center gap-2 border-b border-indigo-100/50 pb-3">
+          <span class="text-indigo-600">01.</span> البيانات الأساسية
+        </h3>
+
+        <!-- Row 1: Name (full width) -->
+        <div class="mb-4">
+          <label class="block text-sm font-bold text-gray-700 mb-2">اسم المنتج <span class="text-red-500">*</span></label>
+          <div class="flex gap-2">
+            <div class="relative flex-1">
+              {{ form.name }}
+              <div id="imgFetchSpinner" class="hidden absolute left-3 top-1/2 -translate-y-1/2">
+                <i class="fa-solid fa-spinner fa-spin text-teal-500"></i>
+              </div>
+            </div>
+            <button type="button" id="searchImgBtn" onclick="searchProductImages()"
+                    class="bg-indigo-600 text-white hover:bg-indigo-700 px-4 py-2 rounded-xl font-bold text-sm transition flex items-center gap-2 shadow-lg shadow-indigo-100 active:scale-95">
+              <i class="fa-brands fa-google"></i> بحث صور جوجل
+            </button>
+          </div>
+          {% if form.name.errors %}<p class="text-red-500 text-xs mt-1">{{ form.name.errors.0 }}</p>{% endif %}
+        </div>
+
+        <!-- Row 2: SKU + Barcode -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+          <div>
+            <label class="block text-sm font-bold text-gray-700 mb-2">كود المنتج (SKU) <span class="text-red-500">*</span></label>
+            <div class="flex gap-2">
+              <div class="relative flex-1">{{ form.sku }}</div>
+              <button type="button" onclick="generateAutoSKU()"
+                class="bg-white border border-gray-300 text-gray-700 hover:bg-teal-50 hover:text-teal-600 hover:border-teal-200 px-4 py-2 rounded-lg font-bold text-sm transition flex items-center gap-1 whitespace-nowrap">
+                <i class="fa-solid fa-wand-magic-sparkles text-xs"></i> تلقائي
+              </button>
+            </div>
+            <p class="text-[11px] text-gray-400 mt-1">التالي: <b dir="ltr">{{ next_sku|default:"--" }}</b></p>
+            {% if form.sku.errors %}<p class="text-red-500 text-xs mt-1">{{ form.sku.errors.0 }}</p>{% endif %}
+          </div>
+
+          <div>
+            <label class="block text-sm font-bold text-gray-700 mb-2">الباركود (EAN-13)</label>
+            {{ form.barcode }}
+            <p class="text-[11px] text-gray-400 mt-1">يُولَّد تلقائياً من SKU عند الحفظ</p>
+          </div>
+        </div>
+
+        <!-- Row 3: Category + Kind -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+          <div>
+            <label class="block text-sm font-bold text-gray-700 mb-2">القسم</label>
+            {{ form.category }}
+          </div>
+          <div>
+            <label class="block text-sm font-bold text-gray-700 mb-2">النوع <span class="text-gray-400 text-xs font-normal">(يُصفَّى بعد القسم)</span></label>
+            {{ form.kind }}
+          </div>
+        </div>
+
+        <!-- Row 4: Supplier -->
+        <div class="mb-4">
+          <label class="block text-sm font-bold text-gray-700 mb-2">
+            المورد الافتراضي
+            <span class="text-gray-400 font-normal text-xs mr-1">(اختياري)</span>
+          </label>
+          {{ form.supplier }}
+          <p class="text-[11px] text-gray-400 mt-1">
+            <i class="fa-solid fa-circle-info text-blue-400"></i>
+            المورد الافتراضي للمنتج — يمكن الشراء من أي مورد آخر لاحقاً عبر <strong>فواتير المشتريات</strong>
+          </p>
+        </div>
+
+        <!-- Sizes Chips — only for clothes market -->
+        <div class="mt-4" id="sizeChipsBlock" {% if not mp.show.sizes %}style="display:none"{% endif %}>
+          <label class="block text-sm font-bold text-gray-700 mb-3">
+            المقاسات <span class="text-gray-400 font-normal text-xs">(اختياري — اضغط للتحديد)</span>
+          </label>
+          <div class="flex flex-wrap gap-2 min-h-[40px] p-2 bg-white border border-gray-200 rounded-xl" id="sizeChips"></div>
+          <input type="hidden" name="sizes_selected" id="sizesHidden" value="">
+          <p class="text-[11px] text-gray-400 mt-2">
+              <i class="fa-solid fa-circle-info text-blue-400"></i>
+              حدّد المقاسات المتاحة لهذا المنتج فقط — الكمية تُضاف لاحقاً من <strong>فاتورة المشتريات</strong> عند استلام البضاعة.
+          </p>
+          {% if product and product.pk %}
+          <a href="{% url 'product_variants' product.pk %}" class="inline-flex items-center gap-2 mt-3 px-4 py-2 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-xl font-bold text-sm hover:bg-indigo-100">
+            <i class="fas fa-table-cells"></i> إدارة الخيارات (مقاس × لون) مع المخزون لكل خيار
+          </a>
+          {% endif %}
+        </div>
+
+        <!-- Images Upload -->
+        <div class="mt-4">
+          <div class="flex justify-between items-center mb-2">
+            <label class="block text-sm font-bold text-gray-700">
+              صور المنتج <span class="text-gray-400 font-normal text-xs">(حتى 5 صور — اختياري)</span>
+            </label>
+          </div>
+
+          <!-- Image Picker Grid (Hidden initially) -->
+          <div id="imagePickerSection" class="hidden my-3 p-4 bg-indigo-50/30 border border-indigo-100 rounded-2xl shadow-inner">
+            <div class="flex justify-between items-center mb-3">
+              <span class="text-xs font-bold text-indigo-700 italic flex items-center gap-2"><i class="fa-solid fa-sparkles text-indigo-400"></i> اختر الصورة الأنسب من الويب:</span>
+              <button type="button" onclick="document.getElementById('imagePickerSection').classList.add('hidden')" class="text-gray-400 hover:text-gray-600 p-1"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div id="imagePickerGrid" class="grid grid-cols-2 md:grid-cols-5 gap-3">
+              <!-- Content injected by JS -->
+            </div>
+          </div>
+
+          <div id="imageDropZone"
+            class="border-2 border-dashed border-gray-200 rounded-2xl p-5 text-center bg-gray-50 hover:bg-teal-50 hover:border-teal-300 transition cursor-pointer"
+            onclick="document.getElementById('imageFileInput').click()">
+            <i class="fas fa-cloud-upload-alt text-3xl text-gray-300 block mb-1"></i>
+            <p class="text-sm text-gray-400">اسحب وأفلت الصور هنا أو اضغط للاختيار</p>
+          </div>
+          <input type="file" id="imageFileInput" accept="image/*" multiple class="hidden">
+          <div id="imagePreviewGrid" class="grid grid-cols-5 gap-3 mt-3"></div>
+          <input type="hidden" name="images_b64" id="imagesB64Hidden" value="[]">
+        </div>
+      </div>
+
+      <!-- ══════════════ SECTION 2: SPECS (market-type-aware) ══════════════ -->
+      <div class="bg-indigo-50/20 p-6 rounded-2xl border border-indigo-100/30" id="specsSection">
+        <h3 class="text-lg font-bold text-gray-800 mb-5 flex items-center gap-2 border-b border-indigo-100/30 pb-3">
+          <span class="text-indigo-600">02.</span> المواصفات الفنية
+          <span class="text-xs font-normal text-gray-400 mr-auto" id="specsSectionLabel">
+            {{ mp.terms.specs_label }}
+          </span>
+        </h3>
+
+        <!-- ── Clothes / Textile Fields ── -->
+        <div id="clothesSpecsBlock" class="{% if not mp.show.clothes_specs %}hidden{% endif %}">
+          <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div>
+              <label class="block text-sm font-semibold text-gray-600 mb-2">الخامة</label>
+              {{ form.material }}
+            </div>
+            <div>
+              <label class="block text-sm font-semibold text-gray-600 mb-2">النقشة / التصميم</label>
+              {{ form.pattern }}
+            </div>
+            <div>
+              <label class="block text-sm font-semibold text-gray-600 mb-2">اللون</label>
+              {{ form.color }}
+            </div>
+            <div>
+              <label class="block text-sm font-semibold text-gray-600 mb-2">الموسم</label>
+              {{ form.season }}
+            </div>
+          </div>
+        </div>
+
+        <!-- ── Pharmacy Fields ── -->
+        <div id="pharmacySpecsBlock" class="{% if not mp.show.pharmacy_specs %}hidden{% endif %}">
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label class="block text-sm font-semibold text-gray-600 mb-2">الاسم العلمي</label>
+              {{ form.scientific_name }}
+            </div>
+            <div>
+              <label class="block text-sm font-semibold text-gray-600 mb-2">نوع التعبئة <span class="text-red-500">*</span></label>
+              {{ form.packaging_type }}
+              <p class="text-xs text-gray-400 mt-1">مثال: علبة، شريط، أمبول</p>
+            </div>
+            <div>
+              <label class="block text-sm font-semibold text-gray-600 mb-2">عدد الأشرطة (في العلبة)</label>
+              {{ form.strips_per_box }}
+              <p class="text-[10px] text-gray-400 mt-1">تلقائياً 1 إذا لم يكن له شريط</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── Electronics Fields ── -->
+        <div id="electronicsSpecsBlock" class="{% if not mp.show.electronics_specs %}hidden{% endif %}">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <div>
+              <label class="block text-sm font-semibold text-gray-600 mb-2">الماركة / العلامة التجارية</label>
+              {{ form.brand }}
+            </div>
+            <div>
+              <label class="block text-sm font-semibold text-gray-600 mb-2">رقم الموديل</label>
+              {{ form.model_number }}
+            </div>
+            <div>
+              <label class="block text-sm font-semibold text-gray-600 mb-2">الرقم التسلسلي</label>
+              {{ form.serial_number }}
+            </div>
+            <div>
+              <label class="block text-sm font-semibold text-gray-600 mb-2">مدة الضمان (أشهر)</label>
+              {{ form.warranty_months }}
+            </div>
+          </div>
+          <div class="mt-4">
+            <div class="flex items-center gap-3 mb-4">
+              {{ form.is_serialized }}
+              <div>
+                <label class="font-bold text-gray-800 block text-sm">يتطلب رقم تسلسلي عند البيع</label>
+                <p class="text-xs text-gray-500">عند البيع سيُطلب الرقم التسلسلي للقطعة (يُطبع على الإيصال مع الضمان).</p>
+              </div>
+            </div>
+            <div class="flex items-center gap-3 mb-4">
+              {{ form.is_refurbished }}
+              <div>
+                <label class="font-bold text-gray-800 block text-sm">مستخدم أو مُجدد</label>
+                <p class="text-xs text-gray-500">حدد إذا كان المنتج مستعمل أو معاد تدويره</p>
+              </div>
+            </div>
+            <div>
+              <label class="block text-sm font-semibold text-gray-600 mb-2">المواصفات الفنية</label>
+              {{ form.specifications }}
+            </div>
+          </div>
+        </div>
+
+        <!-- ── Grocery / General Fields ── -->
+        <div id="grocerySpecsBlock" class="{% if not mp.show.grocery_specs %}hidden{% endif %}">
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+            <div>
+              <label class="block text-sm font-semibold text-gray-600 mb-2">نوع التعبئة (اختياري)</label>
+              {{ form.packaging_type }}
+            </div>
+            <div>
+              <label class="block text-sm font-semibold text-gray-600 mb-2">اللون / الحجم (اختياري)</label>
+              {{ form.color }}
+            </div>
+            <div>
+              <label class="block text-sm font-semibold text-gray-600 mb-2">وصف المواصفات (اختياري)</label>
+              {{ form.pattern }}
+            </div>
+          </div>
+          
+          <!-- Grocery-specific section: Weight & Variants -->
+          {% if mp.show.weighted %}
+          <div class="mt-5 pt-4 border-t border-indigo-100/30">
+            <h4 class="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
+              <i class="fa-solid fa-weight-scale text-green-600"></i> خيارات البقالة (وزن/حجم/أنواع)
+            </h4>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+              <div class="bg-green-50/50 p-4 rounded-xl border border-green-200">
+                <div class="flex items-center gap-3 mb-3">
+                  {{ form.is_weighted }}
+                  <div>
+                    <label class="font-bold text-gray-800 block text-sm">منتج موزون</label>
+                    <p class="text-xs text-gray-500">مثل: اللحم، الخضار — يُباع بالكيلو/غرام</p>
+                  </div>
+                </div>
+              </div>
+              
+              <div class="bg-blue-50/50 p-4 rounded-xl border border-blue-200">
+                <div class="flex items-center gap-3 mb-3">
+                  {{ form.has_variants }}
+                  <div>
+                    <label class="font-bold text-gray-800 block text-sm">له أنواع/خيارات</label>
+                    <p class="text-xs text-gray-500">مثل: حليب 1لتر، حليب 500مل — المنتجات ذات الأحجام المختلفة</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label class="block text-sm font-semibold text-gray-600 mb-2">الوزن/الحجم الصافي</label>
+                {{ form.net_weight }}
+              </div>
+              <div>
+                <label class="block text-sm font-semibold text-gray-600 mb-2">وحدة الوزن/الحجم</label>
+                {{ form.weight_unit }}
+              </div>
+              <div>
+                <label class="block text-sm font-semibold text-gray-600 mb-2">مدة الصلاحية (أيام)</label>
+                {{ form.shelf_life_days }}
+              </div>
+            </div>
+            
+            <div class="mt-4">
+              <div class="flex items-center gap-3">
+                {{ form.requires_refrigeration }}
+                <div>
+                  <label class="font-bold text-gray-800 block text-sm">يحتاج تبريد</label>
+                  <p class="text-xs text-gray-500">للمنتجات المُجمدة أو التي تحتاج درجة حرارة منخفضة</p>
+                </div>
+              </div>
+            </div>
+            
+            <div class="mt-4" id="variantParentBlock" style="display:none">
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label class="block text-sm font-semibold text-gray-600 mb-2">المنتج الأصل (للخيار)</label>
+                  {{ form.variant_parent }}
+                </div>
+                <div>
+                  <label class="block text-sm font-semibold text-gray-600 mb-2">اسم الخيار</label>
+                  {{ form.variant_name }}
+                  <p class="text-xs text-gray-400 mt-1">مثال: 1 لتر، صغير، كبير</p>
+                </div>
+              </div>
+            </div>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- ══════════════ SIZES (optional) ══════════════
+           e.g. كبير/وسط for a drink, each with its own full price (not a delta over a
+           base price). Reuses ProductVariant (product × global Size, color left blank) —
+           the exact mechanism the POS already uses for fashion size/color: clicking a
+           has_variants product already opens "اختر المقاس" BEFORE it's added to the cart,
+           and the invoice already prints the chosen variant's label. Zero new POS/invoice
+           code needed — only this admin-side data entry. -->
+      <div class="bg-white p-6 rounded-2xl border border-gray-200" id="sizesBlock" {% if 'modifiers' not in mp.features %}style="display:none"{% endif %}>
+        <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2 border-b border-gray-100 pb-3">
+          <i class="fa-solid fa-ruler text-teal-600"></i> الأحجام (اختياري)
+        </h3>
+        <label class="flex items-center gap-3 mb-3 cursor-pointer">
+          <input type="checkbox" name="has_sizes" id="hasSizesCheckbox" class="w-5 h-5 text-teal-600 rounded"
+                 {% if has_size_group %}checked{% endif %} onchange="toggleSizesRows()">
+          <div>
+            <span class="font-bold text-gray-800 block">هذا الصنف له أحجام مختلفة</span>
+            <span class="text-xs text-gray-500">مثال: كبير / وسط — لكل حجم سعره الكامل الخاص به (مش فرق سعر)</span>
+          </div>
+        </label>
+        {% if not global_sizes %}
+        <p class="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3 mb-3">
+            لا توجد أحجام مُعرّفة بعد. <a href="{% url 'size_create' %}" class="font-semibold underline">أضف حجم</a> (زي كبير أو وسط) من "الفئات والتصنيفات ← الأحجام" الأول.
+        </p>
+        {% endif %}
+        <div id="sizesRowsWrap" class="space-y-2" style="{% if not has_size_group %}display:none{% endif %}">
+          <div id="sizesRows" class="space-y-2">
+            {% for s in size_rows %}
+            <div class="flex gap-2 items-center size-row">
+              <select name="size_id" class="flex-1 border rounded-lg p-2 text-sm">
+                <option value="">-- اختر الحجم --</option>
+                {% for gs in global_sizes %}
+                <option value="{{ gs.id }}" {% if gs.id == s.size_id %}selected{% endif %}>{{ gs.name }}</option>
+                {% endfor %}
+              </select>
+              <input type="number" name="size_price" value="{{ s.price_override }}" step="0.5" placeholder="السعر الكامل"
+                     class="w-32 border rounded-lg p-2 text-sm">
+              <button type="button" onclick="this.closest('.size-row').remove()" class="text-red-500 text-sm px-2">حذف</button>
+            </div>
+            {% endfor %}
+          </div>
+          <button type="button" onclick="addSizeRow()" class="px-3 py-1.5 rounded-lg bg-teal-600 text-white text-sm">+ إضافة حجم</button>
+        </div>
+      </div>
+
+      <!-- ══════════════ SECTION 3: PRICING ══════════════ -->
+      <div class="bg-emerald-50/20 p-6 rounded-2xl border border-emerald-100/30">
+        <h3 class="text-lg font-bold text-gray-800 mb-5 flex items-center gap-2 border-b border-emerald-100/30 pb-3">
+          <span class="text-emerald-600">03.</span> سياسة التسعير
+        </h3>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div class="bg-gray-50 p-4 rounded-xl border border-gray-100 shadow-sm opacity-80">
+            <label class="block text-xs font-bold text-gray-400 mb-1 uppercase tracking-wider flex items-center gap-2">
+              {{ mp.terms.cost_label }}
+              <span class="text-[9px] bg-gray-200 text-gray-500 px-1.5 py-0.5 rounded-full font-bold">اختياري</span>
+            </label>
+            {{ form.cost_price }}
+            {% if form.cost_price.field.widget.attrs.readonly %}
+              <p class="text-[10px] text-teal-600 font-bold mt-1.5 leading-relaxed flex items-center gap-1 font-arabic">
+                <i class="fa-solid fa-circle-info text-teal-500"></i>
+                سعر التكلفة يُحسب تلقائياً بناءً على متوسط أسعار فواتير الشراء للحفاظ على دقة الحسابات.
+              </p>
+            {% else %}
+              <p class="text-[10px] text-gray-400 mt-1.5 leading-relaxed font-arabic">
+                يُحسب تلقائياً من متوسط أسعار فواتير الشراء — اتركه فارغاً الآن
+              </p>
+            {% endif %}
+          </div>
+          <div class="bg-teal-50 p-4 rounded-xl border border-teal-200 shadow-sm" id="retailPriceBlock">
+            <label class="block text-xs font-bold text-teal-700 mb-2 uppercase tracking-wider">
+              {{ mp.terms.retail_label }}
+            </label>
+            {{ form.price_retail }}
+            <p class="text-xs text-teal-500 mt-1">هامش: <span id="retailMargin" class="font-bold">—</span>%</p>
+            <!-- Pharmacy Strip Price Display -->
+            <div id="stripPriceDisplayBlock" class="mt-2 p-2 bg-white rounded border border-teal-100 hidden">
+              <span class="text-[10px] text-gray-400 block mb-0.5">سعر الشريط:</span>
+              <span id="stripPriceValue" class="text-xs font-black text-teal-700">—</span> <span class="text-[9px] text-teal-600">ج.م</span>
+            </div>
+          </div>
+          {% if mp.show.wholesale_price %}
+          <div class="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+            <label class="block text-xs font-bold text-gray-500 mb-2 uppercase tracking-wider">{{ mp.terms.wholesale_label }}</label>
+            {{ form.price_semi_wholesale }}
+          </div>
+          <div class="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+            <label class="block text-xs font-bold text-gray-500 mb-2 uppercase tracking-wider">جملة</label>
+            {{ form.price_wholesale }}
+          </div>
+          {% else %}
+          <div class="hidden">
+            {{ form.price_semi_wholesale }}
+            {{ form.price_wholesale }}
+          </div>
+          {% endif %}
+        </div>
+        
+        <!-- Generalized Multi-Unit Pricing Block -->
+        <div class="mt-4 bg-indigo-50/40 p-4 rounded-xl border border-indigo-100">
+          <div class="flex items-center gap-3 mb-3">
+            {{ form.has_sub_unit }}
+            <div>
+              <label class="font-bold text-gray-800 block text-sm cursor-pointer" for="{{ form.has_sub_unit.id_for_label }}">يباع بالتجزئة (الوحدة الفرعية)</label>
+              <p class="text-xs text-gray-500">قم بتفعيل هذا الخيار إذا كان المنتج الأساسي يحتوي على وحدات أصغر (مثال: كرتونة تحتوي على قطع، علبة تحتوي على أشرطة)</p>
+            </div>
+          </div>
+          
+          <div id="subUnitFieldsBlock" class="hidden grid grid-cols-1 md:grid-cols-3 gap-4 pt-3 border-t border-indigo-100/50">
+            <div>
+              <label class="block text-sm font-semibold text-gray-600 mb-2">الوحدة الفرعية</label>
+              {{ form.sub_unit }}
+            </div>
+            <div>
+              <label class="block text-sm font-semibold text-gray-600 mb-2">العدد داخل الأساسية</label>
+              {{ form.sub_units_per_main_unit }}
+            </div>
+            <div>
+              <label class="block text-sm font-semibold text-teal-700 mb-2">سعر الوحدة الفرعية</label>
+              {{ form.sub_unit_price }}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══════════════ SECTION 4: INVENTORY ══════════════ -->
+      <div class="bg-amber-50/20 p-6 rounded-2xl border border-amber-100/30">
+        <h3 class="text-lg font-bold text-gray-800 mb-5 flex items-center gap-2 border-b border-amber-100/30 pb-3">
+          <span class="text-amber-600">04.</span> إعدادات المخزون
+        </h3>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
+          <div>
+            <label class="block text-sm font-bold text-gray-700 mb-2">
+              {{ mp.terms.unit_label }}
+            </label>
+            {{ form.unit_measure }}
+            <button type="button" onclick="openQuickUnitModal()" class="text-teal-600 hover:text-teal-800 text-xs mt-1.5 font-bold flex items-center gap-1 select-none">
+              <i class="fa-solid fa-circle-plus"></i> إضافة وحدة جديدة
+            </button>
+            {% if mp.show.pharmacy_specs %}
+            <p class="text-[10px] text-gray-400 mt-1">مثال: قطعة، علبة، شريط — اختر PCS للأغلب</p>
+            {% endif %}
+          </div>
+          <div>
+            <label class="block text-sm font-bold text-gray-700 mb-2">حد التنبيه (النواقص)</label>
+            {{ form.low_stock_threshold }}
+            <p class="text-[10px] text-gray-400 mt-1">تحذير عند انخفاض الرصيد لهذه الكمية</p>
+          </div>
+          <div class="bg-amber-50 p-4 rounded-xl border border-amber-200" id="piecesPerPackageBlock" {% if not mp.show.pieces_per_package %}style="display:none"{% endif %}>
+            <label class="block text-sm font-bold text-amber-800 mb-2 flex items-center gap-1">
+              <i class="fa-solid fa-box-archive text-amber-600"></i>
+              {{ mp.terms.pieces_label }}
+            </label>
+            {{ form.pieces_per_package }}
+            <p class="text-[10px] text-amber-600 mt-1">
+              {{ mp.terms.pieces_hint }}
+            </p>
+          </div>
+        </div>
+
+        <!-- Is Active -->
+        <div class="mt-4 bg-white p-4 rounded-xl border border-gray-200 flex items-center gap-4">
+          {{ form.is_active }}
+          <div>
+            <label class="font-bold text-gray-800 block">نشط (متاح للبيع في الكاشير)</label>
+            <p class="text-xs text-gray-500">إلغاء التحديد يخفي المنتج من شاشة البيع</p>
+          </div>
+        </div>
+
+        <!-- Info -->
+        <div class="mt-4 bg-blue-50 border border-blue-100 rounded-xl p-4 flex gap-3 items-start">
+          <div class="bg-blue-100 text-blue-600 w-7 h-7 rounded-full flex items-center justify-center shrink-0">
+            <i class="fa-solid fa-info text-xs"></i>
+          </div>
+          <div>
+            <h4 class="text-sm font-bold text-blue-800">هذه الشاشة لتعريف المنتج فقط — لا تُدخل كميات هنا</h4>
+            <p class="text-xs text-blue-700 mt-1 leading-relaxed">
+              بعد حفظ المنتج، أضف الرصيد عبر:<br>
+              1. <b>فواتير المشتريات:</b> تسجيل شراء من مورد — يُنشئ دُفعة مخزنية ويُحسب متوسط التكلفة تلقائياً.<br>
+              2. <b>جرد المخزون:</b> إدخال الكمية الفعلية مباشرة إن لم تكن هناك فاتورة شراء.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══════════════ FOOTER BUTTONS ══════════════ -->
+      <div class="pt-4 border-t border-gray-100 flex flex-col-reverse md:flex-row items-center gap-3">
+        <a href="{% url 'product_list' %}"
+          class="w-full md:w-auto px-8 py-3 border border-gray-300 text-gray-600 rounded-xl hover:bg-gray-50 font-bold transition text-center">
+          إلغاء
+        </a>
+        <button type="submit" id="submitBtn"
+          class="w-full md:flex-1 bg-teal-600 hover:bg-teal-700 text-white px-8 py-3 rounded-xl font-bold shadow-lg shadow-teal-200 transition flex items-center justify-center gap-2 btn-press">
+          <i class="fa-solid fa-check-circle"></i> حفظ المنتج
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script id="selected-kind-data" type="text/plain">{{ product.kind_id|default:'' }}</script>
+<script id="all-sizes-data" type="application/json">{{ all_sizes_json|default:"[]"|safe }}</script>
+<script id="pre-selected-sizes-data" type="application/json">{{ preselected_sizes_json|default:"[]"|safe }}</script>
+
+<script>
+// ── Sizes (optional — ProductVariant with an absolute price per global Size) ─────
+const GLOBAL_SIZES = JSON.parse(document.getElementById('all-sizes-data').textContent || '[]');
+function toggleSizesRows() {
+  const wrap = document.getElementById('sizesRowsWrap');
+  const checked = document.getElementById('hasSizesCheckbox').checked;
+  wrap.style.display = checked ? '' : 'none';
+  if (checked && !document.querySelector('#sizesRows .size-row')) addSizeRow();
+
+  // When sizes are used, each size carries its own full price — the single "سعر البيع"
+  // field is meaningless (and would otherwise block submit with a required-field error).
+  const retailBlock = document.getElementById('retailPriceBlock');
+  const retailInput = document.getElementById('id_price_retail');
+  if (retailBlock) retailBlock.style.display = checked ? 'none' : '';
+  if (retailInput) retailInput.required = !checked;
+}
+function addSizeRow() {
+  const row = document.createElement('div');
+  row.className = 'flex gap-2 items-center size-row';
+  const options = ['<option value="">-- اختر الحجم --</option>']
+    .concat(GLOBAL_SIZES.map(s => `<option value="${s.id}">${s.name}</option>`)).join('');
+  row.innerHTML = `
+    <select name="size_id" class="flex-1 border rounded-lg p-2 text-sm">${options}</select>
+    <input type="number" name="size_price" step="0.5" placeholder="السعر الكامل" class="w-32 border rounded-lg p-2 text-sm">
+    <button type="button" onclick="this.closest('.size-row').remove()" class="text-red-500 text-sm px-2">حذف</button>`;
+  document.getElementById('sizesRows').appendChild(row);
+}
+document.addEventListener('DOMContentLoaded', () => {
+  // Edit mode: sizes may already be checked from the server — apply the same
+  // hide/un-require state to the retail price field without waiting for a click.
+  if (document.getElementById('hasSizesCheckbox')?.checked) toggleSizesRows();
+});
+
+// ── SKU Auto ──────────────────────────────────────────
+const NEXT_SKU = "{{ next_sku }}";
+function generateAutoSKU() {
+  const input = document.getElementById('id_sku') || document.querySelector('[name="sku"]');
+  if (!input) return;
+  if (input.value && input.value !== NEXT_SKU) {
+    if (!confirm('يوجد كود مكتوب. هل تريد استبداله بالكود التلقائي؟')) return;
+  }
+  input.value = NEXT_SKU;
+  input.classList.add('bg-yellow-50');
+  setTimeout(() => input.classList.remove('bg-yellow-50'), 800);
+}
+
+// ── Barcode EAN-13 from SKU ───────────────────────────
+function skuToEAN13(sku) {
+  const digits = sku.replace(/\D/g, '').padStart(12, '0').slice(-12);
+  let sum = 0;
+  for (let i = 0; i < 12; i++) sum += parseInt(digits[i]) * (i % 2 === 0 ? 1 : 3);
+  return digits + String((10 - (sum % 10)) % 10);
+}
+
+// ── Profit Margin ─────────────────────────────────────
+function updateMargin() {
+  const cost = parseFloat(document.getElementById('id_cost_price')?.value) || 0;
+  const retail = parseFloat(document.getElementById('id_price_retail')?.value) || 0;
+  const el = document.getElementById('retailMargin');
+  if (el) el.textContent = cost > 0 ? (((retail - cost) / cost) * 100).toFixed(1) : '—';
+}
+
+// ── Image Upload (base64, max 5, compressed) ─────────
+let uploadedImages = [];
+function renderPreviews() {
+  const grid = document.getElementById('imagePreviewGrid');
+  if (!grid) return;
+  grid.innerHTML = '';
+  uploadedImages.forEach((b64, i) => {
+    const div = document.createElement('div');
+    div.className = 'relative group';
+    div.innerHTML = `<img src="${b64}" class="w-full h-20 object-cover rounded-xl border border-gray-200">
+      <button type="button" onclick="removeImg(${i})"
+        class="absolute top-1 left-1 bg-red-500 text-white w-5 h-5 rounded-full text-xs items-center justify-center hidden group-hover:flex">&times;</button>`;
+    grid.appendChild(div);
+  });
+  document.getElementById('imagesB64Hidden').value = JSON.stringify(uploadedImages);
+}
+
+function compressImage(file, maxW, quality) {
+  return new Promise(resolve => {
+    const img = new Image();
+    img.onload = () => {
+      let w = img.width, h = img.height;
+      if (w > maxW) { h = Math.round(h * maxW / w); w = maxW; }
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      resolve(canvas.toDataURL('image/jpeg', quality));
+    };
+    img.src = URL.createObjectURL(file);
+  });
+}
+
+async function handleFiles(files) {
+  for (const file of files) {
+    if (uploadedImages.length >= 5 || !file.type.startsWith('image/')) continue;
+    uploadedImages.push(await compressImage(file, 800, 0.65));
+  }
+  renderPreviews();
+}
+
+window.removeImg = (i) => { uploadedImages.splice(i, 1); renderPreviews(); };
+
+// ── Kind cascade from Category ────────────────────────
+async function loadKinds(catId, selectedKindId) {
+  const kindSel = document.getElementById('id_kind');
+  if (!kindSel) return;
+  kindSel.innerHTML = '<option value="">— اختر النوع —</option>';
+  if (!catId) return;
+  try {
+    const r = await fetch(`/products/api/kinds/?category_id=${catId}`);
+    const data = await r.json();
+    data.kinds.forEach(k => {
+      const opt = document.createElement('option');
+      opt.value = k.id;
+      opt.textContent = k.name;
+      if (String(k.id) === String(selectedKindId)) opt.selected = true;
+      kindSel.appendChild(opt);
+    });
+  } catch(e) {}
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
+  // SKU → Barcode on blur
+  const skuEl = document.getElementById('id_sku');
+  const barcodeEl = document.getElementById('id_barcode');
+  const nameEl = document.getElementById('id_name');
+  if (skuEl) skuEl.removeAttribute('required');
+
+  // Auto-fill the SKU as soon as the product name is typed — but only while the
+  // cashier hasn't manually typed their own SKU (tracked via a "touched" flag, since
+  // just checking "is it still equal to NEXT_SKU" would refuse to update this same
+  // auto-fill on the very first keystroke's re-fill).
+  if (skuEl && nameEl) {
+    let skuTouchedManually = !!skuEl.value.trim();
+    skuEl.addEventListener('input', () => { skuTouchedManually = true; });
+    nameEl.addEventListener('input', () => {
+      if (!skuTouchedManually && nameEl.value.trim()) {
+        skuEl.value = NEXT_SKU;
+      }
+    });
+  }
+
+  if (skuEl && barcodeEl) {
+    skuEl.addEventListener('blur', () => {
+      if (!barcodeEl.value && skuEl.value) barcodeEl.value = skuToEAN13(skuEl.value);
+    });
+    // Auto fill on submit
+    document.getElementById('productForm').addEventListener('submit', function(e) {
+      if (!skuEl.value.trim()) skuEl.value = NEXT_SKU;
+      if (!barcodeEl.value && skuEl.value) barcodeEl.value = skuToEAN13(skuEl.value);
+      
+      const btn = document.getElementById('submitBtn');
+      if (btn) toggleBtnLoading(btn, true);
+    });
+  }
+
+  // Pricing margin
+  document.getElementById('id_cost_price')?.addEventListener('input', updateMargin);
+  document.getElementById('id_price_retail')?.addEventListener('input', updateMargin);
+  updateMargin();
+
+  // Kind cascade
+  const catSel = document.getElementById('id_category');
+  const selectedKind = document.getElementById('selected-kind-data').textContent.trim();
+  if (catSel) {
+    catSel.addEventListener('change', () => loadKinds(catSel.value, ''));
+    if (catSel.value) await loadKinds(catSel.value, selectedKind);
+  }
+
+  // Size chips — selection only. Stock/quantity per size is entered later via the
+  // purchase invoice page when the goods are actually received.
+  const sizeChipsEl = document.getElementById('sizeChips');
+  const sizesHidden = document.getElementById('sizesHidden');
+  const rawSizes = JSON.parse(document.getElementById('all-sizes-data').textContent);
+  const preSelectedData = JSON.parse(document.getElementById('pre-selected-sizes-data').textContent);
+  const preSelected = new Set(preSelectedData);
+
+  function updateSizesHidden() {
+    const selectedIds = [...sizeChipsEl.querySelectorAll('[data-id].bg-teal-600')].map(b => b.dataset.id);
+    sizesHidden.value = selectedIds.join(',');
+  }
+
+  rawSizes.forEach(s => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.dataset.id = s.id;
+    btn.textContent = s.name;
+    const sel = preSelected.has(s.id);
+    btn.className = `px-3 py-1.5 rounded-xl text-sm font-semibold border transition ${
+      sel ? 'bg-teal-600 text-white border-teal-600' : 'bg-gray-50 text-gray-600 border-gray-200 hover:border-teal-300'
+    }`;
+    btn.addEventListener('click', () => {
+      const on = btn.classList.contains('bg-teal-600');
+      btn.className = `px-3 py-1.5 rounded-xl text-sm font-semibold border transition ${
+        on ? 'bg-gray-50 text-gray-600 border-gray-200 hover:border-teal-300'
+           : 'bg-teal-600 text-white border-teal-600'
+      }`;
+      updateSizesHidden();
+    });
+    sizeChipsEl.appendChild(btn);
+  });
+  sizesHidden.value = [...preSelected].join(',');
+
+  // Image drop zone
+  const dropZone = document.getElementById('imageDropZone');
+  const fileInput = document.getElementById('imageFileInput');
+  if (dropZone) {
+    dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('border-teal-400'); });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('border-teal-400'));
+    dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('border-teal-400'); handleFiles(e.dataTransfer.files); });
+    fileInput.addEventListener('change', () => handleFiles(fileInput.files));
+  }
+
+  // Load existing images (edit mode)
+  const productId = '{{ form.instance.pk|default:"" }}';
+  if (productId) {
+    try {
+      const r = await fetch(`/products/api/products/${productId}/images/`);
+      const data = await r.json();
+      uploadedImages = (data.images || []).map(i => i.image_data);
+      renderPreviews();
+    } catch(e) {}
+  }
+
+  // Pharmacy Price Logic
+  const priceRetailInput = document.getElementById('id_price_retail');
+  const stripsPerBoxInput = document.getElementById('id_strips_per_box');
+  const stripPriceBlock = document.getElementById('stripPriceDisplayBlock');
+  const stripPriceValue = document.getElementById('stripPriceValue');
+  const marketType = '{{ market_type }}';
+
+  function updateStripPrice() {
+    if (marketType !== 'pharmacy') return;
+    const price = parseFloat(priceRetailInput.value) || 0;
+    const strips = parseInt(stripsPerBoxInput.value) || 1;
+    
+    if (strips > 1 && price > 0) {
+      stripPriceBlock.classList.remove('hidden');
+      stripPriceValue.textContent = (price / strips).toFixed(2);
+    } else {
+      stripPriceBlock.classList.add('hidden');
+    }
+  }
+
+  if (priceRetailInput && stripsPerBoxInput) {
+    priceRetailInput.addEventListener('input', updateStripPrice);
+    stripsPerBoxInput.addEventListener('input', updateStripPrice);
+    updateStripPrice();
+  }
+
+    // Aggressive Unit Filtering for pharmacies
+    if (marketType === 'pharmacy') {
+      const unitSel = document.querySelector('[name="unit_measure"]');
+      if (unitSel) {
+        const irrelevant = ['MTR', 'YRD', 'ROLL'];
+        [...unitSel.options].forEach(opt => {
+          if (irrelevant.includes(opt.value) || opt.text.includes('متر') || opt.text.includes('ياردة') || opt.text.includes('رول')) {
+            opt.remove();
+          }
+        });
+      }
+
+      // Auto-sync retail price to hidden wholesale fields
+      const retailInput = document.getElementById('id_price_retail');
+      const semiInput = document.querySelector('[name="price_semi_wholesale"]');
+      const wholesaleInput = document.querySelector('[name="price_wholesale"]');
+      
+      if (retailInput && semiInput && wholesaleInput) {
+        retailInput.addEventListener('input', () => {
+          semiInput.value = retailInput.value;
+          wholesaleInput.value = retailInput.value;
+        });
+      }
+    }
+
+    // Grocery-specific logic
+    if (marketType === 'grocery') {
+      const unitSel = document.querySelector('[name="unit_measure"]');
+      if (unitSel) {
+        // Keep only relevant grocery units
+        const irrelevant = ['MTR', 'YRD', 'ROLL'];
+        [...unitSel.options].forEach(opt => {
+          if (irrelevant.includes(opt.value) || opt.text.includes('متر') || opt.text.includes('ياردة') || opt.text.includes('رول')) {
+            opt.remove();
+          }
+        });
+      }
+
+      // Show/hide variant parent block based on has_variants checkbox
+      const hasVariantsCheckbox = document.querySelector('[name="has_variants"]');
+      const variantParentBlock = document.getElementById('variantParentBlock');
+      
+      if (hasVariantsCheckbox && variantParentBlock) {
+        function toggleVariantBlock() {
+          variantParentBlock.style.display = hasVariantsCheckbox.checked ? 'block' : 'none';
+        }
+        hasVariantsCheckbox.addEventListener('change', toggleVariantBlock);
+        toggleVariantBlock(); // Initial state
+      }
+    }
+
+    // Focus name
+    const nameInput = document.querySelector('[name="name"]');
+    if (nameInput) {
+      nameInput.focus();
+    }
+  });
+
+  // ── Image search: open Google Images for the product name ──────────────
+  // (The old in-app scraper returned irrelevant results, so we send the user to real
+  //  Google Images in a new tab; they save an image and upload it via the field below.)
+  function searchProductImages() {
+    const nameInput = document.querySelector('[name="name"]');
+    const query = nameInput ? nameInput.value.trim() : "";
+    if (!query) {
+       alert("يرجى إدخال اسم المنتج أولاً للبحث");
+       return;
+    }
+    window.open('https://www.google.com/search?tbm=isch&q=' + encodeURIComponent(query), '_blank');
+  }
+</script>
+
+<!-- Quick Add Unit Modal -->
+<div id="quickUnitModal" class="fixed inset-0 z-50 flex items-center justify-center hidden bg-black bg-opacity-50 backdrop-blur-sm transition-opacity duration-300">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-md mx-4 overflow-hidden transform scale-95 transition-transform duration-300">
+        <!-- Modal Header -->
+        <div class="bg-teal-600 px-6 py-4 flex justify-between items-center text-white">
+            <h3 class="text-lg font-bold">إضافة وحدة قياس جديدة</h3>
+            <button type="button" onclick="closeQuickUnitModal()" class="text-white hover:text-teal-100 focus:outline-none">
+                <i class="fa-solid fa-xmark text-xl"></i>
+            </button>
+        </div>
+        <!-- Modal Body -->
+        <div class="p-6 text-right" dir="rtl">
+            <div id="quickUnitError" class="mb-4 text-sm text-red-600 bg-red-50 p-3 rounded-lg hidden border border-red-100"></div>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-bold text-gray-700 mb-1">اسم الوحدة (مثال: متر، كرتونة)</label>
+                    <input type="text" id="quickUnitName" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-200" placeholder="أدخل اسم الوحدة">
+                </div>
+                <div>
+                    <label class="block text-sm font-bold text-gray-700 mb-1">الاختصار (بحد أقصى 10 أحرف، بالإنجليزية أو العربية)</label>
+                    <input type="text" id="quickUnitAbbr" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-200" placeholder="مثال: MTR, BOX">
+                </div>
+            </div>
+        </div>
+        <!-- Modal Footer -->
+        <div class="bg-gray-50 px-6 py-4 flex justify-end gap-2 border-t border-gray-100" dir="rtl">
+            <button type="button" onclick="submitQuickUnit()" class="px-4 py-2 text-white bg-teal-600 rounded-lg hover:bg-teal-700 focus:outline-none flex items-center gap-1 transition-colors">
+                <i class="fa-solid fa-save"></i> حفظ
+            </button>
+            <button type="button" onclick="closeQuickUnitModal()" class="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none transition-colors">إلغاء</button>
+        </div>
+    </div>
+</div>
+
+<script>
+  // ─── Multi-Unit Logic ──────────────────────────────────────────
+  function toggleSubUnitFields() {
+    const hasSubUnit = document.getElementById('id_has_sub_unit');
+    const subUnitBlock = document.getElementById('subUnitFieldsBlock');
+    if (hasSubUnit && subUnitBlock) {
+      if (hasSubUnit.checked) {
+        subUnitBlock.classList.remove('hidden');
+      } else {
+        subUnitBlock.classList.add('hidden');
+      }
+    }
+  }
+
+  function calcSubUnitPrice() {
+    const mainPrice = parseFloat(document.getElementById('id_price_retail').value) || 0;
+    const subUnits = parseFloat(document.getElementById('id_sub_units_per_main_unit').value) || 1;
+    if (subUnits > 0) {
+      const subUnitPriceInput = document.getElementById('id_sub_unit_price');
+      if (subUnitPriceInput) {
+        subUnitPriceInput.value = (mainPrice / subUnits).toFixed(2);
+      }
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', function() {
+    const hasSubUnitCb = document.getElementById('id_has_sub_unit');
+    if (hasSubUnitCb) {
+      hasSubUnitCb.addEventListener('change', toggleSubUnitFields);
+      toggleSubUnitFields(); // init state
+    }
+    
+    const priceRetailInput = document.getElementById('id_price_retail');
+    const subUnitsInput = document.getElementById('id_sub_units_per_main_unit');
+    if (priceRetailInput) priceRetailInput.addEventListener('input', calcSubUnitPrice);
+    if (subUnitsInput) subUnitsInput.addEventListener('input', calcSubUnitPrice);
+  });
+
+  // Quick Unit Modal JavaScript
+  let activeUnitSelect = null;
+  let activeUnitSelectPrevVal = '';
+
+  function openQuickUnitModal() {
+    document.getElementById('quickUnitModal').classList.remove('hidden');
+    document.getElementById('quickUnitModal').classList.add('flex');
+    document.getElementById('quickUnitName').focus();
+  }
+
+  function closeQuickUnitModal() {
+    document.getElementById('quickUnitModal').classList.remove('flex');
+    document.getElementById('quickUnitModal').classList.add('hidden');
+    document.getElementById('quickUnitName').value = '';
+    document.getElementById('quickUnitAbbr').value = '';
+    document.getElementById('quickUnitError').classList.add('hidden');
+    if (activeUnitSelect && activeUnitSelectPrevVal) {
+      activeUnitSelect.value = activeUnitSelectPrevVal;
+    }
+  }
+
+  async function submitQuickUnit() {
+    const name = document.getElementById('quickUnitName').value.trim();
+    const abbr = document.getElementById('quickUnitAbbr').value.trim();
+    const errorEl = document.getElementById('quickUnitError');
+
+    if (!name) {
+      errorEl.textContent = 'يرجى إدخال اسم الوحدة';
+      errorEl.classList.remove('hidden');
+      return;
+    }
+
+    try {
+      const response = await fetch('/products/api/units/quick-create/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': '{{ csrf_token }}'
+        },
+        body: JSON.stringify({ name: name, abbreviation: abbr })
+      });
+      const res = await response.json();
+      if (res.success) {
+        // Clear active selection fallback
+        activeUnitSelectPrevVal = '';
+        
+        // Add option to select dropdowns
+        const selects = document.querySelectorAll('select[name="unit_measure"], #qpUnit');
+        selects.forEach(selectEl => {
+          // Check if option already exists
+          let optionExists = false;
+          for (let i = 0; i < selectEl.options.length; i++) {
+            if (selectEl.options[i].value === res.abbreviation) {
+              optionExists = true;
+              break;
+            }
+          }
+          
+          if (!optionExists) {
+            const newOpt = document.createElement('option');
+            newOpt.value = res.abbreviation;
+            newOpt.text = res.name;
+            // Insert before the "+ إضافة وحدة جديدة..." option if it exists
+            const addNewOpt = Array.from(selectEl.options).find(o => o.value === '__ADD_NEW__');
+            if (addNewOpt) {
+              selectEl.insertBefore(newOpt, addNewOpt);
+            } else {
+              selectEl.appendChild(newOpt);
+            }
+          }
+          
+          if (selectEl === activeUnitSelect || selectEl.id === 'qpUnit' || selectEl.name === 'unit_measure') {
+            selectEl.value = res.abbreviation;
+            selectEl.dispatchEvent(new Event('change'));
+          }
+        });
+        
+        closeQuickUnitModal();
+      } else {
+        errorEl.textContent = res.error || 'حدث خطأ ما';
+        errorEl.classList.remove('hidden');
+      }
+    } catch (err) {
+      console.error(err);
+      errorEl.textContent = 'حدث خطأ في الاتصال بالخادم';
+      errorEl.classList.remove('hidden');
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', function() {
+    function setupUnitSelects() {
+      const unitSelects = document.querySelectorAll('select[name="unit_measure"], #qpUnit');
+      unitSelects.forEach(unitSelect => {
+        // Append inline "+ إضافة وحدة جديدة..." option
+        if (unitSelect && !Array.from(unitSelect.options).some(o => o.value === '__ADD_NEW__')) {
+          const opt = document.createElement('option');
+          opt.value = '__ADD_NEW__';
+          opt.text = '+ إضافة وحدة جديدة...';
+          opt.style.color = '#0d9488';
+          opt.style.fontWeight = 'bold';
+          unitSelect.appendChild(opt);
+          
+          let prevVal = unitSelect.value;
+          unitSelect.addEventListener('change', function() {
+            if (this.value === '__ADD_NEW__') {
+              activeUnitSelect = this;
+              activeUnitSelectPrevVal = prevVal;
+              openQuickUnitModal();
+            } else {
+              prevVal = this.value;
+            }
+          });
+        }
+      });
+    }
+
+    setupUnitSelects();
+    
+    // Periodically scan for dynamic selects (e.g. if purchase invoice modal is opened dynamically)
+    setInterval(setupUnitSelects, 1000);
+  });
+</script>
+{% endblock %}

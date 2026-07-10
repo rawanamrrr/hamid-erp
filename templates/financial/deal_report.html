@@ -1,0 +1,45 @@
+{% extends 'base.html' %}
+{% load humanize %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+<div class="max-w-5xl mx-auto py-8 px-4 space-y-6">
+    <div class="flex items-center justify-between">
+        <h1 class="text-2xl font-black text-gray-800"><i class="fas fa-chart-line text-indigo-500 me-2"></i>{{ title }}</h1>
+        <a href="{% url 'financial:deal_list' %}" class="px-4 py-2 bg-gray-100 rounded-xl font-bold text-gray-600">العودة للعروض</a>
+    </div>
+
+    <form method="get" class="flex flex-wrap items-end gap-3 bg-white p-4 rounded-xl border">
+        <div><label class="block text-xs font-bold text-gray-500 mb-1">من</label><input type="date" name="date_from" value="{{ date_from }}" class="p-2 border rounded-lg"></div>
+        <div><label class="block text-xs font-bold text-gray-500 mb-1">إلى</label><input type="date" name="date_to" value="{{ date_to }}" class="p-2 border rounded-lg"></div>
+        <button class="px-4 py-2 bg-indigo-600 text-white rounded-lg font-bold">تصفية</button>
+        {% if date_from or date_to %}<a href="{% url 'financial:deal_report' %}" class="px-4 py-2 bg-gray-100 rounded-lg font-bold">مسح</a>{% endif %}
+    </form>
+
+    <div class="grid grid-cols-3 gap-4">
+        <div class="bg-white p-5 rounded-2xl border text-center"><div class="text-xs text-gray-500 font-bold">مرات الاستخدام</div><div class="text-2xl font-black text-gray-800">{{ totals.times }}</div></div>
+        <div class="bg-white p-5 rounded-2xl border text-center"><div class="text-xs text-gray-500 font-bold">إجمالي الخصم الممنوح</div><div class="text-2xl font-black text-red-600">{{ totals.discount|floatformat:2|intcomma }}</div></div>
+        <div class="bg-white p-5 rounded-2xl border text-center"><div class="text-xs text-gray-500 font-bold">إجمالي مبيعات العروض</div><div class="text-2xl font-black text-green-600">{{ totals.sales|floatformat:2|intcomma }}</div></div>
+    </div>
+
+    <div class="bg-white rounded-2xl border overflow-hidden">
+        <table class="w-full text-sm">
+            <thead class="bg-gray-50 text-gray-500 text-xs"><tr>
+                <th class="py-3 px-4 text-right">العرض</th><th class="py-3 px-4 text-right">النوع</th>
+                <th class="py-3 px-4 text-right">مرات الاستخدام</th><th class="py-3 px-4 text-right">إجمالي الخصم</th>
+                <th class="py-3 px-4 text-right">إجمالي المبيعات</th>
+            </tr></thead>
+            <tbody class="divide-y">
+                {% for r in rows %}
+                <tr class="hover:bg-gray-50">
+                    <td class="py-2 px-4 font-bold text-gray-700">{{ r.applied_deal__name|default:'—' }}</td>
+                    <td class="py-2 px-4 text-xs text-gray-500">{{ r.applied_deal__promo_type }}</td>
+                    <td class="py-2 px-4">{{ r.times_used }}</td>
+                    <td class="py-2 px-4 text-red-600 font-bold">{{ r.total_discount|floatformat:2|intcomma }}</td>
+                    <td class="py-2 px-4 text-green-700">{{ r.total_sales|floatformat:2|intcomma }}</td>
+                </tr>
+                {% empty %}<tr><td colspan="5" class="py-8 text-center text-gray-400">لا توجد عروض مستخدمة في هذه الفترة</td></tr>{% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }}</title>
+    <style>
+        body { font-family: 'Arial', sans-serif; margin: 0; padding: 0; background: #fff; font-size: 11px; color: #000; }
+        .receipt-container { width: 72mm; margin: 0 auto; padding: 2mm; background: white; }
+        .text-center { text-align: center; }
+        .font-bold { font-weight: bold; }
+        .border-bottom { border-bottom: 1px dashed #000; padding-bottom: 5px; margin-bottom: 5px; }
+        .mb-2 { margin-bottom: 10px; }
+        
+        table { width: 100%; border-collapse: collapse; margin-top: 5px; }
+        th, td { border-bottom: 1px dotted #ccc; padding: 3px 0; text-align: right; }
+        th { font-weight: bold; border-bottom: 1px solid #000; }
+        
+        @page { size: 72mm auto; margin: 0; }
+        @media print {
+            body { margin: 0; padding: 0; background: none; }
+            .receipt-container { width: 100%; margin: 0; padding: 0; }
+            .no-print { display: none !important; }
+        }
+    </style>
+</head>
+<body>
+    <div class="no-print" style="margin-bottom: 10px; text-align: center;">
+        <button onclick="window.print()" style="padding: 5px 10px;">طباعة ريسيت 72مم</button>
+        <button onclick="window.close(); setTimeout(function(){ if (window.history.length > 1) window.history.back(); }, 50)" style="padding: 5px 10px;">إغلاق</button>
+    </div>
+
+    <div class="receipt-container">
+        <div class="text-center border-bottom mb-2">
+            <h2 class="font-bold" style="margin: 0 0 5px 0;">{{ sys_settings.shop_name|default:"النظام" }}</h2>
+            <div class="font-bold border-bottom">{{ warehouse.name }}</div>
+            <div style="font-size: 9px; margin-top: 3px;">التاريخ: {{ print_date|date:"Y-m-d H:i" }}</div>
+        </div>
+
+        {% if top_sold_items %}
+        <div class="mb-2">
+            <div class="font-bold text-center" style="margin-bottom: 3px;">--- أكثر مبيعاً ---</div>
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 70%;">الصنف</th>
+                        <th style="width: 30%; text-align: left;">مباع</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in top_sold_items %}
+                    <tr>
+                        <td class="font-bold">{{ item.name }}</td>
+                        <td class="font-bold" style="text-align: left;">{{ item.sold_qty|floatformat:0 }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+
+        <div class="border-bottom" style="margin-top: 10px;"></div>
+
+        <div class="mb-2">
+            <div class="font-bold text-center" style="margin-bottom: 3px;">--- الرصيد الحالي ---</div>
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 70%;">الصنف</th>
+                        <th style="width: 30%; text-align: left;">رصيد</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for stock in stocks %}
+                    <tr>
+                        <td class="font-bold">{{ stock.product.name }}</td>
+                        <td class="font-bold" style="text-align: left;">{{ stock.quantity|floatformat:1 }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="2" class="text-center py-2">لا يوجد رصيد</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="text-center" style="margin-top: 15px; font-size: 9px;">
+            --- تقرير نظام المبيعات ---
+        </div>
+    </div>
+    
+    <script>
+        window.onload = function() {
+            setTimeout(() => {
+                window.print();
+            }, 500);
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ draft.name }}</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #efefef; margin: 0; padding: 0; }
+        .toolbar { position: sticky; top: 0; background: #fff; border-bottom: 1px solid #ddd; padding: 10px; display: flex; justify-content: space-between; z-index: 20; }
+        .toolbar button { cursor: pointer; padding: 5px 10px; }
+        
+        .sheet { width: 80mm; margin: 10px auto; background: #fff; padding: 4mm; box-shadow: 0 2px 10px rgba(0,0,0,.2); position: relative; overflow: hidden; }
+        .watermark { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; opacity: 0.08; font-size: 18px; font-weight: bold; transform: rotate(-25deg); pointer-events: none; text-align: center; line-height: 1.4; }
+        
+        /* Typography */
+        .text-center { text-align: center; }
+        .muted { color: #555; }
+        .bold { font-weight: bold; }
+        .f-11 { font-size: 11px; }
+        .f-12 { font-size: 12px; }
+        .f-14 { font-size: 14px; }
+        .f-16 { font-size: 16px; }
+        
+        /* Header */
+        .print-logo { max-height: 50px; max-width: 80%; display: block; margin: 0 auto 5px; }
+        .company-name { font-size: 18px; margin: 0 0 5px 0; }
+        .divider { border-top: 1px dashed #000; margin: 8px 0; }
+        
+        /* Info */
+        .meta-info { margin-bottom: 8px; line-height: 1.4; }
+        
+        /* Table */
+        .item-list { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
+        
+        .item-checkbox {
+            width: 12px;
+            height: 12px;
+            border: 1.5px solid #000;
+            display: inline-block;
+            margin-left: 4px; /* Space between box and name (arabic rtl) */
+            vertical-align: middle;
+            flex-shrink: 0;
+            margin-top: 2px;
+        }
+        
+        .item-row { display: flex; align-items: flex-start; margin-bottom: 6px; border-bottom: 1px dashed #ccc; padding-bottom: 4px; }
+        .item-details { flex-grow: 1; display: flex; flex-direction: column; }
+        .item-name { font-size: 12px; font-weight: bold; line-height: 1.2; margin-bottom: 3px; }
+        .item-math { display: flex; justify-content: space-between; font-size: 11px; color: #333; }
+        
+        /* Totals */
+        .totals { margin-top: 5px; }
+        .totals .row { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 3px; }
+        .totals .total-row { display: flex; justify-content: space-between; font-weight: bold; font-size: 14px; border-top: 1px solid #000; padding-top: 4px; margin-top: 2px; }
+        
+        @media print {
+            @page { size: 80mm auto; margin: 4mm; }
+            body { background: #fff; }
+            .toolbar { display: none !important; }
+            .sheet { margin: 0; box-shadow: none; width: 100%; padding: 0; }
+        }
+    </style>
+</head>
+<body>
+    <div class="toolbar no-print">
+        <button onclick="window.close(); setTimeout(function(){ if (window.history.length > 1) window.history.back(); }, 50)">إغلاق</button>
+        <button onclick="window.print()">طباعة</button>
+    </div>
+    <div class="sheet" id="print-area">
+        <div class="watermark">فاتورة وهمية / مسودة<br>غير رسمية</div>
+        
+        <!-- Logo or Name -->
+        <div class="text-center">
+            {% if sys_settings.logo_base64 %}
+                <img src="{{ sys_settings.logo_base64 }}" alt="logo" class="print-logo">
+            {% else %}
+                <h2 class="company-name">{{ sys_settings.shop_name }}</h2>
+            {% endif %}
+            <div class="f-12 muted">{{ sys_settings.address }}</div>
+            <div class="f-12 muted" dir="ltr">{{ sys_settings.phone }}</div>
+        </div>
+        
+        <div class="divider"></div>
+        
+        <!-- Meta Info -->
+        <div class="meta-info f-12">
+            <div><span class="bold">المسودة:</span> {{ draft.name }}</div>
+            <div><span class="bold">التاريخ:</span> {{ draft.updated_at|date:"Y-m-d H:i" }}</div>
+            <div><span class="bold">الكاشير:</span> {{ draft.user.username }}</div>
+            <div><span class="bold">العميل:</span> {% if draft.customer %}{{ draft.customer.first_name }} {{ draft.customer.last_name }}{% else %}عميل نقدي (قطاعي){% endif %}</div>
+        </div>
+        
+        <div class="divider"></div>
+        
+        <!-- Items without discount column but with checkbox -->
+        <div class="items-container">
+            {% for item in draft_items %}
+            <div class="item-row">
+                <div class="item-checkbox"></div>
+                <div class="item-details">
+                    <div class="item-name">{{ item.name }}</div>
+                    <div class="item-math">
+                        <span>{{ item.quantity|floatformat:"-2" }} × {{ item.price|floatformat:"-2" }}</span>
+                        <span class="bold">{{ item.subtotal|floatformat:"-2" }}</span>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        
+        <div class="divider"></div>
+        
+        <!-- Totals Summary -->
+        <div class="totals">
+            <div class="row bold" style="background: #f9f9f9; padding-bottom: 4px; border-bottom: 1px solid #000; margin-bottom: 4px;">
+                <span>إجمالي عدد القطع:</span>
+                <span>{{ draft.items_count|floatformat:"-2" }}</span>
+            </div>
+            <div class="row">
+                <span>المجموع الفرعي:</span>
+                <span>{{ draft_subtotal|floatformat:"-2" }}</span>
+            </div>
+            <div class="row">
+                <span>الخصم:</span>
+                <span>{% if draft.discount_type == 'percent' %}{{ draft.discount|floatformat:"-2" }}%{% else %}{{ draft.discount|floatformat:"-2" }}{% endif %}</span>
+            </div>
+            {% if draft.delivery_cost and draft.delivery_cost > 0 %}
+            <div class="row">
+                <span>التوصيل:</span>
+                <span>{{ draft.delivery_cost|floatformat:"-2" }}</span>
+            </div>
+            {% endif %}
+            <div class="total-row">
+                <span>الإجمالي:</span>
+                <span>{{ draft_total|floatformat:"-2" }}</span>
+            </div>
+        </div>
+        
+        {% if draft.notes %}
+        <div class="divider"></div>
+        <div class="f-11 muted"><span class="bold">ملاحظات:</span> {{ draft.notes }}</div>
+        {% endif %}
+        
+        <div class="divider"></div>
+        <div class="text-center f-11 bold" style="margin-top: 6px;">
+            فاتورة وهمية / مسودة<br>غير رسمية
+        </div>
+    </div>
+</body>
+</html>

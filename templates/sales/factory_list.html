@@ -1,0 +1,192 @@
+﻿{% extends 'base.html' %}
+{% load l10n %}
+
+{% block content %}
+<div class="flex justify-between items-center mb-6">
+    <h2 class="text-2xl font-bold text-gray-800 flex items-center gap-2">
+        <svg class="w-8 h-8 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path></svg>
+        أوامر الشغل (المصنع)
+    </h2>
+    <div class="flex gap-2 items-center">
+        <div class="bg-indigo-100 text-indigo-800 px-3 py-1 rounded-full text-sm font-bold">
+            عدد الأوامر: {{ orders.count }}
+        </div>
+        <a href="{% url 'factory_order_create' %}" class="px-4 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition font-bold text-sm flex items-center gap-2">
+            <i class="fas fa-plus"></i> أمر شغل جديد
+        </a>
+    </div>
+</div>
+
+<div class="bg-white rounded-lg shadow-lg overflow-hidden border border-gray-200">
+    <table class="w-full text-right">
+        <thead class="bg-gray-800 text-white">
+            <tr>
+                <th class="py-3 px-4">رقم الطلب</th>
+                <th class="py-3 px-4">العميل</th>
+                <th class="py-3 px-4">تفاصيل التفصيل</th>
+                <th class="py-3 px-4 w-1/4">الحالة الحالية</th>
+                <th class="py-3 px-4 text-center">إجراءات</th>
+            </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-100">
+            {% for order in orders %}
+            <tr class="hover:bg-gray-50 transition" id="row-{{ order.id }}">
+                <td class="py-4 px-4 align-top">
+                    <span class="font-mono font-bold text-indigo-600 bg-indigo-50 px-2 py-1 rounded">#{{ order.id }}</span>
+                    <div class="text-xs text-gray-500 mt-1">{{ order.created_at|date:"Y-m-d" }}</div>
+                </td>
+                
+                <td class="py-4 px-4 align-top">
+                    <div class="font-bold text-gray-800">{{ order.customer.first_name }} {{ order.customer.last_name }}</div>
+                    <div class="mt-1" id="phone-display-{{ order.id }}">
+                        <span class="font-mono text-sm text-gray-600">{{ order.customer.phone }}</span>
+                        <!-- سيظهر تنبيه الاتصال هنا -->
+                    </div>
+                </td>
+
+                <td class="py-4 px-4 align-top">
+                    <div class="font-bold text-gray-800">{{ order.tailoring_type }}</div>
+                    {% if order.notes %}
+                    <div class="text-sm text-gray-500 mt-1 bg-yellow-50 p-1 border border-yellow-200 rounded">
+                        <span class="font-bold">ملاحظات:</span> {{ order.notes }}
+                    </div>
+                    {% endif %}
+                    <div class="text-xs text-gray-400 mt-1 flex items-center gap-1">
+                        <span>التكلفة:</span>
+                        <input type="number" step="0.01" min="0" id="cost-{{ order.id }}" value="{{ order.tailoring_cost|unlocalize }}" class="w-20 px-1 py-0.5 border border-gray-300 rounded text-xs dir-ltr">
+                    </div>
+                </td>
+
+                <td class="py-4 px-4 align-top bg-gray-50">
+                    <div class="flex flex-col gap-2">
+                        <select onchange="handleStatusChange({{ order.id }}, this)" class="w-full p-2 border border-gray-300 rounded text-sm font-bold focus:ring-2 focus:ring-indigo-500 status-select" data-order-id="{{ order.id }}">
+                            <option value="pending" {% if order.tailoring_status == 'pending' %}selected{% endif %}>🕒 لم يرسل بعد</option>
+                            <option value="sent" {% if order.tailoring_status == 'sent' %}selected{% endif %}>📤 تم الإرسال للترزي</option>
+                            <option value="arrived" {% if order.tailoring_status == 'arrived' %}selected{% endif %}>📥 وصل من الترزي</option>
+                            <option value="delivered" {% if order.tailoring_status == 'delivered' %}selected{% endif %}>✅ تم التسليم للعميل</option>
+                        </select>
+                        
+                        <!-- Tailor Name Input (Shown if Sent/Arrived) -->
+                        <div id="tailorInputBox-{{ order.id }}" class="{% if order.tailoring_status == 'pending' %}hidden{% endif %}">
+                            <input type="text" id="tailorName-{{ order.id }}" value="{{ order.tailor_name }}" 
+                                   placeholder="اسم الترزي..." 
+                                   class="w-full p-1 border border-gray-300 rounded text-xs text-center bg-white"
+                                   onchange="updateOrder({{ order.id }})">
+                        </div>
+                    </div>
+                </td>
+
+                <td class="py-4 px-4 text-center align-middle">
+                    <div class="flex items-center justify-center gap-1">
+                        <button type="button" onclick="deleteOrder({{ order.id }}, {{ order.received_amount|default:'0'|unlocalize }})" class="inline-flex items-center justify-center w-9 h-9 text-gray-600 hover:text-red-600 bg-gray-100 hover:bg-red-50 rounded-lg transition" title="حذف أمر الشغل">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                        <a href="{% url 'factory_order_edit' order.id %}" class="inline-flex items-center justify-center w-9 h-9 text-gray-600 hover:text-amber-600 bg-gray-100 hover:bg-amber-50 rounded-lg transition" title="تعديل أمر الشغل">
+                            <i class="fas fa-pen"></i>
+                        </a>
+                        <a href="{% url 'factory_invoice' order.id %}" class="inline-flex items-center justify-center w-9 h-9 text-gray-600 hover:text-indigo-600 bg-gray-100 hover:bg-indigo-50 rounded-lg transition" title="طباعة أمر الشغل">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
+                        </a>
+                    </div>
+                    <button onclick="updateOrder({{ order.id }})" class="mt-2 text-xs bg-green-600 text-white px-2 py-1 rounded hover:bg-green-700 w-full">حفظ التغيير</button>
+
+                    <form id="deleteForm-{{ order.id }}" method="POST" action="{% url 'factory_order_delete' order.id %}" class="hidden">
+                        {% csrf_token %}
+                        <input type="hidden" name="return_deposit" value="no">
+                    </form>
+                </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="5" class="text-center py-10 text-gray-500">لا توجد أوامر تشغيل حالياً</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<script>
+    // عند تحميل الصفحة، نتحقق من الحالات لتظليل أرقام الهواتف
+    document.addEventListener('DOMContentLoaded', () => {
+        document.querySelectorAll('.status-select').forEach(select => {
+            checkStatusEffects(select.dataset.orderId, select.value);
+        });
+    });
+
+    function handleStatusChange(id, select) {
+        const status = select.value;
+        const tailorBox = document.getElementById(`tailorInputBox-${id}`);
+        
+        // إظهار حقل اسم الترزي
+        if (status === 'sent' || status === 'arrived') {
+            tailorBox.classList.remove('hidden');
+            // تركيز على الحقل إذا كان فارغاً
+            const input = document.getElementById(`tailorName-${id}`);
+            if(!input.value) input.focus();
+        } else {
+            // يمكن إخفاؤه أو تركه، سنتركه لسهولة القراءة
+        }
+
+        checkStatusEffects(id, status);
+    }
+
+    function checkStatusEffects(id, status) {
+        const phoneDiv = document.getElementById(`phone-display-${id}`);
+        
+        // مسح أي تنبيهات سابقة
+        const existingAlert = phoneDiv.querySelector('.contact-alert');
+        if(existingAlert) existingAlert.remove();
+
+        if (status === 'arrived') {
+            // إضافة تنبيه التواصل
+            const alert = document.createElement('div');
+            alert.className = 'contact-alert text-xs font-bold text-red-600 animate-pulse mt-1';
+            alert.innerText = '📞 يجب التواصل مع العميل لاستلام الطلب';
+            phoneDiv.appendChild(alert);
+            phoneDiv.classList.add('bg-red-50', 'p-1', 'rounded');
+        } else {
+            phoneDiv.classList.remove('bg-red-50', 'p-1', 'rounded');
+        }
+    }
+
+    function deleteOrder(id, receivedAmount) {
+        if (!confirm('هل أنت متأكد من حذف هذا أمر الشغل؟ لا يمكن التراجع عن هذا الإجراء.')) return;
+
+        let returnDeposit = 'no';
+        if (receivedAmount > 0) {
+            returnDeposit = confirm(`تم تحصيل ${receivedAmount} ج.م من هذا الأمر. هل تريد إرجاع هذا المبلغ للعميل (سيتم خصمه من الخزنة)؟`) ? 'yes' : 'no';
+        }
+
+        const form = document.getElementById(`deleteForm-${id}`);
+        form.querySelector('input[name="return_deposit"]').value = returnDeposit;
+        form.submit();
+    }
+
+    function updateOrder(id) {
+        const select = document.querySelector(`.status-select[data-order-id="${id}"]`);
+        const status = select.value;
+        const tailorName = document.getElementById(`tailorName-${id}`).value;
+        const tailoringCost = document.getElementById(`cost-${id}`).value;
+
+        fetch('{% url "update_tailoring_status_ajax" %}', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'},
+            body: JSON.stringify({
+                order_id: id,
+                status: status,
+                tailor_name: tailorName,
+                tailoring_cost: tailoringCost
+            })
+        })
+        .then(r => r.json())
+        .then(data => {
+            if(data.status === 'success') {
+                // وميض تأكيد أخضر للصف
+                const row = document.getElementById(`row-${id}`);
+                row.classList.add('bg-green-100');
+                setTimeout(() => row.classList.remove('bg-green-100'), 500);
+            } else {
+                alert('حدث خطأ: ' + data.message);
+            }
+        });
+    }
+</script>
+{% endblock %}

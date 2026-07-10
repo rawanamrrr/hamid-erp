@@ -1,0 +1,39 @@
+﻿{% extends 'base.html' %}
+{% load humanize %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+<div class="max-w-2xl mx-auto space-y-5">
+    <div class="flex items-center justify-between print:hidden">
+        <h1 class="text-2xl font-black text-gray-800">تقرير ضريبة القيمة المضافة</h1>
+        <a href="?date_from={{ date_from }}&date_to={{ date_to }}&print=1" class="px-4 py-2 bg-gray-700 text-white rounded-lg font-bold text-sm">طباعة</a>
+    </div>
+
+    {% if v.rate == 0 %}
+    <div class="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-sm text-amber-800 print:hidden">
+        نسبة الضريبة غير مفعّلة (0%). فعّلها من إعدادات النظام لحساب الضريبة على المبيعات.
+    </div>
+    {% endif %}
+
+    <form method="get" class="flex flex-wrap items-end gap-3 bg-white p-4 rounded-xl border print:hidden">
+        <div><label class="block text-xs font-bold text-gray-500 mb-1">من</label><input type="date" name="date_from" value="{{ date_from }}" class="p-2 border rounded-lg"></div>
+        <div><label class="block text-xs font-bold text-gray-500 mb-1">إلى</label><input type="date" name="date_to" value="{{ date_to }}" class="p-2 border rounded-lg"></div>
+        <button class="px-4 py-2 bg-indigo-600 text-white rounded-lg font-bold">عرض</button>
+    </form>
+
+    <div class="bg-white p-5 rounded-xl border flex justify-between text-sm">
+        <span class="text-gray-500">النسبة المطبّقة</span><span class="font-black dir-ltr">{{ v.rate|floatformat:2 }}%</span>
+    </div>
+
+    <div class="bg-white rounded-xl border divide-y text-sm">
+        <div class="flex justify-between px-5 py-3"><span class="text-gray-600">إجمالي المبيعات (شامل الضريبة)</span><span class="dir-ltr font-bold">{{ v.sales_gross|floatformat:2|intcomma }}</span></div>
+        <div class="flex justify-between px-5 py-3"><span class="text-gray-600">(−) المرتجعات</span><span class="dir-ltr text-red-600">{{ v.returns_gross|floatformat:2|intcomma }}</span></div>
+        <div class="flex justify-between px-5 py-3 bg-gray-50 font-bold"><span>صافي المبيعات</span><span class="dir-ltr">{{ v.net_sales|floatformat:2|intcomma }}</span></div>
+        <div class="flex justify-between px-5 py-3"><span class="text-gray-600">صافي المبيعات قبل الضريبة</span><span class="dir-ltr">{{ v.net_sales_ex|floatformat:2|intcomma }}</span></div>
+        <div class="flex justify-between px-5 py-3 bg-teal-50 font-black"><span>ضريبة المخرجات (على المبيعات)</span><span class="dir-ltr text-teal-700">{{ v.output_vat|floatformat:2|intcomma }}</span></div>
+        <div class="flex justify-between px-5 py-3 bg-orange-50 font-black"><span>(−) ضريبة المدخلات (على المشتريات)</span><span class="dir-ltr text-orange-700">{{ v.input_vat|floatformat:2|intcomma }}</span></div>
+        <div class="flex justify-between px-5 py-4 bg-gray-800 text-white font-black text-lg"><span>صافي الضريبة المستحقة</span><span class="dir-ltr {% if v.net_payable < 0 %}text-green-300{% endif %}">{{ v.net_payable|floatformat:2|intcomma }}</span></div>
+    </div>
+    <p class="text-center text-xs text-gray-400">تُحسب ضريبة المبيعات على أساس أن الأسعار شاملة للضريبة. ضريبة المشتريات من بنود فواتير الشراء المؤكدة.</p>
+</div>
+{% if print_mode %}<script>window.onload=function(){window.print();};</script>{% endif %}
+{% endblock %}

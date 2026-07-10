@@ -1,0 +1,846 @@
+{% load humanize %}
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <title>فاتورة {{ order.display_number }}</title>
+    <!-- Google Fonts: Note for PDF, server must have internet access to fetch this -->
+    <link
+        href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;600;700&family=Inconsolata:wght@700&display=swap"
+        rel="stylesheet">
+
+    <style>
+        /* --- GLOBAL RESET --- */
+        body {
+            font-family: 'IBM Plex Sans Arabic', sans-serif;
+            background-color: #525252;
+            margin: 0;
+            padding: 0;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        /* --- PDF SIZE SETUP (Dynamic) --- */
+        @page {
+
+            /* Sets the PDF page size based on the variable passed from View */
+            size: {{ print_style|upper }};
+            margin: 0;
+        }
+
+        /* --- CONTAINER SIZES --- */
+        .page {
+            background: white;
+            margin: 20px auto;
+            display: block;
+            position: relative;
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.2);
+        }
+
+        /* A4 Styles */
+        .size-a4 {
+            width: 210mm;
+            min-height: 297mm;
+            padding: 15mm;
+            padding-bottom: 25mm;
+        }
+
+        /* A5 Styles */
+        .size-a5 {
+            width: 148mm;
+            min-height: 210mm;
+            padding: 5mm; /* reduced from 10mm */
+            padding-bottom: 5mm;
+            font-size: 11px;
+        }
+        
+        .size-a5 .header-col { padding: 8px; }
+        .size-a5 .shop-name { font-size: 1.3rem; margin-bottom: 2px; }
+        .size-a5 .total-row { padding: 2px 8px; }
+        .size-a5 .info-col { padding: 4px; }
+        .size-a5 td, .size-a5 th { padding: 4px 6px; }
+        .size-a5 .qr-img { height: 45px; width: 45px; }
+
+        /* --- PDF Override Mode --- */
+        {% if is_pdf %}
+
+        body {
+            background-color: white;
+            margin: 0;
+        }
+
+        .page {
+            margin: 0 !important;
+            box-shadow: none !important;
+            width: 100% !important;
+            min-height: 100% !important;
+            border: none !important;
+        }
+
+        .no-print {
+            display: none !important;
+        }
+
+        {% endif %}
+
+        /* --- LAYOUT UTILS --- */
+        .main-box {
+            border: 2px solid #000;
+            display: block;
+            width: 100%;
+        }
+
+        /* Flex helpers (WeasyPrint supports flex well now) */
+        .flex {
+            display: flex;
+        }
+
+        .items-center {
+            align-items: center;
+        }
+
+        .justify-between {
+            justify-content: space-between;
+        }
+
+        .gap-4 {
+            gap: 16px;
+        }
+
+        .mt-1 {
+            margin-top: 4px;
+        }
+
+        .mt-2 {
+            margin-top: 8px;
+        }
+
+        .mt-4 {
+            margin-top: 16px;
+        }
+
+        .mb-2 {
+            margin-bottom: 8px;
+        }
+
+        .text-center {
+            text-align: center;
+        }
+
+        .text-right {
+            text-align: right;
+        }
+
+        .text-left {
+            text-align: left;
+        }
+
+        .font-bold {
+            font-weight: 700;
+        }
+
+        .text-sm {
+            font-size: 0.875rem;
+        }
+
+        .text-xs {
+            font-size: 0.75rem;
+        }
+
+        .text-red {
+            color: #dc2626;
+        }
+
+        .bg-gray {
+            background-color: #f3f4f6;
+        }
+
+        .bg-red-light {
+            background-color: #fef2f2;
+        }
+
+        /* --- HEADER SECTION --- */
+        .header {
+            display: table;
+            width: 100%;
+            border-bottom: 2px solid #000;
+        }
+
+        .header-col {
+            display: table-cell;
+            vertical-align: middle;
+            padding: 15px;
+        }
+
+        .header-info {
+            width: 60%;
+            border-left: 2px solid #000;
+        }
+
+        .header-brand {
+            width: 40%;
+            text-align: center;
+        }
+
+        .shop-name {
+            font-size: 1.5rem;
+            font-weight: bold;
+            margin: 0 0 5px 0;
+        }
+
+        .shop-addr {
+            color: #4b5563;
+            font-size: 0.8rem;
+            margin: 0;
+        }
+
+        .badge {
+            display: inline-block;
+            background: #e5e7eb;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            font-weight: bold;
+        }
+
+        .invoice-title {
+            font-size: 1.1rem;
+            font-weight: bold;
+            border-bottom: 2px solid #000;
+            display: inline-block;
+            padding: 0 10px 4px 10px;
+            margin-top: 5px;
+        }
+
+        /* --- INFO BAR --- */
+        .info-bar {
+            display: table;
+            width: 100%;
+            border-bottom: 2px solid #000;
+            background-color: #f8fafc;
+            table-layout: fixed;
+        }
+
+        .info-col {
+            display: table-cell;
+            padding: 8px;
+            border-left: 1px solid #000;
+            text-align: center;
+            vertical-align: middle;
+        }
+
+        .info-col:last-child {
+            border-left: none;
+        }
+
+        .label {
+            font-size: 0.65rem;
+            color: #666;
+            font-weight: bold;
+            display: block;
+            margin-bottom: 2px;
+        }
+
+        .value {
+            font-weight: bold;
+            font-size: 0.9rem;
+        }
+
+        /* A5 Info Bar Layout */
+        .size-a5 .info-bar {
+            display: block;
+        }
+
+        .size-a5 .info-row {
+            display: table;
+            width: 100%;
+            border-bottom: 1px solid #000;
+        }
+
+        .size-a5 .info-row:last-child {
+            border-bottom: none;
+        }
+
+        .size-a5 .info-col {
+            width: 50%;
+            display: table-cell;
+            border-bottom: none;
+        }
+
+        /* --- TABLE --- */
+        .table-container {
+            width: 100%;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th {
+            background-color: #e2e8f0;
+            border-bottom: 2px solid #000;
+            border-left: 1px solid #000;
+            padding: 6px;
+            font-weight: bold;
+            text-align: center;
+            font-size: 0.75rem;
+        }
+
+        th:last-child {
+            border-left: none;
+        }
+
+        td {
+            padding: 6px 8px;
+            border-bottom: 1px solid #ccc;
+            border-left: 1px solid #000;
+            vertical-align: middle;
+        }
+
+        td:last-child {
+            border-left: none;
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        /* --- FOOTER SECTION --- */
+        .footer-section {
+            display: table;
+            width: 100%;
+            border-top: 2px solid #000;
+            background: white;
+        }
+
+        .notes-area {
+            display: table-cell;
+            width: 55%;
+            padding: 10px;
+            border-left: 2px solid #000;
+            vertical-align: top;
+        }
+
+        .totals-area {
+            display: table-cell;
+            width: 45%;
+            vertical-align: top;
+        }
+
+
+        .total-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 5px 12px;
+            border-bottom: 1px solid #ccc;
+            font-size: 0.9rem;
+        }
+
+        .total-row.final {
+            background-color: #000;
+            color: white;
+            font-weight: bold;
+            font-size: 1.1rem;
+            border-bottom: none;
+            padding: 8px 12px;
+        }
+
+        .tafqeet-box {
+            background-color: #f3f4f6;
+            padding: 8px;
+            border-radius: 4px;
+            border-right: 4px solid #000;
+            font-style: italic;
+            font-size: 0.8rem;
+            margin-bottom: 10px;
+        }
+
+        .qr-img {
+            height: 60px;
+            width: 60px;
+            border: 1px solid #ddd;
+            padding: 2px;
+        }
+
+        .logo-img {
+            max-height: 80px;
+            object-fit: contain;
+            mix-blend-mode: multiply;
+        }
+
+        .num {
+            font-family: 'Inconsolata', monospace;
+        }
+
+        /* --- REPEATING FOOTER --- */
+        .repeating-footer {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            text-align: center;
+            font-size: 9px;
+            padding: 5px;
+            border-top: 1px dashed #ccc;
+            background: #fff;
+        }
+
+        /* Print media settings for Browser Print fallback */
+        @media print {
+            body {
+                background: none;
+                margin: 0;
+            }
+
+            .page {
+                margin: 0 !important;
+                width: 100% !important;
+                min-height: auto !important;
+                box-shadow: none !important;
+                border: none !important;
+            }
+
+            thead {
+                display: table-header-group;
+            }
+
+            tr {
+                page-break-inside: avoid;
+            }
+
+            .no-print {
+                display: none;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- Top Bar Controls (Hidden in PDF) -->
+    <div class="no-print fixed top-0 w-full bg-white border-b shadow-sm p-3 z-50 flex justify-between items-center h-16"
+        style="direction: rtl;">
+        <div class="font-bold text-gray-800 text-lg px-4">
+            معاينة: <span class="text-blue-600">{{ print_style|upper }}</span>
+        </div>
+        <div class="flex gap-3 px-4">
+            <!-- Browser Print Button -->
+            <button onclick="window.print()"
+                class="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded font-bold text-gray-700 transition">طباعة
+                (متصفح)</button>
+
+            <!-- Generate PDF Button -->
+            <a href="{% url 'download_invoice_pdf' order.id %}?size={{ print_style }}"
+                class="px-6 py-2 bg-black hover:bg-gray-800 text-white rounded font-bold transition flex items-center gap-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z">
+                    </path>
+                </svg>
+                تحميل PDF
+            </a>
+        </div>
+    </div>
+    {% if not is_pdf %}<div class="h-16 no-print"></div>{% endif %}
+
+    <!-- Repeating Footer (Bottom of every PDF page) -->
+    <div class="repeating-footer">
+        {{ sys_settings.shop_name }} - {{ sys_settings.phone }}
+    </div>
+
+    <!-- Page Container -->
+    <div class="page size-{{ print_style|default:'a4' }}">
+        <div class="main-box">
+
+            <!-- HEADER -->
+            <div class="header">
+                <div class="header-col header-info">
+                    <h1 class="shop-name">{{ sys_settings.shop_name }}</h1>
+                    <p class="shop-addr">{{ sys_settings.address }}</p>
+                    <div class="mt-2">
+                        <span class="badge">Tel</span>
+                        <span class="num font-bold" style="font-size:1.1rem; margin-right:5px;">{{ sys_settings.phone }}</span>
+                    </div>
+                    {% if sys_settings.tax_number %}
+                    <div class="mt-1">
+                        <span class="badge">VAT</span>
+                        <span class="num font-bold text-xs" style="margin-right:5px;">{{ sys_settings.tax_number }}</span>
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="header-col header-brand">
+                    {% if sys_settings.logo_base64 %}
+                    <img src="{{ sys_settings.logo_base64 }}" class="logo-img" alt="Logo">
+                    {% endif %}
+                    <div class="mt-1">
+                        <div class="invoice-title">فاتورة مبيعات</div>
+                        <div class="text-xs text-gray-500 uppercase mt-1" style="letter-spacing: 1px;">Tax Invoice</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- INFO BAR -->
+            {% if print_style == 'a5' %}
+            <div class="info-bar">
+                <div class="info-row">
+                    <div class="info-col">
+                        <span class="label">رقم الفاتورة</span>
+                        <span class="value num">{{ order.display_number }}</span>
+                    </div>
+                    <div class="info-col" style="border-left:none;">
+                        <span class="label">التاريخ</span>
+                        <span class="value num">{{ order.created_at|date:"Y-m-d" }}</span>
+                    </div>
+                </div>
+                <div class="info-row">
+                    <div class="info-col">
+                        <span class="label">العميل</span>
+                        <span class="value">{% if order.customer %}{{ order.customer.first_name }} {{ order.customer.last_name }}{% else %}عميل نقدي{% endif %}</span>
+                    </div>
+                    {% if policies.receipts.show_salesman_name %}
+                    <div class="info-col" style="border-left:none;">
+                        <span class="label">{% if order.salesman_name %}البائع{% else %}الموظف{% endif %}</span>
+                        <span class="value">{{ order.salesman_name|default:order.user.username }}</span>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% else %}
+            <div class="info-bar">
+                <div class="info-col">
+                    <span class="label">رقم الفاتورة</span>
+                    <span class="value num">{{ order.display_number }}</span>
+                </div>
+                <div class="info-col">
+                    <span class="label">التاريخ</span>
+                    <span class="value num">{{ order.created_at|date:"Y-m-d" }}</span>
+                </div>
+                <div class="info-col">
+                    <span class="label">العميل</span>
+                    <span class="value">{% if order.customer %}{{ order.customer.first_name }} {{ order.customer.last_name }}{% else %}عميل نقدي{% endif %}</span>
+                </div>
+                {% if policies.receipts.show_salesman_name %}
+                <div class="info-col">
+                    <span class="label">{% if order.salesman_name %}البائع{% else %}الموظف{% endif %}</span>
+                    <span class="value">{{ order.salesman_name|default:order.user.username }}</span>
+                </div>
+                {% endif %}
+            </div>
+            {% endif %}
+
+            {% if order.is_online_order and order.customer %}
+            <div class="info-bar">
+                <div class="info-col">
+                    <span class="label">هاتف التوصيل</span>
+                    <span class="value num">{{ order.customer.phone }}</span>
+                </div>
+                <div class="info-col" style="flex:2;">
+                    <span class="label">عنوان التوصيل</span>
+                    <span class="value">{{ order.shipping_address|default:order.customer.address }}</span>
+                </div>
+            </div>
+            {% if order.shipment.comment %}
+            <div class="info-bar">
+                <div class="info-col" style="flex:1;">
+                    <span class="label">ملاحظات الشحن</span>
+                    <span class="value">{{ order.shipment.comment }}</span>
+                </div>
+            </div>
+            {% endif %}
+            {% endif %}
+
+            <!-- ITEMS TABLE -->
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width: 5%;">#</th>
+                            <th class="text-right">الصنف</th>
+                            <th style="width: 12%;">الكمية</th>
+                            <th style="width: 15%;">السعر</th>
+                            <th style="width: 18%;">الإجمالي</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in order.items.all %}
+                        <tr>
+                            <td class="text-center num" style="color:#6b7280; font-weight:bold;">{{ forloop.counter }}
+                            </td>
+                            <td class="font-bold text-right">{{ item.product.name }}
+                                {% if item.variant %}<span style="font-size:11px;color:#4f46e5;display:block">{{ item.variant.label }}</span>{% endif %}
+                                {% if item.modifiers %}
+                                {% for m in item.modifiers %}{% if m.show_on_receipt != False %}<span style="font-size:11px;color:#6b7280;display:block">{{ m.option }}</span>{% endif %}{% endfor %}
+                                {% endif %}
+                                {% if item.price_tier == 'semi_wholesale' %}<span style="font-size:11px;color:#d97706;font-weight:bold;display:block">سعر نص جملة</span>
+                                {% elif item.price_tier == 'wholesale' %}<span style="font-size:11px;color:#9333ea;font-weight:bold;display:block">سعر جملة</span>{% endif %}
+                                {% if item.is_oversold and can_view_profit %}<span style="font-size:11px;color:#dc2626;font-weight:bold;display:block">⚠ تجاوز المخزون المتاح (نقص: {{ item.shortfall_qty|floatformat:-2 }})</span>{% endif %}
+                                {% if item.serial_number %}<span style="font-size:11px;color:#475569;display:block;direction:ltr">S/N: {{ item.serial_number }}{% if item.product.warranty_months %} — ضمان {{ item.product.warranty_months }} ش{% endif %}</span>{% endif %}
+                            </td>
+                            <td class="text-center num font-bold">{{ item.quantity|floatformat:-2 }}</td>
+                            <td class="text-center num">{{ item.price|floatformat:"-2"|intcomma }}</td>
+                            <td class="text-left num">{{ item.subtotal|floatformat:"-2"|intcomma }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- FOOTER SECTION -->
+            {% if print_style == 'a5' %}
+            <div class="footer-section">
+                <div class="totals-area">
+                    <div class="total-row" style="border-bottom: 1px dashed #ccc;">
+                        <span class="font-bold" style="color:#4b5563;">اجمالي القطع</span>
+                        <span class="num font-bold">{{ order.total_pieces|floatformat:"-2" }}</span>
+                    </div>
+                    <div class="total-row">
+                        <span class="font-bold" style="color:#4b5563;">المجموع</span>
+                        <span class="num font-bold">{{ order.subtotal_amount|floatformat:"-2"|intcomma }}</span>
+                    </div>
+                    {% if order.discount > 0 %}
+                    <div class="total-row text-red bg-red-light">
+                        <span class="font-bold">خصم</span>
+                        <span class="num font-bold">- {{ order.discount|floatformat:"-2"|intcomma }}</span>
+                    </div>
+                    {% endif %}
+                    {% if order.delivery_cost > 0 %}
+                    <div class="total-row">
+                        <span class="font-bold" style="color:#4b5563;">توصيل</span>
+                        <span class="num font-bold">{{ order.delivery_cost|floatformat:"-2"|intcomma }}</span>
+                    </div>
+                    {% endif %}
+                    {% with vat=order.vat_breakdown %}
+                    <div class="total-row final">
+                        <span>الإجمالي</span>
+                        <span class="num">{{ vat.total|default:order.total_amount|floatformat:"-2"|intcomma }}</span>
+                    </div>
+                    {% if vat %}
+                    <div class="total-row" style="font-size:11px;color:#6b7280;">
+                        <span>ض.ق.م ({{ vat.rate|floatformat:"-2" }}%) {% if vat.included %}شاملة{% else %}مضافة{% endif %}</span>
+                        <span class="num">{{ vat.tax|floatformat:2|intcomma }}</span>
+                    </div>
+                    {% endif %}
+                    {% endwith %}
+                    {% with svc=order.service_charge_breakdown %}
+                    {% if svc %}
+                    <div class="total-row" style="font-size:11px;color:#6b7280;">
+                        <span>رسوم الخدمة ({{ svc.pct|floatformat:"-2" }}%) {% if svc.included %}مضمنة{% else %}مضافة{% endif %}</span>
+                        <span class="num">{{ svc.amount|floatformat:2|intcomma }}</span>
+                    </div>
+                    {% endif %}
+                    {% endwith %}
+                    {% if can_view_profit and policies.sales.show_profit_on_invoice %}
+                    <div class="total-row" style="font-size:11px;color:#15803d;font-weight:bold;">
+                        <span>الربح</span>
+                        <span class="num">{{ order.gross_profit|floatformat:2|intcomma }}</span>
+                    </div>
+                    {% endif %}
+                    <div class="total-row bg-gray">
+                        <span class="font-bold text-xs">المدفوع</span>
+                        <span class="num font-bold">{{ order.received_amount|floatformat:"-2"|intcomma }}</span>
+                    </div>
+                    {% if order.remaining_amount > 0 %}
+                    <div class="total-row bg-red-light text-red">
+                        <span class="font-bold text-xs">المتبقي</span>
+                        <span class="num font-bold">{{ order.remaining_amount|floatformat:"-2"|intcomma }}</span>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <div class="notes-area">
+                    <!-- Tafqeet -->
+                    <div class="tafqeet-box">
+                        <span class="font-bold">فقط وقدره: </span>
+                        <!-- Use backend variable if available (PDF), otherwise span for JS (Browser) -->
+                        {% if arabic_total_text %}
+                        <span class="font-bold">{{ arabic_total_text }}</span>
+                        {% else %}
+                        <span id="arabic-total-text" class="font-bold">...</span>
+                        {% endif %}
+                    </div>
+                    <div class="flex gap-4 text-xs mb-2" style="color:#4b5563;">
+                        <div style="margin-left: 15px;"><span class="font-bold" style="color:black;">الدفع: </span>
+                            {% if order.payment_method == 'custom' %}
+                                مقسم ({% if order.cash_paid > 0 %}نقدي: {{ order.cash_paid }}{% endif %}{% if order.wallet_paid > 0 %} | محفظة: {{ order.wallet_paid }}{% endif %}{% if order.instapay_paid > 0 %} | إنستاباي: {{ order.instapay_paid }}{% endif %}{% if order.visa_paid > 0 %} | فيزا: {{ order.visa_paid }}{% endif %})
+                            {% elif order.payment_method == 'wallet' %}
+                                محفظة
+                            {% elif order.payment_method == 'instapay' %}
+                                إنستا باي
+                            {% elif order.payment_method == 'visa' %}
+                                فيزا
+                            {% else %}
+                                نقدي
+                            {% endif %}
+                        </div>
+                        <div><span class="font-bold" style="color:black;">الوقت: </span><span class="num">{% now "H:i" %}</span></div>
+                    </div>
+                    <div class="flex justify-between items-end mt-4">
+                        {% if sys_settings.show_qr %}
+                        <img src="https://api.qrserver.com/v1/create-qr-code/?size=90x90&data={{ sys_settings.qr_link|default:order.id }}"
+                            class="qr-img" alt="QR">
+                        {% endif %}
+                        <div class="text-center" style="flex:1;">
+                            <p class="font-bold text-sm">{{ sys_settings.thank_you_text }}</p>
+                            <p class="text-xs font-bold mt-1 border-t border-black inline-block px-2">*** نهاية الفاتورة
+                                ***</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% else %}
+            <!-- A4 Layout -->
+            <div class="footer-section">
+                <div class="notes-area">
+                    <div class="tafqeet-box">
+                        <span class="font-bold">فقط وقدره: </span>
+                        {% if arabic_total_text %}
+                        <span class="font-bold">{{ arabic_total_text }}</span>
+                        {% else %}
+                        <span id="arabic-total-text" class="font-bold">...</span>
+                        {% endif %}
+                    </div>
+                    <div class="flex gap-4 text-xs mb-2" style="color:#4b5563;">
+                        <div style="margin-left: 15px;"><span class="font-bold" style="color:black;">الدفع: </span>
+                            {% if order.payment_method == 'custom' %}
+                                مقسم ({% if order.cash_paid > 0 %}نقدي: {{ order.cash_paid }}{% endif %}{% if order.wallet_paid > 0 %} | محفظة: {{ order.wallet_paid }}{% endif %}{% if order.instapay_paid > 0 %} | إنستاباي: {{ order.instapay_paid }}{% endif %}{% if order.visa_paid > 0 %} | فيزا: {{ order.visa_paid }}{% endif %})
+                            {% elif order.payment_method == 'wallet' %}
+                                محفظة
+                            {% elif order.payment_method == 'instapay' %}
+                                إنستا باي
+                            {% elif order.payment_method == 'visa' %}
+                                فيزا
+                            {% else %}
+                                نقدي
+                            {% endif %}
+                        </div>
+                        <div><span class="font-bold" style="color:black;">الوقت: </span><span class="num">{% now "H:i" %}</span></div>
+                    </div>
+                    {% if order.is_tailoring %}
+                    <div class="mb-2 p-2 border bg-gray" style="border-radius:4px; font-size:0.75rem;">
+                        <span class="font-bold underline">تفاصيل التفصيل:</span> {{ order.tailoring_type }}
+                        {% if order.notes %}<br><span class="text-xs">{{ order.notes }}</span>{% endif %}
+                    </div>
+                    {% endif %}
+                    <p class="text-xs" style="color:#6b7280; line-height:1.4;">{{ sys_settings.return_policy }}</p>
+                    <div class="flex justify-between items-end mt-4">
+                        {% if sys_settings.show_qr %}
+                        <img src="https://api.qrserver.com/v1/create-qr-code/?size=90x90&data={{ sys_settings.qr_link|default:order.id }}"
+                            class="qr-img" alt="QR">
+                        {% endif %}
+                        <div style="margin-left: 15px;"><span class="font-bold" style="color:black;">الدفع: </span>{{ order.payment_details_display }}</div>
+                    </div>
+
+                    <div class="totals-area">
+                        <div class="total-row" style="border-bottom: 1px dashed #ccc;">
+                            <span class="font-bold" style="color:#4b5563;">اجمالي القطع</span>
+                            <span class="num font-bold">{{ order.total_pieces|floatformat:"-2" }}</span>
+                        </div>
+                        <div class="total-row">
+                            <span class="font-bold" style="color:#4b5563;">المجموع</span>
+                            <span class="num font-bold">{{ order.subtotal_amount|floatformat:"-2"|intcomma }}</span>
+                        </div>
+                        {% if order.discount > 0 %}
+                        <div class="total-row text-red bg-red-light">
+                            <span class="font-bold">خصم</span>
+                            <span class="num font-bold">- {{ order.discount|floatformat:"-2"|intcomma }}</span>
+                        </div>
+                        {% endif %}
+                        {% if order.delivery_cost > 0 %}
+                        <div class="total-row">
+                            <span class="font-bold" style="color:#4b5563;">توصيل</span>
+                            <span class="num font-bold">{{ order.delivery_cost|floatformat:"-2"|intcomma }}</span>
+                        </div>
+                        {% endif %}
+                        {% with vat=order.vat_breakdown %}
+                        <div class="total-row final">
+                            <span>الإجمالي</span>
+                            <span class="num">{{ vat.total|default:order.total_amount|floatformat:"-2"|intcomma }}</span>
+                        </div>
+                        {% if vat %}
+                        <div class="total-row" style="font-size:11px;color:#6b7280;">
+                            <span>ض.ق.م ({{ vat.rate|floatformat:"-2" }}%) {% if vat.included %}شاملة{% else %}مضافة{% endif %}</span>
+                            <span class="num">{{ vat.tax|floatformat:2|intcomma }}</span>
+                        </div>
+                        {% endif %}
+                        {% endwith %}
+                        {% with svc=order.service_charge_breakdown %}
+                        {% if svc %}
+                        <div class="total-row" style="font-size:11px;color:#6b7280;">
+                            <span>رسوم الخدمة ({{ svc.pct|floatformat:"-2" }}%) {% if svc.included %}مضمنة{% else %}مضافة{% endif %}</span>
+                            <span class="num">{{ svc.amount|floatformat:2|intcomma }}</span>
+                        </div>
+                        {% endif %}
+                        {% endwith %}
+                        {% if can_view_profit and policies.sales.show_profit_on_invoice %}
+                        <div class="total-row" style="font-size:11px;color:#15803d;font-weight:bold;">
+                            <span>الربح</span>
+                            <span class="num">{{ order.gross_profit|floatformat:2|intcomma }}</span>
+                        </div>
+                        {% endif %}
+                        <div class="total-row bg-gray">
+                            <span class="font-bold text-xs">المدفوع</span>
+                            <span class="num font-bold">{{ order.received_amount|floatformat:"-2"|intcomma }}</span>
+                        </div>
+                        {% if order.remaining_amount > 0 %}
+                        <div class="total-row bg-red-light text-red">
+                            <span class="font-bold text-xs">المتبقي</span>
+                            <span class="num font-bold">{{ order.remaining_amount|floatformat:"-2"|intcomma }}</span>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
+
+            </div>
+        </div>
+
+        <!-- Script for Browser Preview Only (Fallback) -->
+        <script>
+            {% if not arabic_total_text %}
+            function tafqeet(n) {
+                if (n === 0) return "صفر";
+                var parts = n.toString().split(".");
+                var whole = parseInt(parts[0]);
+                var dec = parts.length > 1 ? parseInt(parts[1].substring(0, 2)) : 0;
+                function convert(num) {
+                    const units = ["", "واحد", "اثنان", "ثلاثة", "أربعة", "خمسة", "ستة", "سبعة", "ثمانية", "تسعة", "عشرة", "أحد عشر", "اثنا عشر", "ثلاثة عشر", "أربعة عشر", "خمسة عشر", "ستة عشر", "سبعة عشر", "ثمانية عشر", "تسعة عشر"];
+                    const tens = ["", "", "عشرون", "ثلاثون", "أربعون", "خمسون", "ستون", "سبعون", "ثمانون", "تسعون"];
+                    const hundreds = ["", "مائة", "مائتان", "ثلاثمائة", "أربعمائة", "خمسمائة", "ستمائة", "سبعمائة", "ثمانمائة", "تسعمائة"];
+                    if (num < 20) return units[num];
+                    if (num < 100) return tens[Math.floor(num / 10)] + (num % 10 !== 0 ? " و" + units[num % 10] : "");
+                    if (num < 1000) return hundreds[Math.floor(num / 100)] + (num % 100 !== 0 ? " و" + convert(num % 100) : "");
+                    if (num < 1000000) {
+                        var th = Math.floor(num / 1000), rem = num % 1000;
+                        var thStr = (th === 1 ? "ألف" : th === 2 ? "ألفان" : (th <= 10 ? convert(th) + " آلاف" : convert(th) + " ألف"));
+                        return thStr + (rem !== 0 ? " و" + convert(rem) : "");
+                    }
+                    return num.toString();
+                }
+                var result = convert(whole) + " جنيهاً";
+                if (dec > 0) {
+                    if (parts[1] && parts[1].length === 1) dec = dec * 10;
+                    result += " و " + convert(dec) + " قرشاً";
+                }
+                return result + " لا غير";
+            }
+            window.onload = function () {
+                const total = parseFloat("{{ order.total_amount }}");
+                if (!isNaN(total)) document.getElementById('arabic-total-text').innerText = tafqeet(total);
+            };
+            {% endif %}
+        </script>
+
+    {% if is_print_preview %}
+    <script>
+        window.onload = function () {
+            window.print();
+        }
+    </script>
+    {% endif %}
+</body>
+
+</html>

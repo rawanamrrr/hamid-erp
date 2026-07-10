@@ -1,0 +1,397 @@
+{% extends 'base.html' %}
+
+{% block content %}
+
+<!-- ============================================================
+   PRINT-ONLY STYLES  (hidden on screen, visible when printing)
+   ============================================================ -->
+<style>
+@media print {
+    /* Hide layout wrappers and UI elements */
+    aside, #sidebar, #sidebar-overlay, header, nav, #toast-container, .no-print, .top-bar {
+        display: none !important;
+    }
+    
+    /* Reset margins and paddings for printing */
+    @page { margin: 1cm; }
+    body { background: #fff !important; padding: 0 !important; margin: 0 !important; }
+    
+    #printArea {
+        display: block !important;
+        position: static !important;
+        background: #fff !important;
+        padding: 0 !important;
+        font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
+        direction: rtl;
+        width: 100% !important;
+    }
+    .pt-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 15px; }
+    .pt-table th,
+    .pt-table td { border: 1px solid #cbd5e1; padding: 6px 10px; text-align: right; }
+    .pt-table thead th { background: #f1f5f9; font-weight: 700; border-bottom: 2px solid #94a3b8; }
+    .pt-table tbody tr:nth-child(even) { background: #f8fafc; }
+    
+    /* Force colors to print */
+    * {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+    }
+}
+@media screen {
+    #printArea { display: none !important; }
+}
+</style>
+
+<!-- ============================================================
+   PRINT AREA  — rendered from the current page queryset
+   ============================================================ -->
+<div id="printArea">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #1e293b;padding-bottom:10px;margin-bottom:14px;">
+        <div>
+            <h1 style="font-size:19px;font-weight:700;margin:0 0 4px;">سجل حركات المخزن</h1>
+            <p style="font-size:11px;color:#64748b;margin:0;">
+                {% if request.GET.warehouse %}المخزن: {{ selected_warehouse_name }} &nbsp;|&nbsp;{% endif %}
+                {% if request.GET.type %}النوع: {{ request.GET.type }} &nbsp;|&nbsp;{% endif %}
+                {% if request.GET.date_from %}من: {{ request.GET.date_from }} {% endif %}
+                {% if request.GET.date_to %} إلى: {{ request.GET.date_to }}{% endif %}
+                {% if request.GET.search %} &nbsp;|&nbsp; بحث: "{{ request.GET.search }}"{% endif %}
+            </p>
+        </div>
+        <div style="font-size:10px;color:#94a3b8;">تاريخ الطباعة: {% now "Y-m-d H:i" %}</div>
+    </div>
+
+    <table class="pt-table">
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>التاريخ والوقت</th>
+                <th>المنتج</th>
+                <th>الكود</th>
+                <th>المخزن</th>
+                <th>نوع الحركة</th>
+                <th>الكمية</th>
+                <th>ملاحظات</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for t in transactions %}
+            <tr>
+                <td>{{ t.id }}</td>
+                <td>{{ t.created_at|date:"Y-m-d H:i" }}</td>
+                <td>{{ t.product.name }}</td>
+                <td>{{ t.product.sku }}</td>
+                <td>{{ t.warehouse.name|default:"-" }}</td>
+                <td>
+                    {% if t.transaction_type == 'IN'  %}إضافة (وارد)
+                    {% elif t.transaction_type == 'OUT' %}صرف (بيع)
+                    {% elif t.transaction_type == 'TRN' %}تحويل مخزون
+                    {% elif t.transaction_type == 'ADJ' %}تسوية جرد
+                    {% elif t.transaction_type == 'RET' %}مرتجع
+                    {% else %}{{ t.transaction_type }}{% endif %}
+                </td>
+                <td style="font-weight:700;">{{ t.quantity }}</td>
+                <td>{{ t.note|default:"-" }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="8" style="text-align:center;padding:16px;color:#94a3b8;">لا توجد بيانات</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <p style="margin-top:10px;font-size:11px;color:#64748b;">
+        إجمالي النتائج: <strong>{{ transactions.paginator.count }}</strong> حركة
+        (الصفحة {{ transactions.number }} من {{ transactions.paginator.num_pages }})
+    </p>
+</div>
+<!-- ============================================================ -->
+
+<div class="container mx-auto px-4 py-8 no-print">
+
+    <!-- ===== Header & Action Buttons ===== -->
+    <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+        <div>
+            <h2 class="text-2xl font-bold text-gray-800 flex items-center gap-2">
+                <i class="fas fa-history text-blue-600"></i>
+                سجل حركات المخزن
+            </h2>
+            <p class="text-gray-500 text-sm mt-1">عرض وتتبع جميع عمليات الوارد والصرف والتحويل</p>
+        </div>
+        <div class="flex flex-wrap gap-2 w-full md:w-auto">
+            <!-- Print -->
+            <button onclick="window.print()"
+                id="btn-print"
+                class="flex-1 md:flex-none px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-800 transition shadow-sm font-bold flex items-center justify-center gap-2">
+                <i class="fas fa-print"></i> طباعة
+            </button>
+            <a href="{% url 'transaction_create' %}"
+               class="flex-1 md:flex-none px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition shadow-sm font-bold flex items-center justify-center gap-2">
+                <i class="fas fa-plus"></i> تسجيل حركة
+            </a>
+            <a href="{% url 'bulk_transaction_create' %}"
+               class="flex-1 md:flex-none px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition shadow-sm font-bold flex items-center justify-center gap-2">
+                <i class="fas fa-layer-group"></i> تسجيل بالجملة
+            </a>
+            <a href="{% url 'bulk_audit' %}"
+               class="flex-1 md:flex-none px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition shadow-sm font-bold flex items-center justify-center gap-2">
+                <i class="fas fa-clipboard-check"></i> جرد فوري
+            </a>
+        </div>
+    </div>
+
+    <!-- ===== Filter Bar ===== -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5 mb-5 animate-fade-in-down smooth-transition hover:shadow-md">
+        <div class="flex flex-wrap items-center justify-between gap-4 mb-4 border-b border-gray-100 pb-4">
+            <div class="flex items-center gap-2">
+                <div class="w-1.5 h-6 bg-blue-500 rounded-full animate-pulse"></div>
+                <h3 class="font-bold text-gray-800">خيارات التصفية</h3>
+            </div>
+            
+            <!-- Quick Ranges -->
+            <div class="flex items-center gap-1 bg-gray-50 p-1 rounded-lg border border-gray-200">
+                <button type="button" onclick="setRange('today')" class="px-3 py-1.5 text-xs font-bold rounded-md smooth-transition hover:bg-white hover:shadow-sm text-gray-600 btn-press">اليوم</button>
+                <button type="button" onclick="setRange('yesterday')" class="px-3 py-1.5 text-xs font-bold rounded-md smooth-transition hover:bg-white hover:shadow-sm text-gray-600 btn-press">أمس</button>
+                <button type="button" onclick="setRange('7days')" class="px-3 py-1.5 text-xs font-bold rounded-md smooth-transition hover:bg-white hover:shadow-sm text-gray-600 btn-press">أخر 7 أيام</button>
+                <button type="button" onclick="setRange('thisMonth')" class="px-3 py-1.5 text-xs font-bold rounded-md smooth-transition hover:bg-white hover:shadow-sm text-gray-600 btn-press">هذا الشهر</button>
+            </div>
+        </div>
+
+        <form id="filterForm" method="get" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-12 gap-4 items-end">
+
+            <!-- Search (3 cols) -->
+            <div class="md:col-span-2">
+                <label class="block text-[10px] font-bold text-gray-400 mb-1 mr-1 uppercase">بحث</label>
+                <div class="relative group">
+                    <input type="text" name="search" value="{{ request.GET.search }}"
+                           placeholder="اسم المنتج، الكود..."
+                           class="w-full pr-9 pl-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-400 focus:bg-white smooth-transition transition">
+                    <i class="fas fa-search absolute right-3 top-3 text-gray-400 text-xs pointer-events-none group-hover:text-blue-500 smooth-transition"></i>
+                </div>
+            </div>
+
+            <!-- Transaction Type (2 cols) -->
+            <div class="md:col-span-2">
+                <label class="block text-[10px] font-bold text-gray-400 mb-1 mr-1 uppercase">نوع الحركة</label>
+                <select name="type"
+                        class="w-full py-2.5 px-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-400 focus:bg-white smooth-transition appearance-none">
+                    <option value="">الكل</option>
+                    <option value="IN"  {% if request.GET.type == 'IN'  %}selected{% endif %}>إضافة (شراء)</option>
+                    <option value="OUT" {% if request.GET.type == 'OUT' %}selected{% endif %}>صرف (بيع)</option>
+                    <option value="TRN" {% if request.GET.type == 'TRN' %}selected{% endif %}>تحويل مخزون</option>
+                    <option value="ADJ" {% if request.GET.type == 'ADJ' %}selected{% endif %}>تسوية جرد</option>
+                    <option value="RET" {% if request.GET.type == 'RET' %}selected{% endif %}>مرتجع</option>
+                </select>
+            </div>
+
+            <!-- Warehouse Filter — NEW (2 cols) -->
+            <div class="md:col-span-2">
+                <label class="block text-[10px] font-bold text-gray-400 mb-1 mr-1 uppercase">المخزن</label>
+                <select name="warehouse"
+                        class="w-full py-2.5 px-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-400 focus:bg-white smooth-transition appearance-none">
+                    <option value="">كل المخازن</option>
+                    {% for wh in warehouses %}
+                    <option value="{{ wh.id }}"
+                        {% if request.GET.warehouse == wh.id|stringformat:"s" %}selected{% endif %}>
+                        {{ wh.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Date From (2 cols) -->
+            <div class="md:col-span-2">
+                <label class="block text-[10px] font-bold text-gray-400 mb-1 mr-1 uppercase">من تاريخ</label>
+                <div class="relative group cursor-pointer" onclick="this.querySelector('input').showPicker()">
+                    <input type="date" id="date_from" name="date_from" value="{{ request.GET.date_from }}"
+                           class="w-full py-2.5 px-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-400 focus:bg-white smooth-transition cursor-pointer">
+                    <div class="absolute inset-y-0 left-3 flex items-center pointer-events-none text-gray-400 group-hover:text-blue-500 smooth-transition">
+                        <i class="fas fa-calendar-alt text-xs"></i>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Date To (2 cols) -->
+            <div class="md:col-span-2">
+                <label class="block text-[10px] font-bold text-gray-400 mb-1 mr-1 uppercase">إلى تاريخ</label>
+                <div class="relative group cursor-pointer" onclick="this.querySelector('input').showPicker()">
+                    <input type="date" id="date_to" name="date_to" value="{{ request.GET.date_to }}"
+                           class="w-full py-2.5 px-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-400 focus:bg-white smooth-transition cursor-pointer">
+                    <div class="absolute inset-y-0 left-3 flex items-center pointer-events-none text-gray-400 group-hover:text-blue-500 smooth-transition">
+                        <i class="fas fa-calendar-alt text-xs"></i>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Submit (1 col) -->
+            <div class="md:col-span-2 flex gap-2">
+                <button type="submit"
+                        class="flex-1 py-2.5 px-4 bg-blue-600 text-white rounded-xl hover:bg-blue-700 hover:shadow-lg shadow-blue-100 smooth-transition font-bold text-sm btn-press">
+                    تصفية
+                </button>
+                <a href="{% url 'transaction_list' %}" class="px-4 py-2.5 bg-gray-100 text-gray-600 rounded-xl hover:bg-gray-200 smooth-transition text-sm flex items-center justify-center btn-press" title="مسح الفلاتر">
+                    <i class="fas fa-times"></i>
+                </a>
+            </div>
+        </form>
+    </div>
+
+    <!-- ===== Results summary bar ===== -->
+    <div class="flex items-center justify-between mb-3 px-1">
+        <span class="text-sm text-gray-500">
+            إجمالي النتائج:
+            <span class="font-bold text-gray-700">{{ transactions.paginator.count }}</span> حركة
+        </span>
+        {% if request.GET.warehouse or request.GET.type or request.GET.search or request.GET.date_from or request.GET.date_to %}
+        <span class="text-xs bg-blue-50 text-blue-600 border border-blue-100 rounded-full px-3 py-1 font-medium">
+            <i class="fas fa-filter ml-1 text-xs"></i> فلاتر نشطة
+        </span>
+        {% endif %}
+    </div>
+
+    <!-- ===== Main Table ===== -->
+    <div class="bg-white rounded-xl shadow-lg overflow-hidden border border-gray-100">
+        <div class="overflow-x-auto">
+            <table class="w-full text-right text-sm">
+                <thead class="bg-gray-50 text-gray-600 font-bold border-b border-gray-200 text-xs uppercase tracking-wide">
+                    <tr>
+                        <th class="py-4 px-4">#</th>
+                        <th class="py-4 px-4">التاريخ</th>
+                        <th class="py-4 px-4">المنتج</th>
+                        <th class="py-4 px-4">
+                            <span class="flex items-center gap-1">
+                                <i class="fas fa-warehouse text-blue-400"></i>
+                                المخزن
+                            </span>
+                        </th>
+                        <th class="py-4 px-4">نوع الحركة</th>
+                        <th class="py-4 px-4">الكمية</th>
+                        <th class="py-4 px-4">ملاحظات</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                    {% for transaction in transactions %}
+                    <tr class="hover:bg-blue-50 transition duration-150 group">
+
+                        <!-- ID -->
+                        <td class="py-3 px-4 text-gray-400">
+                            <span class="group-hover:text-blue-500 font-mono text-xs">{{ transaction.id }}</span>
+                        </td>
+
+                        <!-- Date -->
+                        <td class="py-3 px-4">
+                            <div class="font-medium text-gray-800">{{ transaction.created_at|date:"Y-m-d" }}</div>
+                            <div class="text-xs text-gray-400">{{ transaction.created_at|date:"h:i A" }}</div>
+                        </td>
+
+                        <!-- Product -->
+                        <td class="py-3 px-4">
+                            <div class="font-bold text-gray-800">{{ transaction.product.name }}</div>
+                            <span class="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded font-mono">
+                                {{ transaction.product.sku }}
+                            </span>
+                        </td>
+
+                        <!-- Warehouse (NEW) -->
+                        <td class="py-3 px-4">
+                            {% if transaction.warehouse %}
+                            <span class="inline-flex items-center gap-1 text-xs font-semibold text-blue-700 bg-blue-50 border border-blue-100 px-2.5 py-1 rounded-lg whitespace-nowrap">
+                                <i class="fas fa-warehouse text-blue-400" style="font-size:10px;"></i>
+                                {{ transaction.warehouse.name }}
+                            </span>
+                            {% else %}
+                            <span class="text-gray-300">—</span>
+                            {% endif %}
+                        </td>
+
+                        <!-- Type badge -->
+                        <td class="py-3 px-4">
+                            {% if transaction.transaction_type == 'IN' %}
+                                <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                    <i class="fas fa-arrow-down"></i> إضافة
+                                </span>
+                            {% elif transaction.transaction_type == 'OUT' %}
+                                <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                                    <i class="fas fa-arrow-up"></i> صرف
+                                </span>
+                            {% elif transaction.transaction_type == 'TRN' %}
+                                <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                                    <i class="fas fa-exchange-alt"></i> تحويل
+                                </span>
+                            {% elif transaction.transaction_type == 'ADJ' %}
+                                <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                                    <i class="fas fa-adjust"></i> تسوية
+                                </span>
+                            {% else %}
+                                <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                    <i class="fas fa-undo"></i> مرتجع
+                                </span>
+                            {% endif %}
+                        </td>
+
+                        <!-- Quantity -->
+                        <td class="py-3 px-4">
+                            <span class="font-bold text-base
+                                {% if transaction.transaction_type == 'OUT' %}text-red-600
+                                {% elif transaction.transaction_type == 'IN' %}text-green-600
+                                {% else %}text-blue-600{% endif %}">
+                                {{ transaction.quantity }}
+                            </span>
+                        </td>
+
+                        <!-- Notes -->
+                        <td class="py-3 px-4 text-gray-500 max-w-xs truncate" title="{{ transaction.note }}">
+                            {% if transaction.note %}
+                                {{ transaction.note }}
+                            {% else %}
+                                <span class="text-gray-300">—</span>
+                            {% endif %}
+                        </td>
+
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="7" class="py-16 text-center">
+                            <div class="flex flex-col items-center gap-3 text-gray-400">
+                                <div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center">
+                                    <i class="fas fa-inbox text-3xl text-gray-300"></i>
+                                </div>
+                                <p class="text-base font-medium text-gray-600">لا توجد حركات مسجلة</p>
+                                <p class="text-sm">جرب تغيير خيارات البحث أو الفلترة</p>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- ===== Pagination ===== -->
+        {% if transactions.has_other_pages %}
+        <div class="bg-gray-50 px-6 py-4 border-t border-gray-200 flex flex-col md:flex-row items-center justify-between gap-4">
+            <span class="text-sm text-gray-500">
+                صفحة <span class="font-bold text-gray-800">{{ transactions.number }}</span>
+                من <span class="font-bold text-gray-800">{{ transactions.paginator.num_pages }}</span>
+            </span>
+
+            {# Build a reusable query-string fragment that carries all active filters #}
+            {% with qs=request.GET %}
+            <div class="flex gap-2">
+                {% if transactions.has_previous %}
+                    <a href="?page={{ transactions.previous_page_number }}{% if qs.search %}&search={{ qs.search }}{% endif %}{% if qs.type %}&type={{ qs.type }}{% endif %}{% if qs.warehouse %}&warehouse={{ qs.warehouse }}{% endif %}{% if qs.date_from %}&date_from={{ qs.date_from }}{% endif %}{% if qs.date_to %}&date_to={{ qs.date_to }}{% endif %}"
+                       class="inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition">
+                        السابق
+                    </a>
+                {% endif %}
+                {% if transactions.has_next %}
+                    <a href="?page={{ transactions.next_page_number }}{% if qs.search %}&search={{ qs.search }}{% endif %}{% if qs.type %}&type={{ qs.type }}{% endif %}{% if qs.warehouse %}&warehouse={{ qs.warehouse }}{% endif %}{% if qs.date_from %}&date_from={{ qs.date_from }}{% endif %}{% if qs.date_to %}&date_to={{ qs.date_to }}{% endif %}"
+                       class="inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition">
+                        التالي
+                    </a>
+                {% endif %}
+            </div>
+            {% endwith %}
+        </div>
+        {% endif %}
+    </div><!-- /card -->
+
+</div><!-- /container -->
+{% endblock %}

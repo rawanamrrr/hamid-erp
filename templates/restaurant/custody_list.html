@@ -1,0 +1,46 @@
+{% extends 'base.html' %}
+{% block title %}الودائع{% endblock %}
+{% block content %}
+<div class="p-4">
+    <h1 class="text-2xl font-bold mb-4">الودائع (وديعة) — {{ branch.name }}</h1>
+    <table class="w-full bg-white rounded-xl border overflow-hidden">
+        <thead class="bg-gray-50 text-sm text-gray-600">
+            <tr>
+                <th class="p-3 text-right">الاسم</th>
+                <th class="p-3 text-right">النوع</th>
+                <th class="p-3 text-right">المبلغ</th>
+                <th class="p-3 text-right">الحالة</th>
+                <th class="p-3 text-right">تاريخ الفتح</th>
+                <th class="p-3 text-right">إجراء</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for c in custodies %}
+            <tr class="border-t text-sm">
+                <td class="p-3">{{ c.holder_name }}</td>
+                <td class="p-3">{{ c.get_kind_display }}</td>
+                <td class="p-3 font-bold">{{ c.amount }}</td>
+                <td class="p-3">
+                    {% if c.status == 'held' %}
+                    <span class="text-red-600 font-semibold">معه</span>
+                    {% else %}
+                    <span class="text-emerald-600 font-semibold">تم التسليم</span>
+                    {% endif %}
+                </td>
+                <td class="p-3">{{ c.created_at|date:"Y-m-d H:i" }}</td>
+                <td class="p-3">
+                    {% if c.status == 'held' %}
+                    <form method="post" action="{% url 'restaurant:custody_settle' c.id %}">
+                        {% csrf_token %}
+                        <button class="px-3 py-1 bg-emerald-600 text-white rounded text-xs">تسليم للخزنة</button>
+                    </form>
+                    {% endif %}
+                </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="6" class="p-4 text-center text-gray-500">لا توجد ودائع مسجلة.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

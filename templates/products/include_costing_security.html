@@ -1,0 +1,59 @@
+<script>
+    const SESSION_TIMEOUT = 10 * 60 * 1000; // 10 minutes
+
+    function isCostingAuthenticated() {
+        const sessionStart = localStorage.getItem('costing_session_start');
+        if (!sessionStart) return false;
+
+        const now = Date.now();
+        if (now - parseInt(sessionStart) > SESSION_TIMEOUT) {
+            localStorage.removeItem('costing_session_start');
+            return false;
+        }
+        return true;
+    }
+
+    function getCookie(name) {
+        const match = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
+        return match ? match.pop() : '';
+    }
+
+    async function authenticateCosting(password) {
+        const res = await fetch('/products/api/costing/unlock/', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken')},
+            body: JSON.stringify({password: password})
+        });
+        const data = await res.json();
+        if (data.ok) {
+            localStorage.setItem('costing_session_start', Date.now().toString());
+            return true;
+        }
+        return false;
+    }
+
+    function enforceCostingSecurity() {
+        const gate = document.getElementById('password-gate');
+        const main = document.getElementById('main-ui');
+        
+        if (isCostingAuthenticated()) {
+            if (gate) gate.classList.add('hidden');
+            if (main) {
+                main.classList.remove('opacity-0', 'pointer-events-none');
+                main.classList.add('opacity-100');
+            }
+        } else {
+            if (gate) gate.classList.remove('hidden');
+            if (main) {
+                main.classList.add('opacity-0', 'pointer-events-none');
+                main.classList.remove('opacity-100');
+            }
+        }
+    }
+
+    // Auto-check session every 30 seconds
+    setInterval(enforceCostingSecurity, 30000);
+    
+    // Initial check
+    window.addEventListener('DOMContentLoaded', enforceCostingSecurity);
+</script>

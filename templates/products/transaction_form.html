@@ -1,0 +1,429 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load l10n %}
+
+{% block title %}
+    {% if form.instance.pk %}تعديل حركة{% else %}حركة مخزنية جديدة{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-6 max-w-2xl">
+    
+    <!-- Header -->
+    <div class="flex items-center justify-between mb-6">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-800">
+                {% if form.instance.pk %}تعديل حركة{% else %}تسجيل حركة مخزنية{% endif %}
+            </h1>
+            <p class="text-gray-500 text-sm">إدارة الوارد والصادر للمخزون</p>
+        </div>
+        <a href="{% url 'transaction_list' %}" class="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-gray-600 hover:bg-gray-200 transition">
+            <i class="fas fa-times"></i>
+        </a>
+    </div>
+
+    <form method="post" class="space-y-6" id="transactionForm" novalidate>
+        {% csrf_token %}
+
+        {% if form.errors %}
+        <div class="bg-red-50 border-r-4 border-red-500 p-4 rounded-lg">
+            <div class="flex">
+                <div class="ml-3">
+                    <h3 class="text-sm font-medium text-red-800">يرجى تصحيح الأخطاء التالية:</h3>
+                    <ul class="mt-2 text-sm text-red-700 list-disc list-inside">
+                        {% for field, errors in form.errors.items %}
+                            {% for error in errors %}
+                                <li>{{ field }}: {{ error }}</li>
+                            {% endfor %}
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+{% load widget_tweaks %}
+
+        <!-- 0. Warehouse Selection -->
+        <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 relative">
+            <label class="block text-sm font-bold text-gray-700 mb-2">المخزن <span class="text-red-500">*</span></label>
+            {% render_field form.warehouse class="block w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-gray-50 focus:bg-white transition-shadow" %}
+            {% if form.warehouse.errors %}
+                <p class="text-red-500 text-xs mt-1">{{ form.warehouse.errors.0 }}</p>
+            {% endif %}
+        </div>
+
+        <!-- 1. Product Selection (Searchable) -->
+        <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 relative">
+            <label class="block text-sm font-bold text-gray-700 mb-2">المنتج <span class="text-red-500">*</span></label>
+            
+            <!-- Hidden Actual Input: Populated by JS -->
+            <select name="product" id="id_product" class="hidden" required>
+                <option value="" selected>-- اختر --</option>
+                {% for prod in products_data %}
+                    <option value="{{ prod.id }}" {% if form.product.value|stringformat:"s" == prod.id|stringformat:"s" %}selected{% endif %}>
+                        {{ prod.name }}
+                    </option>
+                {% endfor %}
+            </select>
+
+            <!-- Custom Search UI -->
+            <div class="relative">
+                <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                    <i class="fas fa-search text-gray-400"></i>
+                </div>
+                <input type="text" id="productSearch" autocomplete="off"
+                       class="block w-full pr-10 pl-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow bg-gray-50 focus:bg-white"
+                       placeholder="ابحث باسم المنتج أو الكود...">
+                
+                <!-- Dropdown Results -->
+                <div id="searchResults" class="hidden absolute z-50 w-full bg-white mt-1 rounded-xl shadow-xl border border-gray-100 max-h-60 overflow-y-auto">
+                    <!-- Items will be populated by JS -->
+                </div>
+            </div>
+
+            <!-- Selected Product Display -->
+            <div id="selectedProductCard" class="hidden mt-3 p-3 bg-blue-50 rounded-xl border border-blue-100 flex justify-between items-center">
+                <div>
+                    <span class="block font-bold text-blue-900" id="selectedProductName">--</span>
+                    <span class="text-xs text-blue-600" id="selectedProductSku">--</span>
+                </div>
+                <div class="text-center bg-white px-3 py-1 rounded-lg shadow-sm">
+                    <span class="block text-xs text-gray-500">الرصيد الحالي</span>
+                    <span class="font-bold text-gray-800 text-lg" id="currentStockDisplay">0</span>
+                </div>
+            </div>
+            {% if form.product.errors %}
+                <p class="text-red-500 text-xs mt-1">{{ form.product.errors.0 }}</p>
+            {% endif %}
+        </div>
+
+        <!-- 2. Transaction Type (Buttons) -->
+        <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
+            <label class="block text-sm font-bold text-gray-700 mb-3">نوع الحركة <span class="text-red-500">*</span></label>
+            
+            <!-- Hidden Select: Hardcoded options to ensure JS buttons work safely -->
+            <select name="transaction_type" id="id_transaction_type" class="hidden">
+                <option value="IN" {% if form.transaction_type.value == 'IN' %}selected{% endif %}>إضافة للمخزن (شراء)</option>
+                <option value="OUT" {% if form.transaction_type.value == 'OUT' or not form.transaction_type.value %}selected{% endif %}>سحب من المخزن (بيع)</option>
+                <option value="RET" {% if form.transaction_type.value == 'RET' %}selected{% endif %}>مرتجع من عميل</option>
+            </select>
+
+            <div class="grid grid-cols-3 gap-3">
+                <!-- IN (Buy) -->
+                <button type="button" onclick="selectType('IN')" id="btn_IN"
+                        class="type-btn flex flex-col items-center justify-center p-4 rounded-xl border-2 border-transparent bg-gray-50 hover:bg-green-50 text-gray-600 transition-all">
+                    <div class="w-10 h-10 rounded-full bg-green-100 text-green-600 flex items-center justify-center mb-2">
+                        <i class="fas fa-arrow-down text-lg"></i>
+                    </div>
+                    <span class="font-bold text-sm">إضافة / شراء</span>
+                </button>
+
+                <!-- OUT (Sell) -->
+                <button type="button" onclick="selectType('OUT')" id="btn_OUT"
+                        class="type-btn flex flex-col items-center justify-center p-4 rounded-xl border-2 border-transparent bg-gray-50 hover:bg-red-50 text-gray-600 transition-all">
+                    <div class="w-10 h-10 rounded-full bg-red-100 text-red-600 flex items-center justify-center mb-2">
+                        <i class="fas fa-arrow-up text-lg"></i>
+                    </div>
+                    <span class="font-bold text-sm">صرف / بيع</span>
+                </button>
+
+                <!-- RET (Return) -->
+                <button type="button" onclick="selectType('RET')" id="btn_RET"
+                        class="type-btn flex flex-col items-center justify-center p-4 rounded-xl border-2 border-transparent bg-gray-50 hover:bg-blue-50 text-gray-600 transition-all">
+                    <div class="w-10 h-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center mb-2">
+                        <i class="fas fa-undo text-lg"></i>
+                    </div>
+                    <span class="font-bold text-sm">مرتجع</span>
+                </button>
+            </div>
+             {% if form.transaction_type.errors %}
+                <p class="text-red-500 text-xs mt-1">{{ form.transaction_type.errors.0 }}</p>
+            {% endif %}
+        </div>
+
+        <!-- 3. Quantity & Calculation -->
+        <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
+            <label class="block text-sm font-bold text-gray-700 mb-2">الكمية <span class="text-red-500">*</span></label>
+            
+            <div class="flex items-center gap-4">
+                <div class="relative flex-1">
+                    <input type="number" name="{{ form.quantity.name }}" id="id_quantity" step="0.01" 
+                           value="{{ form.quantity.value|default:'' }}"
+                           class="block w-full text-center text-3xl font-bold p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                           placeholder="0">
+                </div>
+            </div>
+
+            <!-- Live Calculation Display -->
+            <div id="calculationResult" class="mt-4 p-4 rounded-xl bg-gray-50 flex justify-between items-center opacity-50 transition-all">
+                <div class="text-center">
+                    <span class="block text-xs text-gray-400">الرصيد الحالي</span>
+                    <span class="block text-lg font-bold text-gray-600" id="calcCurrent">0</span>
+                </div>
+                
+                <div class="text-gray-400 font-bold text-xl" id="calcOperator">?</div>
+                
+                <div class="text-center">
+                    <span class="block text-xs text-gray-400">الكمية</span>
+                    <span class="block text-lg font-bold text-gray-800" id="calcInput">0</span>
+                </div>
+
+                <div class="text-gray-400 font-bold text-xl">=</div>
+
+                <div class="text-center">
+                    <span class="block text-xs text-gray-400">الرصيد الجديد</span>
+                    <span class="block text-xl font-bold text-blue-600" id="calcTotal">0</span>
+                </div>
+            </div>
+             {% if form.quantity.errors %}
+                <p class="text-red-500 text-xs mt-1">{{ form.quantity.errors.0 }}</p>
+            {% endif %}
+        </div>
+
+        <!-- 4. Notes -->
+        <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
+            <label class="block text-sm font-bold text-gray-700 mb-2">ملاحظات</label>
+            <textarea name="{{ form.note.name }}" rows="2" 
+                      class="block w-full p-3 border border-gray-200 rounded-xl focus:ring-blue-500 focus:border-blue-500 bg-gray-50 focus:bg-white resize-none"
+                      placeholder="تفاصيل إضافية...">{{ form.note.value|default:'' }}</textarea>
+        </div>
+
+        <!-- Submit Button -->
+        <button type="submit" class="w-full bg-gray-900 text-white font-bold py-4 rounded-2xl shadow-lg hover:bg-black transition transform active:scale-95 flex items-center justify-center text-lg">
+            <i class="fas fa-check-circle ml-2"></i>
+            حفظ الحركة
+        </button>
+
+    </form>
+{% endblock %}
+
+{% block extra_scripts %}
+<!-- JavaScript Logic -->
+<script>
+    // 1. Prepare Product Data (Uses the 'products_data' context variable from views.py)
+    const productsDB = [
+        {% for product in products_data %}
+        {
+            id: "{{ product.id }}",
+            name: "{{ product.name|escapejs }}",
+            sku: "{{ product.sku|escapejs }}",
+            // unlocalize ensures dot as decimal separator regardless of locale (Arabic comma bug)
+            stock: {{ product.stock_quantity|default:0|unlocalize }}, 
+            display: "{{ product.name|escapejs }} ({{ product.sku|escapejs }})"
+        },
+        {% endfor %}
+    ];
+
+    let selectedProduct = null;
+    let currentType = document.getElementById('id_transaction_type').value || "OUT"; // Get from HTML first
+
+    // Elements
+    const searchInput = document.getElementById('productSearch');
+    const searchResults = document.getElementById('searchResults');
+    const productSelect = document.getElementById('id_product');
+    const selectedCard = document.getElementById('selectedProductCard');
+    const typeSelect = document.getElementById('id_transaction_type');
+    const qtyInput = document.getElementById('id_quantity');
+    const warehouseSelect = document.getElementById('id_warehouse'); // NEW
+    let warehouseStockMap = {}; // NEW
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', () => {
+        // Ensure buttons reflect the default state
+        selectType(currentType);
+        
+        // Pre-select product if editing or form error (Back-end value)
+        const initialProdId = productSelect.value;
+        if(initialProdId) {
+            const prod = productsDB.find(p => p.id === initialProdId);
+            if(prod) selectProduct(prod);
+        }
+
+        // Warehouse change triggers stock fetch
+        warehouseSelect.addEventListener('change', async (e) => {
+            const whId = e.target.value;
+            if (!whId) {
+                warehouseStockMap = {};
+                updateProductStocksGlobal();
+                return;
+            }
+            try {
+                const urlTemplate = "{% url 'get_warehouse_stocks_ajax' 0 %}".replace('0', whId);
+                const res = await fetch(urlTemplate);
+                const data = await res.json();
+                if (data.success) {
+                    warehouseStockMap = data.stocks;
+                    updateProductStocksGlobal();
+                }
+            } catch (err) {
+                console.error('Error fetching warehouse stocks:', err);
+            }
+        });
+
+        // Trigger warehouse fetch if already selected
+        if (warehouseSelect.value) {
+            warehouseSelect.dispatchEvent(new Event('change'));
+        }
+
+        // Setup Search
+        searchInput.addEventListener('input', (e) => {
+            const query = e.target.value.toLowerCase();
+            if(query.length < 1) {
+                searchResults.classList.add('hidden');
+                return;
+            }
+            
+            const matches = productsDB.filter(p => 
+                p.name.toLowerCase().includes(query) || 
+                p.sku.toLowerCase().includes(query)
+            ).slice(0, 10); // Limit results
+
+            renderResults(matches);
+        });
+
+        // Hide search on blur (delayed to allow click)
+        searchInput.addEventListener('blur', () => {
+            setTimeout(() => searchResults.classList.add('hidden'), 200);
+        });
+
+        // Focus search triggers results if text exists
+        searchInput.addEventListener('focus', () => {
+            if(searchInput.value.length > 0) searchResults.classList.remove('hidden');
+        });
+
+        // Calc triggers
+        qtyInput.addEventListener('input', updateCalculation);
+    });
+
+    function updateProductStocksGlobal() {
+        productsDB.forEach(p => {
+            if (warehouseSelect.value) {
+                // Safely update stocks from current warehouse map
+                p.stock = warehouseStockMap[p.id] !== undefined ? warehouseStockMap[p.id] : 0;
+            }
+        });
+
+        if (selectedProduct) {
+            // Update selected product stock based on selected warehouse
+            if (warehouseSelect.value) {
+                selectedProduct.stock = (warehouseStockMap[selectedProduct.id] !== undefined) ? warehouseStockMap[selectedProduct.id] : 0;
+            }
+            document.getElementById('currentStockDisplay').textContent = selectedProduct.stock;
+            updateCalculation();
+        }
+
+        // Re-render search results if open
+        if (!searchResults.classList.contains('hidden') && searchInput.value) {
+            searchInput.dispatchEvent(new Event('input'));
+        }
+    }
+
+    function renderResults(matches) {
+        searchResults.innerHTML = '';
+        if(matches.length === 0) {
+            searchResults.innerHTML = '<div class="p-3 text-gray-500 text-center text-sm">لا توجد نتائج</div>';
+        } else {
+            matches.forEach(p => {
+                const div = document.createElement('div');
+                div.className = 'p-3 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-0 flex justify-between items-center transition';
+                div.innerHTML = `
+                    <div>
+                        <div class="font-bold text-gray-800 text-sm">${p.name}</div>
+                        <div class="text-xs text-gray-400">${p.sku}</div>
+                    </div>
+                    <div class="text-xs bg-gray-100 px-2 py-1 rounded text-gray-600">رصيد: ${p.stock}</div>
+                `;
+                div.onclick = () => selectProduct(p);
+                searchResults.appendChild(div);
+            });
+        }
+        searchResults.classList.remove('hidden');
+    }
+
+    function selectProduct(product) {
+        selectedProduct = {...product}; // Clone to avoid direct mutation of DB list
+        productSelect.value = product.id;
+        searchInput.value = ''; // Clear search
+        
+        // UI Update
+        document.getElementById('selectedProductName').textContent = product.name;
+        document.getElementById('selectedProductSku').textContent = product.sku;
+        document.getElementById('currentStockDisplay').textContent = product.stock;
+        selectedCard.classList.remove('hidden');
+        
+        updateCalculation();
+    }
+
+    function selectType(type) {
+        currentType = type;
+        typeSelect.value = type;
+
+        // Reset Styles
+        document.querySelectorAll('.type-btn').forEach(btn => {
+            btn.classList.remove('ring-2', 'ring-blue-500', 'bg-white', 'shadow-md');
+            btn.classList.add('bg-gray-50', 'border-transparent');
+        });
+
+        // Active Style
+        const activeBtn = document.getElementById(`btn_${type}`);
+        if(activeBtn) {
+            activeBtn.classList.remove('bg-gray-50', 'border-transparent');
+            activeBtn.classList.add('bg-white', 'ring-2', 'ring-offset-2', 'shadow-md');
+            
+            if(type === 'IN') activeBtn.classList.add('ring-green-500');
+            else if(type === 'OUT') activeBtn.classList.add('ring-red-500');
+            else activeBtn.classList.add('ring-blue-500');
+        }
+
+        updateCalculation();
+    }
+
+    function updateCalculation() {
+        const calcDiv = document.getElementById('calculationResult');
+        const qty = parseFloat(qtyInput.value) || 0;
+        
+        if(!selectedProduct) {
+            calcDiv.classList.add('opacity-50');
+            return;
+        }
+
+        calcDiv.classList.remove('opacity-50');
+        
+        const current = parseFloat(selectedProduct.stock) || 0;
+        document.getElementById('calcCurrent').textContent = current;
+        document.getElementById('calcInput').textContent = qty;
+
+        let total = current;
+        let colorClass = 'text-gray-800';
+        let opText = '';
+
+        if(currentType === 'IN' || currentType === 'RET') {
+            total = current + qty;
+            opText = '+';
+            colorClass = 'text-green-600';
+            document.getElementById('calcOperator').className = 'text-green-500 font-bold text-xl';
+        } else {
+            total = current - qty;
+            opText = '-';
+            colorClass = 'text-red-600';
+            document.getElementById('calcOperator').className = 'text-red-500 font-bold text-xl';
+        }
+
+        document.getElementById('calcOperator').textContent = opText;
+        
+        const totalEl = document.getElementById('calcTotal');
+        // Fix float precision issues (e.g. 10.2 + 0.1)
+        const finalTotal = parseFloat(total.toFixed(2));
+        
+        totalEl.textContent = finalTotal;
+        totalEl.className = `font-black text-2xl ${colorClass}`;
+
+        if(finalTotal < 0) {
+            totalEl.classList.add('bg-red-50', 'px-2', 'rounded-lg'); 
+        } else {
+            totalEl.classList.remove('bg-red-50', 'px-2', 'rounded-lg');
+        }
+    }
+</script>
+{% endblock %}

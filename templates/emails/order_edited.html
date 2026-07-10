@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+  <meta charset="UTF-8">
+</head>
+<body style="margin:0;padding:0;background:#f5f7fa;font-family:Arial,sans-serif;color:#1f2937;">
+  <div style="max-width:900px;margin:20px auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;">
+    
+    <!-- Header -->
+    <div style="background:{% if action == 'DELETE' %}#dc2626{% else %}#2563eb{% endif %};color:white;padding:20px;text-align:center;">
+      <h2 style="margin:0;">
+        {% if action == 'DELETE' %}
+          تنبيه: تم حذف فاتورة מبيعات
+        {% else %}
+          تنبيه: تم تعديل فاتورة مبيعات
+        {% endif %}
+      </h2>
+    </div>
+
+    <!-- Details -->
+    <div style="padding:20px;">
+      <p style="margin:0 0 10px 0;"><strong>رقم الفاتورة:</strong> #{{ order_id }}</p>
+      <p style="margin:0 0 10px 0;"><strong>العميل:</strong> {{ customer_name }}</p>
+      <p style="margin:0 0 10px 0;"><strong>بواسطة المستخدم:</strong> {{ user_name }}</p>
+      <p style="margin:0 0 10px 0;"><strong>وقت الإجراء:</strong> {{ timestamp }}</p>
+      
+      {% if action == 'DELETE' %}
+        <p style="margin:0 0 10px 0; color:#dc2626;"><strong>سبب الحذف:</strong> {{ reason }}</p>
+        <p style="margin:0 0 10px 0;"><strong>إجمالي الفاتورة (قبل الحذف):</strong> {{ total }}</p>
+      {% else %}
+        <p style="margin:0 0 10px 0;"><strong>الإجمالي الجديد:</strong> {{ total }}</p>
+      {% endif %}
+    </div>
+
+    <!-- Items -->
+    {% if items %}
+    <div style="padding:0 20px 20px 20px;">
+      <h3 style="margin:0 0 10px 0;">الأصناف ({% if action == 'DELETE' %}التي تم إرجاعها{% else %}الجديدة{% endif %})</h3>
+      <table style="width:100%;border-collapse:collapse;font-size:14px;">
+        <tr style="background:#f9fafb;">
+          <th style="border:1px solid #e5e7eb;padding:8px;text-align:right;">المنتج</th>
+          <th style="border:1px solid #e5e7eb;padding:8px;text-align:right;">الكمية</th>
+        </tr>
+        {% for item in items %}
+        <tr>
+          <td style="border:1px solid #e5e7eb;padding:8px;">{{ item.p }}</td>
+          <td style="border:1px solid #e5e7eb;padding:8px;">{{ item.q }}</td>
+        </tr>
+        {% endfor %}
+      </table>
+    </div>
+    {% endif %}
+
+  </div>
+</body>
+</html>

@@ -1,0 +1,509 @@
+{% extends 'base.html' %}
+{% load widget_tweaks %}
+
+{% block title %}إنشاء عرض ترويجي{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto py-8 px-4 sm:px-6">
+    <!-- Premium Header -->
+    <div class="mb-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-gradient-to-r from-slate-900 to-slate-800 p-8 rounded-3xl shadow-2xl relative overflow-hidden">
+        <div class="absolute -right-20 -top-20 w-64 h-64 bg-indigo-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20"></div>
+        <div class="absolute -left-20 -bottom-20 w-64 h-64 bg-purple-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20"></div>
+        
+        <div class="relative z-10">
+            <h1 class="text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-indigo-200 to-purple-400 mb-2">
+                <i class="fas fa-magic me-2"></i>إنشاء عرض ترويجي جديد
+            </h1>
+            <p class="text-slate-300 font-medium">قم بإعداد تفاصيل الخصم وتحديد المنتجات المشمولة بالعرض لزيادة مبيعاتك.</p>
+        </div>
+        <div class="relative z-10">
+            <a href="{% url 'financial:deal_list' %}" class="inline-flex items-center px-5 py-2.5 bg-slate-700/50 hover:bg-slate-700 text-white font-bold rounded-xl transition-all duration-300 backdrop-blur-sm border border-slate-600">
+                <i class="fas fa-arrow-right me-2"></i> العودة للقائمة
+            </a>
+        </div>
+    </div>
+
+    <form method="post" class="space-y-6">
+        {% csrf_token %}
+        
+        <!-- Section 1: Basic Info -->
+        <div class="bg-white rounded-3xl shadow-xl shadow-gray-200/40 border border-gray-100 overflow-hidden">
+            <div class="bg-indigo-50/50 px-6 py-4 border-b border-indigo-100 flex items-center gap-2">
+                <div class="w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold">1</div>
+                <h3 class="text-lg font-bold text-indigo-900">المعلومات الأساسية</h3>
+            </div>
+            <div class="p-6">
+                <div>
+                    <label class="block text-sm font-bold text-gray-700 mb-2">اسم العرض / الخصم <span class="text-red-500">*</span></label>
+                    {% render_field form.name class="w-full px-5 py-3.5 rounded-xl border-gray-300 bg-gray-50 hover:bg-white focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all shadow-sm" placeholder="مثال: خصم الصيف للعملاء المتميزين" %}
+                    {% if form.name.errors %}<p class="text-red-500 text-xs mt-1">{{ form.name.errors.0 }}</p>{% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Section 2: Target Products -->
+        <div class="bg-white rounded-3xl shadow-xl shadow-gray-200/40 border border-gray-100 overflow-hidden">
+            <div class="bg-teal-50 px-6 py-4 border-b border-teal-100 flex items-center gap-2">
+                <div class="w-8 h-8 rounded-full bg-teal-200 text-teal-800 flex items-center justify-center font-bold">2</div>
+                <h3 class="text-lg font-bold text-teal-900">نطاق المنتجات المشمولة</h3>
+            </div>
+            <div class="p-6 space-y-5">
+                <label for="id_apply_to_all" class="flex items-center cursor-pointer group bg-teal-50/50 hover:bg-teal-50 px-5 py-4 rounded-xl border border-teal-200 shadow-sm transition-all">
+                    <div class="relative flex items-center justify-center">
+                        {% render_field form.apply_to_all class="w-6 h-6 rounded text-teal-600 focus:ring-teal-500 border-teal-300 cursor-pointer" %}
+                    </div>
+                    <div class="ms-4">
+                        <span class="block text-base font-bold text-teal-900">تطبيق الخصم على جميع المنتجات المتوفرة بالمتجر</span>
+                        <span class="block text-xs text-teal-700 mt-0.5">تفعيل هذا الخيار سيطبق الخصم على جميع المنتجات بشكل عام.</span>
+                    </div>
+                </label>
+
+                <div id="product-selection-container" class="hidden transition-all duration-300 origin-top space-y-4">
+                    <p class="text-xs text-slate-500">حدّد نطاق العرض بأي من الطريقتين (أو كليهما معاً): اختيار قسم/أقسام كاملة، أو اختيار منتجات محددة بعينها.</p>
+
+                    <div class="bg-indigo-50 p-5 rounded-2xl border border-indigo-200">
+                        <label class="block text-sm font-bold text-gray-800 mb-2"><i class="fas fa-layer-group text-indigo-500 me-1"></i> اختر الأقسام المشمولة بالعرض</label>
+                        <p class="text-xs text-indigo-600 mb-3">يشمل العرض تلقائياً كل منتجات القسم المختار (الحالية والمستقبلية).</p>
+                        {% render_field form.categories id="id_categories" class="w-full px-4 py-3 rounded-xl border-gray-300 bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 shadow-inner" %}
+                        {% if form.categories.errors %}<p class="text-red-500 text-xs mt-1">{{ form.categories.errors.0 }}</p>{% endif %}
+                    </div>
+
+                    <div class="bg-slate-50 p-5 rounded-2xl border border-slate-200">
+                        <label class="block text-sm font-bold text-gray-800 mb-2"><i class="fas fa-boxes text-slate-500 me-1"></i> اختر المنتجات المحددة للعرض</label>
+                        <p class="text-xs text-slate-500 mb-3" id="buy-products-help">اختر المنتج أو المنتجات التي سيطبق عليها العرض الترويجي (مثال: اشترِ منتج X، احصل على Y من نفس المنتج).</p>
+                        {% render_field form.products id="id_products" class="w-full px-4 py-3 rounded-xl border-gray-300 bg-white focus:ring-2 focus:ring-teal-500 focus:border-teal-500 shadow-inner" %}
+                        {% if form.products.errors %}<p class="text-red-500 text-xs mt-1">{{ form.products.errors.0 }}</p>{% endif %}
+                    </div>
+                </div>
+
+                <div id="get-product-selection-container" class="hidden transition-all duration-300 origin-top mt-4">
+                    <div class="bg-green-50 p-5 rounded-2xl border border-green-200">
+                        <label class="block text-sm font-bold text-green-800 mb-2"><i class="fas fa-gift text-green-500 me-1"></i> المنتجات المجانية (للمستلم)</label>
+                        <p class="text-xs text-green-600 mb-3">اختر المنتجات التي سيحصل عليها العميل مجاناً في حالة تطبيق عرض "اشتري X واحصل على Y". يمكنك تركها فارغة إذا كان المنتج المجاني هو نفس المنتج المشترى.</p>
+                        {% render_field form.get_products id="id_get_products" class="w-full px-4 py-3 rounded-xl border-gray-300 bg-white focus:ring-2 focus:ring-green-500 focus:border-green-500 shadow-inner" %}
+                        {% if form.get_products.errors %}<p class="text-red-500 text-xs mt-1">{{ form.get_products.errors.0 }}</p>{% endif %}
+                    </div>
+                </div>
+
+                <!-- Live Price Summary (Hidden initially, will be shown by JS only for 'discount' type, but we keep the container) -->
+                <div id="price-summary-container" class="hidden mt-6 bg-indigo-50/50 p-5 rounded-2xl border border-indigo-100 shadow-sm">
+                    <h4 class="text-sm font-bold text-indigo-900 mb-3 flex items-center justify-between">
+                        <span><i class="fas fa-calculator me-1"></i> معاينة الأسعار بعد الخصم</span>
+                        <span id="summary-badge" class="bg-indigo-200 text-indigo-800 text-xs px-2 py-1 rounded-lg">--</span>
+                    </h4>
+                    <div id="price-summary-list" class="space-y-2 max-h-64 overflow-y-auto pr-2 custom-scrollbar">
+                        <!-- Dynamically populated via JS -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Section 3: Discount Rules -->
+        <div class="bg-white rounded-3xl shadow-xl shadow-gray-200/40 border border-gray-100 overflow-hidden">
+            <div class="bg-purple-50/50 px-6 py-4 border-b border-purple-100 flex items-center gap-2">
+                <div class="w-8 h-8 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center font-bold">3</div>
+                <h3 class="text-lg font-bold text-purple-900">قواعد العرض الترويجي</h3>
+            </div>
+            <div class="p-6">
+                <!-- Promo Type Selector -->
+                <div class="mb-6">
+                    <label class="block text-sm font-bold text-gray-700 mb-2">نوع العرض <span class="text-red-500">*</span></label>
+                    {% render_field form.promo_type class="w-full px-5 py-3.5 rounded-xl border-gray-300 bg-purple-50 hover:bg-white focus:bg-white focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all shadow-sm font-bold" %}
+                </div>
+
+                <!-- 1. Normal Discount Type Block -->
+                <div id="block_discount" class="promo-block transition-all">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6 p-4 border border-purple-100 rounded-xl bg-purple-50/30">
+                        <div>
+                            <label class="block text-sm font-bold text-gray-700 mb-2">نوع الخصم</label>
+                            {% render_field form.discount_type class="w-full px-5 py-3.5 rounded-xl border-gray-300 bg-white hover:bg-gray-50 focus:bg-white focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all shadow-sm" %}
+                        </div>
+                        <div>
+                            <label class="block text-sm font-bold text-gray-700 mb-2">قيمة الخصم <span class="text-red-500">*</span></label>
+                            <div class="relative">
+                                <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                                    <i class="fas fa-tag text-gray-400"></i>
+                                </div>
+                                {% render_field form.value class="w-full pl-10 pr-5 py-3.5 rounded-xl border-gray-300 bg-white hover:bg-gray-50 focus:bg-white focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all shadow-sm font-mono text-lg" placeholder="0.00" %}
+                            </div>
+                            {% if form.value.errors %}<p class="text-red-500 text-xs mt-1">{{ form.value.errors.0 }}</p>{% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 2. Buy X Get Y Block -->
+                <div id="block_buy_x_get_y" class="promo-block hidden transition-all">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6 p-4 border border-green-100 rounded-xl bg-green-50/30">
+                        <div>
+                            <label class="block text-sm font-bold text-green-800 mb-2">اشتري كمية (X)</label>
+                            {% render_field form.buy_x_qty class="w-full px-5 py-3.5 rounded-xl border-gray-300 bg-white hover:bg-gray-50 focus:bg-white focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all shadow-sm font-mono text-lg" placeholder="مثال: 2" %}
+                        </div>
+                        <div>
+                            <label class="block text-sm font-bold text-green-800 mb-2">احصل على مجاناً (Y)</label>
+                            {% render_field form.get_y_qty class="w-full px-5 py-3.5 rounded-xl border-gray-300 bg-white hover:bg-gray-50 focus:bg-white focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all shadow-sm font-mono text-lg" placeholder="مثال: 1" %}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 3. Buy N for Price Block -->
+                <div id="block_buy_n_for_price" class="promo-block hidden transition-all">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6 p-4 border border-orange-100 rounded-xl bg-orange-50/30">
+                        <div>
+                            <label class="block text-sm font-bold text-orange-800 mb-2">كمية العرض (N)</label>
+                            {% render_field form.buy_n_qty class="w-full px-5 py-3.5 rounded-xl border-gray-300 bg-white hover:bg-gray-50 focus:bg-white focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-all shadow-sm font-mono text-lg" placeholder="مثال: 3" %}
+                        </div>
+                        <div>
+                            <label class="block text-sm font-bold text-orange-800 mb-2">السعر الإجمالي (للقطع N معاً)</label>
+                            <div class="relative">
+                                <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                                    <span class="text-gray-500 font-bold">ج.م</span>
+                                </div>
+                                {% render_field form.for_price class="w-full pl-10 pr-5 py-3.5 rounded-xl border-gray-300 bg-white hover:bg-gray-50 focus:bg-white focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-all shadow-sm font-mono text-lg" placeholder="مثال: 50.00" %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-bold text-gray-700 mb-2">الحد الأدنى للفاتورة لتطبيق العرض <span class="text-gray-400 font-normal">(اختياري)</span></label>
+                    <div class="relative">
+                        <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                            <span class="text-gray-500 font-bold">ج.م</span>
+                        </div>
+                        {% render_field form.minimum_order_value class="w-full pl-10 pr-5 py-3.5 rounded-xl border-gray-300 bg-gray-50 hover:bg-white focus:bg-white focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all shadow-sm font-mono text-lg" placeholder="0.00" %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Section 4: Time & Scope -->
+        <div class="bg-white rounded-3xl shadow-xl shadow-gray-200/40 border border-gray-100 overflow-hidden">
+            <div class="bg-slate-50 px-6 py-4 border-b border-slate-100 flex items-center gap-2">
+                <div class="w-8 h-8 rounded-full bg-slate-200 text-slate-700 flex items-center justify-center font-bold">4</div>
+                <h3 class="text-lg font-bold text-slate-800">التوقيت والكوبونات</h3>
+            </div>
+            <div class="p-6">
+                <!-- Quick Date Buttons -->
+                <div class="mb-6">
+                    <label class="block text-sm font-bold text-gray-700 mb-3"><i class="fas fa-bolt text-yellow-500 me-1"></i> اختيار سريع لمدة العرض</label>
+                    <div class="flex flex-wrap gap-3">
+                        <button type="button" onclick="setDateRange(1)" class="px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white font-bold rounded-xl shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all">
+                            <i class="fas fa-calendar-day me-1"></i> 1 يوم
+                        </button>
+                        <button type="button" onclick="setDateRange(3)" class="px-4 py-2 bg-gradient-to-r from-teal-500 to-teal-600 text-white font-bold rounded-xl shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all">
+                            <i class="fas fa-calendar-week me-1"></i> 3 أيام
+                        </button>
+                        <button type="button" onclick="setDateRange(7)" class="px-4 py-2 bg-gradient-to-r from-indigo-500 to-indigo-600 text-white font-bold rounded-xl shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all">
+                            <i class="fas fa-calendar-week me-1"></i> 1 أسبوع
+                        </button>
+                        <button type="button" onclick="setDateRange(14)" class="px-4 py-2 bg-gradient-to-r from-purple-500 to-purple-600 text-white font-bold rounded-xl shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all">
+                            <i class="fas fa-calendar-check me-1"></i> 2 أسابيع
+                        </button>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-2"><i class="far fa-calendar-plus text-indigo-400 me-1"></i> تاريخ بداية العرض <span class="text-red-500">*</span></label>
+                        {% render_field form.start_date id="id_start_date" class="w-full px-5 py-3.5 rounded-xl border-gray-300 bg-gray-50 hover:bg-white focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all shadow-sm" %}
+                        {% if form.start_date.errors %}<p class="text-red-500 text-xs mt-1">{{ form.start_date.errors.0 }}</p>{% endif %}
+                    </div>
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-2"><i class="far fa-calendar-times text-indigo-400 me-1"></i> تاريخ نهاية العرض <span class="text-red-500">*</span></label>
+                        {% render_field form.end_date id="id_end_date" class="w-full px-5 py-3.5 rounded-xl border-gray-300 bg-gray-50 hover:bg-white focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all shadow-sm" %}
+                        {% if form.end_date.errors %}<p class="text-red-500 text-xs mt-1">{{ form.end_date.errors.0 }}</p>{% endif %}
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 p-5 bg-amber-50/50 rounded-2xl border border-amber-100">
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-2"><i class="fas fa-ticket-alt text-amber-500 me-1"></i> كود كوبون الخصم <span class="text-gray-400 font-normal">(اختياري)</span></label>
+                        {% render_field form.coupon_code class="w-full px-5 py-3.5 rounded-xl border-amber-200 bg-white focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-all shadow-sm font-mono uppercase" placeholder="مثال: SUMMER50" %}
+                        <p class="text-xs text-gray-500 mt-1">إذا تركته فارغاً، سيتم تطبيق الخصم تلقائياً بدون كوبون.</p>
+                        {% if form.coupon_code.errors %}<p class="text-red-500 text-xs mt-1">{{ form.coupon_code.errors.0 }}</p>{% endif %}
+                    </div>
+                    <div class="flex items-center justify-start md:justify-center pt-2 md:pt-6">
+                        <label for="id_is_active" class="flex items-center cursor-pointer group bg-white px-5 py-3.5 rounded-xl border border-gray-200 shadow-sm hover:border-indigo-300 transition-all w-full">
+                            <div class="relative flex items-center justify-center">
+                                {% render_field form.is_active class="w-6 h-6 rounded text-indigo-600 focus:ring-indigo-500 border-gray-300 cursor-pointer" %}
+                            </div>
+                            <span class="ms-3 text-base font-bold text-gray-800 group-hover:text-indigo-700 transition-colors">تفعيل العرض فوراً</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+
+
+        <div class="flex flex-col-reverse sm:flex-row justify-end gap-4 pt-4 pb-12">
+            <a href="{% url 'financial:deal_list' %}" class="w-full sm:w-auto px-8 py-4 bg-white text-gray-700 font-bold rounded-2xl border border-gray-200 shadow-sm hover:bg-gray-50 hover:shadow transition-all text-center">إلغاء الأمر</a>
+            <button type="submit" class="w-full sm:w-auto px-10 py-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-black rounded-2xl shadow-[0_0_20px_rgba(99,102,241,0.4)] hover:shadow-[0_0_25px_rgba(99,102,241,0.6)] hover:-translate-y-1 transition-all duration-300 text-lg flex items-center justify-center gap-2">
+                <i class="fas fa-check-circle"></i> حفظ العرض الترويجي
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_head %}
+<!-- Choices.js CSS for modern select dropdown -->
+<link rel="stylesheet" href="/static/vendor/css/choices.min.css" />
+<style>
+    /* Custom Styling for Choices.js to match Tailwind Theme */
+    .choices[data-type*="select-multiple"] .choices__inner {
+        border-radius: 0.75rem; /* rounded-xl */
+        border: 1px solid #d1d5db; /* border-gray-300 */
+        background-color: #ffffff;
+        padding-bottom: 2px;
+        box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.06);
+    }
+    .choices.is-focused .choices__inner {
+        border-color: #14b8a6; /* border-teal-500 */
+        box-shadow: 0 0 0 2px rgba(20, 184, 166, 0.2); /* ring-teal-500 */
+    }
+    .choices__list--multiple .choices__item {
+        background-color: #14b8a6; /* bg-teal-500 */
+        border: 1px solid #0f766e; /* border-teal-700 */
+        border-radius: 0.5rem;
+        font-family: 'Cairo', sans-serif;
+    }
+    .choices__list--multiple .choices__item.is-highlighted {
+        background-color: #0f766e;
+        border: 1px solid #0f766e;
+    }
+</style>
+{% endblock %}
+
+{% block extra_scripts %}
+<!-- Choices.js Library -->
+<script src="/static/vendor/js/choices.min.js"></script>
+<script>
+    function setDateRange(days) {
+        const startDateInput = document.getElementById('id_start_date');
+        const endDateInput = document.getElementById('id_end_date');
+        
+        const now = new Date();
+        const startDate = new Date(now);
+        const endDate = new Date(now);
+        endDate.setDate(now.getDate() + days);
+
+        // Format to YYYY-MM-DD HH:MM
+        function formatDate(date) {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            const hours = String(date.getHours()).padStart(2, '0');
+            const minutes = String(date.getMinutes()).padStart(2, '0');
+            return `${year}-${month}-${day}T${hours}:${minutes}`;
+        }
+
+        startDateInput.value = formatDate(startDate);
+        endDateInput.value = formatDate(endDate);
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        const applyAllCheckbox = document.getElementById('id_apply_to_all');
+        const productContainer = document.getElementById('product-selection-container');
+        
+        // Price Summary Elements
+        const productPrices = {{ product_prices_json|safe|default:"{}" }};
+        const discountTypeInput = document.getElementById('id_discount_type');
+        const discountValueInput = document.getElementById('id_value');
+        const summaryContainer = document.getElementById('price-summary-container');
+        const summaryList = document.getElementById('price-summary-list');
+        const summaryBadge = document.getElementById('summary-badge');
+        
+        // Initialize Choices.js
+        const element = document.getElementById('id_products');
+        let choicesInstance = null;
+        if (element) {
+            choicesInstance = new Choices(element, {
+                removeItemButton: true,
+                searchPlaceholderValue: 'ابحث عن منتج...',
+                itemSelectText: 'اضغط للاختيار',
+                noResultsText: 'لا توجد نتائج مطابقة',
+                noChoicesText: 'لا توجد منتجات متاحة للاختيار',
+                shouldSort: false
+            });
+
+            // Listen to choice changes to update the live preview
+            element.addEventListener('change', updatePriceSummary);
+        }
+
+        // Categories multi-select (same Choices.js treatment). Category-scoped products
+        // aren't reflected in the live price-preview below (that preview only knows about
+        // explicitly-picked `products`) — the actual discount application at checkout
+        // still applies correctly to every product in the selected category regardless.
+        const categoriesElement = document.getElementById('id_categories');
+        if (categoriesElement) {
+            new Choices(categoriesElement, {
+                removeItemButton: true,
+                searchPlaceholderValue: 'ابحث عن قسم...',
+                itemSelectText: 'اضغط للاختيار',
+                noResultsText: 'لا توجد نتائج مطابقة',
+                noChoicesText: 'لا توجد أقسام متاحة',
+                shouldSort: false
+            });
+        }
+        
+        function updatePriceSummary() {
+            summaryList.innerHTML = '';
+            const val = parseFloat(discountValueInput.value) || 0;
+            const type = discountTypeInput.value; // 'PERCENTAGE' or 'FIXED'
+            
+            if (applyAllCheckbox.checked) {
+                summaryContainer.classList.remove('hidden');
+                summaryBadge.innerText = 'جميع المنتجات';
+                summaryList.innerHTML = `
+                    <div class="flex items-center justify-between bg-white p-3 rounded-xl border border-indigo-100 shadow-sm">
+                        <div class="flex items-center gap-2 text-indigo-700">
+                            <i class="fas fa-boxes text-lg"></i>
+                            <span class="text-sm font-bold">تطبيق على جميع المتجر</span>
+                        </div>
+                        <span class="text-base font-black text-emerald-600 bg-emerald-50 px-3 py-1 rounded-lg">
+                            خصم ${val} ${type === 'PERCENTAGE' ? '%' : 'ج.م'}
+                        </span>
+                    </div>
+                `;
+                return;
+            }
+            
+            let selectedIds = [];
+            if (choicesInstance) {
+                selectedIds = choicesInstance.getValue(true);
+            } else if (element) {
+                const options = element.selectedOptions;
+                for (let i = 0; i < options.length; i++) {
+                    selectedIds.push(options[i].value);
+                }
+            }
+            
+            if (selectedIds.length === 0) {
+                summaryContainer.classList.add('hidden');
+                return;
+            }
+            
+            summaryContainer.classList.remove('hidden');
+            summaryBadge.innerText = `${selectedIds.length} منتج محدد`;
+            
+            selectedIds.forEach(id => {
+                const product = productPrices[id];
+                if (product) {
+                    let oldPrice = product.price;
+                    let newPrice = oldPrice;
+                    if (type === 'PERCENTAGE') {
+                        newPrice = oldPrice - (oldPrice * (val / 100));
+                    } else if (type === 'FIXED') {
+                        newPrice = oldPrice - val;
+                    }
+                    if (newPrice < 0) newPrice = 0;
+                    
+                    summaryList.innerHTML += `
+                        <div class="flex items-center justify-between bg-white p-3 rounded-xl border border-indigo-50 shadow-sm hover:shadow-md hover:border-indigo-200 transition-all">
+                            <span class="text-sm font-bold text-gray-700 truncate w-1/2">${product.name}</span>
+                            <div class="flex items-center gap-3">
+                                <span class="text-sm text-red-400 line-through font-mono">${oldPrice.toFixed(2)}</span>
+                                <i class="fas fa-arrow-left text-indigo-300 text-xs"></i>
+                                <span class="text-lg font-black text-emerald-600 font-mono">${newPrice.toFixed(2)} ج</span>
+                            </div>
+                        </div>
+                    `;
+                }
+            });
+        }
+        
+        // Listeners for calculation changes
+        discountTypeInput.addEventListener('change', updatePriceSummary);
+        discountValueInput.addEventListener('input', updatePriceSummary);
+
+        // --- Declarations ---
+        const promoTypeSelect = document.getElementById('id_promo_type');
+        const blockDiscount = document.getElementById('block_discount');
+        const blockBxGy = document.getElementById('block_buy_x_get_y');
+        const blockBnX = document.getElementById('block_buy_n_for_price');
+        const getProductSelectionContainer = document.getElementById('get-product-selection-container');
+        
+        // Add dynamic instruction label for better UX
+        const productSelectionLabel = document.querySelector('#product-selection-container p');
+
+        function toggleProductSelection() {
+            if (applyAllCheckbox.checked) {
+                productContainer.style.opacity = '0';
+                if (getProductSelectionContainer) getProductSelectionContainer.style.opacity = '0';
+                setTimeout(() => {
+                    productContainer.classList.add('hidden');
+                    if (getProductSelectionContainer) getProductSelectionContainer.classList.add('hidden');
+                }, 200);
+            } else {
+                productContainer.classList.remove('hidden');
+                if (getProductSelectionContainer && promoTypeSelect.value === 'buy_x_get_y') getProductSelectionContainer.classList.remove('hidden');
+                setTimeout(() => {
+                    productContainer.style.opacity = '1';
+                    if (getProductSelectionContainer) getProductSelectionContainer.style.opacity = '1';
+                }, 50);
+            }
+            updatePriceSummary();
+        }
+
+        applyAllCheckbox.addEventListener('change', toggleProductSelection);
+        
+        // Initialize state immediately without animation
+        if (applyAllCheckbox.checked) {
+            productContainer.classList.add('hidden');
+            productContainer.style.opacity = '0';
+            if (getProductSelectionContainer) {
+                getProductSelectionContainer.classList.add('hidden');
+                getProductSelectionContainer.style.opacity = '0';
+            }
+        } else {
+            productContainer.classList.remove('hidden');
+            productContainer.style.opacity = '1';
+            // getProductSelectionContainer visibility is handled by togglePromoBlocks shortly
+        }
+        
+        // Initialize get_products Choices.js
+        const getProductsElement = document.getElementById('id_get_products');
+        if (getProductsElement) {
+            new Choices(getProductsElement, {
+                removeItemButton: true,
+                searchPlaceholderValue: 'ابحث عن منتج...',
+                itemSelectText: 'اضغط للاختيار',
+                noResultsText: 'لا توجد نتائج مطابقة',
+                noChoicesText: 'لا توجد منتجات متاحة للاختيار',
+                shouldSort: false
+            });
+        }
+        
+        // Run initial calculation
+        setTimeout(updatePriceSummary, 100);
+
+        // --- Promo Type Toggle Logic ---
+        function togglePromoBlocks() {
+            const val = promoTypeSelect.value;
+            // Hide all
+            blockDiscount.classList.add('hidden');
+            blockBxGy.classList.add('hidden');
+            blockBnX.classList.add('hidden');
+            if (getProductSelectionContainer) getProductSelectionContainer.classList.add('hidden');
+
+            if (val === 'discount') {
+                blockDiscount.classList.remove('hidden');
+                if(productSelectionLabel) productSelectionLabel.innerHTML = 'اختر المنتجات التي سيتم تطبيق نسبة/قيمة الخصم عليها.';
+            } else if (val === 'buy_x_get_y') {
+                blockBxGy.classList.remove('hidden');
+                if (getProductSelectionContainer && !applyAllCheckbox.checked) getProductSelectionContainer.classList.remove('hidden');
+                if(productSelectionLabel) productSelectionLabel.innerHTML = '<span class="text-green-600 font-bold"><i class="fas fa-info-circle"></i> عرض (اشتري س واحصل على ص):</span> اختر المنتجات المحددة (المشتراة).';
+            } else if (val === 'buy_n_for_price') {
+                blockBnX.classList.remove('hidden');
+                if(productSelectionLabel) productSelectionLabel.innerHTML = '<span class="text-orange-600 font-bold"><i class="fas fa-info-circle"></i> عرض (اشتري عدد بسعر ثابت):</span> حدد المنتجات المشمولة في هذا العرض الخاص.';
+            }
+        }
+
+        if (promoTypeSelect) {
+            promoTypeSelect.addEventListener('change', togglePromoBlocks);
+            togglePromoBlocks(); // Init on load
+        }
+    });
+</script>
+{% endblock %}

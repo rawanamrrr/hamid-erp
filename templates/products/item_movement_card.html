@@ -1,0 +1,75 @@
+﻿{% extends 'base.html' %}
+{% load humanize %}
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto space-y-5">
+    <div class="flex items-center justify-between print:hidden">
+        <h1 class="text-2xl font-black text-gray-800">حركة الصنف</h1>
+        <div class="flex gap-2">
+            <a href="?warehouse={{ wh_id }}&date_from={{ date_from }}&date_to={{ date_to }}&print=1" class="px-4 py-2 bg-gray-700 text-white rounded-lg font-bold text-sm">طباعة</a>
+            <a href="{% url 'product_list' %}" class="px-4 py-2 bg-gray-100 rounded-lg font-bold text-sm">المنتجات</a>
+        </div>
+    </div>
+
+    <div class="bg-white p-5 rounded-xl border flex flex-wrap justify-between gap-4">
+        <div>
+            <div class="text-lg font-black text-gray-800">{{ product.name }}</div>
+            <div class="text-xs text-gray-400 font-mono">{{ product.sku }}</div>
+        </div>
+        <div class="text-sm text-gray-600">الرصيد الحالي بالنظام: <b class="dir-ltr">{{ product.stock_quantity|floatformat:2 }}</b></div>
+    </div>
+
+    <form method="get" class="flex flex-wrap items-end gap-3 bg-white p-4 rounded-xl border print:hidden">
+        <div><label class="block text-xs font-bold text-gray-500 mb-1">المخزن</label>
+            <select name="warehouse" class="p-2 border rounded-lg">
+                <option value="">كل المخازن</option>
+                {% for w in warehouses %}<option value="{{ w.id }}" {% if wh_id == w.id %}selected{% endif %}>{{ w.name }}</option>{% endfor %}
+            </select>
+        </div>
+        <div><label class="block text-xs font-bold text-gray-500 mb-1">من</label><input type="date" name="date_from" value="{{ date_from }}" class="p-2 border rounded-lg"></div>
+        <div><label class="block text-xs font-bold text-gray-500 mb-1">إلى</label><input type="date" name="date_to" value="{{ date_to }}" class="p-2 border rounded-lg"></div>
+        <button class="px-4 py-2 bg-indigo-600 text-white rounded-lg font-bold">عرض</button>
+    </form>
+
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div class="bg-white p-3 rounded-xl border text-center"><p class="text-[11px] text-gray-500 font-bold">رصيد افتتاحي</p><p class="text-lg font-black dir-ltr">{{ opening|floatformat:2 }}</p></div>
+        <div class="bg-white p-3 rounded-xl border text-center"><p class="text-[11px] text-gray-500 font-bold">إجمالي وارد</p><p class="text-lg font-black text-green-600 dir-ltr">{{ total_in|floatformat:2 }}</p></div>
+        <div class="bg-white p-3 rounded-xl border text-center"><p class="text-[11px] text-gray-500 font-bold">إجمالي صادر</p><p class="text-lg font-black text-red-600 dir-ltr">{{ total_out|floatformat:2 }}</p></div>
+        <div class="bg-gray-800 text-white p-3 rounded-xl text-center"><p class="text-[11px] text-gray-300 font-bold">رصيد ختامي</p><p class="text-lg font-black dir-ltr">{{ closing|floatformat:2 }}</p></div>
+    </div>
+
+    <div class="bg-white rounded-xl border overflow-hidden">
+        <table class="w-full text-sm">
+            <thead class="bg-gray-50 text-gray-500 text-xs">
+                <tr>
+                    <th class="py-3 px-4 text-right">التاريخ</th>
+                    <th class="py-3 px-4 text-right">الحركة</th>
+                    <th class="py-3 px-4 text-right">المخزن</th>
+                    <th class="py-3 px-4 text-left">وارد</th>
+                    <th class="py-3 px-4 text-left">صادر</th>
+                    <th class="py-3 px-4 text-left">الرصيد</th>
+                    <th class="py-3 px-4 text-right">مرجع</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y">
+                {% for r in rows %}
+                <tr class="hover:bg-gray-50">
+                    <td class="py-2 px-4 text-gray-500 whitespace-nowrap">{{ r.t.created_at|date:"Y-m-d H:i" }}</td>
+                    <td class="py-2 px-4 font-bold text-gray-700">{{ r.t.get_transaction_type_display }}</td>
+                    <td class="py-2 px-4 text-xs text-gray-500">{{ r.t.warehouse.name|default:'—' }}{% if r.t.destination_warehouse %} ← {{ r.t.destination_warehouse.name }}{% endif %}</td>
+                    <td class="py-2 px-4 text-left dir-ltr text-green-600">{% if r.is_in and r.signed %}{{ r.signed|floatformat:2 }}{% endif %}</td>
+                    <td class="py-2 px-4 text-left dir-ltr text-red-600">{% if not r.is_in %}{{ r.signed|floatformat:2 }}{% endif %}</td>
+                    <td class="py-2 px-4 text-left dir-ltr font-bold">{{ r.balance|floatformat:2 }}</td>
+                    <td class="py-2 px-4 text-xs text-gray-400">{{ r.t.reference_number|default:'' }}</td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="7" class="py-8 text-center text-gray-400">لا توجد حركات لهذا الصنف في هذه الفترة</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% if print_mode %}<script>window.onload=function(){window.print();};</script>{% endif %}
+{% endblock %}

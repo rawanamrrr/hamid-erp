@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ draft.name }}</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #ececec; margin: 0; }
+        .toolbar { position: sticky; top: 0; background: #fff; border-bottom: 1px solid #ddd; padding: 10px; display: flex; justify-content: space-between; z-index: 20; }
+        .toolbar button { cursor: pointer; padding: 5px 10px; }
+        
+        .page { margin: 12px auto; background: #fff; box-shadow: 0 2px 8px rgba(0,0,0,.2); position: relative; overflow: hidden; }
+        .page.a4 { width: 210mm; min-height: 297mm; padding: 15mm; box-sizing: border-box; }
+        .page.a5 { width: 148mm; min-height: 210mm; padding: 10mm; font-size: 13px !important; box-sizing: border-box; }
+        
+        .watermark { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-45deg); font-size: 60px; color: rgba(0,0,0,0.06); white-space: nowrap; pointer-events: none; z-index: 0; }
+        .page.a5 .watermark { font-size: 40px; }
+        
+        /* Header */
+        .head { display: flex; justify-content: space-between; border-bottom: 2px solid #111; padding-bottom: 15px; margin-bottom: 15px; position: relative; z-index: 1; align-items: center; }
+        .company-info { text-align: right; }
+        .company-name { margin: 0 0 5px 0; font-size: 24px; }
+        .print-logo { max-height: 70px; max-width: 250px; display: block; margin-bottom: 8px; }
+        .page.a5 .company-name { font-size: 20px; }
+        .page.a5 .print-logo { max-height: 50px; }
+        
+        .meta { font-size: 14px; color: #444; line-height: 1.8; }
+        .page.a5 .meta { font-size: 12px; }
+        
+        .meta-group { display: flex; flex-direction: column; text-align: left; }
+        
+        /* Table */
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; position: relative; z-index: 1; }
+        th, td { border: 1px solid #444; padding: 8px; font-size: 14px; text-align: center; }
+        th { background: #f5f5f5; font-weight: bold; }
+        .page.a5 th, .page.a5 td { font-size: 13px; padding: 6px; }
+        
+        .item-checkbox {
+            width: 14px;
+            height: 14px;
+            border: 1.5px solid #000;
+            display: inline-block;
+            vertical-align: middle;
+            flex-shrink: 0;
+            margin: 0 auto;
+        }
+        .page.a5 .item-checkbox { width: 12px; height: 12px; }
+
+        .text-right { text-align: right !important; }
+        
+        /* Totals */
+        .totals { margin-top: 20px; width: 350px; margin-right: auto; border: 1px solid #444; position: relative; z-index: 1; }
+        .page.a5 .totals { width: 280px; }
+        
+        .row { display: flex; justify-content: space-between; border-bottom: 1px solid #ddd; padding: 8px 12px; font-size: 14px; }
+        .page.a5 .row { padding: 6px 10px; font-size: 13px; }
+        
+        .row.total-row { border-bottom: 0; background: #f5f5f5; border-top: 1px solid #444; font-weight: bold; font-size: 16px; }
+        .page.a5 .row.total-row { font-size: 15px; }
+
+        .footer-note { text-align: center; margin-top: 30px; font-weight: bold; font-size: 16px; position: relative; z-index: 1; color: #555; }
+        .page.a5 .footer-note { margin-top: 20px; font-size: 14px; }
+        
+        @media print {
+            body { background: #fff; margin: 0; padding: 0; }
+            .toolbar.no-print { display: none !important; }
+            .page { margin: 0; box-shadow: none; border: none; }
+            @page { margin: {% if print_style == 'a5' %}10mm{% else %}15mm{% endif %}; size: {% if print_style == 'a5' %}A5{% else %}A4{% endif %}; }
+        }
+    </style>
+</head>
+<body>
+    <div class="toolbar no-print">
+        <button onclick="window.close(); setTimeout(function(){ if (window.history.length > 1) window.history.back(); }, 50)">إغلاق</button>
+        <button onclick="window.print()">طباعة</button>
+    </div>
+    
+    <div class="page {% if print_style == 'a5' %}a5{% else %}a4{% endif %}" id="print-area">
+        <div class="watermark">فاتورة وهمية / مسودة<br>غير رسمية</div>
+        
+        <div class="head">
+            <div class="company-info">
+                {% if sys_settings.logo_base64 %}
+                    <img src="{{ sys_settings.logo_base64 }}" alt="logo" class="print-logo">
+                {% else %}
+                    <h2 class="company-name">{{ sys_settings.shop_name }}</h2>
+                {% endif %}
+                <div class="meta">{{ sys_settings.address }}</div>
+                <div class="meta" dir="ltr">{{ sys_settings.phone }}</div>
+            </div>
+            <div class="meta meta-group">
+                <div><strong>المسودة:</strong> {{ draft.name }}</div>
+                <div><strong>التاريخ:</strong> {{ draft.updated_at|date:"Y-m-d H:i" }}</div>
+                <div><strong>الكاشير:</strong> {{ draft.user.username }}</div>
+                <div><strong>العميل:</strong> {% if draft.customer %}{{ draft.customer.first_name }} {{ draft.customer.last_name }}{% else %}عميل نقدي (قطاعي){% endif %}</div>
+            </div>
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th style="width: 30px;"></th> <!-- Checkbox column -->
+                    <th class="text-right">الصنف</th>
+                    <th style="width: 70px;">الكمية</th>
+                    <th style="width: 100px;">السعر</th>
+                    <th style="width: 100px;">الإجمالي</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in draft_items %}
+                <tr>
+                    <td><div class="item-checkbox"></div></td>
+                    <td class="text-right">{{ item.name }}</td>
+                    <td>{{ item.quantity|floatformat:"-2" }}</td>
+                    <td>{{ item.price|floatformat:"-2" }}</td>
+                    <td>{{ item.subtotal|floatformat:"-2" }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <div class="totals">
+            <div class="row" style="background: #fdfdfd; border-bottom: 2px solid #000;">
+                <span class="bold">إجمالي عدد القطع:</span>
+                <span class="bold">{{ draft.items_count|floatformat:"-2" }}</span>
+            </div>
+            <div class="row">
+                <span>المجموع الفرعي:</span>
+                <span>{{ draft_subtotal|floatformat:"-2" }}</span>
+            </div>
+            <div class="row">
+                <span>الخصم:</span>
+                <span>{{ draft.discount|floatformat:"-2" }}</span>
+            </div>
+            {% if draft.delivery_cost and draft.delivery_cost > 0 %}
+            <div class="row delivery-row">
+                <span>التوصيل:</span>
+                <span>{{ draft.delivery_cost|floatformat:"-2" }}</span>
+            </div>
+            {% endif %}
+            <div class="row total-row">
+                <span>الإجمالي:</span>
+                <span>{{ draft_total|floatformat:"-2" }}</span>
+            </div>
+        </div>
+        
+        {% if draft.notes %}
+        <div class="meta" style="margin-top:20px;"><strong>ملاحظات:</strong> {{ draft.notes }}</div>
+        {% endif %}
+        
+        <div class="footer-note">
+            فاتورة وهمية / مسودة — غير رسمية
+        </div>
+    </div>
+</body>
+</html>

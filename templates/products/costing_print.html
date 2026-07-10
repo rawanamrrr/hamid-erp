@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ title }}</title>
+    <link rel="stylesheet" href="/static/vendor/fontawesome/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;900&display=swap');
+        body { font-family: 'Tajawal', sans-serif; background: #f8fafc; color: #1e293b; margin: 0; padding: 20px; }
+        .no-print { display: flex; justify-content: center; margin-bottom: 20px; gap: 10px; }
+        .btn { padding: 10px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; border: none; transition: 0.3s; }
+        .btn-print { background: #0d9488; color: white; }
+        .btn-close { background: #e2e8f0; color: #64748b; }
+        
+        /* Security Gate inside Print */
+        #password-gate { position: fixed; inset: 0; background: #0f172a; z-index: 9999; display: flex; align-items: center; justify-content: center; }
+        .gate-card { background: white; padding: 40px; border-radius: 20px; text-align: center; max-width: 350px; width: 90%; }
+        
+        .print-page { background: white; max-width: 800px; margin: 0 auto; padding: 40px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #0d9488; padding-bottom: 20px; margin-bottom: 30px; }
+        .logo { font-size: 24px; font-weight: 900; color: #0d9488; }
+        .info-grid { display: grid; grid-cols: 2; gap: 20px; margin-bottom: 30px; }
+        .info-item { background: #f1f5f9; padding: 15px; rounded: 8px; }
+        .info-label { font-size: 12px; color: #64748b; margin-bottom: 5px; font-weight: bold; }
+        .info-value { font-size: 16px; font-weight: 900; }
+        
+        table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+        th { background: #f8fafc; padding: 12px; text-align: right; border-bottom: 2px solid #e2e8f0; font-size: 12px; }
+        td { padding: 12px; border-bottom: 1px solid #f1f5f9; font-size: 14px; }
+        .total-row { background: #0f172a; color: white; }
+        .total-row td { padding: 20px; font-size: 18px; font-weight: 900; }
+        
+        .hidden { display: none !important; }
+        .opacity-0 { opacity: 0; pointer-events: none; }
+
+        @media print { 
+            .no-print { display: none !important; }
+            body { background: white; padding: 0; }
+            .print-page { box-shadow: none; max-width: 100%; padding: 0; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- Secret Security Script Inclusion (Hardcoded for Print to be self-contained) -->
+<div id="password-gate" class="hidden">
+    <div class="gate-card">
+        <h2 style="margin-bottom: 10px;">دخول آمن</h2>
+        <p style="font-size: 12px; color: #64748b; margin-bottom: 20px;">يرجى إدخال الرقم السري لرؤية تفاصيل التكلفة</p>
+        <input type="password" id="gate-pass" style="width: 100%; padding: 12px; border: 2px solid #f1f5f9; border-radius: 10px; text-align: center; margin-bottom: 15px; outline: none; transition: 0.3s;" placeholder="••••••••">
+        <button onclick="submitGate()" style="width: 100%; padding: 12px; background: #0d9488; color: white; border-radius: 10px; border: none; font-weight: 900; cursor: pointer;">فتح التقرير</button>
+        <p id="gate-error" style="color: #ef4444; font-size: 10px; margin-top: 10px;" class="hidden">الرقم السري خطأ</p>
+    </div>
+</div>
+
+<div id="main-ui" class="opacity-0">
+    <div class="no-print">
+        <button class="btn btn-print" onclick="window.print()"><i class="fas fa-print"></i> طباعة التقرير</button>
+        <button class="btn btn-close" onclick="window.close(); setTimeout(function(){ if (window.history.length > 1) window.history.back(); }, 50)">إغلاق</button>
+    </div>
+
+    <div class="print-page">
+        <div class="header">
+            <div class="logo">MR MEKAWY <span style="color: #64748b; font-size: 12px; font-weight: bold;">| تقرير تكاليف المنتج</span></div>
+            <div style="text-align: left; font-size: 12px; color: #64748b;">
+                التاريخ: {{ costing.created_at|date:"Y-m-d H:i" }}<br>
+                نوع الحسبة: {% if costing.mode == 'RETAIL' %}شراء مباشر{% else %}تصنيع محلي{% endif %}
+            </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 20px; margin-bottom: 40px;">
+            <div style="background: #f1f5f9; padding: 30px; border-radius: 20px;">
+                <div style="font-size: 10px; font-weight: 900; color: #0d9488; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 5px;">اسم الصنف</div>
+                <div style="font-size: 28px; font-weight: 900; color: #0f172a;">{{ costing.name }}</div>
+                {% if costing.product %}
+                <div style="font-size: 12px; color: #64748b; margin-top: 5px; font-weight: bold;">كود المنتج بالسيستم: {{ costing.product.sku }}</div>
+                {% endif %}
+            </div>
+            <div style="background: #0d9488; padding: 30px; border-radius: 20px; color: white; text-align: center;">
+                <div style="font-size: 10px; font-weight: 900; opacity: 0.7; margin-bottom: 5px;">إجمالي التكلفة الحقيقية</div>
+                <div style="font-size: 32px; font-weight: 900;">{{ costing.total_cost }} <span style="font-size: 14px;">ج.م</span></div>
+            </div>
+        </div>
+
+        <h3 style="border-right: 4px solid #0d9488; padding-right: 15px; margin-bottom: 20px;">تفاصيل الحسبة</h3>
+        
+        {% if costing.mode == 'RETAIL' %}
+        <table>
+            <thead>
+                <tr>
+                    <th>البند</th>
+                    <th>القيمة</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr><td>سعر الشراء الأساسي</td><td>{{ config.purchase_price }} ج.م</td></tr>
+                <tr><td>نصيب الشحن والتوصيل</td><td>{{ config.shipping }} ج.م</td></tr>
+                <tr><td>مصروفات إضافية</td><td>{{ config.extra }} ج.م</td></tr>
+                <tr><td>نسبة الربح (من سعر المبيعات)</td><td>{{ config.profit_pct }} %</td></tr>
+            </tbody>
+        </table>
+        {% else %}
+        <table>
+            <thead>
+                <tr>
+                    <th>البند</th>
+                    <th>القيمة</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr><td>إجمالي الخامات (بعد الهدر)</td><td>{{ config.m_final }} ج.م</td></tr>
+                <tr><td>إجمالي العمالة والتشغيل</td><td>{{ config.l_total }} ج.م</td></tr>
+                <tr><td>تكلفة المصبغة والتجهيز</td><td>{{ config.dyeing }} ج.م</td></tr>
+                <tr><td>نصيب المكان (Overhead)</td><td>{{ config.overhead }} ج.م</td></tr>
+                {% if config.overhead_breakdown %}
+                <tr style="background: #f8fafc;"><td style="font-size: 11px; color: #64748b; padding-right: 30px;">↳ إيجار: {{ config.overhead_breakdown.rent }} ج.م</td><td style="font-size: 11px; color: #64748b;"></td></tr>
+                <tr style="background: #f8fafc;"><td style="font-size: 11px; color: #64748b; padding-right: 30px;">↳ مرافق: {{ config.overhead_breakdown.util }} ج.م</td><td style="font-size: 11px; color: #64748b;"></td></tr>
+                <tr style="background: #f8fafc;"><td style="font-size: 11px; color: #64748b; padding-right: 30px;">↳ صيانة: {{ config.overhead_breakdown.maint }} ج.م</td><td style="font-size: 11px; color: #64748b;"></td></tr>
+                <tr style="background: #f8fafc;"><td style="font-size: 11px; color: #64748b; padding-right: 30px;">↳ إداريات: {{ config.overhead_breakdown.admin }} ج.م</td><td style="font-size: 11px; color: #64748b;"></td></tr>
+                <tr style="background: #f8fafc;"><td style="font-size: 11px; color: #0d9488; padding-right: 30px; font-weight: bold;">(على حجم إنتاج: {{ config.overhead_breakdown.qty }} قطعة)</td><td style="font-size: 11px; color: #64748b;"></td></tr>
+                {% endif %}
+                <tr><td>تعبئة ولوجيستيات</td><td>{{ config.logistic }} ج.م</td></tr>
+                <tr><td>نسبة الربح المستهدفة</td><td>{{ config.profit_pct }} %</td></tr>
+            </tbody>
+        </table>
+        {% endif %}
+
+        <div style="margin-top: 40px; padding: 30px; border-radius: 20px; border: 2px solid #0d9488; background: #f0fdfa; display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <div style="font-size: 12px; font-weight: bold; color: #0d9488; margin-bottom: 5px;">سعر البيع النهائي المقترح</div>
+                <div style="font-size: 14px; color: #64748b;">(يضمن تحقيق نسبة الربح المختارة بدقة)</div>
+            </div>
+            <div style="font-size: 36px; font-weight: 900; color: #0f172a;">{{ costing.selling_price }} <span style="font-size: 16px;">ج.م</span></div>
+        </div>
+
+        <div style="margin-top: 50px; text-align: center; font-size: 10px; color: #cbd5e1; border-top: 1px dashed #e2e8f0; padding-top: 30px;">
+            تم استخراج هذا التقرير آلياً بواسطة نظام المستودعات المطور
+        </div>
+    </div>
+</div>
+
+<script>
+    const COSTING_PASS = 'Ahmed2013@';
+    const SESSION_TIMEOUT = 10 * 60 * 1000;
+
+    function isAuth() {
+        const start = localStorage.getItem('costing_session_start');
+        if (!start) return false;
+        return (Date.now() - parseInt(start)) < SESSION_TIMEOUT;
+    }
+
+    function enforce() {
+        if (isAuth()) {
+            document.getElementById('password-gate').classList.add('hidden');
+            document.getElementById('main-ui').classList.remove('opacity-0');
+        } else {
+            document.getElementById('password-gate').classList.remove('hidden');
+            document.getElementById('main-ui').classList.add('opacity-0');
+        }
+    }
+
+    function submitGate() {
+        const pass = document.getElementById('gate-pass').value;
+        if (pass === COSTING_PASS) {
+            localStorage.setItem('costing_session_start', Date.now().toString());
+            enforce();
+        } else {
+            document.getElementById('gate-error').classList.remove('hidden');
+        }
+    }
+
+    window.onload = enforce;
+    setInterval(enforce, 30000);
+</script>
+</body>
+</html>

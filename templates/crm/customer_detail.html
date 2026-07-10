@@ -1,0 +1,420 @@
+﻿{% extends 'base.html' %}
+
+{% block content %}
+<div class="space-y-6">
+    
+    <!-- Header & Tier Badge -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex flex-wrap gap-4 justify-between items-start relative overflow-hidden">
+        <!-- Tier Background Effect -->
+        <div class="absolute top-0 right-0 w-32 h-32 bg-opacity-10 rounded-bl-full 
+            {% if customer.tier == 'gold' %}bg-yellow-400{% elif customer.tier == 'silver' %}bg-gray-400{% else %}bg-orange-700{% endif %}">
+        </div>
+
+        <div class="relative z-10 flex gap-6">
+            <div class="w-20 h-20 rounded-full flex items-center justify-center text-3xl font-bold text-white shadow-lg
+                {% if customer.tier == 'gold' %}bg-gradient-to-br from-yellow-400 to-yellow-600 border-4 border-yellow-100
+                {% elif customer.tier == 'silver' %}bg-gradient-to-br from-gray-300 to-gray-500 border-4 border-gray-100
+                {% else %}bg-gradient-to-br from-amber-600 to-amber-800 border-4 border-orange-100{% endif %}">
+                {{ customer.first_name|first }}
+            </div>
+            <div>
+                <h1 class="text-3xl font-bold text-gray-800">{{ customer.first_name }} {{ customer.last_name }}
+                    {% if customer.is_blacklisted %}<span class="align-middle text-xs font-black text-white bg-red-600 px-2 py-1 rounded">قائمة سوداء</span>{% endif %}
+                </h1>
+                {% if customer.tax_number or customer.phone2 %}<div class="text-xs text-gray-400 mt-1">{% if customer.phone2 %}هاتف 2: {{ customer.phone2 }}{% endif %}{% if customer.tax_number %} · ر.ضريبي: {{ customer.tax_number }}{% endif %}</div>{% endif %}
+                <div class="flex items-center gap-3 mt-2 text-gray-600">
+                    <span class="flex items-center gap-1 bg-gray-100 px-2 py-1 rounded text-sm">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"></path></svg>
+                        {{ customer.phone }}
+                    </span>
+                    <span class="flex items-center gap-1 bg-gray-100 px-2 py-1 rounded text-sm">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                        {{ customer.address|default:"لا يوجد عنوان" }}
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <div class="text-left flex flex-col items-end gap-2">
+            <div>
+                <div class="text-sm text-gray-500 mb-1">تصنيف العميل</div>
+                <div class="text-2xl font-black uppercase tracking-wider
+                    {% if customer.tier == 'gold' %}text-yellow-600{% elif customer.tier == 'silver' %}text-gray-500{% else %}text-amber-700{% endif %}">
+                    {{ customer.get_tier_display }}
+                </div>
+                <div class="text-xs text-gray-400 mt-1">المشتريات: {{ total_spent|floatformat:0 }}</div>
+            </div>
+            
+            <!-- زر تقرير العميل الجديد -->
+            <button onclick="openReportModal()" class="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 shadow-md transition text-sm font-bold">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                تقرير شامل
+            </button>
+        </div>
+    </div>
+
+    <!-- Analytics Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <!-- Balance Card -->
+        <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 relative group">
+            <div class="text-gray-500 text-sm mb-1">حساب العميل</div>
+            <div class="text-2xl font-bold break-all leading-tight dir-ltr text-right {% if balance > 0 %}text-red-600{% elif balance < 0 %}text-green-600{% else %}text-gray-800{% endif %}"
+                 title="{{ balance|floatformat:2 }} ج.م">
+                {{ balance|floatformat:2 }} <span class="text-sm font-normal text-gray-500">ج.م</span>
+            </div>
+            {% if customer.credit_limit > 0 %}
+            <div class="text-xs text-gray-500 mt-1">حد الائتمان: <b class="dir-ltr">{{ customer.credit_limit|floatformat:2 }}</b> · المتاح: <b class="dir-ltr {% if customer.credit_available < 0 %}text-red-600{% else %}text-green-600{% endif %}">{{ customer.credit_available|floatformat:2 }}</b></div>
+            {% endif %}
+            <div class="flex justify-between items-center mt-1">
+                <div class="text-xs {% if balance > 0 %}text-red-500{% elif balance < 0 %}text-green-500{% else %}text-gray-400{% endif %}">
+                    {% if balance > 0 %}مديونية مستحقة{% elif balance < 0 %}رصيد دائن (له){% else %}خالص{% endif %}
+                </div>
+                
+                <button onclick="openPayModal()" class="text-xs bg-gray-800 text-white px-3 py-1 rounded shadow hover:bg-gray-900 transition font-bold flex items-center gap-1">
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>
+                    تسجيل عملية
+                </button>
+            </div>
+        </div>
+
+        <!-- Purchase Behavior (UPDATED) -->
+        <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+            <div class="text-gray-500 text-sm mb-1">متوسط التردد</div>
+            <div class="text-2xl font-bold text-gray-800">
+                {% if avg_days != None %}
+                    {% if avg_days == 0 %}
+                        <span class="text-lg">نفس اليوم / يومي</span>
+                    {% else %}
+                        كل {{ avg_days }} يوم
+                    {% endif %}
+                {% else %}
+                    -
+                {% endif %}
+            </div>
+            <div class="text-xs text-gray-400 mt-1">معدل زيارات الشراء</div>
+        </div>
+
+        <!-- Top Product -->
+        <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+            <div class="text-gray-500 text-sm mb-1">الأكثر شراءً</div>
+            <div class="text-lg font-bold text-teal-700 truncate" title="{{ most_purchased }}">
+                {{ most_purchased }}
+            </div>
+            <div class="text-xs text-gray-400 mt-1">المنتج المفضل</div>
+        </div>
+
+        <!-- Last Visit -->
+        <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+            <div class="text-gray-500 text-sm mb-1">آخر زيارة</div>
+            <div class="text-xl font-bold text-gray-800">
+                {% if last_visit %}{{ last_visit|date:"Y-m-d" }}{% else %}-{% endif %}
+            </div>
+            <div class="text-xs text-gray-400 mt-1">
+                {% if last_visit %}{{ last_visit|timesince }} مضت{% else %}لم يشتري بعد{% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Saved Orders (recurring) — Phase 6.11 -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        <div class="p-4 border-b border-gray-100 bg-gray-50 flex items-center gap-2">
+            <i class="fas fa-bookmark text-amber-400"></i>
+            <h3 class="font-bold text-gray-800">الطلبات المحفوظة</h3>
+            <span class="text-[11px] text-gray-400">طلبات متكررة — تُملأ في الكاشير بضغطة</span>
+        </div>
+        <div class="p-4">
+            {% if saved_orders %}
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {% for so in saved_orders %}
+                <div class="border border-gray-200 rounded-xl p-3 flex flex-col gap-2 hover:border-amber-300 transition">
+                    <div class="flex items-start justify-between gap-2">
+                        <div class="font-black text-gray-800 text-sm truncate">{{ so.name }}</div>
+                        {% if so.short > 0 %}
+                        <span class="shrink-0 text-[10px] font-black bg-red-50 text-red-600 px-2 py-0.5 rounded-full whitespace-nowrap">⚠ نقص في {{ so.short }}</span>
+                        {% else %}
+                        <span class="shrink-0 text-[10px] font-black bg-green-50 text-green-600 px-2 py-0.5 rounded-full whitespace-nowrap">✓ متوفر</span>
+                        {% endif %}
+                    </div>
+                    <div class="text-[11px] text-gray-400">{{ so.count }} صنف · {{ so.updated|date:"Y-m-d" }}</div>
+                    <a href="{% url 'pos_view' %}?customer_id={{ customer.id }}&saved_order={{ so.id }}"
+                       class="mt-1 text-center bg-slate-800 hover:bg-slate-900 text-white rounded-lg py-1.5 text-xs font-black">
+                        <i class="fas fa-cash-register text-[10px] ml-1"></i> فتح في الكاشير
+                    </a>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="text-center text-gray-400 text-sm py-4">لا توجد طلبات محفوظة لهذا العميل. احفظ سلة من شاشة الكاشير لتظهر هنا.</div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Invoices List -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        <div class="p-4 border-b border-gray-100 bg-gray-50 flex flex-wrap gap-2 justify-between items-center">
+            <h3 class="font-bold text-gray-800">سجل الفواتير والدفعات</h3>
+            <span class="text-xs bg-gray-200 px-2 py-1 rounded text-gray-600">أعلى فاتورة: {{ highest_invoice }}</span>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-right text-sm">
+                <thead class="bg-gray-50 text-gray-500 text-[11px] uppercase sticky top-0">
+                    <tr>
+                        <th class="px-3 py-3">رقم العملية</th>
+                        <th class="px-3 py-3 hidden sm:table-cell">التاريخ</th>
+                        <th class="px-3 py-3">النوع</th>
+                        <th class="px-3 py-3">المطلوب</th>
+                        <th class="px-3 py-3">المدفوع</th>
+                        <th class="px-3 py-3">الرصيد بعدها</th>
+                        <th class="px-3 py-3 hidden md:table-cell">طريقة الدفع</th>
+                        <th class="px-3 py-3">الإجراء</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                    {% for tx in ledger %}
+                    <tr class="hover:bg-gray-50 transition">
+                        <td class="px-3 py-3 font-mono font-bold whitespace-nowrap">{% if tx.type == 'order' %}#{{ tx.id }}{% else %}#P{{ tx.id }}{% endif %}</td>
+                        <td class="px-3 py-3 text-gray-600 whitespace-nowrap hidden sm:table-cell">{{ tx.date|date:"Y-m-d H:i" }}</td>
+                        <td class="px-3 py-3">
+                            {% if tx.type == 'payment' %}
+                                <span class="bg-green-100 text-green-800 px-2 py-1 rounded text-[11px] font-bold whitespace-nowrap">سداد / إيداع</span>
+                            {% elif tx.type == 'debt' %}
+                                <span class="bg-red-100 text-red-800 px-2 py-1 rounded text-[11px] font-bold whitespace-nowrap">مديونية يدوية</span>
+                            {% else %}
+                                <span class="bg-blue-100 text-blue-800 px-2 py-1 rounded text-[11px] whitespace-nowrap">فاتورة مبيعات</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-3 py-3 font-bold text-gray-800 dir-ltr text-right">{{ tx.total|floatformat:2 }}</td>
+                        <td class="px-3 py-3 text-green-600 font-bold dir-ltr text-right">{{ tx.paid|floatformat:2 }}</td>
+                        <td class="px-3 py-3 font-black dir-ltr text-right whitespace-nowrap {% if tx.running > 0 %}text-red-600{% elif tx.running < 0 %}text-green-600{% else %}text-gray-500{% endif %}"
+                            title="{% if tx.running > 0 %}عليه{% elif tx.running < 0 %}له{% endif %}">{{ tx.running|floatformat:2 }}</td>
+                        <td class="px-3 py-3 text-gray-600 whitespace-nowrap hidden md:table-cell">{{ tx.method|default:"-" }}</td>
+                        <td class="px-3 py-3 whitespace-nowrap">
+                            {% if tx.type == 'order' %}
+                                <a href="{% url 'order_invoice' tx.id %}" class="text-teal-600 hover:text-teal-800 hover:underline">الفاتورة</a>
+                            {% else %}
+                                <a href="{% url 'payment_receipt' tx.id %}" class="text-gray-600 hover:text-gray-800 hover:underline">إيصال</a>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="8" class="px-6 py-8 text-center text-gray-500">لا يوجد عمليات مسجلة.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Actions (quick action bar) -->
+    <div class="flex flex-wrap gap-2 justify-end">
+        <a href="{% url 'customer_list' %}" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 text-sm font-bold flex items-center gap-1.5"><i class="fas fa-arrow-right text-xs"></i> القائمة</a>
+        <button onclick="openPayModal()" class="px-4 py-2 bg-slate-800 text-white rounded-lg hover:bg-slate-900 text-sm font-bold flex items-center gap-1.5"><i class="fas fa-plus text-xs"></i> تسجيل عملية</button>
+        <a href="{% url 'customer_statement' customer.pk %}" class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm font-bold flex items-center gap-1.5"><i class="fas fa-file-invoice text-xs"></i> كشف حساب</a>
+        {% if customer.whatsapp_url %}<a href="{{ customer.whatsapp_url }}" target="_blank" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-bold flex items-center gap-1.5"><i class="fab fa-whatsapp"></i> تذكير</a>{% endif %}
+        <a href="{% url 'customer_update' customer.pk %}" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-bold flex items-center gap-1.5"><i class="fas fa-pen text-xs"></i> تعديل</a>
+    </div>
+</div>
+
+<!-- Transaction Modal -->
+<div id="payModal" class="fixed inset-0 bg-black bg-opacity-60 hidden items-center justify-center z-50 backdrop-blur-sm">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all scale-100">
+        
+        <!-- Modal Header with Dynamic Color -->
+        <div id="modalHeader" class="p-5 bg-gray-800 text-white flex justify-between items-center transition-colors duration-300">
+            <h3 class="font-bold text-xl" id="modalTitle">تسجيل عملية مالية</h3>
+            <button onclick="closePayModal()" class="hover:text-gray-300 transition text-2xl">✕</button>
+        </div>
+
+        <div class="p-6 space-y-6">
+            
+            <!-- Transaction Type Selector -->
+            <div class="grid grid-cols-2 gap-4">
+                <label class="cursor-pointer group">
+                    <input type="radio" name="trans_type" value="payment" class="peer sr-only" checked onchange="updateModalTheme()">
+                    <div class="p-4 rounded-xl border-2 border-gray-200 peer-checked:border-green-500 peer-checked:bg-green-50 hover:bg-gray-50 transition text-center h-full flex flex-col items-center justify-center">
+                        <div class="text-green-600 mb-2 transform group-hover:scale-110 transition"><svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg></div>
+                        <div class="font-bold text-gray-800">استلام / إيداع</div>
+                        <div class="text-xs text-green-600 font-semibold mt-1">يصبح له رصيد (دائن)</div>
+                    </div>
+                </label>
+                
+                <label class="cursor-pointer group">
+                    <input type="radio" name="trans_type" value="debt" class="peer sr-only" onchange="updateModalTheme()">
+                    <div class="p-4 rounded-xl border-2 border-gray-200 peer-checked:border-red-500 peer-checked:bg-red-50 hover:bg-gray-50 transition text-center h-full flex flex-col items-center justify-center">
+                        <div class="text-red-600 mb-2 transform group-hover:scale-110 transition"><svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2zM10 8.5a.5.5 0 11-1 0 .5.5 0 011 0zm5 5a.5.5 0 11-1 0 .5.5 0 011 0z"></path></svg></div>
+                        <div class="font-bold text-gray-800">مديونية / سحب</div>
+                        <div class="text-xs text-red-600 font-semibold mt-1">يصبح عليه (مدين)</div>
+                    </div>
+                </label>
+            </div>
+
+            <!-- Amount Input -->
+            <div>
+                <label class="block text-sm font-bold text-gray-700 mb-2" id="amountLabel">المبلغ</label>
+                <div class="relative">
+                    <input type="number" id="payAmount" step="any" class="w-full p-4 border-2 border-gray-300 rounded-xl text-3xl font-bold text-center focus:outline-none transition" placeholder="0.00">
+                    <span class="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 font-bold text-lg">ج.م</span>
+                </div>
+            </div>
+            
+            <!-- Notes -->
+            <div>
+                <label class="block text-sm font-bold text-gray-700 mb-2">ملاحظات (اختياري)</label>
+                <input type="text" id="payNotes" class="w-full p-3 border border-gray-300 rounded-lg focus:border-gray-500 focus:ring-0 transition" placeholder="مثال: دفعة تحت الحساب، سحب بضاعة قديم...">
+            </div>
+
+            <!-- Payment Method -->
+            <div id="paymentMethodContainer">
+                <label class="block text-sm font-bold text-gray-700 mb-2">طريقة الدفع</label>
+                <select id="payMethod" class="w-full p-4 border border-gray-300 rounded-lg text-lg font-bold text-center focus:outline-none focus:border-gray-500 hover:border-gray-400 bg-gray-50 transition cursor-pointer">
+                    <option value="cash">نقدي (Cash)</option>
+                    <option value="visa">فيزا (Visa)</option>
+                    <option value="wallet">محفظة فودافون كاش (Wallet)</option>
+                    <option value="instapay">إنستا باي (InstaPay)</option>
+                    <option value="bank">تحويل بنكي (Bank Transfer)</option>
+                </select>
+            </div>
+
+            <!-- Action Button -->
+            <button onclick="submitTransaction()" id="submitBtn" class="w-full py-4 bg-gray-800 text-white rounded-xl font-bold shadow-lg hover:shadow-xl text-lg flex justify-center items-center gap-2 transform transition active:scale-95">
+                <span>تأكيد العملية</span>
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Report Selection Modal (NEW) -->
+<div id="reportModal" class="fixed inset-0 bg-black bg-opacity-60 hidden items-center justify-center z-50 backdrop-blur-sm">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden p-6 text-center">
+        <h3 class="font-bold text-xl mb-6 text-gray-800">اختر نوع التقرير</h3>
+        
+        <div class="grid grid-cols-1 gap-4">
+            <button onclick="printReport('a4')" class="p-4 rounded-xl border-2 border-indigo-100 bg-indigo-50 hover:bg-indigo-100 hover:border-indigo-300 transition group">
+                <div class="text-2xl mb-1">📄</div>
+                <div class="font-bold text-indigo-800">تقرير كامل (A4/A5)</div>
+                <div class="text-xs text-gray-500 mt-1">يحتوي على كافة التفاصيل والمقترحات</div>
+            </button>
+            
+            <button onclick="printReport('thermal')" class="p-4 rounded-xl border-2 border-gray-100 bg-gray-50 hover:bg-gray-100 hover:border-gray-300 transition group">
+                <div class="text-2xl mb-1">🧾</div>
+                <div class="font-bold text-gray-800">إيصال حراري</div>
+                <div class="text-xs text-gray-500 mt-1">ملخص سريع للطابعة الحرارية</div>
+            </button>
+        </div>
+        
+        <button onclick="closeReportModal()" class="mt-6 text-gray-500 hover:text-gray-700 underline text-sm">إلغاء</button>
+    </div>
+</div>
+
+<script>
+    // Logic to switch themes based on selection
+    function updateModalTheme() {
+        const type = document.querySelector('input[name="trans_type"]:checked').value;
+        const header = document.getElementById('modalHeader');
+        const btn = document.getElementById('submitBtn');
+        const input = document.getElementById('payAmount');
+        const label = document.getElementById('amountLabel');
+
+        if (type === 'payment') {
+            // Green Theme for Payment/Deposit
+            header.className = "p-5 bg-green-600 text-white flex justify-between items-center transition-colors duration-300";
+            btn.className = "w-full py-4 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 shadow-lg text-lg flex justify-center items-center gap-2 transform transition active:scale-95";
+            input.className = "w-full p-4 border-2 border-gray-300 rounded-xl text-3xl font-bold text-center focus:border-green-500 focus:ring-0 outline-none transition";
+            label.innerText = "المبلغ المستلم (إيداع)";
+            document.getElementById('paymentMethodContainer').style.display = 'block';
+        } else {
+            // Red Theme for Debt/Charge
+            header.className = "p-5 bg-red-600 text-white flex justify-between items-center transition-colors duration-300";
+            btn.className = "w-full py-4 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 shadow-lg text-lg flex justify-center items-center gap-2 transform transition active:scale-95";
+            input.className = "w-full p-4 border-2 border-gray-300 rounded-xl text-3xl font-bold text-center focus:border-red-500 focus:ring-0 outline-none transition";
+            label.innerText = "قيمة المديونية (سحب)";
+            document.getElementById('paymentMethodContainer').style.display = 'none';
+        }
+    }
+
+    // Pay Modal
+    function openPayModal() {
+        document.getElementById('payModal').classList.remove('hidden');
+        document.getElementById('payModal').classList.add('flex');
+        document.getElementById('payAmount').value = '';
+        document.getElementById('payNotes').value = '';
+        updateModalTheme(); // Set initial theme
+        setTimeout(() => document.getElementById('payAmount').focus(), 100);
+    }
+    
+    function closePayModal() {
+        document.getElementById('payModal').classList.add('hidden');
+        document.getElementById('payModal').classList.remove('flex');
+    }
+    
+    // Report Modal
+    function openReportModal() {
+        document.getElementById('reportModal').classList.remove('hidden');
+        document.getElementById('reportModal').classList.add('flex');
+    }
+    
+    function closeReportModal() {
+        document.getElementById('reportModal').classList.add('hidden');
+        document.getElementById('reportModal').classList.remove('flex');
+    }
+    
+    function printReport(type) {
+        // Open report in new window with specific dimensions
+        const url = `{% url 'customer_report' customer.pk %}?type=${type}`;
+        const w = type === 'thermal' ? 400 : 900;
+        const h = 800;
+        const left = (screen.width/2)-(w/2);
+        const top = (screen.height/2)-(h/2);
+        
+        window.open(url, '_blank', `width=${w},height=${h},top=${top},left=${left}`);
+        closeReportModal();
+    }
+
+    function submitTransaction() {
+        const amount = document.getElementById('payAmount').value;
+        const notes = document.getElementById('payNotes').value;
+        const type = document.querySelector('input[name="trans_type"]:checked').value;
+        
+        if(!amount || amount <= 0) {
+            alert('الرجاء إدخال مبلغ صحيح');
+            return;
+        }
+
+        const btn = document.getElementById('submitBtn');
+        const originalText = btn.innerHTML;
+        btn.innerHTML = '<svg class="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> جاري التسجيل...';
+        btn.disabled = true;
+
+        const methodDropdown = document.getElementById('payMethod');
+        const payment_method = methodDropdown ? methodDropdown.value : 'cash';
+
+        fetch('{% url "customer_pay_debt" customer.pk %}', {
+            method: 'POST',
+            body: JSON.stringify({ 
+                amount: amount, 
+                notes: notes,
+                action: type,
+                payment_method: payment_method
+            })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if(data.status === 'success') {
+                window.open(`${window.location.origin}/crm/payment-receipt/${data.payment_id}/`, '_blank');
+                location.reload();
+            } else {
+                alert('خطأ: ' + data.message);
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+        })
+        .catch(err => {
+            alert('حدث خطأ في الاتصال');
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+        });
+    }
+</script>
+{% endblock %}

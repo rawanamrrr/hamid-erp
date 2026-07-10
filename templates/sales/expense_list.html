@@ -1,0 +1,117 @@
+﻿{% extends 'base.html' %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header & Summary -->
+    <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-800">سجل المصروفات</h1>
+            <p class="text-gray-500 text-sm mt-1">إدارة وتسجيل النفقات اليومية</p>
+        </div>
+        <div class="bg-red-50 px-4 py-2 rounded-lg border border-red-100 flex items-center gap-3">
+            <span class="text-sm text-red-600 font-bold">إجمالي المصروفات (للفترة المحددة):</span>
+            <span class="text-xl font-black text-red-800">{{ total_expenses|floatformat:2 }} ج.م</span>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Add Expense Form -->
+        <div class="lg:col-span-1">
+            <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200 sticky top-4">
+                <h3 class="font-bold text-gray-800 mb-4 pb-2 border-b">تسجيل مصروف جديد</h3>
+                <form method="post" class="space-y-4">
+                    {% csrf_token %}
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 mb-1">بند الصرف</label>
+                        {{ form.title }}
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 mb-1">التصنيف</label>
+                        {{ form.category }}
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 mb-1">المبلغ</label>
+                        {{ form.amount }}
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 mb-1">ملاحظات</label>
+                        {{ form.description }}
+                    </div>
+                    <button type="submit" class="w-full py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-bold shadow-sm transition">حفظ المصروف</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Expense List -->
+        <div class="lg:col-span-2 space-y-4">
+            <!-- Filter -->
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 animate-fade-in-down smooth-transition hover:shadow-md">
+                <div class="flex flex-wrap items-center justify-between gap-4 mb-4 border-b border-gray-100 pb-4">
+                    <div class="flex items-center gap-2">
+                        <div class="w-1.5 h-6 bg-red-500 rounded-full animate-pulse"></div>
+                        <h3 class="font-bold text-gray-800">تصفية التاريخ</h3>
+                    </div>
+                    
+                    <!-- Quick Ranges -->
+                    <div class="flex items-center gap-1 bg-gray-50 p-1 rounded-lg border border-gray-200">
+                        <button type="button" onclick="setRange('today')" class="px-2 py-1 text-[10px] font-bold rounded smooth-transition hover:bg-white hover:shadow-sm text-gray-600 btn-press">اليوم</button>
+                        <button type="button" onclick="setRange('yesterday')" class="px-2 py-1 text-[10px] font-bold rounded smooth-transition hover:bg-white hover:shadow-sm text-gray-600 btn-press">أمس</button>
+                        <button type="button" onclick="setRange('7days')" class="px-2 py-1 text-[10px] font-bold rounded smooth-transition hover:bg-white hover:shadow-sm text-gray-600 btn-press">7 أيام</button>
+                        <button type="button" onclick="setRange('thisMonth')" class="px-2 py-1 text-[10px] font-bold rounded smooth-transition hover:bg-white hover:shadow-sm text-gray-600 btn-press">الشهر</button>
+                    </div>
+                </div>
+                <form id="filterForm" method="get" class="flex gap-2">
+                    <div class="relative group flex-1 cursor-pointer" onclick="this.querySelector('input').showPicker()">
+                        <input type="date" id="date_from" name="date_from" value="{{ request.GET.date_from }}" class="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-red-500 focus:bg-white smooth-transition cursor-pointer">
+                        <div class="absolute inset-y-0 left-3 flex items-center pointer-events-none text-gray-400 group-hover:text-red-500 smooth-transition">
+                            <i class="fas fa-calendar-alt text-xs"></i>
+                        </div>
+                    </div>
+                    <div class="relative group flex-1 cursor-pointer" onclick="this.querySelector('input').showPicker()">
+                        <input type="date" id="date_to" name="date_to" value="{{ request.GET.date_to }}" class="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-red-500 focus:bg-white smooth-transition cursor-pointer">
+                        <div class="absolute inset-y-0 left-3 flex items-center pointer-events-none text-gray-400 group-hover:text-red-500 smooth-transition">
+                            <i class="fas fa-calendar-alt text-xs"></i>
+                        </div>
+                    </div>
+                    <button type="submit" class="bg-gray-800 text-white px-6 py-2.5 rounded-xl text-sm font-bold smooth-transition hover:bg-gray-900 hover:shadow-lg btn-press">تصفية</button>
+                    <a href="{% url 'expense_list' %}" class="px-4 py-2.5 bg-gray-100 text-gray-600 rounded-xl hover:bg-gray-200 smooth-transition text-sm flex items-center justify-center btn-press" title="مسح الفلاتر">
+                        <i class="fas fa-times"></i>
+                    </a>
+                </form>
+            </div>
+
+            <!-- Table -->
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                <table class="w-full text-right text-sm">
+                    <thead class="bg-gray-50 text-gray-600 font-medium border-b">
+                        <tr>
+                            <th class="p-4">البند</th>
+                            <th class="p-4">التصنيف</th>
+                            <th class="p-4">المبلغ</th>
+                            <th class="p-4">التاريخ</th>
+                            <th class="p-4">طباعة</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100">
+                        {% for expense in expenses %}
+                        <tr class="hover:bg-gray-50">
+                            <td class="p-4 font-bold text-gray-800">{{ expense.title }}</td>
+                            <td class="p-4"><span class="bg-gray-100 text-gray-600 px-2 py-1 rounded text-xs">{{ expense.get_category_display }}</span></td>
+                            <td class="p-4 font-bold text-red-600">{{ expense.amount }}</td>
+                            <td class="p-4 text-gray-500">{{ expense.date|date:"Y-m-d" }}</td>
+                            <td class="p-4">
+                                <a href="{% url 'expense_invoice' expense.id %}" class="text-blue-600 hover:text-blue-800">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
+                                </a>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="5" class="p-8 text-center text-gray-400">لا توجد مصروفات مسجلة</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

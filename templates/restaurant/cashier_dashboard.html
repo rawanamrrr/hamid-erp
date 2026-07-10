@@ -1,0 +1,72 @@
+{% extends 'base.html' %}
+{% block title %}شاشة الكاشير — الطلبات الواردة{% endblock %}
+{% block content %}
+<div class="p-4" x-data="{ branchId: {{ branch.id }} }" x-init="
+    let ws = new WebSocket((location.protocol==='https:'?'wss://':'ws://') + location.host + '/ws/cashier/' + branchId + '/');
+    ws.onmessage = (e) => {
+        const sound = document.getElementById('notification-sound');
+        if (sound) { try { sound.currentTime = 0; sound.play(); } catch (err) {} }
+        setTimeout(() => location.reload(), 400);
+    };
+">
+    <h1 class="text-2xl font-bold mb-4">الطلبات الواردة — {{ branch.name }}</h1>
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        {% for order in orders %}
+        <div class="rounded-xl border-2 p-4 shadow-sm
+                    {% if order.kitchen_status == 'pending' %}bg-red-50 border-red-300
+                    {% elif order.kitchen_status == 'preparing' %}bg-amber-50 border-amber-300
+                    {% else %}bg-emerald-50 border-emerald-300{% endif %}">
+            <div class="flex items-center justify-between mb-1">
+                <span class="font-bold">طلب #{{ order.id }}</span>
+                <span class="text-xs text-gray-500">{{ order.created_at|time:"H:i" }}</span>
+            </div>
+            <div class="text-xs text-gray-600 mb-2">
+                {% if order.table %}ترابيزة {{ order.table.number }}{% else %}{{ order.get_order_type_display }}{% endif %}
+                {% if order.waiter %} — الويتر: {{ order.waiter.first_name|default:order.waiter.username }}{% endif %}
+            </div>
+            <ul class="text-sm mb-3 space-y-1">
+                {% for it in order.items.all %}
+                {% if not it.is_void %}
+                <li>
+                    <span class="font-semibold">{{ it.product.name }}{% if it.variant %} ({{ it.variant.label }}){% endif %}</span>
+                    <span class="text-gray-500">x{{ it.quantity|floatformat:0 }}</span>
+                    {% for m in it.modifiers %}
+                        <span class="text-xs text-gray-500">({{ m.option }})</span>
+                    {% endfor %}
+                    {% if it.note %}<div class="text-xs text-amber-700">ملاحظة: {{ it.note }}</div>{% endif %}
+                </li>
+                {% endif %}
+                {% endfor %}
+            </ul>
+            <div class="flex gap-2">
+                <a href="{% url 'restaurant:kitchen_ticket_preview' order.id %}" target="_blank"
+                   class="px-3 py-2 rounded-lg border text-xs">طباعة تذكرة</a>
+                {% if order.kitchen_status == 'pending' %}
+                <button onclick="setOrderStatus({{ order.id }}, 'preparing')" class="flex-1 py-2 rounded-lg bg-amber-500 text-white text-sm">بدأ التحضير</button>
+                {% elif order.kitchen_status == 'preparing' %}
+                <button onclick="setOrderStatus({{ order.id }}, 'ready')" class="flex-1 py-2 rounded-lg bg-emerald-600 text-white text-sm">جاهز</button>
+                {% elif order.kitchen_status == 'ready' %}
+                <button onclick="setOrderStatus({{ order.id }}, 'delivered')" class="flex-1 py-2 rounded-lg bg-gray-600 text-white text-sm">تم التسليم</button>
+                {% endif %}
+            </div>
+        </div>
+        {% empty %}
+        <p class="text-gray-500 col-span-full">لا توجد طلبات واردة حالياً.</p>
+        {% endfor %}
+    </div>
+</div>
+<script>
+function getCookie(name) {
+    let v = null;
+    document.cookie.split(';').forEach(c => { c = c.trim(); if (c.startsWith(name+'=')) v = decodeURIComponent(c.slice(name.length+1)); });
+    return v;
+}
+function setOrderStatus(orderId, status) {
+    fetch(`/restaurant/cashier/order/${orderId}/status/`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': getCookie('csrftoken')},
+        body: new URLSearchParams({status: status}),
+    }).then(r => r.json()).then(d => { if (d.status === 'ok') location.reload(); });
+}
+</script>
+{% endblock %}

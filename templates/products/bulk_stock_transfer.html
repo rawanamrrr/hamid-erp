@@ -1,0 +1,336 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}تحويل مخزون مجمع{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    
+    <!-- Header Section -->
+    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
+        <div>
+            <h1 class="text-3xl font-bold text-gray-900 flex items-center gap-3">
+                <span class="bg-teal-100 p-2 rounded-lg text-teal-600">
+                    <i class="fa-solid fa-dolly"></i>
+                </span>
+                تحويل مخزون مجمع
+            </h1>
+            <p class="text-sm text-gray-500 mt-2 mr-1">نقل المنتجات بين المخازن وتحديث الأرصدة فورياً.</p>
+        </div>
+        <button onclick="submitTransfer()" class="w-full sm:w-auto bg-teal-600 hover:bg-teal-700 text-white px-6 py-3 rounded-xl shadow-lg shadow-teal-200 font-bold transition-all flex items-center justify-center gap-2 transform active:scale-95">
+            <i class="fa-solid fa-paper-plane"></i>
+            <span>تنفيذ التحويل</span>
+        </button>
+    </div>
+
+    <!-- Configuration Card -->
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 mb-8">
+        <div class="flex flex-col md:flex-row items-center gap-6 relative">
+            
+            <!-- Source Warehouse -->
+            <div class="flex-1 w-full">
+                <label class="block text-sm font-bold text-gray-700 mb-2">من مخزن (المصدر)</label>
+                <div class="relative group">
+                    <div class="absolute inset-y-0 right-0 flex items-center pr-4 pointer-events-none text-gray-400 group-focus-within:text-teal-600 transition-colors">
+                        <i class="fa-solid fa-warehouse"></i>
+                    </div>
+                    <select id="from_warehouse" onchange="fetchSourceStocks()" class="block w-full pr-10 pl-4 py-3.5 border-gray-300 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition-all cursor-pointer bg-gray-50 hover:bg-white text-gray-800 font-medium">
+                        <option value="" disabled selected>-- اختر المخزن --</option>
+                        {% for wh in warehouses %}
+                            <option value="{{ wh.id }}">{{ wh.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <!-- Direction Icon -->
+            <div class="text-gray-300 mt-4 md:mt-6 transform rotate-90 md:rotate-0 flex-shrink-0">
+                <div class="w-12 h-12 bg-gray-50 rounded-full flex items-center justify-center border border-gray-100">
+                    <i class="fa-solid fa-arrow-left text-xl text-teal-600"></i>
+                </div>
+            </div>
+
+            <!-- Destination Warehouse -->
+            <div class="flex-1 w-full">
+                <label class="block text-sm font-bold text-gray-700 mb-2">إلى مخزن (الوجهة)</label>
+                <div class="relative group">
+                    <div class="absolute inset-y-0 right-0 flex items-center pr-4 pointer-events-none text-gray-400 group-focus-within:text-teal-600 transition-colors">
+                        <i class="fa-solid fa-boxes-packing"></i>
+                    </div>
+                    <select id="to_warehouse" class="block w-full pr-10 pl-4 py-3.5 border-gray-300 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition-all cursor-pointer bg-gray-50 hover:bg-white text-gray-800 font-medium">
+                        <option value="" disabled selected>-- اختر المخزن --</option>
+                        {% for wh in warehouses %}
+                            <option value="{{ wh.id }}">{{ wh.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- Note -->
+        <div class="mt-6 pt-6 border-t border-gray-100">
+            <label class="block text-sm font-medium text-gray-700 mb-2">ملاحظات التحويل</label>
+            <div class="relative">
+                <div class="absolute inset-y-0 right-0 flex items-center pr-4 pointer-events-none text-gray-400">
+                    <i class="fa-solid fa-pen"></i>
+                </div>
+                <input type="text" id="transfer_note" class="block w-full pr-10 pl-4 py-3 border-gray-300 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition-all" placeholder="مثال: نقل لتغطية عجز، طلبية خاصة...">
+            </div>
+        </div>
+    </div>
+
+    <!-- Items Table Card -->
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden flex flex-col">
+        <div class="p-6 border-b border-gray-200 bg-gray-50/50 flex flex-col sm:flex-row justify-between items-center gap-4">
+            <h3 class="font-bold text-gray-800 flex items-center gap-2 text-lg">
+                <i class="fa-solid fa-list-check text-teal-600"></i>
+                قائمة الأصناف
+            </h3>
+            <button onclick="addRows(5)" class="text-sm bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 hover:text-teal-600 hover:border-teal-300 px-5 py-2.5 rounded-lg transition-all shadow-sm font-bold flex items-center gap-2 active:scale-95">
+                <i class="fa-solid fa-plus"></i>
+                <span>إضافة 5 صفوف</span>
+            </button>
+        </div>
+        
+        <div class="overflow-x-auto">
+            <table class="w-full text-right border-collapse" id="transferTable">
+                <thead class="bg-gray-100/75 text-gray-600 text-xs uppercase font-bold tracking-wider">
+                    <tr>
+                        <th class="p-4 w-16 text-center border-b border-gray-200">#</th>
+                        <th class="p-4 border-b border-gray-200">المنتج</th>
+                        <th class="p-4 w-48 text-center border-b border-gray-200">الرصيد في المصدر</th>
+                        <th class="p-4 w-48 border-b border-gray-200">الكمية المحولة</th>
+                        <th class="p-4 w-20 text-center border-b border-gray-200">حذف</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100" id="tableBody">
+                    <!-- Rows will be generated by JS -->
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- Footer hint -->
+        <div class="p-4 bg-blue-50 border-t border-blue-100 text-center text-sm text-blue-700 font-medium">
+            <i class="fa-solid fa-circle-info ml-1"></i>
+            تأكد من اختيار المخزن المصدر أولاً ليتم عرض الأرصدة المتاحة بشكل صحيح.
+        </div>
+    </div>
+</div>
+
+<script>
+    let stockMap = {}; 
+    let rowCount = 0;
+
+    document.addEventListener('DOMContentLoaded', () => {
+        addRows(5);
+    });
+
+    async function fetchSourceStocks() {
+        const warehouseId = document.getElementById('from_warehouse').value;
+        if (!warehouseId) return;
+
+        document.body.style.cursor = 'wait';
+        
+        try {
+            // Using a dynamic URL by replacing a placeholder to ensure correct prefixing
+            const urlTemplate = "{% url 'get_warehouse_stocks_ajax' 0 %}".replace('0', warehouseId);
+            const response = await fetch(urlTemplate);
+            const data = await response.json();
+            
+            if (data.success) {
+                stockMap = data.stocks;
+                updateAllRowsStock();
+                
+                // Visual feedback
+                const fromSelect = document.getElementById('from_warehouse');
+                fromSelect.parentElement.classList.add('ring-2', 'ring-teal-100');
+                setTimeout(() => fromSelect.parentElement.classList.remove('ring-2', 'ring-teal-100'), 1000);
+            } else {
+                alert('حدث خطأ أثناء جلب الأرصدة: ' + data.error);
+            }
+        } catch (error) {
+            console.error('Error fetching stocks:', error);
+            alert('خطأ في الاتصال بالخادم');
+        } finally {
+            document.body.style.cursor = 'default';
+        }
+    }
+
+    function addRows(count) {
+        const tbody = document.getElementById('tableBody');
+        const productsOptions = `
+            <option value="">-- اختر المنتج --</option>
+            {% for p in products %}
+                <option value="{{ p.id }}">{{ p.name }} ({{ p.sku }})</option>
+            {% endfor %}
+        `;
+
+        for (let i = 0; i < count; i++) {
+            if (rowCount >= 20) {
+                alert("الحد الأقصى هو 20 صنف في الحركة الواحدة");
+                break;
+            }
+            
+            rowCount++;
+            const tr = document.createElement('tr');
+            tr.id = `row-${rowCount}`;
+            tr.className = 'group hover:bg-teal-50/30 transition-colors duration-150';
+            
+            tr.innerHTML = `
+                <td class="p-4 text-center text-gray-400 font-mono text-sm font-medium select-none">${rowCount}</td>
+                <td class="p-4">
+                    <select class="w-full border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm py-2.5 transition-shadow" 
+                            name="product_${rowCount}" onchange="updateRowStock(this)">
+                        ${productsOptions}
+                    </select>
+                </td>
+                <td class="p-4 text-center">
+                    <div class="stock-display inline-flex items-center justify-center px-3 py-1.5 rounded-md bg-gray-100 text-gray-500 font-bold text-sm min-w-[3rem] transition-colors">
+                        -
+                    </div>
+                </td>
+                <td class="p-4">
+                    <input type="number" step="0.01" min="0" class="w-full border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-center font-bold text-gray-800 py-2 transition-shadow" 
+                           name="qty_${rowCount}" placeholder="0">
+                </td>
+                <td class="p-4 text-center">
+                    <button onclick="removeRow(this)" class="text-gray-400 hover:text-red-500 hover:bg-red-50 transition-all p-2 rounded-full focus:outline-none focus:ring-2 focus:ring-red-200">
+                        <i class="fa-solid fa-trash-can"></i>
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        }
+    }
+
+    function removeRow(btn) {
+        const row = btn.closest('tr');
+        row.remove();
+        // Note: keeping rowCount incrementing to ensure unique IDs, not re-indexing visual numbers for simplicity/performance
+    }
+
+    function updateRowStock(selectElement) {
+        const productId = selectElement.value;
+        const row = selectElement.closest('tr');
+        const stockDisplay = row.querySelector('.stock-display');
+        
+        if (productId && stockMap[productId] !== undefined) {
+            const qty = stockMap[productId];
+            stockDisplay.textContent = qty;
+            
+            // Remove old classes
+            stockDisplay.classList.remove('bg-gray-100', 'text-gray-500', 'bg-red-100', 'text-red-700', 'bg-green-100', 'text-green-700');
+            
+            if (qty <= 0) {
+                stockDisplay.classList.add('bg-red-100', 'text-red-700');
+            } else {
+                stockDisplay.classList.add('bg-green-100', 'text-green-700');
+            }
+        } else {
+            stockDisplay.textContent = productId ? "0" : "-";
+            stockDisplay.classList.remove('bg-red-100', 'text-red-700', 'bg-green-100', 'text-green-700');
+            stockDisplay.classList.add('bg-gray-100', 'text-gray-500');
+        }
+    }
+
+    function updateAllRowsStock() {
+        const selects = document.querySelectorAll('select[name^="product_"]');
+        selects.forEach(select => {
+            updateRowStock(select);
+        });
+    }
+
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+
+    async function submitTransfer() {
+        const fromWh = document.getElementById('from_warehouse').value;
+        const toWh = document.getElementById('to_warehouse').value;
+        const note = document.getElementById('transfer_note').value;
+
+        if (!fromWh || !toWh) {
+            alert("يرجى اختيار المخزن المصدر والوجهة");
+            return;
+        }
+
+        if (fromWh === toWh) {
+            alert("لا يمكن التحويل لنفس المخزن");
+            return;
+        }
+
+        const items = [];
+        const rows = document.querySelectorAll('#tableBody tr');
+        
+        for (const row of rows) {
+            const select = row.querySelector('select');
+            const input = row.querySelector('input');
+            const stockDisplay = row.querySelector('.stock-display');
+            
+            const productId = select.value;
+            const qty = parseFloat(input.value);
+            const available = parseFloat(stockDisplay.textContent);
+
+            if (productId && qty > 0) {
+                // Validation
+                if (isNaN(available) || qty > available) {
+                    alert(`الكمية المدخلة للصنف في أحد الصفوف أكبر من الرصيد المتاح (${available || 0})`);
+                    input.focus();
+                    input.classList.add('ring-2', 'ring-red-500');
+                    setTimeout(() => input.classList.remove('ring-2', 'ring-red-500'), 2000);
+                    return;
+                }
+                items.push({ product_id: productId, quantity: qty });
+            }
+        }
+
+        if (items.length === 0) {
+            alert("يرجى إضافة صنف واحد على الأقل مع كمية صحيحة");
+            return;
+        }
+
+        if (!confirm(`هل أنت متأكد من تحويل ${items.length} صنف من مخزن إلى مخزن؟`)) {
+            return;
+        }
+
+        try {
+            const response = await fetch("{% url 'bulk_transfer_save_api' %}", {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken')
+                },
+                body: JSON.stringify({
+                    from_warehouse_id: fromWh,
+                    to_warehouse_id: toWh,
+                    note: note,
+                    items: items
+                })
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                alert("تم التحويل بنجاح!");
+                window.location.href = "{% url 'warehouse_list' %}";
+            } else {
+                alert("فشل التحويل: " + result.error);
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            alert("حدث خطأ أثناء المعالجة");
+        }
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,62 @@
+{% extends 'base.html' %}
+{% load humanize %}
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto space-y-5">
+    <div class="flex items-center justify-between">
+        <h1 class="text-2xl font-black text-gray-800">سجل المرتجعات</h1>
+        <a href="{% url 'refund_view' %}" class="px-4 py-2 bg-red-600 text-white rounded-lg font-bold text-sm">+ مرتجع جديد</a>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="bg-white p-4 rounded-xl border"><p class="text-xs text-gray-500 font-bold">عدد المرتجعات</p><p class="text-2xl font-black text-red-600">{{ count }}</p></div>
+        <div class="bg-white p-4 rounded-xl border"><p class="text-xs text-gray-500 font-bold">إجمالي المسترد</p><p class="text-2xl font-black text-red-500 dir-ltr">{{ total|floatformat:2|intcomma }}</p></div>
+    </div>
+
+    <form method="get" class="flex flex-wrap items-end gap-3 bg-white p-4 rounded-xl border">
+        <div><label class="block text-xs font-bold text-gray-500 mb-1">بحث</label><input name="q" value="{{ q }}" placeholder="رقم/سبب/عميل" class="p-2 border rounded-lg"></div>
+        <div><label class="block text-xs font-bold text-gray-500 mb-1">السبب</label>
+            <select name="cat" class="p-2 border rounded-lg">
+                <option value="">الكل</option>
+                {% for val,label in reason_choices %}<option value="{{ val }}" {% if cat == val %}selected{% endif %}>{{ label }}</option>{% endfor %}
+            </select>
+        </div>
+        <div><label class="block text-xs font-bold text-gray-500 mb-1">من</label><input type="date" name="date_from" value="{{ date_from }}" class="p-2 border rounded-lg"></div>
+        <div><label class="block text-xs font-bold text-gray-500 mb-1">إلى</label><input type="date" name="date_to" value="{{ date_to }}" class="p-2 border rounded-lg"></div>
+        <button class="px-4 py-2 bg-indigo-600 text-white rounded-lg font-bold">تصفية</button>
+        {% if q or cat or date_from or date_to %}<a href="{% url 'returns_register' %}" class="px-4 py-2 bg-gray-100 rounded-lg font-bold">مسح</a>{% endif %}
+    </form>
+
+    <div class="bg-white rounded-xl border overflow-hidden">
+        <table class="w-full text-sm">
+            <thead class="bg-gray-50 text-gray-500 text-xs">
+                <tr>
+                    <th class="py-3 px-4 text-right">رقم المرتجع</th>
+                    <th class="py-3 px-4 text-right">الفاتورة الأصلية</th>
+                    <th class="py-3 px-4 text-right">العميل</th>
+                    <th class="py-3 px-4 text-left">المبلغ</th>
+                    <th class="py-3 px-4 text-right">الطريقة</th>
+                    <th class="py-3 px-4 text-right">السبب</th>
+                    <th class="py-3 px-4 text-right">التاريخ</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y">
+                {% for r in returns %}
+                <tr class="hover:bg-gray-50">
+                    <td class="py-2 px-4 font-mono font-bold text-red-600">{{ r.display_number }}</td>
+                    <td class="py-2 px-4 font-mono text-gray-500">{% if r.original_order %}{{ r.original_order.display_number }}{% else %}—{% endif %}</td>
+                    <td class="py-2 px-4">{{ r.customer.first_name|default:'عميل نقدي' }} {{ r.customer.last_name|default:'' }}</td>
+                    <td class="py-2 px-4 text-left dir-ltr font-bold">{{ r.total_refund_amount|floatformat:2|intcomma }}</td>
+                    <td class="py-2 px-4 text-xs">{{ r.get_refund_method_display }}</td>
+                    <td class="py-2 px-4 text-xs text-gray-600">{{ r.get_reason_category_display|default:r.reason|truncatechars:40 }}</td>
+                    <td class="py-2 px-4 text-gray-500 whitespace-nowrap">{{ r.created_at|date:"Y-m-d H:i" }}</td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="7" class="py-8 text-center text-gray-400">لا توجد مرتجعات</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

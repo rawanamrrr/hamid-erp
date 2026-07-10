@@ -1,0 +1,8 @@
+{% extends "admin/base_site.html" %}
+
+{% block usertools %}
+<div id="user-tools">
+    <strong>Dev Account: {{ request.session.licensing_dev_username|default:"dev" }}</strong> |
+    <a href="{% url 'licensing_dev_logout' %}">Log out</a>
+</div>
+{% endblock %}

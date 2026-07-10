@@ -1,0 +1,29 @@
+{% extends 'base.html' %}
+{% block title %}ريبورت المبيعات بالقسم{% endblock %}
+{% block content %}
+<div class="p-4">
+    <h1 class="text-2xl font-bold mb-4">مبيعات كل قسم{% if branch %} — {{ branch.name }}{% endif %}</h1>
+    <table class="w-full bg-white rounded-xl border overflow-hidden">
+        <thead class="bg-gray-50 text-sm text-gray-600">
+            <tr>
+                <th class="p-3 text-right">القسم</th>
+                <th class="p-3 text-right">نطاق الأكواد</th>
+                <th class="p-3 text-right">الكمية المباعة</th>
+                <th class="p-3 text-right">إجمالي المبيعات</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for r in rows %}
+            <tr class="border-t text-sm">
+                <td class="p-3">{{ r.category.name }}</td>
+                <td class="p-3 text-gray-500">{{ r.code_range }}</td>
+                <td class="p-3">{{ r.quantity }}</td>
+                <td class="p-3 font-bold">{{ r.revenue }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="4" class="p-4 text-center text-gray-500">لا توجد بيانات مبيعات بعد.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

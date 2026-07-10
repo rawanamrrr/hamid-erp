@@ -1,0 +1,489 @@
+﻿{% extends 'base.html' %}
+
+{% block content %}
+<style>
+@media print {
+    /* Set page settings */
+    @page { margin: 5mm; size: A4 landscape; }
+
+    /* Hide standard UI elements */
+    body { background: #fff !important; }
+    aside, #sidebar, #sidebar-overlay, header, nav, #toast-container, .top-bar, .no-print, #deleteOrderModal { display: none !important; }
+    
+    /* Make the printed area take full space */
+    main { padding: 0 !important; margin: 0 !important; }
+    
+    /* Dedicated print report styles */
+    #invoices-print-report {
+        display: block !important;
+        direction: rtl;
+        font-family: 'Cairo', Arial, sans-serif;
+        color: #000;
+        background: white;
+    }
+
+    .report-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        border-bottom: 2px solid #000;
+        padding-bottom: 10px;
+        margin-bottom: 15px;
+    }
+
+    .report-title-section h1 { font-size: 18px; margin: 0 0 5px 0; }
+    .report-title-section p, .company-info p { font-size: 12px; margin: 2px 0; }
+
+    .report-summary {
+        margin-bottom: 15px;
+        background: #f5f5f5 !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+        padding: 8px 12px;
+        border: 1px solid #ddd;
+    }
+
+    .summary-table { width: 100%; border: none; }
+    .summary-table td { font-size: 13px; border: none; padding: 2px 10px; }
+
+    .report-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 11px;
+    }
+
+    .report-table th {
+        background: #333 !important;
+        color: white !important;
+        padding: 6px 8px;
+        text-align: right;
+        font-size: 12px;
+        border: 1px solid #555;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+
+    .report-table td {
+        padding: 5px 8px;
+        border: 1px solid #ddd;
+        text-align: right;
+        vertical-align: middle;
+    }
+
+    .report-table tr:nth-child(even) td {
+        background: #f9f9f9 !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+
+    .report-table tfoot .totals-row td {
+        background: #eee !important;
+        font-weight: bold;
+        border-top: 2px solid #000;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+
+    .report-table tr { page-break-inside: avoid; }
+    .report-header, .report-summary { page-break-inside: avoid; page-break-after: avoid; }
+    .report-footer {
+        page-break-before: avoid;
+        text-align: center;
+        margin-top: 15px;
+        font-size: 11px;
+        color: #666;
+    }
+}
+</style>
+
+<!-- Hidden Print Report (Only visible via @media print) -->
+<div id="invoices-print-report" style="display:none;" class="print-only">
+    <div class="report-header">
+        <div class="company-info" style="display:flex; flex-direction:column; gap:4px;">
+            {% if sys_settings.logo_base64 %}
+                <img src="{{ sys_settings.logo_base64 }}" class="report-logo" style="max-height:50px; object-fit:contain; align-self:flex-start;">
+            {% endif %}
+            <h2 style="font-size:16px; margin:0;">{{ sys_settings.shop_name|default:"اسم الشركة" }}</h2>
+            <p>{{ sys_settings.address|default:"" }} {% if sys_settings.phone %}— {{ sys_settings.phone }}{% endif %}</p>
+        </div>
+        <div class="report-title-section" style="text-align:left;">
+            <h1>تقرير المبيعات (سجل الفواتير)</h1>
+            <p>تاريخ الطباعة: {% now "Y-m-d H:i" %}</p>
+            {% if date_from or date_to %}
+                <p>الفترة: {{ date_from|default:"البداية" }} — {{ date_to|default:"اليوم" }}</p>
+            {% endif %}
+            {% if user_filter %}
+                {% for u in users %}
+                    {% if u.id|stringformat:"s" == user_filter|stringformat:"s" %}
+                        <p>الكاشير: {{ u.username }}</p>
+                    {% endif %}
+                {% endfor %}
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="report-summary">
+        <table class="summary-table">
+            <tr>
+                <td><strong>إجمالي المبيعات:</strong> {{ orders_total|floatformat:2 }} ج.م</td>
+                <td><strong>إجمالي التحصيل (كاش):</strong> {{ orders_collected|floatformat:2 }} ج.م</td>
+                <td><strong>عدد العمليات:</strong> {{ orders_count }}</td>
+            </tr>
+        </table>
+    </div>
+
+    <table class="report-table">
+        <thead>
+            <tr>
+                <th style="width: 8%;">رقم الفاتورة</th>
+                <th style="width: 15%;">التاريخ</th>
+                <th style="width: 25%;">العميل</th>
+                <th style="width: 15%;">المطلوب</th>
+                <th style="width: 15%;">المدفوع</th>
+                <th style="width: 22%;">الحالة</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for order in orders %}
+            <tr>
+                <td style="font-family: monospace; font-weight:bold; font-size: 13px;">{{ order.display_number }}</td>
+                <td>{{ order.created_at|date:"Y-m-d H:i" }}</td>
+                <td>
+                    {{ order.customer.first_name|default:"عميل نقدي" }} {{ order.customer.last_name|default:"" }}
+                    {% if order.customer %}<br><small style="color: #666;">{{ order.customer.phone }}</small>{% endif %}
+                </td>
+                <td style="font-weight:bold;">{{ order.total_amount|floatformat:2 }}</td>
+                <td style="color: green; font-weight:bold;">{{ order.received_amount|floatformat:2 }}</td>
+                <td style="font-weight: bold;">
+                    {% if order.remaining_amount <= 0 %}
+                        <span style="color: green;">مسدد ✓</span>
+                    {% else %}
+                        <span style="color: red;">متبقي {{ order.remaining_amount|floatformat:2 }}</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="6" style="text-align:center; padding: 20px;">لا توجد مبيعات في هذه الفترة</td></tr>
+            {% endfor %}
+        </tbody>
+        <tfoot>
+            <tr class="totals-row">
+                <td colspan="3"><strong>الإجمالي</strong></td>
+                <td><strong>{{ orders_total|floatformat:2 }}</strong></td>
+                <td><strong style="color: green;">{{ orders_collected|floatformat:2 }}</strong></td>
+                <td></td>
+            </tr>
+        </tfoot>
+    </table>
+
+    <div class="report-footer">
+        <p>--- نهاية التقرير ---</p>
+    </div>
+</div>
+
+<!-- Screen Layout Content -->
+<div class="space-y-6 no-print">
+    
+    <!-- 1. Stats Bar (Reflects Current Filter) -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <!-- Sales Value -->
+        <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex items-center justify-between">
+            <div>
+                <p class="text-sm text-gray-500 font-medium">إجمالي المبيعات</p>
+                <p class="text-2xl font-bold text-gray-800 mt-1">{{ orders_total|floatformat:2 }}</p>
+            </div>
+            <div class="p-3 bg-gray-100 rounded-full text-gray-600">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>
+            </div>
+        </div>
+
+        <!-- Collection (Cash Received) -->
+        <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex items-center justify-between border-b-4 border-b-green-500">
+            <div>
+                <p class="text-sm text-gray-500 font-medium">إجمالي التحصيل (كاش)</p>
+                <p class="text-2xl font-bold text-green-600 mt-1">{{ orders_collected|floatformat:2 }} <span class="text-xs text-gray-400">ج.م</span></p>
+            </div>
+            <div class="p-3 bg-green-50 rounded-full text-green-600">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            </div>
+        </div>
+
+        <!-- Count -->
+        <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex items-center justify-between">
+            <div>
+                <p class="text-sm text-gray-500 font-medium">عدد العمليات</p>
+                <p class="text-2xl font-bold text-blue-600 mt-1">{{ orders_count }}</p>
+            </div>
+            <div class="p-3 bg-blue-50 rounded-full text-blue-600">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path></svg>
+            </div>
+        </div>
+
+        <!-- Actions -->
+        <a href="{% url 'pos_view' %}" class="bg-gray-800 hover:bg-gray-900 text-white p-4 rounded-xl shadow-sm border border-gray-700 flex items-center justify-center gap-3 transition group">
+            <div class="p-2 bg-gray-700 rounded-full group-hover:bg-gray-600 transition">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+            </div>
+            <span class="text-lg font-bold">نقطة بيع جديدة</span>
+        </a>
+    </div>
+
+    <!-- 2. advanced Search & Filter Bar -->
+    <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 animate-fade-in-down smooth-transition hover:shadow-md">
+        <div class="flex flex-wrap items-center justify-between gap-4 mb-4 border-b border-gray-100 pb-4">
+            <a href="{% url 'voided_register' %}" class="inline-flex items-center gap-1 px-3 py-1.5 bg-red-50 text-red-600 border border-red-100 rounded-lg text-xs font-bold hover:bg-red-600 hover:text-white transition print:hidden">
+                <i class="fas fa-ban"></i> سجل الفواتير الملغاة
+            </a>
+            <a href="{% url 'quotation_list' %}" class="inline-flex items-center gap-1 px-3 py-1.5 bg-teal-50 text-teal-600 border border-teal-100 rounded-lg text-xs font-bold hover:bg-teal-600 hover:text-white transition print:hidden">
+                <i class="fas fa-file-lines"></i> عروض الأسعار
+            </a>
+            <div class="flex items-center gap-2">
+                <div class="w-1.5 h-6 bg-teal-500 rounded-full animate-pulse"></div>
+                <h3 class="font-bold text-gray-800">خيارات التصفية</h3>
+            </div>
+            
+            <!-- Quick Ranges -->
+            <div class="flex items-center gap-1 bg-gray-50 p-1 rounded-lg border border-gray-200">
+                <button type="button" onclick="setRange('today')" class="px-3 py-1.5 text-xs font-bold rounded-md smooth-transition hover:bg-white hover:shadow-sm text-gray-600 btn-press">اليوم</button>
+                <button type="button" onclick="setRange('yesterday')" class="px-3 py-1.5 text-xs font-bold rounded-md smooth-transition hover:bg-white hover:shadow-sm text-gray-600 btn-press">أمس</button>
+                <button type="button" onclick="setRange('7days')" class="px-3 py-1.5 text-xs font-bold rounded-md smooth-transition hover:bg-white hover:shadow-sm text-gray-600 btn-press">أخر 7 أيام</button>
+                <button type="button" onclick="setRange('thisMonth')" class="px-3 py-1.5 text-xs font-bold rounded-md smooth-transition hover:bg-white hover:shadow-sm text-gray-600 btn-press">هذا الشهر</button>
+            </div>
+        </div>
+
+        <form id="filterForm" method="get" class="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-6 gap-3 items-end">
+            <!-- Date From -->
+            <div class="col-span-1">
+                <label class="block text-[10px] font-bold text-gray-400 mb-1 mr-1 uppercase">من تاريخ</label>
+                <div class="relative group cursor-pointer" onclick="this.querySelector('input').showPicker()">
+                    <input type="date" id="date_from" name="date_from" value="{{ request.GET.date_from }}" class="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 focus:bg-white smooth-transition cursor-pointer">
+                    <div class="absolute inset-y-0 left-3 flex items-center pointer-events-none text-gray-400 group-hover:text-teal-500 smooth-transition">
+                        <i class="fas fa-calendar-alt text-xs"></i>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Date To -->
+            <div class="col-span-1">
+                <label class="block text-[10px] font-bold text-gray-400 mb-1 mr-1 uppercase">إلى تاريخ</label>
+                <div class="relative group cursor-pointer" onclick="this.querySelector('input').showPicker()">
+                    <input type="date" id="date_to" name="date_to" value="{{ request.GET.date_to }}" class="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 focus:bg-white smooth-transition cursor-pointer">
+                    <div class="absolute inset-y-0 left-3 flex items-center pointer-events-none text-gray-400 group-hover:text-teal-500 smooth-transition">
+                        <i class="fas fa-calendar-alt text-xs"></i>
+                    </div>
+                </div>
+            </div>
+
+            <!-- User Filter -->
+            <div class="col-span-1">
+                <label class="block text-[10px] font-bold text-gray-400 mb-1 mr-1 uppercase">الموظف (الكاشير)</label>
+                <select name="user" class="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 focus:bg-white smooth-transition bg-white appearance-none">
+                    <option value="">الكل</option>
+                    {% for u in users %}
+                    <option value="{{ u.id }}" {% if request.GET.user == u.id|stringformat:"s" %}selected{% endif %}>{{ u.username }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- General Search -->
+            <div class="col-span-2">
+                <label class="block text-[10px] font-bold text-gray-400 mb-1 mr-1 uppercase">بحث (رقم الفاتورة / اسم العميل / هاتف)</label>
+                <div class="relative group">
+                    <input type="text" name="q" value="{{ request.GET.q }}" placeholder="بحث..." class="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 focus:bg-white smooth-transition pl-10">
+                    <svg class="w-4 h-4 absolute left-3 top-3 text-gray-400 group-hover:text-teal-500 smooth-transition" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                </div>
+            </div>
+
+            <!-- Filter Actions -->
+            <div class="col-span-1 flex gap-2">
+                <button type="submit" class="flex-1 bg-teal-600 text-white py-2.5 rounded-xl text-sm font-bold smooth-transition hover:bg-teal-700 hover:shadow-lg shadow-teal-100 btn-press">تصفية</button>
+                
+                <a href="{% url 'order_list' %}" class="px-4 py-2.5 bg-gray-100 text-gray-600 rounded-xl text-sm font-bold smooth-transition hover:bg-gray-200 flex items-center justify-center btn-press" title="مسح الفلاتر">✕</a>
+            </div>
+        </form>
+    </div>
+
+    <!-- 3. Orders Table -->
+    <div class="bg-white rounded-lg shadow overflow-hidden border border-gray-200">
+        <div class="overflow-x-auto">
+            <table class="w-full text-right">
+                <thead class="bg-gray-50 text-gray-600 font-medium border-b text-xs uppercase">
+                    <tr>
+                        <th class="py-3 px-4">رقم الفاتورة</th>
+                        <th class="py-3 px-4">التاريخ</th>
+                        <th class="py-3 px-4">العميل</th>
+                        <th class="py-3 px-4">المطلوب</th>
+                        <th class="py-3 px-4">المدفوع</th>
+                        <th class="py-3 px-4 text-center">الإجراءات والطباعة</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100 text-sm">
+                    {% for order in orders %}
+                    <tr class="hover:bg-gray-50 transition {% if order.status == 'void' %}opacity-60 bg-red-50{% endif %}">
+                        <td class="py-3 px-4 font-mono font-bold text-indigo-600">
+                            {{ order.display_number }}
+                            {% if order.status == 'void' %}<span class="ml-1 inline-block px-1.5 py-0.5 text-[9px] font-black text-white bg-red-600 rounded">ملغاة</span>{% endif %}
+                            {% if order.revision_no %}<span class="ml-1 inline-block px-1.5 py-0.5 text-[9px] font-bold text-amber-700 bg-amber-100 rounded" title="عدد التعديلات">معدّلة ×{{ order.revision_no }}</span>{% endif %}
+                            {% if order.has_oversold and can_view_profit %}<a href="{% url 'oversold_register' %}?q={{ order.display_number }}" class="ml-1 inline-block px-1.5 py-0.5 text-[9px] font-black text-white bg-orange-500 rounded" title="تحتوي على صنف بيع بكمية أكبر من المتاح">⚠ تجاوز مخزون</a>{% endif %}
+                        </td>
+                        <td class="py-3 px-4 text-gray-500 text-xs">{{ order.created_at|date:"Y-m-d H:i" }}</td>
+                        <td class="py-3 px-4">
+                            <span class="font-bold text-gray-800">{{ order.customer.first_name|default:"عميل نقدي" }}</span>
+                            {% if order.customer %}<div class="text-[10px] text-gray-400">{{ order.customer.phone }}</div>{% endif %}
+                        </td>
+                        <td class="py-3 px-4 font-bold">{{ order.total_amount|floatformat:2 }}</td>
+                        <td class="py-3 px-4 font-bold text-green-600">{{ order.received_amount|floatformat:2 }}
+                            {% if order.outstanding > 0 %}<div class="text-[10px] font-bold text-red-500">متبقٍ: {{ order.outstanding|floatformat:2 }}</div>{% endif %}
+                        </td>
+                        <td class="py-3 px-4 text-center">
+                            <div class="flex items-center justify-center gap-2">
+                                
+                                <!-- 1. Shipping Link -->
+                                {% if order.shipment %}
+                                <a href="{% url 'shipping_dashboard' %}?q={{ order.id }}" class="text-blue-600 hover:scale-110 transition" title="عرض الشحنة"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg></a>
+                                {% else %}
+                                <a href="{% url 'create_shipment' order.id %}" class="text-gray-400 hover:text-teal-600 transition" title="شحن"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"></path></svg></a>
+                                {% endif %}
+
+                                <span class="text-gray-200">|</span>
+
+                                <!-- 2. Browser Print / Popups -->
+                                <div class="flex gap-1 bg-gray-50 p-1 rounded-lg border">
+                                    <button onclick="openThermalPopup('{{ order.id }}')" class="px-1.5 py-0.5 text-[10px] font-bold bg-white text-blue-600 border rounded shadow-sm hover:bg-blue-600 hover:text-white transition" title="Thermal View">T</button>
+                                    <a href="{% url 'download_invoice_pdf' order.id %}?size=a4" class="px-1.5 py-0.5 text-[10px] font-bold bg-white text-gray-600 border rounded shadow-sm hover:text-indigo-600 transition" title="A4 PDF">A4</a>
+                                    <a href="{% url 'download_invoice_pdf' order.id %}?size=a5" class="px-1.5 py-0.5 text-[10px] font-bold bg-white text-gray-600 border rounded shadow-sm hover:text-purple-600 transition" title="A5 PDF">A5</a>
+                                </div>
+
+                                <!-- 3. Direct Silent Print (Fast) -->
+                                 <!-- 3. Actions -->
+                                 <div class="flex gap-1 justify-center">
+                                     <!-- Edit Button -->
+                                     <a href="{% url 'pos_view' %}?order_id={{ order.id }}" class="w-8 h-8 flex items-center justify-center rounded-full bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-600 hover:text-white transition" title="تعديل الفاتورة">
+                                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                                     </a>
+                                     <!-- Delete Button -->
+                                     <button onclick="openDeleteModal('{{ order.id }}')" class="w-8 h-8 flex items-center justify-center rounded-full bg-red-50 text-red-600 border border-red-200 hover:bg-red-600 hover:text-white transition" title="حذف الفاتورة">
+                                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                     </button>
+                                 </div>
+
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="6" class="py-10 text-center text-gray-500">لا توجد مبيعات حالياً</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+    /** Opens a thermal popup for browser printing */
+    function openThermalPopup(orderId) {
+        const url = `/sales/invoice/${orderId}/?style=thermal`;
+        const width = 450;
+        const left = (screen.width / 2) - (width / 2);
+        window.window.open(url, 'ThermalPrint', `width=${width},height=700,left=${left},top=100,menubar=no,status=no`);
+    }
+
+    /** Delete Order Logic **/
+    let orderIdToDelete = null;
+
+    function openDeleteModal(orderId) {
+        orderIdToDelete = orderId;
+        document.getElementById('deleteReason').value = '';
+        document.getElementById('deleteError').classList.add('hidden');
+        document.getElementById('deleteOrderModal').classList.remove('hidden');
+        document.getElementById('deleteReason').focus();
+    }
+
+    function closeDeleteModal() {
+        document.getElementById('deleteOrderModal').classList.add('hidden');
+        orderIdToDelete = null;
+    }
+
+    function confirmDelete() {
+        const reason = document.getElementById('deleteReason').value.trim();
+        if (!reason) {
+            document.getElementById('deleteError').classList.remove('hidden');
+            return;
+        }
+
+        const btn = document.getElementById('confirmDeleteBtn');
+        const originalText = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="inline-block animate-spin mr-2">↻</span> جاري الحذف...';
+
+        fetch('/sales/api/delete-order/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            body: JSON.stringify({
+                order_id: orderIdToDelete,
+                reason: reason
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                Swal.fire({
+                    icon: 'success',
+                    title: 'تم الحذف',
+                    text: data.message,
+                    confirmButtonText: 'تم'
+                }).then(() => {
+                    location.reload();
+                });
+            } else {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'خطأ',
+                    text: data.message,
+                    confirmButtonText: 'حسناً'
+                });
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
+        })
+        .catch(() => {
+            Swal.fire({
+                icon: 'error',
+                title: 'خطأ',
+                text: 'فشل الاتصال بالخادم'
+            });
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        });
+    }
+</script>
+
+<!-- Delete Order Modal -->
+<div id="deleteOrderModal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50 flex items-center justify-center p-4">
+    <div class="relative bg-white rounded-xl shadow-2xl max-w-md w-full p-6 animate__animated animate__fadeInDown animate__faster" dir="rtl">
+        <div class="mb-4 text-center">
+            <div class="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+            </div>
+            <h3 class="text-xl font-bold text-gray-900">حذف الفاتورة</h3>
+            <p class="text-gray-500 mt-1">هل أنت متأكد من حذف هذه الفاتورة؟ سيتم عكس جميع الحركات المالية والمخزنية بشكل نهائي.</p>
+        </div>
+
+        <div class="mb-4">
+            <label class="block text-sm font-medium text-gray-700 mb-1">سبب الحذف (مطلوب)</label>
+            <textarea id="deleteReason" rows="3" class="w-full border-gray-300 rounded-lg shadow-sm focus:border-red-500 focus:ring-red-500 text-sm" placeholder="اكتب سبب الحذف هنا..."></textarea>
+            <p id="deleteError" class="text-red-500 text-xs mt-1 hidden font-bold">يرجى إدخال سبب الحذف</p>
+        </div>
+
+        <div class="flex gap-3 justify-center">
+            <button onclick="closeDeleteModal()" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition text-sm font-medium">إلغاء</button>
+            <button id="confirmDeleteBtn" onclick="confirmDelete()" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition text-sm font-medium flex items-center gap-2">
+                <span>تأكيد الحذف النهائي</span>
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}

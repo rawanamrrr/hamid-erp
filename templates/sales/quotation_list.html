@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+{% load humanize %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+<div class="max-w-5xl mx-auto space-y-5">
+    <h1 class="text-2xl font-black text-gray-800">عروض الأسعار</h1>
+
+    <form method="post" action="{% url 'quotation_create' %}" class="flex flex-wrap items-end gap-3 bg-white p-4 rounded-xl border">
+        {% csrf_token %}
+        <div>
+            <label class="block text-xs font-bold text-gray-500 mb-1">العميل</label>
+            <select name="customer_id" class="p-2 border rounded-lg">
+                <option value="">— عميل نصي —</option>
+                {% for c in customers %}<option value="{{ c.id }}">{{ c.first_name }} {{ c.last_name }}</option>{% endfor %}
+            </select>
+        </div>
+        <div><label class="block text-xs font-bold text-gray-500 mb-1">اسم نصي (إن لم يكن مسجلاً)</label><input name="customer_name" class="p-2 border rounded-lg" placeholder="اختياري"></div>
+        <div><label class="block text-xs font-bold text-gray-500 mb-1">صالح حتى</label><input type="date" name="valid_until" class="p-2 border rounded-lg"></div>
+        <button class="px-4 py-2 bg-teal-600 text-white rounded-lg font-bold">+ عرض سعر جديد</button>
+    </form>
+
+    <div class="bg-white rounded-xl border overflow-hidden">
+        <table class="w-full text-sm">
+            <thead class="bg-gray-50 text-gray-500 text-xs"><tr>
+                <th class="py-3 px-4 text-right">الرقم</th><th class="py-3 px-4 text-right">العميل</th>
+                <th class="py-3 px-4 text-right">الحالة</th><th class="py-3 px-4 text-left">الإجمالي</th>
+                <th class="py-3 px-4 text-right">صالح حتى</th><th class="py-3 px-4"></th>
+            </tr></thead>
+            <tbody class="divide-y">
+                {% for q in quotes %}
+                <tr class="hover:bg-gray-50">
+                    <td class="py-2 px-4 font-mono font-bold text-indigo-600">{{ q.display_number }}</td>
+                    <td class="py-2 px-4">{{ q.display_customer }}</td>
+                    <td class="py-2 px-4"><span class="px-2 py-0.5 rounded text-xs font-bold {% if q.status == 'accepted' %}bg-green-100 text-green-700{% elif q.status == 'rejected' %}bg-red-100 text-red-700{% elif q.status == 'converted' %}bg-indigo-100 text-indigo-700{% else %}bg-gray-100 text-gray-600{% endif %}">{{ q.get_status_display }}</span></td>
+                    <td class="py-2 px-4 text-left dir-ltr font-bold">{{ q.total|floatformat:2|intcomma }}</td>
+                    <td class="py-2 px-4 text-gray-500">{{ q.valid_until|date:"Y-m-d"|default:"—" }}</td>
+                    <td class="py-2 px-4 text-left"><a href="{% url 'quotation_detail' q.id %}" class="text-indigo-600 font-bold hover:underline">فتح</a></td>
+                </tr>
+                {% empty %}<tr><td colspan="6" class="py-8 text-center text-gray-400">لا توجد عروض أسعار</td></tr>{% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

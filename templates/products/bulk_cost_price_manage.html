@@ -1,0 +1,244 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="mb-8 flex justify-between items-center">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-800 tracking-tight">تعديل أسعار التكلفة</h1>
+        <p class="text-gray-500 text-sm mt-1">تعديل أسعار التكلفة للمنتجات بشكل مجمع</p>
+    </div>
+    <a href="{% url 'product_list' %}" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-all font-bold">عودة للمنتجات</a>
+</div>
+
+<!-- Quick Adjust Panel -->
+<div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 mb-6">
+    <div class="flex flex-col md:flex-row gap-6 items-end">
+        <!-- 1. Global Adjustment -->
+        <div class="flex-1">
+            <label class="block text-xs font-bold text-gray-400 mb-2 uppercase text-right">تعديل سريع (ج.م)</label>
+            <div class="flex items-center gap-2">
+                <button onclick="decrementAdjustment()" class="w-10 h-10 flex items-center justify-center bg-gray-100 hover:bg-gray-200 rounded-xl font-bold text-lg text-gray-600 transition-all">−</button>
+                <input type="number" id="globalAdjustment" value="0" step="0.5" class="w-24 h-10 text-center bg-gray-50 border border-gray-200 rounded-xl font-bold text-lg outline-none focus:ring-2 focus:ring-blue-500">
+                <button onclick="incrementAdjustment()" class="w-10 h-10 flex items-center justify-center bg-gray-100 hover:bg-gray-200 rounded-xl font-bold text-lg text-gray-600 transition-all">+</button>
+                
+                <div class="flex gap-2 mr-4">
+                    <button onclick="applyAdjustment('all')" class="px-4 py-2 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-all shadow-sm">تطبيق على الكل</button>
+                    <button onclick="applyAdjustment('selected')" class="px-4 py-2 bg-blue-50 text-blue-700 border border-blue-200 rounded-xl font-bold hover:bg-blue-100 transition-all">تطبيق على المحدد</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. Search/Filter -->
+        <div class="flex gap-4 items-end border-r border-gray-100 pr-6">
+            <div class="relative">
+                <label class="block text-xs font-bold text-gray-400 mb-2 uppercase text-right">بحث سريع</label>
+                <input type="text" id="tableSearch" onkeyup="filterTable()" placeholder="اسم المنتج أو SKU..." class="w-64 px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold text-sm text-right">
+            </div>
+            
+            <button onclick="saveChanges()" id="saveBtn" class="px-8 py-2.5 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 shadow-md transition-all flex items-center gap-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path></svg>
+                حفظ التغييرات
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Product Table -->
+<div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+    <div class="overflow-x-auto max-h-[65vh] relative">
+        <table class="w-full text-right border-collapse" id="bulkPriceTable">
+            <thead class="bg-gray-50 sticky top-0 z-10 border-b border-gray-100">
+                <tr>
+                    <th class="py-4 px-6 text-center w-12">
+                        <input type="checkbox" id="selectAll" onclick="toggleSelectAll()" class="w-4 h-4 rounded text-blue-600 focus:ring-blue-500">
+                    </th>
+                    <th class="py-4 px-6 text-[12px] font-bold text-gray-500 uppercase">اسم المنتج / SKU</th>
+                    <th class="py-4 px-6 text-[12px] font-bold text-gray-500 uppercase text-center w-40">سعر التكلفة الحالي</th>
+                    <th class="py-4 px-6 text-[12px] font-bold text-gray-500 uppercase text-center w-40">التعديل (+/-)</th>
+                    <th class="py-4 px-6 text-[12px] font-bold text-gray-500 uppercase text-center w-40">السعر الجديد</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-50">
+                {% for p in products %}
+                <tr class="product-row hover:bg-blue-50/30 transition-colors" data-id="{{ p.id }}" data-current-price="{{ p.cost_price|stringformat:'.2f' }}">
+                    <td class="py-3 px-6 text-center">
+                        <input type="checkbox" class="row-checkbox w-4 h-4 rounded text-blue-600 focus:ring-blue-500">
+                    </td>
+                    <td class="py-3 px-6">
+                        <div class="font-bold text-gray-800 row-name">{{ p.name }}</div>
+                        <div class="text-xs text-gray-400 row-sku">{{ p.sku }} | {{ p.category.name|default:"عام" }}</div>
+                    </td>
+                    <td class="py-3 px-6 text-center">
+                        <span class="font-mono text-gray-600 font-bold">{{ p.cost_price|stringformat:'.2f' }}</span>
+                    </td>
+                    <td class="py-3 px-6 text-center">
+                        <div class="flex items-center justify-center gap-1 group">
+                            <button onclick="stepRowAdj(this, -1)" class="w-8 h-8 flex items-center justify-center bg-gray-50 hover:bg-gray-200 rounded-lg text-gray-500 font-bold">−</button>
+                            <input type="number" step="0.01" value="0.00" oninput="updateNewPrice(this)" class="row-adjustment w-20 text-center py-1 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none font-bold">
+                            <button onclick="stepRowAdj(this, 1)" class="w-8 h-8 flex items-center justify-center bg-gray-50 hover:bg-gray-200 rounded-lg text-gray-500 font-bold">+</button>
+                        </div>
+                    </td>
+                    <td class="py-3 px-6 text-center">
+                        <span class="new-price-preview font-mono text-gray-800 font-bold">{{ p.cost_price|stringformat:'.2f' }}</span>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="5" class="py-20 text-center text-gray-400 font-bold">لاتوجد منتجات لعرضها</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    // --- UI Controls ---
+    function incrementAdjustment() {
+        const input = document.getElementById('globalAdjustment');
+        input.value = (parseFloat(input.value) + 1).toFixed(2);
+    }
+    
+    function decrementAdjustment() {
+        const input = document.getElementById('globalAdjustment');
+        input.value = (parseFloat(input.value) - 1).toFixed(2);
+    }
+
+    function toggleSelectAll() {
+        const isChecked = document.getElementById('selectAll').checked;
+        document.querySelectorAll('.row-checkbox').forEach(cb => {
+            if (cb.closest('tr').style.display !== 'none') {
+                cb.checked = isChecked;
+            }
+        });
+    }
+
+    function filterTable() {
+        const input = document.getElementById('tableSearch');
+        const filter = input.value.toLowerCase();
+        const rows = document.querySelectorAll('.product-row');
+        
+        rows.forEach(row => {
+            const name = row.querySelector('.row-name').textContent.toLowerCase();
+            const sku = row.querySelector('.row-sku').textContent.toLowerCase();
+            if (name.includes(filter) || sku.includes(filter)) {
+                row.style.display = '';
+            } else {
+                row.style.display = 'none';
+                row.querySelector('.row-checkbox').checked = false;
+            }
+        });
+    }
+
+    // --- Price Logic ---
+    function stepRowAdj(btn, step) {
+        const input = btn.parentNode.querySelector('.row-adjustment');
+        let current = parseFloat(input.value) || 0;
+        input.value = (current + step).toFixed(2);
+        updateNewPrice(input);
+    }
+
+    function updateNewPrice(input) {
+        const row = input.closest('.product-row');
+        const currentPrice = parseFloat(row.dataset.currentPrice);
+        const adjustment = parseFloat(input.value) || 0;
+        const preview = row.querySelector('.new-price-preview');
+        
+        const newPrice = Math.max(0, currentPrice + adjustment);
+        preview.textContent = newPrice.toFixed(2);
+        
+        if (adjustment > 0) {
+            preview.className = 'new-price-preview font-mono text-green-600 font-bold';
+            input.classList.add('border-green-200', 'bg-green-50');
+            input.classList.remove('border-red-200', 'bg-red-50');
+        } else if (adjustment < 0) {
+            preview.className = 'new-price-preview font-mono text-red-600 font-bold';
+            input.classList.add('border-red-200', 'bg-red-50');
+            input.classList.remove('border-green-200', 'bg-green-50');
+        } else {
+            preview.className = 'new-price-preview font-mono text-gray-800 font-bold';
+            input.classList.remove('border-green-200', 'bg-green-50', 'border-red-200', 'bg-red-50');
+        }
+    }
+
+    function applyAdjustment(target) {
+        const adjValue = parseFloat(document.getElementById('globalAdjustment').value) || 0;
+        const rows = document.querySelectorAll('.product-row');
+        
+        let count = 0;
+        rows.forEach(row => {
+            if (row.style.display === 'none') return;
+            
+            const checkbox = row.querySelector('.row-checkbox');
+            if (target === 'all' || checkbox.checked) {
+                const adjInput = row.querySelector('.row-adjustment');
+                adjInput.value = adjValue.toFixed(2);
+                updateNewPrice(adjInput);
+                count++;
+            }
+        });
+        
+        if (count === 0 && target === 'selected') {
+            alert('يرجى تحديد منتجات أولاً');
+        }
+    }
+
+    // --- Save Logic ---
+    function saveChanges() {
+        const rows = document.querySelectorAll('.product-row');
+        const items = [];
+        
+        rows.forEach(row => {
+            const adjInput = row.querySelector('.row-adjustment');
+            const adj = parseFloat(adjInput.value) || 0;
+            
+            if (adj !== 0) {
+                const current = parseFloat(row.dataset.currentPrice);
+                const newPrice = Math.max(0, current + adj);
+                items.push({
+                    id: row.dataset.id,
+                    cost_price: newPrice.toFixed(2)
+                });
+            }
+        });
+
+        if (items.length === 0) {
+            alert('لم يتم إجراء أي تعديلات للحفظ');
+            return;
+        }
+
+        if (!confirm(`سيتم تحديث أسعار التكلفة لـ ${items.length} منتج. هل أنت متأكد؟`)) {
+            return;
+        }
+
+        const btn = document.getElementById('saveBtn');
+        const originalText = btn.innerHTML;
+        btn.innerHTML = 'جاري الحفظ...';
+        btn.disabled = true;
+
+        fetch('{% url "bulk_cost_price_save_api" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            body: JSON.stringify({ items })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                alert(data.message);
+                window.location.reload();
+            } else {
+                alert('خطأ: ' + data.error);
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+        })
+        .catch(err => {
+            alert('حدث خطأ أثناء الاتصال بالخادم');
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+        });
+    }
+</script>
+{% endblock %}

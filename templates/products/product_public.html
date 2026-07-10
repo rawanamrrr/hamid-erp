@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>{{ product.name }} | كتالوج المنتجات</title>
+    <!-- Tailwind CSS -->
+    <script src="/static/vendor/js/tailwind.js"></script>
+    <link href="/static/vendor/fonts/cairo.css" rel="stylesheet">
+    <!-- QRCode JS -->
+    <script src="/static/vendor/js/qrcode.min.js"></script>
+    <style>
+        body { font-family: 'Cairo', sans-serif; background-color: #f8fafc; }
+    </style>
+</head>
+<body class="antialiased text-slate-800">
+
+    <div class="max-w-md mx-auto bg-slate-50 min-h-screen shadow-2xl pb-8">
+        
+        <!-- App-like Header -->
+        <div class="bg-white px-6 py-6 rounded-b-[2rem] shadow-sm mb-6">
+            <!-- Logo & Brand Name (Matched with Sidebar) -->
+            <div class="flex items-center justify-center gap-3">
+                {% if sys_settings.logo_base64 %}
+                    <div class="w-12 h-12 flex items-center justify-center bg-white rounded-xl border border-slate-100 p-1">
+                        <img src="{{ sys_settings.logo_base64 }}" alt="Logo" class="max-w-full max-h-full object-contain">
+                    </div>
+                {% else %}
+                    <div class="p-2.5 bg-teal-600 text-white rounded-xl shadow-md flex-shrink-0">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                        </svg>
+                    </div>
+                {% endif %}
+                <h1 class="text-2xl font-black text-slate-800 tracking-tight">
+                    {{ sys_settings.shop_name|default:"تكس تايل POS" }}
+                </h1>
+            </div>
+        </div>
+
+        <!-- Product Card -->
+        <div class="px-5">
+            <div class="bg-white rounded-3xl p-6 shadow-sm border border-slate-100 mb-6 relative overflow-hidden">
+                <!-- Subtle Background Decoration -->
+                <div class="absolute -top-10 -left-10 w-32 h-32 bg-teal-50 rounded-full blur-3xl opacity-60"></div>
+                
+                <div class="relative z-10">
+                    <!-- Badges -->
+                    <div class="flex justify-between items-center mb-5">
+                        <span class="px-4 py-1.5 bg-teal-50 text-teal-700 text-xs font-bold rounded-full border border-teal-100">
+                            {% if product.category %}{{ product.category.name }}{% else %}قسم عام{% endif %}
+                        </span>
+                        <span class="text-xs font-mono font-bold text-slate-500 bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200">
+                            SKU: {{ product.sku }}
+                        </span>
+                    </div>
+
+                    <!-- Title & Price -->
+                    <h2 class="text-2xl font-black text-slate-900 leading-tight mb-4">{{ product.name }}</h2>
+
+                    <div class="flex items-baseline gap-2 pb-6 border-b border-slate-100 border-dashed">
+                        <span class="text-5xl font-black text-teal-600 tracking-tighter">{{ product.price_retail|floatformat:0 }}</span>
+                        <span class="text-lg font-bold text-slate-400">ج.م</span>
+                    </div>
+
+                    <!-- Specs List (Clean UI) -->
+                    <div class="mt-6 space-y-5">
+                        <!-- Material -->
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center text-teal-600">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"></path></svg>
+                                </div>
+                                <span class="font-bold text-slate-500 text-sm">الخامة</span>
+                            </div>
+                            <span class="font-bold text-slate-900 text-sm">{% if product.material %}{{ product.material }}{% else %}غير محدد{% endif %}</span>
+                        </div>
+                        
+                        <!-- Color & Pattern -->
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center text-teal-600">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"></path></svg>
+                                </div>
+                                <span class="font-bold text-slate-500 text-sm">النقشة واللون</span>
+                            </div>
+                            <div class="text-left">
+                                <span class="font-bold text-slate-900 text-sm block">{% if product.pattern %}{{ product.pattern }}{% else %}سادة{% endif %}</span>
+                                <span class="text-[11px] text-slate-400 font-semibold block mt-0.5">{% if product.color %}{{ product.color }}{% else %}بدون لون محدد{% endif %}</span>
+                            </div>
+                        </div>
+
+                        <!-- Unit -->
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center text-teal-600">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"></path></svg>
+                                </div>
+                                <span class="font-bold text-slate-500 text-sm">وحدة القياس</span>
+                            </div>
+                            <span class="font-bold text-slate-900 text-sm bg-slate-50 px-3 py-1 rounded-lg">{{ product.get_unit_measure_display }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- QR Share Section -->
+            <div class="bg-slate-900 rounded-3xl p-6 text-center relative overflow-hidden shadow-[0_10px_40px_-10px_rgba(0,0,0,0.3)]">
+                <!-- Color Bar Accent -->
+                <div class="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-teal-400 to-blue-500"></div>
+                
+                <h3 class="text-white font-bold text-lg mb-1 mt-2">شارك المنتج بسهولة</h3>
+                <p class="text-slate-400 text-[11px] mb-6">امسح الكود بكاميرا الموبايل لفتح هذه الصفحة</p>
+                
+                <div class="inline-block p-3.5 bg-white rounded-[1.2rem] shadow-xl" id="qrcode"></div>
+            </div>
+        </div>
+        
+    </div>
+
+    <script>
+        new QRCode(document.getElementById("qrcode"), {
+            text: "{{ public_url|escapejs }}",
+            width: 160,
+            height: 160,
+            colorDark : "#0f172a", // Slate 900
+            colorLight : "#ffffff",
+            correctLevel : QRCode.CorrectLevel.H
+        });
+    </script>
+</body>
+</html>

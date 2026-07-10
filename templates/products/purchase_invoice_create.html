@@ -1,0 +1,1362 @@
+﻿{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="max-w-[1800px] mx-auto flex flex-col gap-2" style="height:calc(100vh - 112px)" dir="rtl">
+
+    {% if invoice %}
+    <!-- Draft alert — compact single line -->
+    <div class="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl px-4 py-2 no-print flex-shrink-0">
+        <svg class="w-4 h-4 text-amber-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        <p class="text-xs text-amber-800 font-semibold flex-1">تعدّل مسودة <strong>#{{ invoice.id }}</strong> — لم تؤثر على المخازن أو الحسابات بعد.</p>
+        <a href="{% url 'purchase_invoice_detail' invoice.id %}" class="text-xs text-amber-700 underline font-bold whitespace-nowrap">عرض التفاصيل ←</a>
+    </div>
+    {% endif %}
+
+    <!-- ══ TOP BAR: Title + Meta fields in ONE row ══ -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100 px-4 py-2.5 flex-shrink-0 no-print">
+        <div class="flex items-center gap-3">
+            <!-- Title -->
+            <div class="flex items-center gap-2 flex-shrink-0">
+                <div class="p-1.5 {% if invoice %}bg-amber-50 text-amber-600{% else %}bg-indigo-50 text-indigo-600{% endif %} rounded-lg">
+                    {% if invoice %}
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                    {% else %}
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                    {% endif %}
+                </div>
+                <div class="hidden lg:block">
+                    <h1 class="text-sm font-black text-gray-800 leading-tight">{% if invoice %}تعديل #{{ invoice.id }}{% else %}فاتورة مشتريات جديدة{% endif %}</h1>
+                    <p class="text-[10px] text-gray-400">{% now "Y-m-d" %}</p>
+                </div>
+            </div>
+
+            <div class="w-px h-8 bg-gray-100 flex-shrink-0"></div>
+
+            <!-- Supplier -->
+            <div class="flex-[2] min-w-0">
+                <div class="flex items-center gap-1 mb-0.5">
+                    <label class="text-[10px] font-bold text-gray-400 whitespace-nowrap">المورد <span class="text-red-500">*</span></label>
+                    <button type="button" onclick="window.open(window.location.origin + '/products/suppliers/add/', '_blank')" class="text-[9px] text-indigo-500 hover:underline font-bold flex items-center gap-0.5 mr-auto"><i class="fas fa-plus-circle"></i> جديد</button>
+                </div>
+                <select id="supplierSelect" onchange="onSupplierChange()"
+                        class="w-full bg-gray-50 border border-gray-100 rounded-lg py-1.5 px-2.5 focus:ring-2 focus:ring-indigo-400 focus:bg-white outline-none font-bold text-gray-700 text-xs">
+                    <option value="">اختر المورد...</option>
+                    {% for s in suppliers %}
+                    <option value="{{ s.id }}"
+                            data-balance="{{ s.outstanding_balance }}"
+                            data-phone="{{ s.phone }}"
+                            data-profile="{% url 'supplier_profile' s.id %}">
+                        {{ s.name }}{% if s.outstanding_balance > 0 %} (دين: {{ s.outstanding_balance|floatformat:0 }}){% endif %}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Warehouse -->
+            <div class="flex-1 min-w-0">
+                <label class="text-[10px] font-bold text-gray-400 block mb-0.5">المخزن <span class="text-red-500">*</span></label>
+                <select id="warehouseSelect"
+                        class="w-full bg-gray-50 border border-gray-100 rounded-lg py-1.5 px-2.5 focus:ring-2 focus:ring-indigo-400 focus:bg-white outline-none font-bold text-gray-700 text-xs">
+                    {% for w in warehouses %}
+                    <option value="{{ w.id }}">{{ w.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Paper Invoice No -->
+            <div class="flex-1 min-w-0">
+                <label class="text-[10px] font-bold text-gray-400 block mb-0.5">رقم الفاتورة الورقية</label>
+                <input type="text" id="paperInvoiceNumber"
+                       class="w-full bg-gray-50 border border-gray-100 rounded-lg py-1.5 px-2.5 focus:ring-2 focus:ring-indigo-400 focus:bg-white outline-none font-bold text-gray-700 text-xs"
+                       placeholder="INV-1234">
+            </div>
+
+            <div class="w-px h-8 bg-gray-100 flex-shrink-0"></div>
+
+            <!-- Supplier mini-badge (shown after selecting supplier) -->
+            <div id="supplierBadge" class="hidden items-center gap-2 bg-indigo-50 rounded-lg px-2.5 py-1.5 flex-shrink-0">
+                <div class="w-6 h-6 rounded-md bg-indigo-600 text-white flex items-center justify-center text-[10px] font-black" id="sbInitial">?</div>
+                <div class="hidden xl:block">
+                    <p class="text-[10px] font-black text-gray-800 leading-none" id="sbName"></p>
+                    <p class="text-[9px] text-gray-500 mt-0.5" id="sbBalance"></p>
+                </div>
+                <a id="sbLink" href="#" class="text-indigo-500 hover:text-indigo-700 transition" title="ملف المورد">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                </a>
+            </div>
+
+            <!-- Actions -->
+            <div class="flex items-center gap-1.5 flex-shrink-0 mr-auto">
+                <a href="{% url 'purchase_invoice_list' %}" class="px-3 py-1.5 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 transition font-bold text-xs">سجل الفواتير</a>
+                {% if invoice %}
+                <a href="{% url 'purchase_invoice_detail' invoice.id %}" class="px-3 py-1.5 text-gray-500 hover:bg-gray-100 rounded-lg transition font-medium text-xs">تراجع</a>
+                {% else %}
+                <a href="{% url 'supplier_list' %}" class="px-3 py-1.5 text-gray-500 hover:bg-gray-100 rounded-lg transition font-medium text-xs">إلغاء</a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- ══ MAIN CONTENT ══ -->
+    <div class="flex flex-1 gap-3 min-h-0">
+
+        <!-- Left: Products Panel -->
+        <div class="flex-[3] flex flex-col gap-2 min-w-0">
+
+            <!-- Search Bar (compact) -->
+            <div class="bg-white rounded-xl shadow-sm border border-gray-100 px-3 py-2 flex-shrink-0">
+                <div class="flex items-center gap-2">
+                    <!-- Search Input -->
+                    <div class="flex-1 relative">
+                        <input type="text" id="productSearch"
+                               class="w-full bg-gray-50 border border-gray-100 rounded-lg py-2.5 pr-9 pl-3 focus:ring-2 focus:ring-indigo-400 focus:bg-white outline-none transition-all font-bold text-sm"
+                               placeholder="ابحث بالاسم أو الباركود أو SKU..."
+                               autocomplete="off">
+                        <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-gray-400">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                        </div>
+                        <div id="searchResults" class="absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.2)] border border-gray-100 z-[100] hidden max-h-[360px] overflow-y-auto"></div>
+                    </div>
+
+                    <!-- Buttons -->
+                    <button type="button" onclick="openQuickProductModal()"
+                            class="px-3 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition font-bold flex items-center gap-1.5 whitespace-nowrap active:scale-95 text-xs shadow-sm shadow-indigo-200">
+                        <i class="fas fa-plus"></i> إضافة صنف
+                    </button>
+                    <button type="button" onclick="performSearch('')"
+                            class="px-3 py-2.5 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 transition font-bold flex items-center gap-1.5 whitespace-nowrap text-xs">
+                        <i class="fas fa-list text-[11px]"></i> عرض الكل
+                    </button>
+
+                    <!-- Display Options -->
+                    <div class="relative">
+                        <button type="button" onclick="toggleDisplayOptionsDropdown()"
+                                class="px-3 py-2.5 bg-amber-50 text-amber-700 rounded-lg hover:bg-amber-100 transition font-bold flex items-center gap-1.5 whitespace-nowrap text-xs active:scale-95">
+                            <i class="fas fa-sliders-h text-[11px]"></i> عرض الخيارات
+                        </button>
+                        <div id="displayOptionsDropdown" class="absolute top-full left-0 mt-1.5 w-52 bg-white rounded-xl shadow-xl border border-gray-100 z-[110] hidden p-3 space-y-2 text-right">
+                            <h4 class="font-extrabold text-gray-700 text-[10px] border-b pb-1.5 mb-1.5 flex items-center gap-1"><i class="fas fa-eye text-indigo-500"></i> الأعمدة المرئية</h4>
+                            <label class="flex items-center gap-2 cursor-pointer select-none"><input type="checkbox" id="chkQty" checked onchange="toggleColumn('quantity', this.checked)" class="rounded text-indigo-600 w-3.5 h-3.5"><span class="text-xs font-bold text-gray-600">الكمية</span></label>
+                            <label class="flex items-center gap-2 cursor-pointer select-none"><input type="checkbox" id="chkBonus" checked onchange="toggleColumn('bonus', this.checked)" class="rounded text-indigo-600 w-3.5 h-3.5"><span class="text-xs font-bold text-gray-600">بونص</span></label>
+                            <label class="flex items-center gap-2 cursor-pointer select-none"><input type="checkbox" id="chkPrice" checked onchange="toggleColumn('price', this.checked)" class="rounded text-indigo-600 w-3.5 h-3.5"><span class="text-xs font-bold text-gray-600">سعر الشراء</span></label>
+                            <label class="flex items-center gap-2 cursor-pointer select-none"><input type="checkbox" id="chkDiscount" onchange="toggleColumn('discount', this.checked)" class="rounded text-indigo-600 w-3.5 h-3.5"><span class="text-xs font-bold text-gray-600">خصم الصنف</span></label>
+                            <label class="flex items-center gap-2 cursor-pointer select-none"><input type="checkbox" id="chkTax" onchange="toggleColumn('tax', this.checked)" class="rounded text-indigo-600 w-3.5 h-3.5"><span class="text-xs font-bold text-gray-600">ضريبة</span></label>
+                            <label class="flex items-center gap-2 cursor-pointer select-none"><input type="checkbox" id="chkBatch" checked onchange="toggleColumn('batch', this.checked)" class="rounded text-indigo-600 w-3.5 h-3.5"><span class="text-xs font-bold text-gray-600">الباتش</span></label>
+                            <label class="flex items-center gap-2 cursor-pointer select-none"><input type="checkbox" id="chkExpiry" checked onchange="toggleColumn('expiry', this.checked)" class="rounded text-indigo-600 w-3.5 h-3.5"><span class="text-xs font-bold text-gray-600">تاريخ الانتهاء</span></label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Cart Table -->
+            <div class="flex-1 bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex flex-col min-h-0">
+                <div class="overflow-x-auto overflow-y-auto flex-1">
+                    <table class="w-full text-right">
+                        <thead class="sticky top-0 z-10">
+                            <tr class="bg-gray-50 text-gray-500 text-[10px] font-extrabold uppercase tracking-wide border-b border-gray-100">
+                                <th class="px-2 py-2 text-right w-7">#</th>
+                                <th class="px-2 py-2">المنتج</th>
+                                <th class="px-2 py-2 text-center col-quantity">الكمية</th>
+                                <th class="px-2 py-2 text-center col-bonus">بونص</th>
+                                <th class="px-2 py-2 text-center col-price">سعر الشراء</th>
+                                <th class="px-2 py-2 text-center col-discount hidden">خصم</th>
+                                <th class="px-2 py-2 text-center col-tax hidden">ضريبة</th>
+                                <th class="px-2 py-2 text-center col-batch">الباتش</th>
+                                <th class="px-2 py-2 text-center col-expiry">الانتهاء</th>
+                                <th class="px-2 py-2 text-center">الإجمالي</th>
+                                <th class="px-2 py-2 w-6"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="cartItems" class="divide-y divide-gray-50"></tbody>
+                    </table>
+                </div>
+
+                <!-- Empty State -->
+                <div id="emptyState" class="flex-1 flex flex-col items-center justify-center text-gray-300 py-10">
+                    <div class="p-4 bg-gray-50 rounded-full mb-3">
+                        <svg class="w-10 h-10 text-indigo-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+                    </div>
+                    <p class="text-sm font-bold text-gray-500">لم يتم إضافة أي أصناف بعد</p>
+                    <p class="text-xs text-gray-400 mt-0.5">ابحث عن صنف أو أضف صنف جديد</p>
+                    <button type="button" onclick="openQuickProductModal()"
+                            class="mt-3 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg transition font-bold text-xs flex items-center gap-1 active:scale-95">
+                        <i class="fas fa-plus"></i> إضافة صنف جديد
+                    </button>
+                </div>
+
+                <!-- Footer -->
+                <div id="cartFooter" class="hidden border-t border-gray-100 bg-gray-50/80 px-4 py-2 flex items-center justify-between">
+                    <span class="text-gray-500 font-medium text-xs" id="cartItemCount">0 صنف</span>
+                    <span class="text-gray-700 font-black text-sm" id="cartFooterTotal">0.00 ج.م</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right: Payment Sidebar -->
+        <div class="flex-shrink-0 w-72 flex flex-col gap-2">
+
+            <!-- Payment Method -->
+            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-3">
+                <p class="text-[10px] font-extrabold text-gray-400 uppercase tracking-wide mb-2 flex items-center gap-1">
+                    <svg class="w-3 h-3 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+                    الدفع والخصم
+                </p>
+
+                <!-- Cash / Credit toggle -->
+                <div class="grid grid-cols-2 gap-1.5 mb-3">
+                    <button onclick="setPaymentMethod('cash')" id="btnCash"
+                            class="py-2 rounded-lg border-2 border-emerald-500 bg-emerald-50 text-emerald-700 font-extrabold text-xs active:scale-95 transition-all">
+                        💵 نقدي
+                    </button>
+                    <button onclick="setPaymentMethod('credit')" id="btnCredit"
+                            class="py-2 rounded-lg border-2 border-gray-100 text-gray-400 font-extrabold text-xs active:scale-95 transition-all hover:bg-gray-50">
+                        📋 آجل
+                    </button>
+                </div>
+
+                <!-- Account + Paid (cash only) -->
+                <div id="accountSection" class="space-y-2">
+                    <div>
+                        <label class="text-[10px] font-bold text-gray-400 block mb-0.5">حساب الدفع (خزنة/درج)</label>
+                        <select id="accountSelect"
+                                class="w-full bg-gray-50 border border-gray-100 rounded-lg py-1.5 px-2.5 focus:ring-2 focus:ring-indigo-400 focus:bg-white outline-none font-bold text-gray-700 text-xs">
+                            <option value="">— اختر حساب —</option>
+                            {% for acc in accounts %}
+                            <option value="{{ acc.id }}" {% if acc.name == "درج الكاشير" %}selected{% endif %}>{{ acc.name }} ({{ acc.balance|floatformat:0 }} ج.م)</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-bold text-gray-400 block mb-0.5">المبلغ المدفوع</label>
+                        <input type="number" id="paidAmount"
+                               class="w-full bg-gray-50 border border-gray-100 rounded-lg py-2 px-2.5 focus:ring-2 focus:ring-indigo-400 focus:bg-white outline-none font-black text-emerald-600 text-base text-center"
+                               value="0" min="0" step="0.01">
+                    </div>
+                    <!-- Remaining debt inline -->
+                    <div class="flex justify-between text-[10px] font-bold pt-1 border-t border-gray-50">
+                        <span class="text-gray-400">المتبقي كـ دين:</span>
+                        <span id="remainingDebtDisplay" class="font-extrabold text-gray-400">0.00 ج.م</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Invoice Discount -->
+            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-3">
+                <label class="text-[10px] font-bold text-gray-400 block mb-1.5">خصم الفاتورة الإجمالي</label>
+                <input type="number" id="invoiceDiscount"
+                       class="w-full bg-rose-50/60 border border-rose-100 rounded-lg py-2 px-2.5 focus:ring-2 focus:ring-rose-400 focus:bg-white outline-none font-bold text-rose-500 text-center text-sm"
+                       value="0" min="0" step="0.01" placeholder="0.00">
+            </div>
+
+            <!-- Landed cost (freight/customs) — Phase 7.2 -->
+            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-3">
+                <label class="text-[10px] font-bold text-gray-400 block mb-1.5">مصاريف إضافية (شحن/جمارك) — تُوزَّع على التكلفة</label>
+                <input type="number" id="invoiceLandedCost"
+                       class="w-full bg-amber-50/60 border border-amber-100 rounded-lg py-2 px-2.5 focus:ring-2 focus:ring-amber-400 focus:bg-white outline-none font-bold text-amber-600 text-center text-sm"
+                       value="{{ invoice.landed_cost|default_if_none:0|floatformat:2 }}" min="0" step="0.01" placeholder="0.00">
+            </div>
+
+            <!-- Totals Summary -->
+            <div class="bg-gradient-to-br from-gray-50 to-indigo-50/40 rounded-xl border border-gray-100 p-3 space-y-2">
+                <div class="flex justify-between text-[10px] font-bold text-gray-400">
+                    <span>إجمالي الأصناف</span>
+                    <span id="subtotalDisplay" class="text-gray-600">0.00</span>
+                </div>
+                <div class="flex justify-between text-[10px] font-bold text-rose-400">
+                    <span>إجمالي الخصم</span>
+                    <span id="discountDisplay">0.00</span>
+                </div>
+                <div id="taxDisplayRow" class="flex justify-between text-[10px] font-bold text-indigo-400 hidden">
+                    <span>إجمالي الضريبة</span>
+                    <span id="taxDisplay">0.00</span>
+                </div>
+                <div class="flex justify-between items-center pt-2 border-t border-gray-200">
+                    <span class="font-black text-gray-700 text-xs">الصافي النهائي</span>
+                    <span id="totalDisplay" class="text-xl font-black text-indigo-600">0.00</span>
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="flex flex-col gap-1.5">
+                <button onclick="submitInvoice('CONFIRMED')" id="submitBtn"
+                        class="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-extrabold text-xs shadow-lg shadow-emerald-100 hover:shadow-emerald-200 transition-all flex items-center justify-center gap-1.5 active:scale-[0.98]">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                    {% if invoice %}تأكيد وإدخال المخزن{% else %}تأكيد الفاتورة{% endif %}
+                </button>
+                <button onclick="submitInvoice('DRAFT')" id="draftBtn"
+                        class="w-full py-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-100 rounded-xl font-extrabold text-xs transition-all flex items-center justify-center gap-1.5 active:scale-[0.98]">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"/></svg>
+                    {% if invoice %}حفظ التعديلات مسودة{% else %}حفظ كمسودة{% endif %}
+                </button>
+                {% if invoice %}
+                <a href="{% url 'purchase_invoice_detail' invoice.id %}" class="w-full py-2 border border-gray-200 text-gray-500 rounded-xl font-bold text-xs text-center hover:bg-gray-50 transition flex items-center justify-center">تراجع وإلغاء</a>
+                {% else %}
+                <a href="{% url 'supplier_list' %}" class="w-full py-2 border border-gray-100 text-rose-400 rounded-xl font-bold text-xs text-center hover:bg-rose-50 transition flex items-center justify-center">إلغاء</a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ══ Quick Product Modal ══ -->
+<div id="quickProductModal" class="fixed inset-0 bg-gray-900/60 backdrop-blur-sm z-[200] hidden items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-md w-full shadow-2xl overflow-hidden border border-gray-100">
+        <div class="bg-indigo-600 px-5 py-3.5 flex justify-between items-center text-white">
+            <h3 class="font-bold text-base flex items-center gap-2">
+                <i class="fa-solid fa-plus-circle text-indigo-200"></i> إضافة صنف جديد
+            </h3>
+            <button onclick="closeQuickProductModal()" class="text-white/70 hover:text-white transition text-xl leading-none">&times;</button>
+        </div>
+        <form id="qpForm" onsubmit="event.preventDefault(); submitQuickProduct();" class="p-5 space-y-3 text-right" dir="rtl">
+            <div>
+                <label class="block text-xs font-bold text-gray-500 mb-1">اسم المنتج / الصنف <span class="text-red-500">*</span></label>
+                <input type="text" id="qpName" required
+                       class="w-full bg-gray-50 border border-gray-200 rounded-xl py-2.5 px-3 outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-semibold text-sm"
+                       placeholder="أدخل اسم الصنف">
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-xs font-bold text-gray-500 mb-1">الكود / SKU (اختياري)</label>
+                    <input type="text" id="qpSku"
+                           class="w-full bg-gray-50 border border-gray-200 rounded-xl py-2.5 px-3 outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-semibold text-sm"
+                           placeholder="توليد تلقائي">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-500 mb-1">وحدة البيع</label>
+                    <select id="qpUnit" class="w-full bg-gray-50 border border-gray-200 rounded-xl py-2.5 px-3 outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-semibold text-sm">
+                        {% for val, name in unit_choices %}
+                            <option value="{{ val }}" {% if val == 'PCS' %}selected{% endif %}>{{ name }} ({{ val }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            
+            <!-- Pharmacy-specific fields -->
+            {% if sys_settings.market_type == 'pharmacy' %}
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 mb-1">الاسم العلمي</label>
+                        <input type="text" id="qpScientificName"
+                               class="w-full bg-gray-50 border border-gray-200 rounded-xl py-2.5 px-3 outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-semibold text-sm"
+                               placeholder="الاسم العلمي">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 mb-1">نوع التعبئة <span class="text-red-500">*</span></label>
+                        <select id="qpPackagingType" class="w-full bg-gray-50 border border-gray-200 rounded-xl py-2.5 px-3 outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-semibold text-sm">
+                            <option value="">اختر نوع التعبئة</option>
+                            <option value="علبة">علبة</option>
+                            <option value="شريط">شريط</option>
+                            <option value="أمبول">أمبول</option>
+                            <option value="كرتون">كرتون</option>
+                            <option value="زجاجة">زجاجة</option>
+                            <option value="كيس">كيس</option>
+                            <option value="وحدة">وحدة</option>
+                        </select>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-500 mb-1">عدد الأشرطة في العلبة</label>
+                    <input type="number" id="qpStripsPerBox" value="1" min="1"
+                           class="w-full bg-gray-50 border border-gray-200 rounded-xl py-2.5 px-3 outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-semibold text-sm"
+                           placeholder="1">
+                </div>
+            {% endif %}
+
+            <!-- Clothes-specific fields -->
+            {% if sys_settings.market_type == 'clothes' %}
+                <div class="grid grid-cols-3 gap-3">
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 mb-1">الخامة</label>
+                        <input type="text" id="qpMaterial"
+                               class="w-full bg-gray-50 border border-gray-200 rounded-xl py-2.5 px-3 outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-semibold text-sm"
+                               placeholder="مثال: قطن">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 mb-1">النقشة / التصميم</label>
+                        <input type="text" id="qpPattern"
+                               class="w-full bg-gray-50 border border-gray-200 rounded-xl py-2.5 px-3 outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-semibold text-sm"
+                               placeholder="مثال: كاروهات">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 mb-1">اللون</label>
+                        <input type="text" id="qpColor"
+                               class="w-full bg-gray-50 border border-gray-200 rounded-xl py-2.5 px-3 outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-semibold text-sm"
+                               placeholder="اللون">
+                    </div>
+                </div>
+            {% endif %}
+
+            <!-- Electronics-specific fields -->
+            {% if sys_settings.market_type == 'electronics' %}
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 mb-1">اللون / الموديل</label>
+                        <input type="text" id="qpColor"
+                               class="w-full bg-gray-50 border border-gray-200 rounded-xl py-2.5 px-3 outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-semibold text-sm"
+                               placeholder="اللون">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 mb-1">المواصفات / المميزات</label>
+                        <input type="text" id="qpPattern"
+                               class="w-full bg-gray-50 border border-gray-200 rounded-xl py-2.5 px-3 outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-semibold text-sm"
+                               placeholder="المميزات">
+                    </div>
+                </div>
+            {% endif %}
+
+            <!-- Grocery/general fields -->
+            {% if sys_settings.market_type == 'grocery' or sys_settings.market_type == 'general' %}
+                <div class="grid grid-cols-3 gap-3">
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 mb-1">نوع التعبئة</label>
+                        <select id="qpPackagingType" class="w-full bg-gray-50 border border-gray-200 rounded-xl py-2.5 px-3 outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-semibold text-sm">
+                            <option value="">اختر نوع التعبئة</option>
+                            <option value="علبة">علبة</option>
+                            <option value="شريط">شريط</option>
+                            <option value="أمبول">أمبول</option>
+                            <option value="كرتون">كرتون</option>
+                            <option value="زجاجة">زجاجة</option>
+                            <option value="كيس">كيس</option>
+                            <option value="وحدة">وحدة</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 mb-1">اللون / الحجم</label>
+                        <input type="text" id="qpColor"
+                               class="w-full bg-gray-50 border border-gray-200 rounded-xl py-2.5 px-3 outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-semibold text-sm"
+                               placeholder="اللون">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 mb-1">وصف المواصفات</label>
+                        <input type="text" id="qpPattern"
+                               class="w-full bg-gray-50 border border-gray-200 rounded-xl py-2.5 px-3 outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-semibold text-sm"
+                               placeholder="الوصف">
+                    </div>
+                </div>
+            {% endif %}
+
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-xs font-bold text-gray-500 mb-1">سعر البيع (قطاعي) <span class="text-red-500">*</span></label>
+                    <input type="number" id="qpPrice" required step="0.01" min="0"
+                           class="w-full bg-teal-50 border border-teal-100 rounded-xl py-2.5 px-3 outline-none focus:ring-2 focus:ring-teal-500 transition-all font-bold text-teal-700 text-sm"
+                           placeholder="0.00">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-500 mb-1">سعر الشراء (التكلفة) <span class="text-red-500">*</span></label>
+                    <input type="number" id="qpCost" required step="0.01" min="0"
+                           class="w-full bg-amber-50 border border-amber-100 rounded-xl py-2.5 px-3 outline-none focus:ring-2 focus:ring-amber-500 transition-all font-bold text-amber-700 text-sm"
+                           placeholder="0.00">
+                </div>
+            </div>
+            <p class="text-[10px] text-gray-400 mb-2">سيتم حفظ باقي الأسعار مساوية للقطاعي افتراضياً.</p>
+
+            <!-- Multi-Unit Pricing Section -->
+            <div class="bg-indigo-50/50 border border-indigo-100 rounded-xl p-3 mb-2">
+                <label class="flex items-center gap-2 cursor-pointer mb-2">
+                    <input type="checkbox" id="qpHasSubUnit" onchange="toggleSubUnitFields()" class="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500">
+                    <span class="text-xs font-bold text-gray-700">المنتج يباع بالتجزئة (له وحدة فرعية مثل: شريط من علبة)</span>
+                </label>
+                
+                <div id="qpSubUnitFields" class="hidden grid grid-cols-3 gap-2 mt-2 pt-2 border-t border-indigo-100/50">
+                    <div>
+                        <label class="block text-[10px] font-bold text-gray-500 mb-1">الوحدة الفرعية</label>
+                        <select id="qpSubUnit" class="w-full bg-white border border-gray-200 rounded-lg py-1.5 px-2 outline-none focus:ring-2 focus:ring-indigo-500 text-xs font-bold text-gray-700">
+                            <option value="">اختر الوحدة</option>
+                            {% for val, name in unit_choices %}
+                                <option value="{{ val }}">{{ name }} ({{ val }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-bold text-gray-500 mb-1">العدد داخل الأساسية</label>
+                        <input type="number" id="qpSubUnitsPerMain" step="1" min="1" value="1" oninput="calcSubUnitPrice()"
+                               class="w-full bg-white border border-gray-200 rounded-lg py-1.5 px-2 outline-none focus:ring-2 focus:ring-indigo-500 text-xs font-bold text-gray-700 text-center">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-bold text-gray-500 mb-1">سعر الوحدة الفرعية</label>
+                        <input type="number" id="qpSubUnitPrice" step="0.01" min="0" value="0"
+                               class="w-full bg-teal-50 border border-teal-200 rounded-lg py-1.5 px-2 outline-none focus:ring-2 focus:ring-teal-500 text-xs font-bold text-teal-700 text-center">
+                    </div>
+                </div>
+            </div>
+            <div class="pt-3 border-t border-gray-100 flex gap-2 justify-end">
+                <button type="button" onclick="closeQuickProductModal()" class="px-4 py-2 border border-gray-200 text-gray-600 rounded-xl hover:bg-gray-50 transition font-bold text-sm">إلغاء</button>
+                <button type="submit" id="qpSubmitBtn" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl transition font-bold text-sm">إضافة صنف</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<style>
+    ::-webkit-scrollbar { width: 4px; height: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
+    ::-webkit-scrollbar-thumb:hover { background: #cbd5e1; }
+    input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+    input[type=number] { -moz-appearance: textfield; }
+    .cart-row-enter { animation: slideIn 0.15s ease-out; }
+    @keyframes slideIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
+    .price-badge-up   { color: #ef4444; font-size: 9px; font-weight: 700; white-space: nowrap; }
+    .price-badge-down { color: #10b981; font-size: 9px; font-weight: 700; white-space: nowrap; }
+    .price-badge-same { color: #9ca3af; font-size: 9px; white-space: nowrap; }
+</style>
+
+<script>
+    // ─── State ────────────────────────────────────────────────────
+    let cart       = {{ invoice_items_json|safe }};
+    let paymentMethod = 'cash';
+    let isSubmitting  = false;
+    let isPaidAmountManuallyEdited = false;
+    const INVOICE_ID  = {% if invoice %}{{ invoice.id }}{% else %}null{% endif %};
+    const PO_ID       = {% if po_id %}{{ po_id }}{% else %}null{% endif %};
+    const MARKET_TYPE = '{{ sys_settings.market_type|default:"general" }}';
+
+    const COLUMN_VISIBILITY_KEY = 'purchaseInvoiceColumnVisibility';
+    let columnVisibility = {
+        quantity: true, bonus: true, price: true,
+        discount: false, tax: false, batch: true, expiry: true
+    };
+    try {
+        const saved = JSON.parse(localStorage.getItem(COLUMN_VISIBILITY_KEY));
+        if (saved) Object.assign(columnVisibility, saved);
+    } catch (e) {}
+
+    function applyColumnVisibility() {
+        Object.keys(columnVisibility).forEach(col => {
+            const checked = columnVisibility[col];
+            document.querySelectorAll(`.col-${col}`).forEach(h => checked ? h.classList.remove('hidden') : h.classList.add('hidden'));
+            const chkId = {
+                quantity: 'chkQty', bonus: 'chkBonus', price: 'chkPrice',
+                discount: 'chkDiscount', tax: 'chkTax', batch: 'chkBatch', expiry: 'chkExpiry'
+            }[col];
+            const chk = document.getElementById(chkId);
+            if (chk) chk.checked = checked;
+            if (col === 'tax') {
+                const taxRow = document.getElementById('taxDisplayRow');
+                if (taxRow) checked ? taxRow.classList.remove('hidden') : taxRow.classList.add('hidden');
+            }
+        });
+    }
+    applyColumnVisibility();
+
+    // ─── Boot ─────────────────────────────────────────────────────
+    window.addEventListener('DOMContentLoaded', () => {
+        const urlParams  = new URLSearchParams(window.location.search);
+        const supplierId = urlParams.get('supplier_id');
+
+        {% if invoice %}
+        document.getElementById('supplierSelect').value = '{{ invoice.supplier.id }}';
+        onSupplierChange();
+        document.getElementById('warehouseSelect').value    = '{{ invoice.warehouse.id }}';
+        document.getElementById('paperInvoiceNumber').value = '{{ invoice.invoice_number|default:"" }}';
+        document.getElementById('invoiceDiscount').value    = '{{ invoice.discount|floatformat:2 }}';
+        document.getElementById('paidAmount').value         = '{{ invoice.paid_amount|floatformat:2 }}';
+        {% if invoice.payment_method == 'credit' %}setPaymentMethod('credit');
+        {% else %}setPaymentMethod('cash');{% endif %}
+        {% if invoice.account %}document.getElementById('accountSelect').value = '{{ invoice.account.id }}';{% endif %}
+
+        cart.forEach(item => {
+            if (parseFloat(item.discount) > 0) columnVisibility.discount = true;
+            if (parseFloat(item.tax_rate) > 0)  columnVisibility.tax = true;
+        });
+        if (cart.length > 0) { cart.sort((a,b) => a.name.localeCompare(b.name,'ar')); renderCart(); }
+        {% elif po %}
+        document.getElementById('supplierSelect').value = '{{ prefill_supplier_id }}';
+        onSupplierChange();
+        document.getElementById('warehouseSelect').value = '{{ prefill_warehouse_id }}';
+        if (cart.length > 0) { cart.sort((a,b) => a.name.localeCompare(b.name,'ar')); renderCart(); }
+        {% else %}
+        if (supplierId) { document.getElementById('supplierSelect').value = supplierId; onSupplierChange(); }
+        {% endif %}
+    });
+
+    // ─── Columns ──────────────────────────────────────────────────
+    function toggleDisplayOptionsDropdown() {
+        document.getElementById('displayOptionsDropdown').classList.toggle('hidden');
+    }
+    document.addEventListener('click', e => {
+        const btn      = document.querySelector('[onclick="toggleDisplayOptionsDropdown()"]');
+        const dropdown = document.getElementById('displayOptionsDropdown');
+        if (dropdown && btn && !dropdown.contains(e.target) && !btn.contains(e.target))
+            dropdown.classList.add('hidden');
+    });
+
+    function toggleColumn(col, checked) {
+        columnVisibility[col] = checked;
+        document.querySelectorAll(`.col-${col}`).forEach(h => checked ? h.classList.remove('hidden') : h.classList.add('hidden'));
+        if (col === 'tax') {
+            const taxRow = document.getElementById('taxDisplayRow');
+            checked ? taxRow.classList.remove('hidden') : taxRow.classList.add('hidden');
+        }
+        try { localStorage.setItem(COLUMN_VISIBILITY_KEY, JSON.stringify(columnVisibility)); } catch (e) {}
+        renderCart();
+    }
+
+    // ─── Supplier Badge ───────────────────────────────────────────
+    function onSupplierChange() {
+        const sel    = document.getElementById('supplierSelect');
+        const option = sel.options[sel.selectedIndex];
+        const badge  = document.getElementById('supplierBadge');
+        if (!option || !option.value) { badge.classList.add('hidden'); badge.classList.remove('flex'); return; }
+
+        const name    = option.text.split(' (')[0];
+        const balance = parseFloat(option.dataset.balance || 0);
+        document.getElementById('sbInitial').textContent  = name.charAt(0);
+        document.getElementById('sbName').textContent     = name;
+        document.getElementById('sbBalance').textContent  = balance > 0 ? `دين: ${balance.toFixed(0)} ج.م` : 'مسوّى ✓';
+        document.getElementById('sbBalance').className    = 'text-[9px] mt-0.5 ' + (balance > 0 ? 'text-rose-500' : 'text-emerald-600');
+        document.getElementById('sbLink').href            = option.dataset.profile || '#';
+        badge.classList.remove('hidden');
+        badge.classList.add('flex');
+    }
+
+    // ─── Search ───────────────────────────────────────────────────
+    const productSearch = document.getElementById('productSearch');
+    const searchResults = document.getElementById('searchResults');
+
+    async function performSearch(query = '') {
+        searchResults.innerHTML = '<div class="p-5 text-center text-gray-400 text-xs"><i class="fas fa-spinner fa-spin ml-1"></i> جاري البحث...</div>';
+        searchResults.classList.remove('hidden');
+        try {
+            const res      = await fetch(`/products/api/products/search/?q=${encodeURIComponent(query)}`);
+            const products = await res.json();
+            if (products.length > 0) {
+                searchResults.innerHTML = '';
+                products.forEach(p => {
+                    const div = document.createElement('div');
+                    div.className = 'px-4 py-3 hover:bg-indigo-50 cursor-pointer border-b border-gray-50 last:border-0 flex justify-between items-center transition-colors group';
+                    div.innerHTML = `
+                        <div>
+                            <div class="font-bold text-gray-800 text-sm group-hover:text-indigo-700">${p.name}</div>
+                            <div class="text-[10px] text-gray-400">SKU: ${p.sku} | رصيد: ${p.stock} ${p.unit}</div>
+                        </div>
+                        <div class="text-right flex-shrink-0">
+                            <div class="text-indigo-600 font-black text-sm">${parseFloat(p.cost_price).toFixed(2)} ج.م</div>
+                            <div class="text-[9px] text-gray-400">سعر التكلفة</div>
+                        </div>`;
+                    div.onclick = () => {
+                        addToCart({ product_id: p.id, name: p.name, sku: p.sku,
+                                    quantity: 1, bonus_quantity: 0,
+                                    unit_price: p.cost_price, original_cost: p.cost_price,
+                                    discount: 0, tax_rate: 0, batch_number: '', expiry_date: '',
+                                    sizes: p.sizes || [], size_breakdown: {} });
+                        productSearch.value = '';
+                        searchResults.classList.add('hidden');
+                    };
+                    searchResults.appendChild(div);
+                });
+            } else {
+                searchResults.innerHTML = '<div class="p-5 text-center text-gray-400 text-xs">لا توجد نتائج مطابقة</div>';
+            }
+        } catch (e) {
+            searchResults.innerHTML = '<div class="p-5 text-center text-red-400 text-xs">حدث خطأ أثناء البحث</div>';
+        }
+    }
+
+    productSearch.addEventListener('input', e => performSearch(e.target.value.trim()));
+    productSearch.addEventListener('focus', e => performSearch(e.target.value.trim()));
+    document.addEventListener('click', e => {
+        if (!productSearch.contains(e.target) && !searchResults.contains(e.target))
+            searchResults.classList.add('hidden');
+    });
+
+    // ─── Cart CRUD ────────────────────────────────────────────────
+    function addToCart(item) {
+        const existing = cart.find(i => i.product_id === item.product_id);
+        if (existing) { existing.quantity = parseFloat(existing.quantity) + 1; }
+        else { item.discount = item.discount || 0; item.tax_rate = item.tax_rate || 0; cart.push(item); }
+        cart.sort((a,b) => a.name.localeCompare(b.name,'ar'));
+        renderCart();
+    }
+    function removeFromCart(index) { cart.splice(index, 1); renderCart(); }
+    function updateItem(index, field, value) {
+        cart[index][field] = value;
+        if (field === 'expiry_date' && value) checkExpiryAlert(index, value);
+        // Recalculate row in DOM without full re-render to avoid losing focus
+        const row = document.getElementById('cartItems').children[index];
+        if (row) {
+            const item = cart[index];
+            const qty      = parseFloat(item.quantity)      || 0;
+            const price    = parseFloat(item.unit_price)    || 0;
+            const itemDisc = parseFloat(item.discount)      || 0;
+            const itemTaxR = parseFloat(item.tax_rate)      || 0;
+            const origCost = parseFloat(item.original_cost) || 0;
+            const taxable  = Math.max(0, (qty * price) - itemDisc);
+            const taxAmt   = taxable * (itemTaxR / 100);
+            const lineTotal = (taxable + taxAmt).toFixed(2);
+            
+            // Update line total cell
+            const totalCell = row.querySelector('.line-total-cell');
+            if (totalCell) {
+                totalCell.textContent = lineTotal;
+            }
+            
+            // Update price badge if price changed
+            if (field === 'unit_price') {
+                const badgeContainer = row.querySelector('.col-price div');
+                if (badgeContainer) {
+                    const existingBadge = badgeContainer.querySelector('.price-badge-up, .price-badge-down, .price-badge-same');
+                    if (existingBadge) existingBadge.remove();
+                    
+                    if (origCost > 0) {
+                        const diff    = ((price - origCost) / origCost) * 100;
+                        const absDiff = Math.abs(diff).toFixed(1);
+                        let badgeHtml = '';
+                        if (diff > 0.5)       badgeHtml = `<span class="price-badge-up">↑ +${absDiff}%</span>`;
+                        else if (diff < -0.5) badgeHtml = `<span class="price-badge-down">↓ -${absDiff}%</span>`;
+                        else                  badgeHtml = `<span class="price-badge-same">= مطابق</span>`;
+                        
+                        if (badgeHtml) {
+                            badgeContainer.insertAdjacentHTML('beforeend', badgeHtml);
+                        }
+                    }
+                }
+            }
+        }
+        updateTotals();
+    }
+    function updateItemSilent(index, field, value) { cart[index][field] = value; }
+
+    // Warn the moment a batch's expiry date is entered — either it's already expired, or
+    // it's close enough (30 days, matching the "قارب على الانتهاء" window used by the
+    // dashboard widget and تقرير الصلاحية) that receiving it needs a second look before
+    // the invoice is posted.
+    function checkExpiryAlert(index, dateStr) {
+        const item = cart[index];
+        const expiry = new Date(dateStr + 'T00:00:00');
+        const today = new Date(); today.setHours(0, 0, 0, 0);
+        const days = Math.round((expiry - today) / 86400000);
+        if (days < 0) {
+            Swal.fire({
+                icon: 'error', title: 'صنف منتهي الصلاحية!',
+                text: `"${item.name || ''}" منتهي الصلاحية بالفعل منذ ${Math.abs(days)} يوم — تأكد من صحة التاريخ قبل استلام الدفعة.`,
+                confirmButtonText: 'حسناً', confirmButtonColor: '#dc2626',
+            });
+        } else if (days <= 30) {
+            Swal.fire({
+                icon: 'warning', title: 'صنف قارب على انتهاء الصلاحية',
+                text: `"${item.name || ''}" هينتهي بعد ${days} يوم فقط.`,
+                confirmButtonText: 'حسناً', confirmButtonColor: '#d97706',
+            });
+        }
+    }
+
+    // ─── Clothes market: per-size quantity breakdown ───────────────
+    function openSizeBreakdownModal(index) {
+        const item = cart[index];
+        const breakdown = item.size_breakdown || {};
+        const rowsHtml = item.sizes.map(s => `
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+                <span style="width:56px;font-weight:800;font-size:13px;">${s.name}</span>
+                <input type="number" min="0" step="any" id="sbq_${s.id}" value="${breakdown[s.id] ?? ''}"
+                       placeholder="الكمية"
+                       style="flex:1;padding:8px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;text-align:center;">
+            </div>`).join('');
+
+        Swal.fire({
+            title: `كمية كل مقاس — ${item.name}`,
+            html: `<div style="max-height:340px;overflow:auto;text-align:right;padding:4px">${rowsHtml}</div>`,
+            confirmButtonText: 'حفظ',
+            showCancelButton: true,
+            cancelButtonText: 'إلغاء',
+            preConfirm: () => {
+                const newBreakdown = {};
+                let total = 0;
+                item.sizes.forEach(s => {
+                    const el = document.getElementById(`sbq_${s.id}`);
+                    const v = parseFloat(el.value);
+                    if (v > 0) { newBreakdown[s.id] = v; total += v; }
+                });
+                return { newBreakdown, total };
+            }
+        }).then(res => {
+            if (!res.isConfirmed) return;
+            const { newBreakdown, total } = res.value;
+            cart[index].size_breakdown = newBreakdown;
+            cart[index].quantity = total;
+            renderCart();
+        });
+    }
+
+    const getHiddenClass = (col) => columnVisibility[col] ? '' : 'hidden';
+
+    // ─── Render ───────────────────────────────────────────────────
+    function renderCart() {
+        const container  = document.getElementById('cartItems');
+        const emptyState = document.getElementById('emptyState');
+        const footer     = document.getElementById('cartFooter');
+
+        if (cart.length === 0) {
+            container.innerHTML = '';
+            emptyState.classList.remove('hidden');
+            footer.classList.add('hidden');
+            updateTotals(); return;
+        }
+        emptyState.classList.add('hidden');
+        footer.classList.remove('hidden');
+
+        container.innerHTML = cart.map((item, idx) => {
+            const qty      = parseFloat(item.quantity)      || 0;
+            const price    = parseFloat(item.unit_price)    || 0;
+            const itemDisc = parseFloat(item.discount)      || 0;
+            const itemTaxR = parseFloat(item.tax_rate)      || 0;
+            const origCost = parseFloat(item.original_cost) || 0;
+            const taxable  = Math.max(0, (qty * price) - itemDisc);
+            const taxAmt   = taxable * (itemTaxR / 100);
+            const lineTotal = (taxable + taxAmt).toFixed(2);
+
+            let priceBadge = '';
+            if (origCost > 0) {
+                const diff    = ((price - origCost) / origCost) * 100;
+                const absDiff = Math.abs(diff).toFixed(1);
+                if (diff > 0.5)       priceBadge = `<span class="price-badge-up">↑ +${absDiff}%</span>`;
+                else if (diff < -0.5) priceBadge = `<span class="price-badge-down">↓ -${absDiff}%</span>`;
+                else                  priceBadge = `<span class="price-badge-same">= مطابق</span>`;
+            }
+
+            return `
+            <tr class="hover:bg-gray-50/80 transition-colors group cart-row-enter">
+                <td class="px-2 py-1.5 text-right font-black text-gray-400 text-[10px]">${idx+1}</td>
+                <td class="px-2 py-1.5">
+                    <div class="font-bold text-gray-800 text-xs leading-tight">${item.name}</div>
+                    <div class="text-[9px] text-gray-400">SKU: ${item.sku}</div>
+                </td>
+                <td class="px-1.5 py-1.5 text-center col-quantity ${getHiddenClass('quantity')}">
+                    ${(MARKET_TYPE === 'clothes' && item.sizes && item.sizes.length > 0) ? `
+                        <button type="button" onclick="openSizeBreakdownModal(${idx})"
+                                class="w-16 bg-rose-50 border border-rose-200 hover:border-rose-400 rounded-lg py-1 px-1 text-center font-extrabold text-xs text-rose-700 transition-colors">
+                            ${qty} <i class="fa-solid fa-ruler-combined text-[9px]"></i>
+                        </button>
+                    ` : `
+                        <input type="number" step="0.01" value="${qty}"
+                               onchange="updateItem(${idx},'quantity',parseFloat(this.value)||0)"
+                               class="w-14 bg-gray-50 border border-gray-200 hover:border-indigo-300 rounded-lg py-1 px-1 text-center focus:ring-2 focus:ring-indigo-400 outline-none font-extrabold text-xs transition-colors">
+                    `}
+                </td>
+                <td class="px-1.5 py-1.5 text-center col-bonus ${getHiddenClass('bonus')}">
+                    <input type="number" step="0.01" value="${item.bonus_quantity}"
+                           onchange="updateItem(${idx},'bonus_quantity',parseFloat(this.value)||0)"
+                           class="w-14 bg-emerald-50 border border-emerald-100 hover:border-emerald-300 rounded-lg py-1 px-1 text-center focus:ring-2 focus:ring-emerald-400 outline-none font-extrabold text-xs text-emerald-700 transition-colors">
+                </td>
+                <td class="px-1.5 py-1.5 text-center col-price ${getHiddenClass('price')}">
+                    <div class="flex flex-col items-center gap-0.5">
+                        <input type="number" step="0.01" value="${price}"
+                               onchange="updateItem(${idx},'unit_price',parseFloat(this.value)||0)"
+                               class="w-18 bg-gray-50 border border-gray-200 hover:border-indigo-300 rounded-lg py-1 px-1 text-center focus:ring-2 focus:ring-indigo-400 outline-none font-extrabold text-indigo-600 text-xs transition-colors">
+                        ${priceBadge}
+                    </div>
+                </td>
+                <td class="px-1.5 py-1.5 text-center col-discount ${getHiddenClass('discount')}">
+                    <input type="number" step="0.01" value="${item.discount||0}"
+                           onchange="updateItem(${idx},'discount',parseFloat(this.value)||0)"
+                           class="w-14 bg-rose-50 border border-rose-100 hover:border-rose-300 rounded-lg py-1 px-1 text-center focus:ring-2 focus:ring-rose-400 outline-none font-extrabold text-xs text-rose-600 transition-colors" placeholder="0">
+                </td>
+                <td class="px-1.5 py-1.5 text-center col-tax ${getHiddenClass('tax')}">
+                    <div class="flex items-center justify-center gap-0.5">
+                        <input type="number" step="0.1" value="${item.tax_rate||0}"
+                               onchange="updateItem(${idx},'tax_rate',parseFloat(this.value)||0)"
+                               class="w-12 bg-indigo-50 border border-indigo-100 hover:border-indigo-300 rounded-lg py-1 px-1 text-center focus:ring-2 focus:ring-indigo-400 outline-none font-extrabold text-xs text-indigo-700 transition-colors" placeholder="0">
+                        <span class="text-[9px] text-gray-400">%</span>
+                    </div>
+                </td>
+                <td class="px-1.5 py-1.5 text-center col-batch ${getHiddenClass('batch')}">
+                    <input type="text" value="${item.batch_number||''}"
+                           onchange="updateItem(${idx},'batch_number',this.value)"
+                           class="w-20 bg-gray-50 border border-gray-200 hover:border-gray-300 rounded-lg py-1 px-1 text-center focus:ring-2 focus:ring-gray-300 outline-none text-[10px] transition-colors" placeholder="اختياري">
+                </td>
+                <td class="px-1.5 py-1.5 text-center col-expiry ${getHiddenClass('expiry')}">
+                    <input type="date" value="${item.expiry_date||''}"
+                           onchange="updateItem(${idx},'expiry_date',this.value)"
+                           class="w-28 bg-gray-50 border border-gray-200 hover:border-gray-300 rounded-lg py-1 px-1 text-center focus:ring-2 focus:ring-gray-300 outline-none text-[10px] transition-colors">
+                </td>
+                <td class="px-2 py-1.5 text-center font-black text-gray-800 text-xs tabular-nums line-total-cell">${lineTotal}</td>
+                <td class="px-1.5 py-1.5 text-left">
+                    <button onclick="removeFromCart(${idx})"
+                            class="text-gray-300 hover:text-rose-500 transition-colors p-0.5 rounded hover:bg-rose-50">
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                    </button>
+                </td>
+            </tr>`;
+        }).join('');
+
+        updateTotals();
+    }
+
+    // ─── Totals ───────────────────────────────────────────────────
+    function updateTotals() {
+        let grossSubtotal = 0, totalItemDiscounts = 0, totalItemTaxes = 0;
+        cart.forEach(item => {
+            const qty      = parseFloat(item.quantity)   || 0;
+            const price    = parseFloat(item.unit_price) || 0;
+            const itemDisc = parseFloat(item.discount)   || 0;
+            const itemTaxR = parseFloat(item.tax_rate)   || 0;
+            const sub      = qty * price;
+            grossSubtotal       += sub;
+            totalItemDiscounts  += itemDisc;
+            const taxable        = Math.max(0, sub - itemDisc);
+            totalItemTaxes      += taxable * (itemTaxR / 100);
+        });
+        const globalDiscount = parseFloat(document.getElementById('invoiceDiscount').value) || 0;
+        const totalDiscount  = totalItemDiscounts + globalDiscount;
+        const finalNetTotal  = Math.max(0, grossSubtotal - totalDiscount + totalItemTaxes);
+
+        document.getElementById('subtotalDisplay').textContent = grossSubtotal.toFixed(2);
+        document.getElementById('discountDisplay').textContent = totalDiscount.toFixed(2);
+        document.getElementById('taxDisplay').textContent      = totalItemTaxes.toFixed(2);
+        document.getElementById('totalDisplay').textContent    = finalNetTotal.toFixed(2);
+
+        const taxRow = document.getElementById('taxDisplayRow');
+        (columnVisibility.tax || totalItemTaxes > 0) ? taxRow.classList.remove('hidden') : taxRow.classList.add('hidden');
+
+        document.getElementById('cartItemCount').textContent   = cart.length + ' صنف';
+        document.getElementById('cartFooterTotal').textContent = finalNetTotal.toFixed(2) + ' ج.م';
+
+        if (paymentMethod === 'cash' && !isPaidAmountManuallyEdited)
+            document.getElementById('paidAmount').value = finalNetTotal.toFixed(2);
+
+        const paid        = parseFloat(document.getElementById('paidAmount').value) || 0;
+        const remaining   = Math.max(0, finalNetTotal - paid);
+        const remEl       = document.getElementById('remainingDebtDisplay');
+        remEl.textContent = remaining.toFixed(2) + ' ج.م';
+        remEl.className   = 'font-extrabold ' + (remaining > 0.05 ? 'text-rose-500' : 'text-gray-400');
+    }
+
+    document.getElementById('invoiceDiscount').addEventListener('input', updateTotals);
+    document.getElementById('paidAmount').addEventListener('input', () => {
+        isPaidAmountManuallyEdited = true;
+        const total     = parseFloat(document.getElementById('totalDisplay').textContent) || 0;
+        let   paid      = parseFloat(document.getElementById('paidAmount').value) || 0;
+        if (paid > total) { paid = total; document.getElementById('paidAmount').value = total.toFixed(2); }
+        const remaining = Math.max(0, total - paid);
+        const remEl     = document.getElementById('remainingDebtDisplay');
+        remEl.textContent = remaining.toFixed(2) + ' ج.م';
+        remEl.className   = 'font-extrabold ' + (remaining > 0.05 ? 'text-rose-500' : 'text-gray-400');
+    });
+
+    // ─── Payment Method ───────────────────────────────────────────
+    function setPaymentMethod(method) {
+        paymentMethod = method;
+        isPaidAmountManuallyEdited = false;
+        const btnCash        = document.getElementById('btnCash');
+        const btnCredit      = document.getElementById('btnCredit');
+        const accountSection = document.getElementById('accountSection');
+        const paidInput      = document.getElementById('paidAmount');
+
+        if (method === 'cash') {
+            btnCash.className   = 'py-2 rounded-lg border-2 border-emerald-500 bg-emerald-50 text-emerald-700 font-extrabold text-xs active:scale-95 transition-all';
+            btnCredit.className = 'py-2 rounded-lg border-2 border-gray-100 text-gray-400 font-extrabold text-xs active:scale-95 transition-all hover:bg-gray-50';
+            accountSection.classList.remove('hidden');
+            updateTotals();
+        } else {
+            btnCredit.className = 'py-2 rounded-lg border-2 border-indigo-500 bg-indigo-50 text-indigo-700 font-extrabold text-xs active:scale-95 transition-all';
+            btnCash.className   = 'py-2 rounded-lg border-2 border-gray-100 text-gray-400 font-extrabold text-xs active:scale-95 transition-all hover:bg-gray-50';
+            accountSection.classList.add('hidden');
+            paidInput.value = 0;
+        }
+    }
+
+    // ─── Submit ───────────────────────────────────────────────────
+    async function submitInvoice(status = 'CONFIRMED') {
+        if (isSubmitting) return;
+
+        const supplierId    = document.getElementById('supplierSelect').value;
+        const warehouseId   = document.getElementById('warehouseSelect').value;
+        const invoiceNumber = document.getElementById('paperInvoiceNumber').value.trim();
+        const discount      = parseFloat(document.getElementById('invoiceDiscount').value) || 0;
+        const landedCostEl  = document.getElementById('invoiceLandedCost');
+        const landedCost    = landedCostEl ? (parseFloat(landedCostEl.value) || 0) : 0;
+        const paidAmount    = parseFloat(document.getElementById('paidAmount').value) || 0;
+        const accountId     = document.getElementById('accountSelect').value;
+
+        if (!supplierId)  { Swal.fire({icon:'warning',title:'تنبيه',text:'يرجى اختيار المورد',confirmButtonText:'حسناً'}); return; }
+        if (!warehouseId) { Swal.fire({icon:'warning',title:'تنبيه',text:'يرجى اختيار المخزن',confirmButtonText:'حسناً'}); return; }
+        if (cart.length === 0) { Swal.fire({icon:'warning',title:'تنبيه',text:'الفاتورة فارغة! أضف صنفاً على الأقل.',confirmButtonText:'حسناً'}); return; }
+        if (status === 'CONFIRMED' && paymentMethod === 'cash' && !accountId) {
+            Swal.fire({icon:'warning',title:'تنبيه',text:'يرجى اختيار حساب الدفع للفاتورة النقدية',confirmButtonText:'حسناً'});
+            return;
+        }
+
+        let grossSubtotal = 0, totalItemDiscounts = 0, totalItemTaxes = 0;
+        cart.forEach(item => {
+            const qty = parseFloat(item.quantity)||0, price = parseFloat(item.unit_price)||0;
+            const itemDisc = parseFloat(item.discount)||0, itemTaxR = parseFloat(item.tax_rate)||0;
+            const sub = qty * price; grossSubtotal += sub; totalItemDiscounts += itemDisc;
+            totalItemTaxes += Math.max(0, sub - itemDisc) * (itemTaxR/100);
+        });
+        const finalNetTotal = Math.max(0, grossSubtotal - (totalItemDiscounts + discount) + totalItemTaxes);
+
+        let actualPaid = paidAmount;
+        if (status === 'CONFIRMED' && paymentMethod === 'cash' && paidAmount < finalNetTotal) {
+            const remaining = finalNetTotal - paidAmount;
+            const result = await Swal.fire({
+                title: '⚠️ دفع غير مكتمل',
+                html: `<div dir="rtl" class="text-right space-y-2 text-sm">
+                    <p>إجمالي الفاتورة: <span class="text-indigo-600 font-black text-lg">${finalNetTotal.toFixed(2)} ج.م</span></p>
+                    <p>المدفوع: <span class="text-emerald-600 font-black text-lg">${paidAmount.toFixed(2)} ج.م</span></p>
+                    <div class="bg-amber-50 border border-amber-200 text-amber-800 p-3 rounded-xl mt-2">
+                        <span class="font-black">المتبقي: ${remaining.toFixed(2)} ج.م</span><br>
+                        <span class="text-[11px]">سيُسجَّل كـ دين مستحق للمورد.</span>
+                    </div>
+                </div>`,
+                icon: 'warning',
+                showCancelButton: true, showDenyButton: true,
+                confirmButtonText: '💵 دفع المبلغ كامل',
+                denyButtonText:    '📋 إضافة كـ دين',
+                cancelButtonText:  'إلغاء وتعديل',
+                confirmButtonColor: '#059669', denyButtonColor: '#4f46e5', cancelButtonColor: '#9ca3af',
+            });
+            if (result.isConfirmed) {
+                actualPaid = finalNetTotal;
+                document.getElementById('paidAmount').value = finalNetTotal.toFixed(2);
+                isPaidAmountManuallyEdited = false;
+            } else if (result.isDenied) {
+                actualPaid = paidAmount;
+            } else { return; }
+        }
+
+        const payload = {
+            supplier_id: supplierId, warehouse_id: warehouseId,
+            account_id: accountId, payment_method: paymentMethod,
+            items: cart, discount, landed_cost: landedCost, paid_amount: actualPaid,
+            invoice_number: invoiceNumber, status, notes: ''
+        };
+        if (INVOICE_ID) payload.invoice_id = INVOICE_ID;
+        if (PO_ID) payload.po_id = PO_ID;
+
+        isSubmitting = true;
+        document.getElementById('submitBtn').disabled = true;
+        document.getElementById('draftBtn').disabled  = true;
+
+        Swal.fire({
+            title: status === 'CONFIRMED' ? 'جاري التأكيد وإدخال المخزن...' : 'جاري الحفظ كمسودة...',
+            allowOutsideClick: false, didOpen: () => Swal.showLoading()
+        });
+
+        try {
+            const res    = await fetch('/products/api/purchase-invoice/submit/', {
+                method: 'POST',
+                headers: {'Content-Type':'application/json','X-CSRFToken':'{{ csrf_token }}'},
+                body: JSON.stringify(payload)
+            });
+            const result = await res.json();
+            if (result.status === 'success') {
+                Swal.fire({
+                    icon: 'success',
+                    title: status === 'CONFIRMED' ? '✅ تم تأكيد الفاتورة' : '💾 تم الحفظ كمسودة',
+                    text: result.message,
+                    confirmButtonText: 'عرض الفاتورة',
+                    confirmButtonColor: '#059669',
+                    showCancelButton: true, cancelButtonText: 'البقاء هنا'
+                }).then(r => {
+                    if (r.isConfirmed) {
+                        window.location.href = `/products/suppliers/purchase-invoices/${result.invoice_id}/`;
+                    } else if (status === 'CONFIRMED') {
+                        // A CONFIRMED invoice can no longer be edited (see purchase_invoice_create view).
+                        // If we're already on the add-invoice URL (the common case), assigning the same
+                        // href is a no-op in the browser — force a real reload instead so the form resets.
+                        if (!INVOICE_ID && window.location.pathname === '/products/suppliers/purchase-invoice/add/') {
+                            window.location.reload();
+                        } else {
+                            window.location.href = '/products/suppliers/purchase-invoice/add/';
+                        }
+                    } else if (!INVOICE_ID) {
+                        // Freshly-created DRAFT: reload onto its own edit page so refreshing keeps editing it.
+                        window.location.href = `/products/suppliers/purchase-invoices/${result.invoice_id}/edit/`;
+                    } else {
+                        // Already on the draft's edit page — just refresh it.
+                        window.location.reload();
+                    }
+                });
+            } else {
+                Swal.fire({icon:'error',title:'خطأ',text:result.message,confirmButtonText:'حسناً'});
+                isSubmitting = false;
+                document.getElementById('submitBtn').disabled = false;
+                document.getElementById('draftBtn').disabled  = false;
+            }
+        } catch (e) {
+            Swal.fire({icon:'error',title:'خطأ في الاتصال',text:'تعذّر الوصول إلى الخادم.',confirmButtonText:'حسناً'});
+            isSubmitting = false;
+            document.getElementById('submitBtn').disabled = false;
+            document.getElementById('draftBtn').disabled  = false;
+        }
+    }
+
+    // ─── Quick Product Modal ──────────────────────────────────────
+    function toggleSubUnitFields() {
+        const checkbox = document.getElementById('qpHasSubUnit');
+        const fields = document.getElementById('qpSubUnitFields');
+        if (checkbox.checked) {
+            fields.classList.remove('hidden');
+        } else {
+            fields.classList.add('hidden');
+        }
+    }
+
+    function calcSubUnitPrice() {
+        const mainPrice = parseFloat(document.getElementById('qpPrice').value) || 0;
+        const subUnits = parseFloat(document.getElementById('qpSubUnitsPerMain').value) || 1;
+        if (subUnits > 0) {
+            document.getElementById('qpSubUnitPrice').value = (mainPrice / subUnits).toFixed(2);
+        }
+    }
+
+    function openQuickProductModal() {
+        document.getElementById('quickProductModal').classList.remove('hidden');
+        document.getElementById('quickProductModal').classList.add('flex');
+        document.getElementById('qpName').focus();
+        // Add listener to recalculate sub-unit price if main price changes
+        document.getElementById('qpPrice').addEventListener('input', calcSubUnitPrice);
+    }
+    function closeQuickProductModal() {
+        document.getElementById('quickProductModal').classList.remove('flex');
+        document.getElementById('quickProductModal').classList.add('hidden');
+        document.getElementById('qpForm').reset();
+        toggleSubUnitFields();
+        document.getElementById('qpPrice').removeEventListener('input', calcSubUnitPrice);
+    }
+
+    async function submitQuickProduct() {
+        const name        = document.getElementById('qpName').value.trim();
+        const sku         = document.getElementById('qpSku').value.trim();
+        const priceRetail = document.getElementById('qpPrice').value.trim();
+        const costPrice   = document.getElementById('qpCost').value.trim();
+        const unitMeasure = document.getElementById('qpUnit').value;
+        const supplierId  = document.getElementById('supplierSelect').value;
+
+        // Market type fields
+        let scientificName = '', packagingType = '', stripsPerBox = 1, material = '', pattern = '', color = '';
+        
+        const scientificNameEl = document.getElementById('qpScientificName');
+        const packagingTypeEl = document.getElementById('qpPackagingType');
+        const stripsPerBoxEl = document.getElementById('qpStripsPerBox');
+        const materialEl = document.getElementById('qpMaterial');
+        const patternEl = document.getElementById('qpPattern');
+        const colorEl = document.getElementById('qpColor');
+
+        if (scientificNameEl) scientificName = scientificNameEl.value.trim();
+        if (packagingTypeEl) packagingType = packagingTypeEl.value;
+        if (stripsPerBoxEl) stripsPerBox = parseInt(stripsPerBoxEl.value) || 1;
+        if (materialEl) material = materialEl.value.trim();
+        if (patternEl) pattern = patternEl.value.trim();
+        if (colorEl) color = colorEl.value.trim();
+
+        // Sub-unit fields
+        const hasSubUnit = document.getElementById('qpHasSubUnit') ? document.getElementById('qpHasSubUnit').checked : false;
+        const subUnitId = document.getElementById('qpSubUnit') ? document.getElementById('qpSubUnit').value : '';
+        const subUnitsPerMain = document.getElementById('qpSubUnitsPerMain') ? document.getElementById('qpSubUnitsPerMain').value : '1';
+        const subUnitPrice = document.getElementById('qpSubUnitPrice') ? document.getElementById('qpSubUnitPrice').value : '0';
+
+        if (!name)        { Swal.fire({icon:'warning',title:'تنبيه',text:'يرجى إدخال اسم المنتج',confirmButtonText:'حسناً'}); return; }
+        if (!priceRetail) { Swal.fire({icon:'warning',title:'تنبيه',text:'يرجى إدخال سعر البيع',confirmButtonText:'حسناً'}); return; }
+        if (!costPrice)   { Swal.fire({icon:'warning',title:'تنبيه',text:'يرجى إدخال سعر الشراء',confirmButtonText:'حسناً'}); return; }
+
+        if (parseFloat(costPrice) > parseFloat(priceRetail)) {
+            const c = await Swal.fire({
+                icon: 'warning', title: 'سعر الشراء أكبر من البيع',
+                text: `سعر الشراء (${costPrice}) أكبر من البيع (${priceRetail}). هل تريد المتابعة؟`,
+                showCancelButton: true, confirmButtonText: 'نعم، أضف', cancelButtonText: 'تعديل',
+                confirmButtonColor: '#d33',
+            });
+            if (!c.isConfirmed) return;
+        }
+
+        const btn = document.getElementById('qpSubmitBtn');
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin ml-1"></i> جاري الإضافة...';
+
+        try {
+            const res    = await fetch('/products/api/products/quick-create/', {
+                method: 'POST',
+                headers: {'Content-Type':'application/json','X-CSRFToken':'{{ csrf_token }}'},
+                body: JSON.stringify({ 
+                    name, sku, price_retail: priceRetail, cost_price: costPrice, unit_measure: unitMeasure, supplier_id: supplierId||null,
+                    scientific_name: scientificName, packaging_type: packagingType, strips_per_box: stripsPerBox,
+                    material, pattern, color,
+                    has_sub_unit: hasSubUnit, sub_unit_id: subUnitId, sub_units_per_main_unit: subUnitsPerMain, sub_unit_price: subUnitPrice
+                })
+            });
+            const result = await res.json();
+            if (result.status === 'success') {
+                addToCart({
+                    product_id: result.product.id, name: result.product.name, sku: result.product.sku,
+                    quantity: 1, bonus_quantity: 0,
+                    unit_price: parseFloat(result.product.cost_price),
+                    original_cost: parseFloat(result.product.cost_price),
+                    discount: 0, tax_rate: 0, batch_number: '', expiry_date: ''
+                });
+                closeQuickProductModal();
+                Swal.fire({icon:'success',title:'تمت الإضافة',text:`تم تعريف "${result.product.name}" وإضافته للفاتورة`,timer:2000,showConfirmButton:false});
+            } else {
+                Swal.fire({icon:'error',title:'خطأ',text:result.message,confirmButtonText:'حسناً'});
+            }
+        } catch (e) {
+            Swal.fire({icon:'error',title:'خطأ',text:'حدث خطأ أثناء الاتصال بالخادم',confirmButtonText:'حسناً'});
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = 'إضافة صنف';
+        }
+    }
+</script>
+
+<!-- Quick Add Unit Modal -->
+<div id="quickUnitModal" class="fixed inset-0 z-[9999] flex items-center justify-center hidden bg-black bg-opacity-50 backdrop-blur-sm transition-opacity duration-300">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-md mx-4 overflow-hidden transform scale-95 transition-transform duration-300">
+        <!-- Modal Header -->
+        <div class="bg-teal-600 px-6 py-4 flex justify-between items-center text-white">
+            <h3 class="text-lg font-bold">إضافة وحدة قياس جديدة</h3>
+            <button type="button" onclick="closeQuickUnitModal()" class="text-white hover:text-teal-100 focus:outline-none">
+                <i class="fa-solid fa-xmark text-xl"></i>
+            </button>
+        </div>
+        <!-- Modal Body -->
+        <div class="p-6 text-right" dir="rtl">
+            <div id="quickUnitError" class="mb-4 text-sm text-red-600 bg-red-50 p-3 rounded-lg hidden border border-red-100"></div>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-bold text-gray-700 mb-1">اسم الوحدة (مثال: متر، كرتونة)</label>
+                    <input type="text" id="quickUnitName" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-200" placeholder="أدخل اسم الوحدة">
+                </div>
+                <div>
+                    <label class="block text-sm font-bold text-gray-700 mb-1">الاختصار (بحد أقصى 10 أحرف، بالإنجليزية أو العربية)</label>
+                    <input type="text" id="quickUnitAbbr" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-200" placeholder="مثال: MTR, BOX">
+                </div>
+            </div>
+        </div>
+        <!-- Modal Footer -->
+        <div class="bg-gray-50 px-6 py-4 flex justify-end gap-2 border-t border-gray-100" dir="rtl">
+            <button type="button" onclick="submitQuickUnit()" class="px-4 py-2 text-white bg-teal-600 rounded-lg hover:bg-teal-700 focus:outline-none flex items-center gap-1 transition-colors">
+                <i class="fa-solid fa-save"></i> حفظ
+            </button>
+            <button type="button" onclick="closeQuickUnitModal()" class="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none transition-colors">إلغاء</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    let activeUnitSelect = null;
+    let activeUnitSelectPrevVal = '';
+
+    function openQuickUnitModal() {
+        document.getElementById('quickUnitModal').classList.remove('hidden');
+        document.getElementById('quickUnitModal').classList.add('flex');
+        document.getElementById('quickUnitName').focus();
+    }
+
+    function closeQuickUnitModal() {
+        document.getElementById('quickUnitModal').classList.remove('flex');
+        document.getElementById('quickUnitModal').classList.add('hidden');
+        document.getElementById('quickUnitName').value = '';
+        document.getElementById('quickUnitAbbr').value = '';
+        document.getElementById('quickUnitError').classList.add('hidden');
+        if (activeUnitSelect && activeUnitSelectPrevVal) {
+            activeUnitSelect.value = activeUnitSelectPrevVal;
+        }
+    }
+
+    async function submitQuickUnit() {
+        const name = document.getElementById('quickUnitName').value.trim();
+        const abbr = document.getElementById('quickUnitAbbr').value.trim();
+        const errorEl = document.getElementById('quickUnitError');
+
+        if (!name) {
+            errorEl.textContent = 'يرجى إدخال اسم الوحدة';
+            errorEl.classList.remove('hidden');
+            return;
+        }
+
+        try {
+            const response = await fetch('/products/api/units/quick-create/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                body: JSON.stringify({ name: name, abbreviation: abbr })
+            });
+            const res = await response.json();
+            if (res.success) {
+                activeUnitSelectPrevVal = '';
+                
+                const selects = document.querySelectorAll('select[name="unit_measure"], #qpUnit');
+                selects.forEach(selectEl => {
+                    let optionExists = false;
+                    for (let i = 0; i < selectEl.options.length; i++) {
+                        if (selectEl.options[i].value === res.abbreviation) {
+                            optionExists = true;
+                            break;
+                        }
+                    }
+                    
+                    if (!optionExists) {
+                        const newOpt = document.createElement('option');
+                        newOpt.value = res.abbreviation;
+                        newOpt.text = `${res.name} (${res.abbreviation})`;
+                        const addNewOpt = Array.from(selectEl.options).find(o => o.value === '__ADD_NEW__');
+                        if (addNewOpt) {
+                            selectEl.insertBefore(newOpt, addNewOpt);
+                        } else {
+                            selectEl.appendChild(newOpt);
+                        }
+                    }
+                    
+                    if (selectEl === activeUnitSelect || selectEl.id === 'qpUnit') {
+                        // Mark programmatic change to avoid triggering add-new-unit modal
+                        unitSelectChanging = true;
+                        selectEl.value = res.abbreviation;
+                        selectEl.dispatchEvent(new Event('change'));
+                    }
+                });
+                
+                closeQuickUnitModal();
+            } else {
+                errorEl.textContent = res.error || 'حدث خطأ ما';
+                errorEl.classList.remove('hidden');
+            }
+        } catch (err) {
+            console.error(err);
+            errorEl.textContent = 'حدث خطأ في الاتصال بالخادم';
+            errorEl.classList.remove('hidden');
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+    // Flag to differentiate user-initiated vs programmatic changes on unit selects
+    let unitSelectChanging = false;
+        function setupUnitSelects() {
+            const unitSelects = document.querySelectorAll('select[name="unit_measure"], #qpUnit');
+            unitSelects.forEach(unitSelect => {
+                if (unitSelect && !Array.from(unitSelect.options).some(o => o.value === '__ADD_NEW__')) {
+                    const opt = document.createElement('option');
+                    opt.value = '__ADD_NEW__';
+                    opt.text = '+ إضافة وحدة جديدة...';
+                    opt.style.color = '#0d9488';
+                    opt.style.fontWeight = 'bold';
+                    unitSelect.appendChild(opt);
+                    
+                    let prevVal = unitSelect.value;
+                    unitSelect.addEventListener('change', function() {
+                        // If the change is triggered programmatically, ignore it
+                        if (unitSelectChanging) {
+                            unitSelectChanging = false;
+                            return;
+                        }
+                        if (this.value === '__ADD_NEW__') {
+                            activeUnitSelect = this;
+                            activeUnitSelectPrevVal = prevVal;
+                            openQuickUnitModal();
+                        } else {
+                            prevVal = this.value;
+                        }
+                    });
+                }
+            });
+        }
+
+        setupUnitSelects();
+        setInterval(setupUnitSelects, 1000);
+    });
+</script>
+{% include 'products/_quick_add_unit_modal.html' %}
+{% endblock %}

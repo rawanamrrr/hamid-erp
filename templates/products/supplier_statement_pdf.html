@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<title>كشف حساب — {{ supplier.name }}</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family: Arial, sans-serif; font-size: 12px; color: #333; direction: rtl; }
+  .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #0d9488; padding-bottom: 12px; margin-bottom: 20px; }
+  .company { font-size: 22px; font-weight: bold; color: #0d9488; }
+  .doc-title { font-size: 14px; font-weight: bold; color: #374151; }
+  .info-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 20px; }
+  .info-box { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; padding: 8px 12px; }
+  .info-label { font-size: 10px; color: #9ca3af; }
+  .info-value { font-weight: bold; color: #111827; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+  thead { background: #0f766e; color: white; }
+  th { padding: 8px 10px; text-align: center; font-size: 11px; }
+  th:first-child, th:nth-child(2), th:nth-child(3) { text-align: right; }
+  td { padding: 7px 10px; border-bottom: 1px solid #f3f4f6; font-size: 11px; text-align: center; }
+  td:first-child, td:nth-child(2), td:nth-child(3) { text-align: right; }
+  tfoot td { background: #f0fdfa; font-weight: bold; color: #0d9488; }
+  .balance-pos { color: #dc2626; }
+  .balance-neg { color: #16a34a; }
+  .summary { display: flex; gap: 16px; justify-content: flex-end; margin-bottom: 20px; }
+  .sum-box { text-align: center; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 10px 16px; }
+  .sum-label { font-size: 10px; color: #9ca3af; }
+  .sum-value { font-size: 15px; font-weight: bold; }
+  .sig-row { display: flex; justify-content: space-around; margin-top: 50px; }
+  .sig-box { text-align: center; }
+  .sig-line { border-top: 1px solid #374151; width: 120px; margin: 40px auto 4px; }
+  .print-footer { text-align: center; color: #9ca3af; font-size: 10px; margin-top: 20px; border-top: 1px solid #e5e7eb; padding-top: 10px; }
+</style>
+</head>
+<body>
+<div class="header">
+  <div>
+    <div class="company">{% if sys_settings %}{{ sys_settings.shop_name }}{% else %}نظام ERP{% endif %}</div>
+    <div style="color:#6b7280;font-size:11px">كشف حساب مورد</div>
+  </div>
+  <div style="text-align:left">
+    <div class="doc-title">{{ supplier.name }}</div>
+    {% if date_from or date_to %}
+    <div style="color:#6b7280;font-size:11px">
+      {% if date_from %}من: {{ date_from }}{% endif %}
+      {% if date_to %} — إلى: {{ date_to }}{% endif %}
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="info-grid">
+  <div class="info-box"><div class="info-label">اسم المورد</div><div class="info-value">{{ supplier.name }}</div></div>
+  <div class="info-box"><div class="info-label">الهاتف</div><div class="info-value">{{ supplier.phone }}</div></div>
+  <div class="info-box"><div class="info-label">نوع المورد</div><div class="info-value">{{ supplier.get_supplier_type_display }}</div></div>
+</div>
+
+<table>
+  <thead>
+    <tr>
+      <th>التاريخ</th><th>المرجع</th><th>البيان</th>
+      <th>مدين</th><th>دائن</th><th>الرصيد</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for e in entries %}
+    <tr>
+      <td>{{ e.date|date:"Y-m-d" }}</td>
+      <td>{{ e.ref }}</td>
+      <td>{{ e.desc|truncatechars:60 }}</td>
+      <td>{% if e.debit > 0 %}<strong style="color:#dc2626">{{ e.debit|floatformat:2 }}</strong>{% else %}—{% endif %}</td>
+      <td>{% if e.credit > 0 %}<strong style="color:#16a34a">{{ e.credit|floatformat:2 }}</strong>{% else %}—{% endif %}</td>
+      <td class="{% if e.balance > 0 %}balance-pos{% else %}balance-neg{% endif %}"><strong>{{ e.balance|floatformat:2 }}</strong></td>
+    </tr>
+    {% endfor %}
+  </tbody>
+  <tfoot>
+    <tr>
+      <td colspan="3" style="text-align:right">الإجمالي</td>
+      <td style="color:#dc2626">{{ total_debit|floatformat:2 }}</td>
+      <td style="color:#16a34a">{{ total_credit|floatformat:2 }}</td>
+      <td class="{% if closing_balance > 0 %}balance-pos{% else %}balance-neg{% endif %}">{{ closing_balance|floatformat:2 }}</td>
+    </tr>
+  </tfoot>
+</table>
+
+<div class="sig-row">
+  <div class="sig-box"><div class="sig-line"></div><div>توقيع المورد</div></div>
+  <div class="sig-box"><div class="sig-line"></div><div>توقيع المحاسب</div></div>
+</div>
+<div class="print-footer">طُبع بتاريخ: {{ print_date|date:"Y-m-d H:i" }} — {{ sys_settings.shop_name|default:"نظام ERP" }}</div>
+
+{% if is_print_preview %}
+<script>
+  window.onload = function() {
+    window.print();
+  }
+</script>
+{% endif %}
+</body>
+</html>

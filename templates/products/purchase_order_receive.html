@@ -1,0 +1,70 @@
+{% extends 'base.html' %}
+{% block title %}استلام بضاعة — {{ po.po_number }}{% endblock %}
+{% block content %}
+<div class="max-w-4xl mx-auto space-y-6">
+  <div class="flex items-center justify-between">
+    <h1 class="text-2xl font-bold text-gray-800">استلام بضاعة — {{ po.po_number }}</h1>
+    <a href="{% url 'purchase_order_detail' po.pk %}" class="text-gray-500 hover:text-gray-700 text-sm"><i class="fas fa-arrow-right ml-1"></i>العودة</a>
+  </div>
+
+  <div class="bg-blue-50 border border-blue-100 rounded-2xl p-4 text-sm text-blue-700">
+    <i class="fas fa-info-circle ml-1"></i> أدخل الكمية الفعلية المستلمة لكل صنف. يمكنك الاستلام الجزئي.
+  </div>
+
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" id="itemsJsonInput" name="items_json" value="[]">
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+      <table class="w-full text-sm">
+        <thead class="bg-gray-50">
+          <tr>
+            <th class="px-4 py-3 text-right font-semibold text-gray-600">المنتج</th>
+            <th class="px-4 py-3 text-center font-semibold text-gray-600">المقاس</th>
+            <th class="px-4 py-3 text-center font-semibold text-gray-600">المطلوب</th>
+            <th class="px-4 py-3 text-center font-semibold text-gray-600">سبق استلامه</th>
+            <th class="px-4 py-3 text-center font-semibold text-gray-600">الكمية المستلمة الآن</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in items %}
+          {% if not item.is_fully_received %}
+          <tr class="border-b border-gray-50" data-item-id="{{ item.id }}">
+            <td class="px-4 py-3">
+              <p class="font-medium text-gray-800">{{ item.product.name }}</p>
+              <p class="text-xs text-gray-400">{{ item.product.sku }}</p>
+            </td>
+            <td class="px-4 py-3 text-center text-gray-500">{{ item.size.name|default:"—" }}</td>
+            <td class="px-4 py-3 text-center font-semibold">{{ item.ordered_quantity }}</td>
+            <td class="px-4 py-3 text-center text-orange-600">{{ item.received_quantity }}</td>
+            <td class="px-4 py-3 text-center">
+              <input type="number" class="recv-qty w-28 px-3 py-1.5 border border-gray-200 rounded-xl text-center text-sm focus:outline-none focus:ring-2 focus:ring-teal-200"
+                min="0" max="{{ item.remaining_quantity }}" step="0.01" value="{{ item.remaining_quantity }}" placeholder="0">
+              <p class="text-xs text-gray-400 mt-0.5">متبقي: {{ item.remaining_quantity }}</p>
+            </td>
+          </tr>
+          {% endif %}
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="flex gap-3 mt-4">
+      <button type="submit" onclick="collectItems()" class="flex-1 bg-teal-600 hover:bg-teal-700 text-white py-3 rounded-xl font-semibold transition text-lg">
+        <i class="fas fa-boxes ml-2"></i>تأكيد الاستلام
+      </button>
+      <a href="{% url 'purchase_order_detail' po.pk %}" class="flex-1 text-center bg-gray-100 hover:bg-gray-200 text-gray-700 py-3 rounded-xl font-semibold transition">إلغاء</a>
+    </div>
+  </form>
+</div>
+
+<script>
+function collectItems() {
+  const rows = document.querySelectorAll('tr[data-item-id]');
+  const items = [];
+  rows.forEach(row => {
+    items.push({ id: row.dataset.itemId, received_qty: row.querySelector('.recv-qty').value });
+  });
+  document.getElementById('itemsJsonInput').value = JSON.stringify(items);
+}
+</script>
+{% endblock %}

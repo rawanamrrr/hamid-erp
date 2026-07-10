@@ -1,0 +1,62 @@
+{% extends 'base.html' %}
+{% load humanize %}
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto space-y-5">
+    <div class="flex items-center justify-between">
+        <h1 class="text-2xl font-black text-gray-800">سجل مبيعات تجاوزت المخزون المتاح</h1>
+    </div>
+
+    <div class="bg-amber-50 border border-amber-200 text-amber-800 text-xs rounded-xl p-3">
+        هذه الأصناف بيعت بكمية أكبر من المتاح فعلياً وقت البيع (بسبب تفعيل "السماح بالبيع بكمية أكبر من المتاح" في ثوابت النظام).
+        رصيد المخزون لا يظهر بالسالب أبداً — النقص الحقيقي موجود فقط هنا.
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="bg-white p-4 rounded-xl border"><p class="text-xs text-gray-500 font-bold">عدد الأصناف</p><p class="text-2xl font-black text-red-600">{{ count }}</p></div>
+        <div class="bg-white p-4 rounded-xl border"><p class="text-xs text-gray-500 font-bold">إجمالي كمية النقص</p><p class="text-2xl font-black text-red-500 dir-ltr">{{ total_shortfall|floatformat:-2 }}</p></div>
+    </div>
+
+    <form method="get" class="flex flex-wrap items-end gap-3 bg-white p-4 rounded-xl border">
+        <div><label class="block text-xs font-bold text-gray-500 mb-1">بحث</label><input name="q" value="{{ q }}" placeholder="صنف/فاتورة/عميل" class="p-2 border rounded-lg"></div>
+        <div><label class="block text-xs font-bold text-gray-500 mb-1">من</label><input type="date" name="date_from" value="{{ date_from }}" class="p-2 border rounded-lg"></div>
+        <div><label class="block text-xs font-bold text-gray-500 mb-1">إلى</label><input type="date" name="date_to" value="{{ date_to }}" class="p-2 border rounded-lg"></div>
+        <button class="px-4 py-2 bg-indigo-600 text-white rounded-lg font-bold">تصفية</button>
+        {% if q or date_from or date_to %}<a href="{% url 'oversold_register' %}" class="px-4 py-2 bg-gray-100 rounded-lg font-bold">مسح</a>{% endif %}
+    </form>
+
+    <div class="bg-white rounded-xl border overflow-hidden">
+        <table class="w-full text-sm">
+            <thead class="bg-gray-50 text-gray-500 text-xs">
+                <tr>
+                    <th class="py-3 px-4 text-right">الفاتورة</th>
+                    <th class="py-3 px-4 text-right">العميل</th>
+                    <th class="py-3 px-4 text-right">الصنف</th>
+                    <th class="py-3 px-4 text-center">الكمية المباعة</th>
+                    <th class="py-3 px-4 text-center">كمية النقص</th>
+                    <th class="py-3 px-4 text-right">البائع</th>
+                    <th class="py-3 px-4 text-right">التاريخ</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y">
+                {% for it in items %}
+                <tr class="hover:bg-gray-50">
+                    <td class="py-2 px-4 font-mono font-bold text-indigo-600">
+                        <a href="{% url 'order_invoice' it.order.id %}">{{ it.order.display_number }}</a>
+                    </td>
+                    <td class="py-2 px-4">{{ it.order.customer.first_name|default:'عميل نقدي' }} {{ it.order.customer.last_name|default:'' }}</td>
+                    <td class="py-2 px-4 font-bold">{{ it.product.name|default:'—' }}</td>
+                    <td class="py-2 px-4 text-center dir-ltr">{{ it.quantity|floatformat:-2 }}</td>
+                    <td class="py-2 px-4 text-center dir-ltr font-black text-red-600">{{ it.shortfall_qty|floatformat:-2 }}</td>
+                    <td class="py-2 px-4 text-xs text-gray-600">{{ it.order.user.first_name|default:it.order.user.username }}</td>
+                    <td class="py-2 px-4 text-gray-500 whitespace-nowrap">{{ it.order.created_at|date:"Y-m-d H:i" }}</td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="7" class="py-8 text-center text-gray-400">لا توجد مبيعات تجاوزت المخزون</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

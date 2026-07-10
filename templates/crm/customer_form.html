@@ -1,0 +1,126 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="max-w-xl mx-auto">
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        <div class="p-6 border-b border-gray-100 bg-gray-50">
+            <h2 class="text-xl font-bold text-gray-800">{{ title }}</h2>
+            <p class="text-sm text-gray-500 mt-1">سجل بيانات العميل للرجوع إليها لاحقاً</p>
+        </div>
+        
+        <form method="post" class="p-6">
+            {% csrf_token %}
+            
+            <!-- عرض الأخطاء العامة -->
+            {% if form.non_field_errors %}
+            <div class="bg-red-50 text-red-600 p-3 rounded mb-4 text-sm font-bold border border-red-200">
+                {{ form.non_field_errors }}
+            </div>
+            {% endif %}
+
+            <div class="space-y-5">
+                <div class="grid grid-cols-2 gap-5">
+                    <!-- First Name -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">الاسم الأول <span class="text-red-500">*</span></label>
+                        {{ form.first_name }}
+                        {% if form.first_name.errors %}
+                        <p class="text-red-500 text-xs mt-1 font-semibold">{{ form.first_name.errors.0 }}</p>
+                        {% endif %}
+                    </div>
+                    
+                    <!-- Last Name -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">الاسم الثاني / العائلة <span class="text-red-500">*</span></label>
+                        {{ form.last_name }}
+                        {% if form.last_name.errors %}
+                        <p class="text-red-500 text-xs mt-1 font-semibold">{{ form.last_name.errors.0 }}</p>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Customer Type (تمت إضافته لإصلاح المشكلة) -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">نوع العميل</label>
+                    {{ form.customer_type }}
+                    {% if form.customer_type.errors %}
+                    <p class="text-red-500 text-xs mt-1 font-semibold">{{ form.customer_type.errors.0 }}</p>
+                    {% endif %}
+                </div>
+
+                <!-- Phone -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">رقم الهاتف <span class="text-red-500">*</span></label>
+                    {{ form.phone }}
+                    {% if form.phone.errors %}
+                    <p class="text-red-500 text-xs mt-1 font-semibold">{{ form.phone.errors.0 }}</p>
+                    {% endif %}
+                </div>
+
+                <!-- Phone 2 + Tax number (Phase 8.6) -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">رقم إضافي <span class="text-gray-400 text-xs">(اختياري)</span></label>
+                        {{ form.phone2 }}
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">الرقم الضريبي <span class="text-gray-400 text-xs">(للشركات)</span></label>
+                        {{ form.tax_number }}
+                    </div>
+                </div>
+
+                <!-- Blacklist -->
+                <label class="flex items-center gap-2 p-3 bg-red-50 rounded-lg border border-red-100 cursor-pointer text-sm font-bold text-red-700">
+                    {{ form.is_blacklisted }} قائمة سوداء — إيقاف البيع الآجل لهذا العميل
+                </label>
+
+                <!-- Address -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">العنوان <span class="text-gray-400 text-xs">(اختياري)</span></label>
+                    {{ form.address }}
+                    {% if form.address.errors %}
+                    <p class="text-red-500 text-xs mt-1 font-semibold">{{ form.address.errors.0 }}</p>
+                    {% endif %}
+                </div>
+
+                <!-- Financial fields -->
+                <div class="grid grid-cols-2 gap-5 p-4 bg-amber-50 rounded-xl border border-amber-100">
+                    <div class="col-span-2">
+                        <p class="text-xs font-black text-amber-700 uppercase mb-3 flex items-center gap-1">
+                            <i class="fa-solid fa-wallet"></i> الإعدادات المالية
+                        </p>
+                    </div>
+                    <!-- Opening Balance -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            الرصيد الافتتاحي
+                            <span class="text-gray-400 text-xs">(+ = عليه / - = له)</span>
+                        </label>
+                        {{ form.opening_balance }}
+                        {% if form.opening_balance.errors %}
+                        <p class="text-red-500 text-xs mt-1 font-semibold">{{ form.opening_balance.errors.0 }}</p>
+                        {% endif %}
+                    </div>
+                    <!-- Credit Limit -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            حد الائتمان (أقصى دين مسموح)
+                            <span class="text-gray-400 text-xs">(0 = غير محدود)</span>
+                        </label>
+                        {{ form.credit_limit }}
+                        {% if form.credit_limit.errors %}
+                        <p class="text-red-500 text-xs mt-1 font-semibold">{{ form.credit_limit.errors.0 }}</p>
+                        {% endif %}
+                        <p class="text-xs text-gray-500 mt-1">النظام سيمنع البيع الآجل إذا تجاوز العميل هذا الحد.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex justify-end gap-3 mt-8 pt-4 border-t border-gray-100">
+                <a href="{% url 'customer_list' %}" class="px-6 py-2.5 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition">إلغاء</a>
+                <button type="submit" class="px-6 py-2.5 bg-teal-600 text-white rounded-lg hover:bg-teal-700 font-bold shadow-sm transition">حفظ البيانات</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

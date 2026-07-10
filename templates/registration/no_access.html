@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>لا توجد صلاحيات | النظام</title>
+    <script src="/static/vendor/js/tailwind.js"></script>
+    <link rel="stylesheet" href="/static/vendor/fontawesome/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap');
+        body { font-family: 'Tajawal', sans-serif; }
+    </style>
+</head>
+<body class="bg-slate-50 flex items-center justify-center min-h-screen overflow-x-hidden">
+    <div class="absolute inset-0 z-0 opacity-[0.03] pointer-events-none" style="background-image: radial-gradient(#4f46e5 1px, transparent 1px); background-size: 30px 30px;"></div>
+
+    <div class="z-10 bg-white p-8 md:p-12 rounded-[2.5rem] shadow-2xl max-w-lg w-[90%] text-center border-b-8 border-amber-500">
+        <div class="relative w-24 h-24 mx-auto mb-8 flex items-center justify-center">
+            <div class="absolute inset-0 bg-amber-50 rounded-full"></div>
+            <i class="fas fa-user-lock text-4xl text-amber-500 relative z-10"></i>
+        </div>
+
+        <h1 class="text-2xl font-bold text-slate-800 mb-4">لا توجد صلاحيات مفعّلة لحسابك</h1>
+        <p class="text-slate-500 mb-8 leading-relaxed text-sm md:text-base">
+            تم تسجيل دخولك بنجاح، لكن لم تُمنح أي صلاحية للوصول إلى صفحات النظام بعد.<br>
+            يرجى التواصل مع مسؤول النظام لتفعيل الصلاحيات المناسبة لحسابك.
+        </p>
+
+        <a href="{% url 'logout' %}" class="inline-flex items-center justify-center gap-2 px-6 py-3.5 bg-slate-900 text-white font-bold rounded-2xl hover:bg-slate-800 transition-all active:scale-95">
+            <i class="fas fa-power-off"></i> تسجيل خروج
+        </a>
+    </div>
+</body>
+</html>

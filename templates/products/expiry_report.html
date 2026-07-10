@@ -1,0 +1,17 @@
+﻿{% extends 'base.html' %}
+{% load humanize %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+<div class="max-w-5xl mx-auto space-y-5">
+    <div class="flex items-center justify-between print:hidden">
+        <h1 class="text-2xl font-black text-gray-800">تقرير الصلاحية</h1>
+        <a href="?print=1" class="px-4 py-2 bg-gray-700 text-white rounded-lg font-bold text-sm">طباعة</a>
+    </div>
+
+    {% include 'products/_expiry_section.html' with title='منتهية الصلاحية' rows=expired color='red' %}
+    {% include 'products/_expiry_section.html' with title='تنتهي خلال 30 يوم' rows=d30 color='orange' %}
+    {% include 'products/_expiry_section.html' with title='تنتهي خلال 31-60 يوم' rows=d60 color='yellow' %}
+    {% include 'products/_expiry_section.html' with title='تنتهي خلال 61-90 يوم' rows=d90 color='blue' %}
+</div>
+{% if print_mode %}<script>window.onload=function(){window.print();};</script>{% endif %}
+{% endblock %}

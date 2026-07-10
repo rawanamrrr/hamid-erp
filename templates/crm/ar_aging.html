@@ -1,0 +1,66 @@
+﻿{% extends 'base.html' %}
+{% load humanize %}
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto space-y-5">
+    <div class="flex items-center justify-between print:hidden">
+        <h1 class="text-2xl font-black text-gray-800">أعمار الديون (المستحقات على العملاء)</h1>
+        <div class="flex items-end gap-2">
+            <form method="get" class="flex items-end gap-2">
+                <div><label class="block text-xs font-bold text-gray-500 mb-1">حتى تاريخ</label>
+                    <input type="date" name="as_of" value="{{ as_of }}" class="p-2 border rounded-lg"></div>
+                <button class="px-4 py-2 bg-indigo-600 text-white rounded-lg font-bold">تحديث</button>
+            </form>
+            <a href="?as_of={{ as_of }}&export=csv" class="px-4 py-2 bg-green-700 text-white rounded-lg font-bold">Excel</a>
+            <a href="?as_of={{ as_of }}&print=1" class="px-4 py-2 bg-gray-700 text-white rounded-lg font-bold">طباعة</a>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
+        <div class="bg-white p-3 rounded-xl border text-center"><p class="text-[11px] text-gray-500 font-bold">حالي (0-30)</p><p class="text-lg font-black text-green-600 dir-ltr">{{ totals.current|floatformat:2|intcomma }}</p></div>
+        <div class="bg-white p-3 rounded-xl border text-center"><p class="text-[11px] text-gray-500 font-bold">31-60 يوم</p><p class="text-lg font-black text-yellow-600 dir-ltr">{{ totals.d30|floatformat:2|intcomma }}</p></div>
+        <div class="bg-white p-3 rounded-xl border text-center"><p class="text-[11px] text-gray-500 font-bold">61-90 يوم</p><p class="text-lg font-black text-orange-600 dir-ltr">{{ totals.d60|floatformat:2|intcomma }}</p></div>
+        <div class="bg-white p-3 rounded-xl border text-center"><p class="text-[11px] text-gray-500 font-bold">أكثر من 90</p><p class="text-lg font-black text-red-600 dir-ltr">{{ totals.d90|floatformat:2|intcomma }}</p></div>
+        <div class="bg-gray-800 text-white p-3 rounded-xl text-center"><p class="text-[11px] text-gray-300 font-bold">الإجمالي</p><p class="text-lg font-black dir-ltr">{{ totals.total|floatformat:2|intcomma }}</p></div>
+    </div>
+
+    <div class="bg-white rounded-xl border overflow-hidden">
+        <table class="w-full text-sm">
+            <thead class="bg-gray-50 text-gray-500 text-xs">
+                <tr>
+                    <th class="py-3 px-4 text-right">العميل</th>
+                    <th class="py-3 px-4 text-left">حالي</th>
+                    <th class="py-3 px-4 text-left">31-60</th>
+                    <th class="py-3 px-4 text-left">61-90</th>
+                    <th class="py-3 px-4 text-left">90+</th>
+                    <th class="py-3 px-4 text-left">الإجمالي</th>
+                    <th class="py-3 px-4 text-left print:hidden">الأقدم</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y">
+                {% for r in rows %}
+                <tr class="hover:bg-gray-50 {% if r.d90 > 0 %}bg-red-50/40{% endif %}">
+                    <td class="py-2 px-4 font-bold text-gray-700">
+                        <a href="{% url 'customer_statement' r.customer.id %}" class="hover:text-indigo-600">{{ r.customer.first_name }} {{ r.customer.last_name }}</a>
+                        {% if r.customer.whatsapp_url %}<a href="{{ r.customer.whatsapp_url }}" target="_blank" class="text-green-600 hover:text-green-700 ml-1 print:hidden" title="تذكير واتساب"><i class="fab fa-whatsapp"></i></a>{% endif %}
+                        {% if r.customer.phone %}<div class="text-[10px] text-gray-400">{{ r.customer.phone }}</div>{% endif %}
+                    </td>
+                    <td class="py-2 px-4 text-left dir-ltr">{{ r.current|floatformat:2|intcomma }}</td>
+                    <td class="py-2 px-4 text-left dir-ltr text-yellow-700">{{ r.d30|floatformat:2|intcomma }}</td>
+                    <td class="py-2 px-4 text-left dir-ltr text-orange-700">{{ r.d60|floatformat:2|intcomma }}</td>
+                    <td class="py-2 px-4 text-left dir-ltr text-red-700 font-bold">{{ r.d90|floatformat:2|intcomma }}</td>
+                    <td class="py-2 px-4 text-left dir-ltr font-black">{{ r.total|floatformat:2|intcomma }}</td>
+                    <td class="py-2 px-4 text-left dir-ltr text-gray-400 text-xs print:hidden">{{ r.oldest_days }} يوم</td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="7" class="py-8 text-center text-gray-400">لا توجد مستحقات على العملاء 🎉</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <p class="text-center text-xs text-gray-400">المبالغ موزّعة حسب عمر الفاتورة (سداد العميل يُخصم من الأقدم أولاً).</p>
+</div>
+
+{% if print_mode %}<script>window.onload=function(){window.print();};</script>{% endif %}
+{% endblock %}

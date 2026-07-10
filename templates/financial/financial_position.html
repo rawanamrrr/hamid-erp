@@ -1,0 +1,49 @@
+﻿{% extends 'base.html' %}
+{% load humanize %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+<div class="max-w-5xl mx-auto space-y-5">
+    <div class="flex items-center justify-between print:hidden">
+        <h1 class="text-2xl font-black text-gray-800">المركز المالي</h1>
+        <a href="?date_from={{ date_from }}&date_to={{ date_to }}&print=1" class="px-4 py-2 bg-gray-700 text-white rounded-lg font-bold text-sm">طباعة</a>
+    </div>
+
+    <!-- Headline -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div class="bg-white p-4 rounded-xl border text-center"><p class="text-xs text-gray-500 font-bold">النقدية والبنوك</p><p class="text-xl font-black text-teal-600 dir-ltr">{{ p.cash_total|floatformat:2|intcomma }}</p></div>
+        <div class="bg-white p-4 rounded-xl border text-center"><p class="text-xs text-gray-500 font-bold">مستحق لنا (عملاء)</p><p class="text-xl font-black text-green-600 dir-ltr">{{ p.ar|floatformat:2|intcomma }}</p></div>
+        <div class="bg-white p-4 rounded-xl border text-center"><p class="text-xs text-gray-500 font-bold">علينا (موردون)</p><p class="text-xl font-black text-red-600 dir-ltr">{{ p.ap|floatformat:2|intcomma }}</p></div>
+        <div class="bg-white p-4 rounded-xl border text-center"><p class="text-xs text-gray-500 font-bold">قيمة المخزون</p><p class="text-xl font-black text-indigo-600 dir-ltr">{{ p.inventory_value|floatformat:2|intcomma }}</p></div>
+    </div>
+    <div class="bg-gray-800 text-white rounded-xl px-5 py-4 flex justify-between items-center">
+        <span class="font-black">صافي المركز التقديري (نقدية + مستحقات + مخزون − موردون)</span>
+        <span class="dir-ltr font-black text-2xl">{{ p.net_worth_est|floatformat:2|intcomma }}</span>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+        <!-- Cash accounts -->
+        <div class="bg-white rounded-xl border overflow-hidden">
+            <div class="px-4 py-2 bg-teal-700 text-white font-black text-sm">حسابات النقدية والبنوك</div>
+            <table class="w-full text-sm"><tbody class="divide-y">
+                {% for r in p.cash_rows %}<tr><td class="py-2 px-4 font-bold text-gray-700">{{ r.name }}</td><td class="py-2 px-4 text-left dir-ltr {% if r.balance < 0 %}text-red-600{% endif %}">{{ r.balance|floatformat:2|intcomma }}</td></tr>{% empty %}<tr><td class="py-4 text-center text-gray-400" colspan="2">لا توجد حسابات</td></tr>{% endfor %}
+            </tbody><tfoot class="bg-gray-50 font-black"><tr><td class="py-2 px-4">الإجمالي</td><td class="py-2 px-4 text-left dir-ltr">{{ p.cash_total|floatformat:2|intcomma }}</td></tr></tfoot></table>
+        </div>
+
+        <!-- Expenses by category -->
+        <div class="bg-white rounded-xl border overflow-hidden">
+            <div class="px-4 py-2 bg-red-700 text-white font-black text-sm flex justify-between"><span>المصروفات حسب التصنيف</span>
+                <form method="get" class="print:hidden flex gap-1 text-gray-800">
+                    <input type="date" name="date_from" value="{{ date_from }}" class="text-xs p-1 rounded">
+                    <input type="date" name="date_to" value="{{ date_to }}" class="text-xs p-1 rounded">
+                    <button class="bg-white text-red-700 px-2 rounded text-xs font-bold">تصفية</button>
+                </form>
+            </div>
+            <table class="w-full text-sm"><tbody class="divide-y">
+                {% for r in p.exp_rows %}<tr><td class="py-2 px-4 font-bold text-gray-700">{{ r.label }} <span class="text-[10px] text-gray-400">({{ r.n }})</span></td><td class="py-2 px-4 text-left dir-ltr">{{ r.total|floatformat:2|intcomma }}</td></tr>{% empty %}<tr><td class="py-4 text-center text-gray-400" colspan="2">لا مصروفات في الفترة</td></tr>{% endfor %}
+            </tbody><tfoot class="bg-gray-50 font-black"><tr><td class="py-2 px-4">الإجمالي</td><td class="py-2 px-4 text-left dir-ltr">{{ p.exp_total|floatformat:2|intcomma }}</td></tr></tfoot></table>
+        </div>
+    </div>
+    <p class="text-center text-xs text-gray-400">صورة تقديرية سريعة للوضع المالي. للتقارير المحاسبية الدقيقة استخدم ميزان المراجعة وقائمة الدخل.</p>
+</div>
+{% if print_mode %}<script>window.onload=function(){window.print();};</script>{% endif %}
+{% endblock %}

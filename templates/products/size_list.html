@@ -1,0 +1,106 @@
+{% extends 'base.html' %}
+{% block title %}المقاسات{% endblock %}
+{% block content %}
+<div class="max-w-4xl mx-auto space-y-6">
+  <div class="flex items-center justify-between">
+    <div>
+      <h1 class="text-2xl font-bold text-gray-800">المقاسات</h1>
+      <p class="text-sm text-gray-500 mt-1">اسحب لإعادة الترتيب</p>
+    </div>
+  </div>
+
+  <!-- Quick Add -->
+  <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+    <h2 class="font-semibold text-gray-700 mb-3 text-sm">إضافة سريعة</h2>
+    <div class="flex flex-wrap gap-2 mb-4">
+      <!-- Quick add buttons below -->
+      <button onclick="quickAdd('S','alpha')" class="quick-btn">S</button>
+      <button onclick="quickAdd('M','alpha')" class="quick-btn">M</button>
+      <button onclick="quickAdd('L','alpha')" class="quick-btn">L</button>
+      <button onclick="quickAdd('XL','alpha')" class="quick-btn">XL</button>
+      <button onclick="quickAdd('XXL','alpha')" class="quick-btn">XXL</button>
+      <button onclick="quickAdd('38','numeric')" class="quick-btn">38</button>
+      <button onclick="quickAdd('40','numeric')" class="quick-btn">40</button>
+      <button onclick="quickAdd('42','numeric')" class="quick-btn">42</button>
+      <button onclick="quickAdd('44','numeric')" class="quick-btn">44</button>
+      <button onclick="quickAdd('46','numeric')" class="quick-btn">46</button>
+    </div>
+    <form method="post" action="{% url 'size_create' %}" class="flex gap-3">
+      {% csrf_token %}
+      <input name="name" id="customSizeName" type="text" placeholder="مقاس مخصص..." class="flex-1 px-4 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-200">
+      <select name="size_type" class="px-4 py-2 border border-gray-200 rounded-xl text-sm">
+        <option value="alpha">حروف</option>
+        <option value="numeric">أرقام</option>
+        <option value="custom">مخصص</option>
+      </select>
+      <button type="submit" class="bg-teal-600 hover:bg-teal-700 text-white px-5 py-2 rounded-xl text-sm font-semibold transition">إضافة</button>
+    </form>
+  </div>
+
+  <!-- Sizes List (drag & drop) -->
+  <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+    <h2 class="font-semibold text-gray-700 mb-4 text-sm">قائمة المقاسات <span class="text-gray-400">({{ sizes|length }})</span></h2>
+    <div id="sizeList" class="flex flex-wrap gap-3">
+      {% for size in sizes %}
+      <div class="size-chip flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-4 py-2 cursor-grab text-sm font-semibold text-gray-700 hover:border-teal-300 hover:bg-teal-50 transition" data-id="{{ size.id }}" draggable="true">
+        <i class="fas fa-grip-vertical text-gray-300 text-xs"></i>
+        <span>{{ size.name }}</span>
+        <span class="text-xs text-gray-400">({{ size.get_size_type_display }})</span>
+        {% if not size.is_active %}<span class="text-xs text-red-400">• غير نشط</span>{% endif %}
+        <form method="post" action="{% url 'size_delete' size.pk %}" class="inline" onsubmit="return confirm('حذف مقاس {{ size.name }}؟')">
+          {% csrf_token %}<button class="text-red-400 hover:text-red-600 mr-1 text-xs"><i class="fas fa-times"></i></button>
+        </form>
+      </div>
+      {% empty %}
+      <p class="text-gray-400 text-sm">لا توجد مقاسات بعد.</p>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<style>
+.quick-btn { @apply bg-gray-100 hover:bg-teal-100 text-gray-700 hover:text-teal-700 px-3 py-1.5 rounded-lg text-sm font-semibold border border-gray-200 hover:border-teal-300 transition cursor-pointer; }
+.size-chip.drag-over { border-color: #14b8a6; background: #f0fdfa; }
+</style>
+
+<script>
+function quickAdd(name, type) {
+  const form = document.createElement('form');
+  form.method = 'post';
+  form.action = '{% url "size_create" %}';
+  form.innerHTML = `<input name="csrfmiddlewaretoken" value="{{ csrf_token }}"><input name="name" value="${name}"><input name="size_type" value="${type}">`;
+  document.body.appendChild(form);
+  form.submit();
+}
+
+// Drag and drop reorder
+let dragSrc = null;
+document.querySelectorAll('.size-chip').forEach(chip => {
+  chip.addEventListener('dragstart', e => { dragSrc = chip; chip.style.opacity = '0.5'; });
+  chip.addEventListener('dragend', e => { chip.style.opacity = ''; saveOrder(); });
+  chip.addEventListener('dragover', e => { e.preventDefault(); chip.classList.add('drag-over'); });
+  chip.addEventListener('dragleave', () => chip.classList.remove('drag-over'));
+  chip.addEventListener('drop', e => {
+    e.preventDefault();
+    chip.classList.remove('drag-over');
+    if (dragSrc !== chip) {
+      const list = document.getElementById('sizeList');
+      const chips = [...list.querySelectorAll('.size-chip')];
+      const srcIdx = chips.indexOf(dragSrc);
+      const dstIdx = chips.indexOf(chip);
+      if (srcIdx < dstIdx) chip.after(dragSrc); else chip.before(dragSrc);
+    }
+  });
+});
+
+function saveOrder() {
+  const chips = [...document.querySelectorAll('.size-chip')];
+  const order = chips.map((c, i) => ({ id: c.dataset.id, order: i }));
+  fetch('{% url "size_reorder" %}', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
+    body: JSON.stringify({ order })
+  });
+}
+</script>
+{% endblock %}

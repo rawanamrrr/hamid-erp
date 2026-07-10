@@ -1,0 +1,301 @@
+<html dir="rtl">
+<body style="margin:0;padding:0;background:#f5f7fa;font-family:Arial,sans-serif;color:#1f2937;">
+  <div style="max-width:900px;margin:20px auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;">
+    <div style="background:#ffffff;padding:14px 20px;border-bottom:1px solid #e5e7eb;text-align:center;">
+      {% if logo_cid %}
+      <img src="{{ logo_cid }}" alt="Logo" style="max-height:72px;max-width:220px;object-fit:contain;display:inline-block;background:#fff;">
+      {% elif system_settings.logo_base64 %}
+      <img src="{{ system_settings.logo_base64 }}" alt="Logo" style="max-height:72px;max-width:220px;object-fit:contain;display:inline-block;background:#fff;">
+      {% endif %}
+    </div>
+    <div style="background:#0f766e;color:#fff;padding:16px 20px;">
+      <h2 style="margin:0 0 8px 0;">MR MEKAWY - تقرير إغلاق الشيفت</h2>
+      <div style="font-size:13px;line-height:1.8;">
+        <div>رقم الشيفت: <strong>#{{ shift.id }}</strong></div>
+        <div>وقت الفتح: {{ shift.start_time }}</div>
+        <div>وقت الإغلاق: {{ shift.end_time }}</div>
+        <div>الكاشير: {{ shift.employee.username }}</div>
+      </div>
+    </div>
+
+    <div style="padding:16px 20px;">
+      <h3 style="margin:0 0 10px 0;color:#0f766e;">ملخص الدرج (Cash Drawer Summary)</h3>
+      <table style="width:100%;border-collapse:collapse;font-size:14px;">
+        <tr><td style="border:1px solid #e5e7eb;padding:8px;">رصيد البداية</td><td style="border:1px solid #e5e7eb;padding:8px;">{{ shift.start_balance }}</td></tr>
+        <tr><td style="border:1px solid #e5e7eb;padding:8px;">إجمالي كاش المبيعات</td><td style="border:1px solid #e5e7eb;padding:8px;">{{ shift.total_sales_cash }}</td></tr>
+        <tr><td style="border:1px solid #e5e7eb;padding:8px;">إجمالي المصروفات</td><td style="border:1px solid #e5e7eb;padding:8px;">{{ shift.total_expenses }}</td></tr>
+        <tr><td style="border:1px solid #e5e7eb;padding:8px;">المسحوبات</td><td style="border:1px solid #e5e7eb;padding:8px;">{{ shift.total_withdrawals }}</td></tr>
+        <tr><td style="border:1px solid #e5e7eb;padding:8px;">المرتجعات (كاش)</td><td style="border:1px solid #e5e7eb;padding:8px;">{{ cash_returns_total }}</td></tr>
+        <tr><td style="border:1px solid #e5e7eb;padding:8px;font-weight:bold;background:#f0fdfa;">الرصيد المتوقع في الدرج</td><td style="border:1px solid #e5e7eb;padding:8px;font-weight:bold;background:#f0fdfa;">{{ shift.expected_closing_balance }}</td></tr>
+      </table>
+    </div>
+
+    <div style="padding:0 20px 16px 20px;">
+      <h3 style="margin:0 0 10px 0;color:#0f766e;">تفاصيل المبيعات</h3>
+      <table style="width:100%;border-collapse:collapse;font-size:14px;">
+        <tr><td style="border:1px solid #e5e7eb;padding:8px;">عدد الفواتير</td><td style="border:1px solid #e5e7eb;padding:8px;">{{ sales_count }}</td></tr>
+        <tr><td style="border:1px solid #e5e7eb;padding:8px;">إجمالي المبيعات</td><td style="border:1px solid #e5e7eb;padding:8px;">{{ sales_total }}</td></tr>
+        <tr><td style="border:1px solid #e5e7eb;padding:8px;">نقدي</td><td style="border:1px solid #e5e7eb;padding:8px;">{{ cash_total }}</td></tr>
+        <tr><td style="border:1px solid #e5e7eb;padding:8px;">محفظة/إنستا باي</td><td style="border:1px solid #e5e7eb;padding:8px;">{{ card_total }}</td></tr>
+        <tr><td style="border:1px solid #e5e7eb;padding:8px;">فيزا</td><td style="border:1px solid #e5e7eb;padding:8px;">{{ visa_total }}</td></tr>
+        <tr><td style="border:1px solid #e5e7eb;padding:8px;">طرق أخرى (محفظة+إنستا)</td><td style="border:1px solid #e5e7eb;padding:8px;">{{ other_total }}</td></tr>
+      </table>
+    </div>
+
+    <div style="padding:0 20px 16px 20px;">
+      <h3 style="margin:0 0 10px 0;color:#0f766e;">المصروفات والمسحوبات</h3>
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <tr style="background:#f9fafb;">
+          <th style="border:1px solid #e5e7eb;padding:8px;">الوصف</th>
+          <th style="border:1px solid #e5e7eb;padding:8px;">المبلغ</th>
+          <th style="border:1px solid #e5e7eb;padding:8px;">التاريخ</th>
+        </tr>
+        {% for t in expenses_withdrawals %}
+        <tr>
+          <td style="border:1px solid #e5e7eb;padding:8px;">{{ t.description }}</td>
+          <td style="border:1px solid #e5e7eb;padding:8px;">{{ t.amount }}</td>
+          <td style="border:1px solid #e5e7eb;padding:8px;">{{ t.created_at }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="3" style="border:1px solid #e5e7eb;padding:8px;text-align:center;">لا توجد بيانات</td></tr>
+        {% endfor %}
+      </table>
+    </div>
+
+    {% if manual_transactions %}
+    <div style="padding:0 20px 16px 20px;">
+      <h3 style="margin:0 0 10px 0;color:#0f766e;">العمليات المالية اليدوية (تحويلات / إيداعات / إيرادات / مدفوعات موردين)</h3>
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <tr style="background:#f9fafb;">
+          <th style="border:1px solid #e5e7eb;padding:8px;">النوع</th>
+          <th style="border:1px solid #e5e7eb;padding:8px;">الوصف</th>
+          <th style="border:1px solid #e5e7eb;padding:8px;">المبلغ</th>
+          <th style="border:1px solid #e5e7eb;padding:8px;">الحساب</th>
+          <th style="border:1px solid #e5e7eb;padding:8px;">التاريخ</th>
+        </tr>
+        {% for t in manual_transactions %}
+        <tr>
+          <td style="border:1px solid #e5e7eb;padding:8px;">
+            {% if t.transaction_type == 'TRANSFER' %}<span style="color:#2563eb;">🔄 تحويل</span>
+            {% elif t.transaction_type == 'DEPOSIT' %}<span style="color:#059669;">💰 إيداع</span>
+            {% elif t.transaction_type == 'INCOME' %}<span style="color:#16a34a;">📥 إيراد</span>
+            {% elif t.transaction_type == 'SUPPLIER_PAYMENT' %}<span style="color:#dc2626;">📤 دفعة مورد</span>
+            {% else %}{{ t.get_transaction_type_display }}{% endif %}
+          </td>
+          <td style="border:1px solid #e5e7eb;padding:8px;">{{ t.description }}</td>
+          <td style="border:1px solid #e5e7eb;padding:8px;font-weight:bold;">{{ t.amount }}</td>
+          <td style="border:1px solid #e5e7eb;padding:8px;">{{ t.account.name }}{% if t.to_account %} → {{ t.to_account.name }}{% endif %}</td>
+          <td style="border:1px solid #e5e7eb;padding:8px;">{{ t.created_at }}</td>
+        </tr>
+        {% endfor %}
+      </table>
+    </div>
+    {% endif %}
+
+    <div style="padding:0 20px 16px 20px;">
+      <h3 style="margin:0 0 10px 0;color:#0f766e;">المرتجعات</h3>
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <tr style="background:#f9fafb;">
+          <th style="border:1px solid #e5e7eb;padding:8px;">رقم الفاتورة</th>
+          <th style="border:1px solid #e5e7eb;padding:8px;">العميل</th>
+          <th style="border:1px solid #e5e7eb;padding:8px;">المبلغ</th>
+          <th style="border:1px solid #e5e7eb;padding:8px;">السبب</th>
+        </tr>
+        {% for r in returns %}
+        <tr>
+          <td style="border:1px solid #e5e7eb;padding:8px;">{% if r.original_order %}#{{ r.original_order.id }}{% else %}-{% endif %}</td>
+          <td style="border:1px solid #e5e7eb;padding:8px;">{% if r.customer %}{{ r.customer.first_name }} {{ r.customer.last_name }}{% else %}-{% endif %}</td>
+          <td style="border:1px solid #e5e7eb;padding:8px;">{{ r.total_refund_amount }}</td>
+          <td style="border:1px solid #e5e7eb;padding:8px;">{{ r.reason|default:'-' }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="4" style="border:1px solid #e5e7eb;padding:8px;text-align:center;">لا توجد مرتجعات</td></tr>
+        {% endfor %}
+      </table>
+    </div>
+
+    <div style="padding:0 20px 20px 20px;">
+      <h3 style="margin:0 0 10px 0;color:#0f766e;">فواتير الشيفت</h3>
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <tr style="background:#f9fafb;">
+          <th style="border:1px solid #e5e7eb;padding:8px;">رقم الفاتورة</th>
+          <th style="border:1px solid #e5e7eb;padding:8px;">العميل</th>
+          <th style="border:1px solid #e5e7eb;padding:8px;">الهاتف</th>
+          <th style="border:1px solid #e5e7eb;padding:8px;">الإجمالي</th>
+          <th style="border:1px solid #e5e7eb;padding:8px;">طريقة الدفع</th>
+          <th style="border:1px solid #e5e7eb;padding:8px;">التاريخ</th>
+        </tr>
+        {% for inv in invoices %}
+        <tr>
+          <td style="border:1px solid #e5e7eb;padding:8px;"><a href="{{ BASE_URL }}/sales/invoice/{{ inv.id }}/" style="color:#0f766e;">#{{ inv.id }}</a></td>
+          <td style="border:1px solid #e5e7eb;padding:8px;">{% if inv.customer %}{{ inv.customer.first_name }} {{ inv.customer.last_name }}{% else %}عميل نقدي{% endif %}</td>
+          <td style="border:1px solid #e5e7eb;padding:8px;">{% if inv.customer %}{{ inv.customer.phone }}{% else %}-{% endif %}</td>
+          <td style="border:1px solid #e5e7eb;padding:8px;">{{ inv.total_amount }}</td>
+          <td style="border:1px solid #e5e7eb;padding:8px;">{{ inv.get_payment_method_display }}</td>
+          <td style="border:1px solid #e5e7eb;padding:8px;">{{ inv.created_at }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="6" style="border:1px solid #e5e7eb;padding:8px;text-align:center;">لا توجد فواتير</td></tr>
+        {% endfor %}
+      </table>
+    </div>
+
+    {% if not shift_has_sales %}
+    <div style="padding:0 20px 20px 20px;">
+      <div style="background:#fff8e1;border:1px solid #f5c542;color:#7c5700;padding:12px;border-radius:6px;font-size:14px;font-weight:bold;text-align:center;">
+        لم يتم تسجيل أي مبيعات في هذا الشيفت
+      </div>
+    </div>
+    {% else %}
+    <div style="padding:0 20px 16px 20px;">
+      <h3 style="margin:0 0 10px 0;color:#1a5276;">قسم 6 — أكثر المنتجات مبيعاً</h3>
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <tr style="background:#ebf5fb;">
+          <th style="border:1px solid #d6eaf8;padding:8px;">الترتيب</th>
+          <th style="border:1px solid #d6eaf8;padding:8px;">اسم المنتج</th>
+          <th style="border:1px solid #d6eaf8;padding:8px;">الكمية المباعة</th>
+          <th style="border:1px solid #d6eaf8;padding:8px;">إجمالي الإيراد</th>
+        </tr>
+        {% for p in top_products %}
+        <tr>
+          <td style="border:1px solid #e5e7eb;padding:8px;">
+            {% if forloop.counter == 1 %}🥇{% elif forloop.counter == 2 %}🥈{% elif forloop.counter == 3 %}🥉{% else %}#{{ forloop.counter }}{% endif %}
+          </td>
+          <td style="border:1px solid #e5e7eb;padding:8px;">{{ p.product__name }}</td>
+          <td style="border:1px solid #e5e7eb;padding:8px;">{{ p.total_qty }}</td>
+          <td style="border:1px solid #e5e7eb;padding:8px;">{{ p.total_revenue|default:0 }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="4" style="border:1px solid #e5e7eb;padding:8px;text-align:center;">لا توجد مبيعات في هذا الشيفت</td></tr>
+        {% endfor %}
+      </table>
+    </div>
+
+    <div style="padding:0 20px 16px 20px;">
+      <h3 style="margin:0 0 10px 0;color:#1a5276;">قسم 7 — تحليل الأوقات (ساعات الذروة)</h3>
+      {% if rush_hours %}
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <tr style="background:#ebf5fb;">
+          <th style="border:1px solid #d6eaf8;padding:8px;">الساعة</th>
+          <th style="border:1px solid #d6eaf8;padding:8px;">عدد الفواتير</th>
+          <th style="border:1px solid #d6eaf8;padding:8px;">الشريط</th>
+          <th style="border:1px solid #d6eaf8;padding:8px;">إجمالي المبيعات</th>
+        </tr>
+        {% for r in rush_hours %}
+        <tr {% if forloop.first %}style="background:#d6eaf8;"{% endif %}>
+          <td style="border:1px solid #e5e7eb;padding:8px;">{{ r.hour_label }}</td>
+          <td style="border:1px solid #e5e7eb;padding:8px;">{{ r.invoice_count }}</td>
+          <td style="border:1px solid #e5e7eb;padding:8px;">
+            <div style="height:10px;background:#2980b9;width:{{ r.bar_width }}px;border-radius:5px;"></div>
+          </td>
+          <td style="border:1px solid #e5e7eb;padding:8px;">{{ r.total_sales|default:0 }}</td>
+        </tr>
+        {% endfor %}
+      </table>
+      {% else %}
+      <div style="background:#f4f6f7;border:1px solid #d5dbdb;color:#566573;padding:10px;border-radius:6px;">لا توجد بيانات كافية لتحليل الذروة</div>
+      {% endif %}
+    </div>
+
+    <div style="padding:0 20px 16px 20px;">
+      <h3 style="margin:0 0 10px 0;color:#1a5276;">قسم 8 — تحليل المخزون (نواقص ومنتهي)</h3>
+      <table style="width:100%;border-collapse:separate;border-spacing:8px;">
+        <tr>
+          <td style="vertical-align:top;width:50%;">
+            <div style="background:#f39c12;color:#fff;padding:8px;border-radius:6px 6px 0 0;font-weight:bold;">⚠️ على وشك النفاد</div>
+            <table style="width:100%;border-collapse:collapse;font-size:12px;">
+              <tr><th style="border:1px solid #e5e7eb;padding:6px;">المنتج</th><th style="border:1px solid #e5e7eb;padding:6px;">الكمية</th><th style="border:1px solid #e5e7eb;padding:6px;">الحد الأدنى</th></tr>
+              {% for p in low_stock %}
+              <tr>
+                <td style="border:1px solid #e5e7eb;padding:6px;">{{ p.name }}</td>
+                <td style="border:1px solid #e5e7eb;padding:6px;">{{ p.stock_quantity }}</td>
+                <td style="border:1px solid #e5e7eb;padding:6px;">{{ p.min_stock_alert|default:p.low_stock_threshold|default:"5" }}</td>
+              </tr>
+              {% empty %}
+              <tr><td colspan="3" style="border:1px solid #e5e7eb;padding:6px;text-align:center;color:#1e8449;">لا توجد منتجات على وشك النفاد ✓</td></tr>
+              {% endfor %}
+            </table>
+          </td>
+          <td style="vertical-align:top;width:50%;">
+            <div style="background:#e74c3c;color:#fff;padding:8px;border-radius:6px 6px 0 0;font-weight:bold;">🚨 نفد من المخزون</div>
+            <table style="width:100%;border-collapse:collapse;font-size:12px;">
+              <tr><th style="border:1px solid #e5e7eb;padding:6px;">المنتج</th><th style="border:1px solid #e5e7eb;padding:6px;">آخر كمية</th><th style="border:1px solid #e5e7eb;padding:6px;">الحالة</th></tr>
+              {% for p in out_of_stock %}
+              <tr>
+                <td style="border:1px solid #e5e7eb;padding:6px;">{{ p.name }}</td>
+                <td style="border:1px solid #e5e7eb;padding:6px;">{{ p.stock_quantity }}</td>
+                <td style="border:1px solid #e5e7eb;padding:6px;"><span style="background:#fdecea;color:#c0392b;padding:2px 6px;border-radius:10px;">نفد</span></td>
+              </tr>
+              {% empty %}
+              <tr><td colspan="3" style="border:1px solid #e5e7eb;padding:6px;text-align:center;color:#1e8449;">المخزون كامل ✓</td></tr>
+              {% endfor %}
+            </table>
+          </td>
+        </tr>
+      </table>
+    </div>
+
+    <div style="padding:0 20px 16px 20px;">
+      <h3 style="margin:0 0 10px 0;color:#145a32;">قسم 9 — تحليل الأرباح والخسائر</h3>
+      <div style="margin-bottom:10px;">
+        <div style="display:inline-block;background:#eaf4fb;padding:8px 10px;margin:2px;border-radius:6px;">إجمالي الإيراد: {{ profit_summary.total_revenue|default:0 }}</div>
+        <div style="display:inline-block;background:#fdfefe;padding:8px 10px;margin:2px;border-radius:6px;">إجمالي التكلفة: {{ profit_summary.total_cost|default:0 }}</div>
+        <div style="display:inline-block;background:#eafaf1;padding:8px 10px;margin:2px;border-radius:6px;">صافي الربح: {{ profit_summary.total_profit|default:0 }}</div>
+        <div style="display:inline-block;background:#fef9e7;padding:8px 10px;margin:2px;border-radius:6px;">هامش الربح %: {{ profit_summary.margin_percent|default:0|floatformat:2 }}</div>
+      </div>
+
+      <div style="background:#1e8449;color:#fff;padding:8px;border-radius:6px 6px 0 0;font-weight:bold;">🏆 المنتجات الرابحة</div>
+      <table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:10px;">
+        <tr><th style="border:1px solid #e5e7eb;padding:6px;">المنتج</th><th style="border:1px solid #e5e7eb;padding:6px;">الكمية</th><th style="border:1px solid #e5e7eb;padding:6px;">الإيراد</th><th style="border:1px solid #e5e7eb;padding:6px;">التكلفة</th><th style="border:1px solid #e5e7eb;padding:6px;">الربح</th><th style="border:1px solid #e5e7eb;padding:6px;">الهامش</th></tr>
+        {% for p in winners %}
+        <tr>
+          <td style="border:1px solid #e5e7eb;padding:6px;">{{ p.product__name }}</td>
+          <td style="border:1px solid #e5e7eb;padding:6px;">{{ p.total_qty }}</td>
+          <td style="border:1px solid #e5e7eb;padding:6px;">{{ p.total_revenue|default:"غير محدد" }}</td>
+          <td style="border:1px solid #e5e7eb;padding:6px;">{{ p.total_cost|default:"غير محدد" }}</td>
+          <td style="border:1px solid #e5e7eb;padding:6px;color:#1e8449;">{{ p.total_profit|default:"غير محدد" }}</td>
+          <td style="border:1px solid #e5e7eb;padding:6px;">
+            {{ p.profit_margin|default:0|floatformat:2 }}%
+            <div style="height:8px;background:#27ae60;width:{{ p.margin_bar|default:0 }}px;border-radius:4px;margin-top:3px;"></div>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="6" style="border:1px solid #e5e7eb;padding:8px;text-align:center;">لا توجد بيانات</td></tr>
+        {% endfor %}
+      </table>
+
+      <div style="background:#922b21;color:#fff;padding:8px;border-radius:6px 6px 0 0;font-weight:bold;">📉 المنتجات الخاسرة</div>
+      <table style="width:100%;border-collapse:collapse;font-size:12px;">
+        <tr><th style="border:1px solid #e5e7eb;padding:6px;">المنتج</th><th style="border:1px solid #e5e7eb;padding:6px;">الكمية</th><th style="border:1px solid #e5e7eb;padding:6px;">الإيراد</th><th style="border:1px solid #e5e7eb;padding:6px;">التكلفة</th><th style="border:1px solid #e5e7eb;padding:6px;">الربح</th><th style="border:1px solid #e5e7eb;padding:6px;">الهامش</th></tr>
+        {% for p in losers %}
+        <tr>
+          <td style="border:1px solid #e5e7eb;padding:6px;">{{ p.product__name }}</td>
+          <td style="border:1px solid #e5e7eb;padding:6px;">{{ p.total_qty }}</td>
+          <td style="border:1px solid #e5e7eb;padding:6px;">{{ p.total_revenue|default:"غير محدد" }}</td>
+          <td style="border:1px solid #e5e7eb;padding:6px;">{{ p.total_cost|default:"غير محدد" }}</td>
+          <td style="border:1px solid #e5e7eb;padding:6px;color:#922b21;">{{ p.total_profit|default:"غير محدد" }}</td>
+          <td style="border:1px solid #e5e7eb;padding:6px;">
+            {{ p.profit_margin|default:0|floatformat:2 }}%
+            <div style="height:8px;background:#e74c3c;width:{{ p.margin_bar|default:0 }}px;border-radius:4px;margin-top:3px;"></div>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="6" style="border:1px solid #e5e7eb;padding:8px;text-align:center;">لا توجد بيانات</td></tr>
+        {% endfor %}
+      </table>
+
+      <div style="margin-top:8px;color:#6b7280;font-size:12px;font-style:italic;">
+        * يعتمد تحليل الأرباح على سعر التكلفة المُدخَل لكل منتج. تأكد من تحديث أسعار التكلفة لدقة التقرير.
+      </div>
+      <div style="margin-top:4px;color:#6b7280;font-size:12px;font-style:italic;">
+        * {{ products_missing_cost|default:0 }} منتج بدون سعر تكلفة — لم يُدرج في التحليل
+      </div>
+    </div>
+    {% endif %}
+
+    <div style="padding:0 20px 20px 20px;text-align:center;color:#9ca3af;font-size:11px;">
+      هذا البريد تم إنشاؤه بواسطة الذكاء الاصطناعي (AI)
+    </div>
+  </div>
+</body>
+</html>

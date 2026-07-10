@@ -1,0 +1,947 @@
+{% extends 'base.html' %}
+
+{% block title %}إضافة منتجات متعددة{% endblock %}
+
+{% block content %}
+<div class="max-w-full mx-auto">
+    <!-- Header -->
+    <div class="md:flex md:items-center md:justify-between mb-6">
+        <div class="min-w-0 flex-1">
+            <h2 class="text-2xl font-bold leading-7 text-gray-900 sm:truncate sm:text-3xl sm:tracking-tight">
+                <i class="fas fa-boxes text-teal-600 ml-2"></i> إضافة منتجات متعددة (Bulk Add)
+            </h2>
+        </div>
+        <div class="mt-4 flex md:ml-4 md:mt-0 gap-3 flex-wrap">
+            <button type="button" onclick="openQuickModal('category')" class="inline-flex items-center rounded-md bg-indigo-50 px-3 py-2 text-sm font-semibold text-indigo-700 shadow-sm ring-1 ring-inset ring-indigo-200 hover:bg-indigo-100 transition-colors">
+                <i class="fas fa-folder-plus ml-2"></i> إضافة قسم
+            </button>
+            <button type="button" onclick="openQuickModal('kind')" class="inline-flex items-center rounded-md bg-purple-50 px-3 py-2 text-sm font-semibold text-purple-700 shadow-sm ring-1 ring-inset ring-purple-200 hover:bg-purple-100 transition-colors">
+                <i class="fas fa-tags ml-2"></i> إضافة نوع
+            </button>
+            <button type="button" onclick="openQuickModal('size')" class="inline-flex items-center rounded-md bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-700 shadow-sm ring-1 ring-inset ring-amber-200 hover:bg-amber-100 transition-colors">
+                <i class="fas fa-ruler-combined ml-2"></i> إضافة مقاس
+            </button>
+            <button type="button" onclick="addRows(5)" class="inline-flex items-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 transition-colors">
+                <i class="fas fa-plus ml-2 text-gray-500"></i> إضافة 5 صفوف
+            </button>
+
+            <!-- Display Options: which columns to show -->
+            <div class="relative">
+                <button type="button" onclick="toggleDisplayOptionsDropdown()"
+                        class="inline-flex items-center rounded-md bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-700 shadow-sm ring-1 ring-inset ring-amber-200 hover:bg-amber-100 transition-colors">
+                    <i class="fas fa-sliders-h ml-2"></i> عرض الأعمدة
+                </button>
+                <div id="displayOptionsDropdown" class="absolute top-full right-0 mt-1.5 w-56 bg-white rounded-xl shadow-xl border border-gray-100 z-[110] hidden p-3 space-y-2 text-right max-h-96 overflow-y-auto">
+                    <h4 class="font-extrabold text-gray-700 text-[10px] border-b pb-1.5 mb-1.5 flex items-center gap-1"><i class="fas fa-eye text-indigo-500"></i> الأعمدة المرئية</h4>
+                    <label class="flex items-center gap-2 cursor-pointer select-none"><input type="checkbox" checked onchange="toggleColumn('barcode', this.checked)" class="rounded text-indigo-600 w-3.5 h-3.5"><span class="text-xs font-bold text-gray-600">الباركود (EAN-13)</span></label>
+                    <label class="flex items-center gap-2 cursor-pointer select-none"><input type="checkbox" checked onchange="toggleColumn('category', this.checked)" class="rounded text-indigo-600 w-3.5 h-3.5"><span class="text-xs font-bold text-gray-600">القسم</span></label>
+                    <label class="flex items-center gap-2 cursor-pointer select-none"><input type="checkbox" checked onchange="toggleColumn('kind', this.checked)" class="rounded text-indigo-600 w-3.5 h-3.5"><span class="text-xs font-bold text-gray-600">النوع</span></label>
+                    <label class="flex items-center gap-2 cursor-pointer select-none"><input type="checkbox" checked onchange="toggleColumn('supplier', this.checked)" class="rounded text-indigo-600 w-3.5 h-3.5"><span class="text-xs font-bold text-gray-600">المورد</span></label>
+                    <label class="flex items-center gap-2 cursor-pointer select-none"><input type="checkbox" checked onchange="toggleColumn('sizes', this.checked)" class="rounded text-indigo-600 w-3.5 h-3.5"><span class="text-xs font-bold text-gray-600">المقاسات</span></label>
+                    <label class="flex items-center gap-2 cursor-pointer select-none"><input type="checkbox" checked onchange="toggleColumn('specs', this.checked)" class="rounded text-indigo-600 w-3.5 h-3.5"><span class="text-xs font-bold text-gray-600">الخامة/النقشة/اللون</span></label>
+                    <label class="flex items-center gap-2 cursor-pointer select-none"><input type="checkbox" checked onchange="toggleColumn('cost', this.checked)" class="rounded text-indigo-600 w-3.5 h-3.5"><span class="text-xs font-bold text-gray-600">التكلفة</span></label>
+                    <label class="flex items-center gap-2 cursor-pointer select-none"><input type="checkbox" checked onchange="toggleColumn('quantity', this.checked)" class="rounded text-indigo-600 w-3.5 h-3.5"><span class="text-xs font-bold text-gray-600">الكمية</span></label>
+                    <label class="flex items-center gap-2 cursor-pointer select-none"><input type="checkbox" checked onchange="toggleColumn('unit', this.checked)" class="rounded text-indigo-600 w-3.5 h-3.5"><span class="text-xs font-bold text-gray-600">الوحدة</span></label>
+                    <label class="flex items-center gap-2 cursor-pointer select-none"><input type="checkbox" checked onchange="toggleColumn('threshold', this.checked)" class="rounded text-indigo-600 w-3.5 h-3.5"><span class="text-xs font-bold text-gray-600">تنبيه النواقص</span></label>
+                    <label class="flex items-center gap-2 cursor-pointer select-none"><input type="checkbox" checked onchange="toggleColumn('pieces', this.checked)" class="rounded text-indigo-600 w-3.5 h-3.5"><span class="text-xs font-bold text-gray-600">قطع/شيكارة</span></label>
+                    <label class="flex items-center gap-2 cursor-pointer select-none"><input type="checkbox" checked onchange="toggleColumn('active', this.checked)" class="rounded text-indigo-600 w-3.5 h-3.5"><span class="text-xs font-bold text-gray-600">نشط</span></label>
+                    <label class="flex items-center gap-2 cursor-pointer select-none"><input type="checkbox" checked onchange="toggleColumn('images', this.checked)" class="rounded text-indigo-600 w-3.5 h-3.5"><span class="text-xs font-bold text-gray-600">الصور</span></label>
+                </div>
+            </div>
+
+            <button type="button" onclick="saveAll()" class="inline-flex items-center rounded-md bg-teal-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-teal-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-600 transition-colors">
+                <i class="fas fa-save ml-2"></i> حفظ الكل
+            </button>
+        </div>
+    </div>
+
+    <!-- Global Settings Panel -->
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-5 mb-6">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 items-end">
+            <div>
+                <label for="globalWarehouse" class="block text-sm font-medium leading-6 text-gray-900">
+                    المخزن (للرصيد الافتتاحي)
+                </label>
+                <div class="mt-2">
+                    <select id="globalWarehouse" class="block w-full rounded-md border-0 py-2 pr-3 pl-10 text-gray-900 ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-teal-600 sm:text-sm sm:leading-6">
+                        {% for wh in warehouses %}
+                            <option value="{{ wh.id }}">{{ wh.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            
+            <div class="md:col-span-2 text-sm text-gray-500 bg-blue-50 p-3 rounded-md border border-blue-100">
+                <div class="flex gap-2">
+                    <i class="fas fa-info-circle text-blue-500 mt-0.5"></i>
+                    <div>
+                        <p class="font-medium text-blue-700">ملاحظات النظام:</p>
+                        <ul class="list-disc list-inside mt-1 space-y-1 text-blue-600">
+                            <li>القيم الافتراضية: الوحدة (قطعة PCS)، تنبيه النواقص (10)، الحالة (نشط).</li>
+                            <li>يتم حفظ سعر القطاعي فقط إن لم تُدخل سعر الجملة أو نص الجملة — لا يتم نسخ سعر القطاعي إليهما تلقائياً.</li>
+                            <li>يمكن اختيار أكثر من مقاس لكل صنف — اضغط على كل مقاس تريده.</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bulk Table -->
+    <div class="bg-white">
+        <div class="overflow-x-auto w-full relative sm:rounded-lg border border-gray-200 shadow" style="max-height: 75vh;">
+            <table class="min-w-max w-full divide-y divide-gray-300 text-right" id="bulkTable" dir="rtl">
+                <thead class="bg-gray-50 sticky top-0 z-20 shadow-sm">
+                    <tr>
+                        <th scope="col" class="sticky right-0 z-30 bg-gray-50 py-2 pl-2 pr-3 text-xs font-semibold text-gray-900 w-12 border-l border-gray-200 shadow-[1px_0_0_0_#e5e7eb]">#</th>
+                        <th scope="col" class="sticky right-12 z-30 bg-gray-50 px-2 py-2 text-xs font-semibold text-gray-900 w-32 border-l border-gray-200 shadow-[1px_0_0_0_#e5e7eb]">كود المنتج (SKU)</th>
+                        <th scope="col" class="col-barcode px-2 py-2 text-xs font-semibold text-gray-900 w-44">الباركود (EAN-13)</th>
+                        <th scope="col" class="px-2 py-2 text-xs font-semibold text-gray-900 w-48">اسم المنتج <span class="text-red-500">*</span></th>
+                        <th scope="col" class="col-category px-2 py-2 text-xs font-semibold text-gray-900 w-32">القسم</th>
+                        <th scope="col" class="col-kind px-2 py-2 text-xs font-semibold text-gray-900 w-32">النوع</th>
+                        <th scope="col" class="col-supplier px-2 py-2 text-xs font-semibold text-gray-900 w-32">المورد</th>
+                        <th scope="col" class="col-sizes px-2 py-2 text-xs font-semibold text-gray-900 w-32">المقاسات</th>
+                        <th scope="col" class="col-specs px-2 py-2 text-xs font-semibold text-gray-900 w-24">الخامة/النقشة/اللون</th>
+                        <th scope="col" class="col-cost px-2 py-2 text-xs font-semibold text-gray-900 w-24">التكلفة</th>
+                        <th scope="col" class="px-2 py-2 text-xs font-semibold text-gray-900 w-32">سعر البيع</th>
+                        <th scope="col" class="col-quantity px-2 py-2 text-xs font-semibold text-gray-900 w-20">الكمية</th>
+                        <th scope="col" class="col-unit px-2 py-2 text-xs font-semibold text-gray-900 w-20">الوحدة</th>
+                        <th scope="col" class="col-threshold px-2 py-2 text-xs font-semibold text-gray-900 w-16">تنبيه</th>
+                        <th scope="col" class="col-pieces px-2 py-2 text-xs font-semibold text-gray-900 w-20">قطع/شيكارة</th>
+                        <th scope="col" class="col-active px-2 py-2 text-xs font-semibold text-gray-900 w-12 text-center">نشط</th>
+                        <th scope="col" class="col-images px-2 py-2 text-xs font-semibold text-gray-900 w-16 text-center">الصور</th>
+                        <th scope="col" class="relative py-2 pl-3 pr-2 w-24 text-center text-xs font-semibold text-gray-900">إجراءات</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200 bg-white">
+                    <!-- Rows inserted via JS -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Global Image Modal -->
+<div id="imageModal" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4">
+    <div class="fixed inset-0 bg-black/40" onclick="closeImageModal()"></div>
+    <div class="relative w-full max-w-lg bg-white rounded-xl shadow-xl border border-gray-200 p-5 z-10">
+        <h3 class="text-lg font-bold text-gray-800 mb-4">صور المنتج (الصف <span id="imageModalRowId"></span>)</h3>
+        <input type="file" id="modalImageInput" accept="image/*" multiple class="block w-full text-sm border border-gray-300 rounded-md p-2 bg-white">
+        <p class="text-[10px] text-gray-400 mt-1">حد أقصى 5 صور</p>
+        <div id="modalImagePreview" class="mt-4 grid grid-cols-5 gap-2"></div>
+        <p id="modalImageMeta" class="text-[10px] text-gray-400 mt-1"></p>
+        
+        <div class="mt-6 flex justify-end gap-2">
+            <button type="button" onclick="closeImageModal()" class="px-4 py-2 rounded-md bg-indigo-600 text-white font-medium hover:bg-indigo-700 transition-colors">تم</button>
+        </div>
+    </div>
+</div>
+
+<div id="quickModalBackdrop" class="fixed inset-0 bg-black/40 z-40 hidden"></div>
+
+<div id="quickModalCategory" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4">
+    <div class="w-full max-w-md bg-white rounded-xl shadow-xl border border-gray-200 p-5">
+        <h3 class="text-lg font-bold text-gray-800 mb-4">إضافة قسم جديد</h3>
+        <input id="quickCategoryName" type="text" class="w-full rounded-md border-gray-300" placeholder="اسم القسم">
+        <div class="mt-4 flex justify-end gap-2">
+            <button type="button" onclick="closeQuickModals()" class="px-4 py-2 rounded-md border">إلغاء</button>
+            <button type="button" onclick="submitQuickCategory()" class="px-4 py-2 rounded-md bg-indigo-600 text-white">حفظ</button>
+        </div>
+    </div>
+</div>
+
+<div id="quickModalKind" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4">
+    <div class="w-full max-w-md bg-white rounded-xl shadow-xl border border-gray-200 p-5">
+        <h3 class="text-lg font-bold text-gray-800 mb-4">إضافة نوع جديد</h3>
+        <div class="space-y-3">
+            <select id="quickKindCategory" class="w-full rounded-md border-gray-300"></select>
+            <input id="quickKindName" type="text" class="w-full rounded-md border-gray-300" placeholder="اسم النوع">
+        </div>
+        <div class="mt-4 flex justify-end gap-2">
+            <button type="button" onclick="closeQuickModals()" class="px-4 py-2 rounded-md border">إلغاء</button>
+            <button type="button" onclick="submitQuickKind()" class="px-4 py-2 rounded-md bg-purple-600 text-white">حفظ</button>
+        </div>
+    </div>
+</div>
+
+<div id="quickModalSize" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4">
+    <div class="w-full max-w-md bg-white rounded-xl shadow-xl border border-gray-200 p-5">
+        <h3 class="text-lg font-bold text-gray-800 mb-4">إضافة مقاس جديد</h3>
+        <div class="grid grid-cols-2 gap-3">
+            <input id="quickSizeName" type="text" class="rounded-md border-gray-300 col-span-2" placeholder="اسم المقاس">
+            <select id="quickSizeType" class="rounded-md border-gray-300">
+                <option value="alpha">حروف</option>
+                <option value="numeric">أرقام</option>
+                <option value="custom" selected>مخصص</option>
+            </select>
+            <input id="quickSizeSort" type="number" min="0" value="0" class="rounded-md border-gray-300" placeholder="الترتيب">
+        </div>
+        <div class="mt-4 flex justify-end gap-2">
+            <button type="button" onclick="closeQuickModals()" class="px-4 py-2 rounded-md border">إلغاء</button>
+            <button type="button" onclick="submitQuickSize()" class="px-4 py-2 rounded-md bg-amber-600 text-white">حفظ</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    let rowCount = 0;
+    const startSku = {{ start_sku|default:"10001" }};
+    const categoriesData = [{% for cat in categories %}{id: {{ cat.id }}, name: "{{ cat.name|escapejs }}"},{% endfor %}];
+    const suppliersData = [{% for sup in suppliers %}{id: {{ sup.id }}, name: "{{ sup.name|escapejs }}"},{% endfor %}];
+    const sizesData = [{% for s in sizes %}{id: {{ s.id }}, name: "{{ s.name|escapejs }}"},{% endfor %}];
+    const kindsData = [{% for k in kinds %}{id: {{ k.id }}, category_id: {{ k.category_id }}, name: "{{ k.name|escapejs }}"},{% endfor %}];
+    const unitsData = [{% for val, name in unit_choices %}{val: "{{ val|escapejs }}", name: "{{ name|escapejs }}"},{% endfor %}];
+
+    function unitOptions(selectedVal = 'PCS') {
+        let opts = unitsData.map(u => `<option value="${u.val}" ${u.val === selectedVal ? 'selected' : ''}>${u.name}</option>`).join('');
+        opts += `<option value="__ADD_NEW__" style="color: #0d9488; font-weight: bold;">+ إضافة وحدة جديدة...</option>`;
+        return opts;
+    }
+
+    const COLUMN_VISIBILITY_KEY = 'bulkProductAddColumnVisibility';
+    const COLUMN_KEYS = ['barcode', 'category', 'kind', 'supplier', 'sizes', 'specs', 'cost', 'quantity', 'unit', 'threshold', 'pieces', 'active', 'images'];
+    let columnVisibility = {};
+    COLUMN_KEYS.forEach(c => columnVisibility[c] = true);
+
+    function loadColumnVisibility() {
+        try {
+            const saved = JSON.parse(localStorage.getItem(COLUMN_VISIBILITY_KEY) || '{}');
+            COLUMN_KEYS.forEach(c => {
+                if (typeof saved[c] === 'boolean') columnVisibility[c] = saved[c];
+            });
+        } catch (e) {}
+        COLUMN_KEYS.forEach(c => applyColumnVisibility(c, columnVisibility[c]));
+        const dropdown = document.getElementById('displayOptionsDropdown');
+        if (dropdown) {
+            COLUMN_KEYS.forEach(c => {
+                const input = dropdown.querySelector(`input[onchange*="'${c}'"]`);
+                if (input) input.checked = columnVisibility[c];
+            });
+        }
+    }
+
+    function applyColumnVisibility(col, visible) {
+        document.querySelectorAll(`.col-${col}`).forEach(el => {
+            el.classList.toggle('hidden', !visible);
+        });
+    }
+
+    function toggleColumn(col, checked) {
+        columnVisibility[col] = checked;
+        applyColumnVisibility(col, checked);
+        localStorage.setItem(COLUMN_VISIBILITY_KEY, JSON.stringify(columnVisibility));
+    }
+
+    function toggleDisplayOptionsDropdown() {
+        const dropdown = document.getElementById('displayOptionsDropdown');
+        if (dropdown) dropdown.classList.toggle('hidden');
+    }
+
+    document.addEventListener('click', function(e) {
+        const dropdown = document.getElementById('displayOptionsDropdown');
+        if (!dropdown || dropdown.classList.contains('hidden')) return;
+        if (!dropdown.contains(e.target) && !e.target.closest('button[onclick="toggleDisplayOptionsDropdown()"]')) {
+            dropdown.classList.add('hidden');
+        }
+    });
+
+    document.addEventListener('DOMContentLoaded', function() {
+        addRows(10);
+        fillQuickKindCategories();
+        loadColumnVisibility();
+
+        document.getElementById('modalImageInput').addEventListener('change', function() {
+            if (currentImageRowId === null) return;
+            const rowInput = document.getElementById(`images-input-${currentImageRowId}`);
+            rowInput.files = this.files;
+            renderModalImagePreview();
+            const countSpan = document.getElementById(`images-count-${currentImageRowId}`);
+            countSpan.textContent = `${this.files.length} صور`;
+        });
+    });
+
+    function categoryOptions() {
+        return '<option value="">-- اختر --</option>' + categoriesData.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+    }
+    function supplierOptions() {
+        return '<option value="">-- اختر --</option>' + suppliersData.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+    }
+    function sizeChipsHtml(rowId) {
+        const chips = sizesData.map(s => `<button type="button" data-size-id="${s.id}"
+            onclick="toggleSizeChip(this, ${rowId})"
+            class="size-chip px-1.5 py-0.5 rounded-md text-[10px] font-semibold border bg-white text-gray-600 border-gray-300 hover:border-teal-400 transition-colors">${s.name}</button>`).join('');
+        return `<div class="size-chips-wrap flex flex-wrap gap-1 max-h-16 overflow-y-auto p-1 border border-gray-200 rounded-md bg-white">${chips}</div>
+                <input type="hidden" name="sizes_selected" class="sizes-selected-input" value="">`;
+    }
+
+    function toggleSizeChip(btn, rowId) {
+        const on = btn.classList.contains('bg-teal-600');
+        if (on) {
+            btn.classList.remove('bg-teal-600', 'text-white', 'border-teal-600');
+            btn.classList.add('bg-white', 'text-gray-600', 'border-gray-300');
+        } else {
+            btn.classList.remove('bg-white', 'text-gray-600', 'border-gray-300');
+            btn.classList.add('bg-teal-600', 'text-white', 'border-teal-600');
+        }
+        const row = document.getElementById(`row-${rowId}`);
+        const wrap = btn.closest('.size-chips-wrap');
+        const selectedIds = Array.from(wrap.querySelectorAll('.size-chip.bg-teal-600')).map(b => b.dataset.sizeId);
+        row.querySelector('.sizes-selected-input').value = selectedIds.join(',');
+    }
+
+    function addRows(count) {
+        const tbody = document.querySelector('#bulkTable tbody');
+        for (let i = 0; i < count; i++) {
+            rowCount++;
+            const tr = document.createElement('tr');
+            tr.id = `row-${rowCount}`;
+            tr.className = 'hover:bg-gray-50 transition-colors';
+
+            tr.innerHTML = `
+                <td class="sticky right-0 z-10 bg-white py-2 pl-2 pr-3 text-sm font-medium text-gray-500 text-center border-l border-gray-200 shadow-[1px_0_0_0_#e5e7eb]">${rowCount}</td>
+                <td class="sticky right-12 z-10 bg-white px-2 py-2 text-sm text-gray-500 border-l border-gray-200 shadow-[1px_0_0_0_#e5e7eb]">
+                    <div class="flex rounded-md shadow-sm">
+                        <input type="text" name="sku" class="sku-input block w-full rounded-r-md border-0 py-1 px-2 text-gray-900 ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-teal-600 sm:text-sm" placeholder="SKU" oninput="updateBarcode(this)">
+                        <button type="button" onclick="autoIncrementSku(this)" tabindex="-1" class="relative -mr-px inline-flex items-center gap-x-1.5 rounded-l-md px-2 py-1 text-xs font-semibold text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50" title="زيادة الكود">+1</button>
+                    </div>
+                </td>
+                <td class="col-barcode whitespace-nowrap px-2 py-2 text-sm text-gray-500">
+                    <div class="flex rounded-md shadow-sm">
+                        <input type="text" name="barcode" class="barcode-input block w-full rounded-r-md border-0 py-1 px-2 text-gray-900 ring-1 ring-inset ring-gray-300 bg-gray-100 sm:text-sm placeholder:text-gray-400 focus:ring-0" placeholder="EAN-13" readonly tabindex="-1">
+                        <button type="button" onclick="copyBarcode(this)" tabindex="-1" class="relative -mr-px inline-flex items-center rounded-l-md px-2 py-1 text-gray-500 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 bg-white" title="نسخ">
+                            <i class="fas fa-copy"></i>
+                        </button>
+                    </div>
+                </td>
+                <td class="whitespace-nowrap px-2 py-2 text-sm text-gray-500">
+                    <input type="text" name="name" required class="block w-full rounded-md border-0 py-1 px-2 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-teal-600 sm:text-sm" placeholder="اسم المنتج">
+                </td>
+                <td class="col-category whitespace-nowrap px-2 py-2 text-sm text-gray-500">
+                    <select name="category" class="block w-full rounded-md border-0 py-1 px-2 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-inset focus:ring-teal-600 sm:text-sm">${categoryOptions()}</select>
+                </td>
+                <td class="col-kind whitespace-nowrap px-2 py-2 text-sm text-gray-500">
+                    <select name="kind" class="kind-select block w-full rounded-md border-0 py-1 px-2 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-inset focus:ring-teal-600 sm:text-sm"><option value="">-- اختر --</option></select>
+                </td>
+                <td class="col-supplier whitespace-nowrap px-2 py-2 text-sm text-gray-500">
+                    <select name="supplier" class="block w-full rounded-md border-0 py-1 px-2 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-inset focus:ring-teal-600 sm:text-sm">${supplierOptions()}</select>
+                </td>
+                <td class="col-sizes whitespace-nowrap px-2 py-2 text-sm text-gray-500 w-40">
+                    ${sizeChipsHtml(rowCount)}
+                </td>
+                <td class="col-specs whitespace-nowrap px-2 py-2 text-sm text-gray-500">
+                    <div class="flex flex-col gap-1">
+                        {% if sys_settings.market_type == 'pharmacy' %}
+                            <input type="text" name="scientific_name" class="block w-full rounded-md border-0 py-0.5 px-2 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 text-[11px]" placeholder="الاسم العلمي">
+                            <select name="packaging_type" class="block w-full rounded-md border-0 py-0.5 px-2 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 text-[11px]">
+                                <option value="">-- التعبئة --</option>
+                                <option value="علبة">علبة</option>
+                                <option value="شريط">شريط</option>
+                                <option value="أمبول">أمبول</option>
+                                <option value="كرتون">كرتون</option>
+                                <option value="زجاجة">زجاجة</option>
+                                <option value="كيس">كيس</option>
+                                <option value="وحدة">وحدة</option>
+                            </select>
+                            <input type="number" name="strips_per_box" value="1" min="1" class="block w-full rounded-md border-0 py-0.5 px-2 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 text-[11px]" placeholder="عدد الأشرطة/علبة">
+                        {% elif sys_settings.market_type == 'clothes' %}
+                            <input type="text" name="material" class="block w-full rounded-md border-0 py-0.5 px-2 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 text-[11px]" placeholder="الخامة">
+                            <input type="text" name="pattern" class="block w-full rounded-md border-0 py-0.5 px-2 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 text-[11px]" placeholder="النقشة">
+                            <input type="text" name="color" class="block w-full rounded-md border-0 py-0.5 px-2 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 text-[11px]" placeholder="اللون">
+                        {% elif sys_settings.market_type == 'electronics' %}
+                            <input type="text" name="color" class="block w-full rounded-md border-0 py-0.5 px-2 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 text-[11px]" placeholder="اللون/الموديل">
+                            <input type="text" name="pattern" class="block w-full rounded-md border-0 py-0.5 px-2 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 text-[11px]" placeholder="المميزات">
+                        {% else %}
+                            <select name="packaging_type" class="block w-full rounded-md border-0 py-0.5 px-2 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 text-[11px]">
+                                <option value="">-- التعبئة --</option>
+                                <option value="علبة">علبة</option>
+                                <option value="شريط">شريط</option>
+                                <option value="أمبول">أمبول</option>
+                                <option value="كرتون">كرتون</option>
+                                <option value="زجاجة">زجاجة</option>
+                                <option value="كيس">كيس</option>
+                                <option value="وحدة">وحدة</option>
+                            </select>
+                            <input type="text" name="color" class="block w-full rounded-md border-0 py-0.5 px-2 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 text-[11px]" placeholder="اللون/الحجم">
+                            <input type="text" name="material" class="block w-full rounded-md border-0 py-0.5 px-2 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 text-[11px]" placeholder="الوصف">
+                        {% endif %}
+                    </div>
+                </td>
+                <td class="col-cost whitespace-nowrap px-2 py-2 text-sm text-gray-500"><input type="number" name="cost_price" step="0.01" class="block w-full rounded-md border-0 py-1 px-2 text-gray-900 ring-1 ring-inset ring-gray-300 sm:text-sm" placeholder="0.00"></td>
+                <td class="whitespace-nowrap px-2 py-2 text-sm text-gray-500 w-32">
+                    <div class="flex flex-col gap-1 w-full">
+                        <div class="flex rounded-md shadow-sm w-full" role="group">
+                            <button type="button" onclick="switchPriceTab(this, 'retail')" class="price-tab-btn w-1/3 px-1 py-0.5 text-[10px] font-medium text-white bg-teal-600 border border-teal-600 rounded-r-md transition-colors">قطاعي</button>
+                            <button type="button" onclick="switchPriceTab(this, 'semi')" class="price-tab-btn w-1/3 px-1 py-0.5 text-[10px] font-medium text-teal-700 bg-white border-y border-teal-600 transition-colors">نص</button>
+                            <button type="button" onclick="switchPriceTab(this, 'whole')" class="price-tab-btn w-1/3 px-1 py-0.5 text-[10px] font-medium text-teal-700 bg-white border border-teal-600 rounded-l-md transition-colors">جملة</button>
+                        </div>
+                        <div class="relative w-full">
+                            <input type="number" name="price_retail" step="0.01" class="price-input price-retail block w-full rounded-md border-0 py-1 px-2 text-gray-900 ring-1 ring-inset ring-gray-300 sm:text-sm" placeholder="قطاعي">
+                            <input type="number" name="price_semi_wholesale" step="0.01" class="price-input price-semi hidden block w-full rounded-md border-0 py-1 px-2 text-gray-900 ring-1 ring-inset ring-gray-300 sm:text-sm" placeholder="نص جملة">
+                            <input type="number" name="price_wholesale" step="0.01" class="price-input price-wholesale hidden block w-full rounded-md border-0 py-1 px-2 text-gray-900 ring-1 ring-inset ring-gray-300 sm:text-sm" placeholder="جملة">
+                        </div>
+                    </div>
+                </td>
+                <td class="col-quantity whitespace-nowrap px-2 py-2 text-sm text-gray-500"><input type="number" name="quantity" step="1" value="0" class="block w-full rounded-md border-0 py-1 px-2 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 sm:text-sm text-center"></td>
+                <td class="col-unit whitespace-nowrap px-2 py-2 text-sm text-gray-500">
+                    <select name="unit_measure" class="block w-full rounded-md border-0 py-1 px-1 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 sm:text-sm">
+                        ${unitOptions()}
+                    </select>
+                </td>
+                <td class="col-threshold whitespace-nowrap px-2 py-2 text-sm text-gray-500"><input type="number" name="low_stock_threshold" step="0.01" value="10" class="block w-full rounded-md border-0 py-1 px-2 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 sm:text-sm text-center"></td>
+                <td class="col-pieces whitespace-nowrap px-2 py-2 text-sm text-gray-500"><input type="number" name="pieces_per_package" step="1" value="48" min="1" class="block w-full rounded-md border-0 py-1 px-2 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 sm:text-sm text-center"></td>
+                <td class="col-active whitespace-nowrap px-2 py-2 text-sm text-gray-500 text-center"><input type="checkbox" name="is_active" checked class="h-4 w-4 rounded border-gray-300 text-teal-600 focus:ring-teal-600"></td>
+                <td class="col-images whitespace-nowrap px-2 py-2 text-sm text-gray-500 text-center">
+                    <button type="button" onclick="openImageModal(${rowCount})" class="text-indigo-600 hover:text-indigo-900 p-1.5 bg-indigo-50 hover:bg-indigo-100 rounded transition-colors" title="إضافة صور">
+                        <i class="fas fa-camera"></i>
+                    </button>
+                    <input type="file" name="images" accept="image/*" multiple class="row-image-input hidden" id="images-input-${rowCount}">
+                    <span class="text-[10px] text-gray-500 block mt-1" id="images-count-${rowCount}">0 صور</span>
+                </td>
+                <td class="relative whitespace-nowrap py-2 pl-3 pr-2 text-center text-sm font-medium">
+                    <div class="flex items-center justify-center gap-1.5">
+                        <button type="button" onclick="saveRow(${rowCount})" class="save-btn text-teal-600 hover:text-teal-900 transition-colors p-1.5 rounded-full hover:bg-teal-50" title="حفظ">
+                            <i class="fas fa-save text-lg"></i>
+                        </button>
+                        <button type="button" onclick="deleteRow(${rowCount})" class="text-red-600 hover:text-red-900 transition-colors p-1.5 rounded-full hover:bg-red-50" title="حذف">
+                            <i class="fas fa-trash text-lg"></i>
+                        </button>
+                        <span class="status-icon w-6 h-6 flex items-center justify-center hidden"></span>
+                    </div>
+                </td>
+            `;
+            tbody.appendChild(tr);
+            const categorySelect = tr.querySelector('select[name="category"]');
+            categorySelect.addEventListener('change', () => populateKindsForRow(tr, categorySelect.value));
+            bindRetailMirroring(tr);
+            bindAutoSkuOnName(tr);
+        }
+        if (rowCount === count) {
+            const firstInput = document.querySelector('#row-1 .sku-input');
+            if (firstInput) {
+                firstInput.value = startSku;
+                updateBarcode(firstInput);
+            }
+        }
+        COLUMN_KEYS.forEach(c => applyColumnVisibility(c, columnVisibility[c]));
+    }
+
+    function switchPriceTab(btn, type) {
+        const container = btn.closest('div.w-full').parentElement;
+        container.querySelectorAll('.price-tab-btn').forEach(b => {
+            b.classList.remove('bg-teal-600', 'text-white');
+            b.classList.add('bg-white', 'text-teal-700');
+        });
+        btn.classList.remove('bg-white', 'text-teal-700');
+        btn.classList.add('bg-teal-600', 'text-white');
+        
+        container.querySelectorAll('.price-input').forEach(inp => inp.classList.add('hidden'));
+        if (type === 'retail') container.querySelector('.price-retail').classList.remove('hidden');
+        if (type === 'semi') container.querySelector('.price-semi').classList.remove('hidden');
+        if (type === 'whole') container.querySelector('.price-wholesale').classList.remove('hidden');
+    }
+
+    function deleteRow(rowId) {
+        const row = document.getElementById(`row-${rowId}`);
+        if (row) {
+            row.remove();
+        }
+    }
+
+    function generateEAN13fromSKU(sku) {
+        if (!sku) return '';
+        let digits = sku.replace(/\D/g, '').padStart(12, '0').slice(-12);
+        let sum = 0;
+        for (let i = 0; i < 12; i++) {
+            sum += parseInt(digits[i]) * (i % 2 === 0 ? 1 : 3);
+        }
+        let checkDigit = (10 - (sum % 10)) % 10;
+        return digits + checkDigit;
+    }
+
+    function updateBarcode(skuInput) {
+        const row = skuInput.closest('tr');
+        const barcodeInput = row.querySelector('.barcode-input');
+        if (barcodeInput) {
+            barcodeInput.value = generateEAN13fromSKU(skuInput.value);
+        }
+    }
+
+    function copyBarcode(btn) {
+        const input = btn.previousElementSibling;
+        if (input && input.value) {
+            navigator.clipboard.writeText(input.value);
+            const icon = btn.querySelector('i');
+            icon.className = 'fas fa-check text-green-500';
+            setTimeout(() => {
+                icon.className = 'fas fa-copy';
+            }, 1000);
+        }
+    }
+
+    let currentImageRowId = null;
+
+    function openImageModal(rowId) {
+        currentImageRowId = rowId;
+        document.getElementById('imageModalRowId').textContent = rowId;
+        const rowInput = document.getElementById(`images-input-${rowId}`);
+        const modalInput = document.getElementById('modalImageInput');
+        
+        modalInput.files = rowInput.files;
+        renderModalImagePreview();
+        
+        document.getElementById('imageModal').classList.remove('hidden');
+    }
+
+    function closeImageModal() {
+        document.getElementById('imageModal').classList.add('hidden');
+    }
+
+    function renderModalImagePreview() {
+        const input = document.getElementById('modalImageInput');
+        const previewContainer = document.getElementById('modalImagePreview');
+        const metaContainer = document.getElementById('modalImageMeta');
+        
+        previewContainer.innerHTML = '';
+        const files = Array.from(input.files || []).filter(f => f.type && f.type.startsWith('image/'));
+        const filesToShow = files.slice(0, 5);
+
+        filesToShow.forEach((file, idx) => {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'relative';
+            const img = document.createElement('img');
+            img.className = 'w-full h-12 object-cover rounded border border-gray-200';
+            img.alt = `preview-${idx + 1}`;
+            wrapper.appendChild(img);
+            previewContainer.appendChild(wrapper);
+
+            const reader = new FileReader();
+            reader.onload = (e) => { img.src = e.target.result; };
+            reader.readAsDataURL(file);
+        });
+
+        if (files.length === 0) {
+            metaContainer.textContent = '';
+            return;
+        }
+
+        if (files.length > 5) {
+            metaContainer.className = 'text-[10px] text-amber-600 mt-1 font-semibold';
+            metaContainer.textContent = `تم اختيار ${files.length} صور، سيتم رفع أول 5 صور فقط.`;
+        } else {
+            metaContainer.className = 'text-[10px] text-gray-500 mt-1';
+            metaContainer.textContent = `تم اختيار ${files.length} صورة.`;
+        }
+    }
+
+    function bindRetailMirroring(row) {
+        // Intentionally a no-op: نص جملة/جملة must stay exactly what the user
+        // types (or blank), never auto-copied from قطاعي. See ProductForm.save().
+    }
+
+    function populateKindsForRow(row, categoryId) {
+        const kindSelect = row.querySelector('select[name="kind"]');
+        if (!kindSelect) return;
+        kindSelect.innerHTML = '<option value="">-- اختر --</option>';
+        if (!categoryId) return;
+        kindsData.filter(k => String(k.category_id) === String(categoryId)).forEach(k => {
+            const opt = document.createElement('option');
+            opt.value = k.id;
+            opt.textContent = k.name;
+            kindSelect.appendChild(opt);
+        });
+    }
+
+    function nextSkuForRow(currentRow) {
+        let prevRow = currentRow.previousElementSibling;
+        let foundSku = null;
+        while (prevRow) {
+            const prevInput = prevRow.querySelector('.sku-input');
+            if (prevInput && prevInput.value) { foundSku = prevInput.value; break; }
+            prevRow = prevRow.previousElementSibling;
+        }
+        return (foundSku && !isNaN(foundSku)) ? String(parseInt(foundSku) + 1) : String(startSku);
+    }
+
+    // Auto-fill this row's SKU as soon as its product name is typed — mirrors the same
+    // "don't overwrite a manually-typed SKU" behavior as the single-product add page.
+    function bindAutoSkuOnName(tr) {
+        const nameInput = tr.querySelector('input[name="name"]');
+        const skuInput = tr.querySelector('.sku-input');
+        if (!nameInput || !skuInput) return;
+        let skuTouchedManually = false;
+        skuInput.addEventListener('input', () => { skuTouchedManually = true; });
+        nameInput.addEventListener('input', () => {
+            if (!skuTouchedManually && nameInput.value.trim() && !skuInput.value.trim()) {
+                skuInput.value = nextSkuForRow(tr);
+                updateBarcode(skuInput);
+            }
+        });
+    }
+
+    function autoIncrementSku(btn) {
+        const currentRow = btn.closest('tr');
+        const currentInput = currentRow.querySelector('.sku-input');
+        currentInput.value = nextSkuForRow(currentRow);
+        updateBarcode(currentInput);
+    }
+
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+
+    async function saveRow(rowId) {
+        const row = document.getElementById(`row-${rowId}`);
+        const formData = new FormData();
+        const sku = row.querySelector('input[name="sku"]').value.trim();
+        const name = row.querySelector('input[name="name"]').value.trim();
+        if (!sku || !name) return alert(`الرجاء إدخال الاسم و SKU للصف رقم ${rowId}`);
+
+        row.querySelectorAll('input, select').forEach(input => {
+            if (!input.name || input.type === 'file') return;
+            if (input.type === 'checkbox') { formData.append(input.name, input.checked ? '1' : '0'); return; }
+            formData.append(input.name, input.value);
+        });
+        formData.append('warehouse_id', document.getElementById('globalWarehouse').value);
+        const imgInput = row.querySelector('.row-image-input');
+        if (imgInput?.files?.length) {
+            // Compress each image client‑side before sending
+            const compressImage = file => {
+                return new Promise(resolve => {
+                    const img = new Image();
+                    const reader = new FileReader();
+                    reader.onload = e => { img.src = e.target.result; };
+                    img.onload = () => {
+                        const canvas = document.createElement('canvas');
+                        const maxWidth = 1280;
+                        const scale = Math.min(1, maxWidth / img.width);
+                        canvas.width = img.width * scale;
+                        canvas.height = img.height * scale;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                        canvas.toBlob(blob => resolve(blob), 'image/jpeg', 0.7);
+                    };
+                    reader.readAsDataURL(file);
+                });
+            };
+            const filesArray = Array.from(imgInput.files).slice(0, 5);
+            for (const f of filesArray) {
+                try {
+                    const compressedBlob = await compressImage(f);
+                    formData.append('images', compressedBlob, f.name);
+                } catch (e) {
+                    // Fallback to original file if compression fails
+                    formData.append('images', f);
+                }
+            }
+        }
+
+        const btn = row.querySelector('.save-btn');
+        const iconContainer = row.querySelector('.status-icon');
+        const originalBtnInner = btn.innerHTML;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+        btn.disabled = true;
+        btn.classList.add('opacity-50', 'cursor-not-allowed');
+        iconContainer.classList.add('hidden');
+        iconContainer.innerHTML = '';
+
+        try {
+            const response = await fetch("{% url 'bulk_product_save_ajax' %}", {
+                method: 'POST',
+                headers: { 'X-CSRFToken': getCookie('csrftoken') },
+                body: formData
+            });
+            const result = await response.json();
+            if (result.success) {
+                row.classList.remove('hover:bg-gray-50');
+                row.classList.add('bg-green-50');
+                iconContainer.innerHTML = '<i class="fas fa-check-circle text-green-600 text-lg"></i>';
+                iconContainer.classList.remove('hidden');
+                
+                btn.remove();
+                const delBtn = row.querySelector('.text-red-600');
+                if (delBtn) delBtn.remove();
+                
+                row.querySelectorAll('input, select, button').forEach(input => {
+                    input.disabled = true;
+                    if (input.type !== 'button') {
+                        input.classList.add('bg-gray-100', 'text-gray-500');
+                    }
+                });
+            } else {
+                row.classList.add('bg-red-50');
+                iconContainer.innerHTML = '<i class="fas fa-exclamation-circle text-red-600 text-lg cursor-help" title="' + result.error + '"></i>';
+                iconContainer.classList.remove('hidden');
+                btn.innerHTML = originalBtnInner;
+                btn.disabled = false;
+                btn.classList.remove('opacity-50', 'cursor-not-allowed');
+                alert(`خطأ في الصف ${rowId}: ${result.error}`);
+            }
+        } catch (error) {
+            row.classList.add('bg-red-50');
+            btn.innerHTML = originalBtnInner;
+            btn.disabled = false;
+            btn.classList.remove('opacity-50', 'cursor-not-allowed');
+            alert('حدث خطأ في الاتصال بالسيرفر');
+        }
+    }
+
+    async function saveAll() {
+        const rows = document.querySelectorAll('#bulkTable tbody tr');
+        const pendingRows = [];
+        for (const row of rows) {
+            const firstInput = row.querySelector('input[name="sku"]');
+            if (firstInput?.disabled) continue;
+            const sku = firstInput.value;
+            const name = row.querySelector('input[name="name"]').value;
+            if (sku && name) pendingRows.push(row);
+        }
+        if (pendingRows.length === 0) return alert('لم يتم العثور على صفوف جديدة جاهزة للحفظ (تأكد من إدخال الاسم و SKU).');
+        for (const row of pendingRows) {
+            const rowId = row.id.split('-')[1];
+            await saveRow(rowId);
+        }
+    }
+
+    function openQuickModal(type) {
+        document.getElementById('quickModalBackdrop').classList.remove('hidden');
+        document.getElementById('quickModalCategory').classList.add('hidden');
+        document.getElementById('quickModalKind').classList.add('hidden');
+        document.getElementById('quickModalSize').classList.add('hidden');
+        if (type === 'category') document.getElementById('quickModalCategory').classList.remove('hidden');
+        if (type === 'kind') { fillQuickKindCategories(); document.getElementById('quickModalKind').classList.remove('hidden'); }
+        if (type === 'size') document.getElementById('quickModalSize').classList.remove('hidden');
+    }
+    function closeQuickModals() {
+        document.getElementById('quickModalBackdrop').classList.add('hidden');
+        document.getElementById('quickModalCategory').classList.add('hidden');
+        document.getElementById('quickModalKind').classList.add('hidden');
+        document.getElementById('quickModalSize').classList.add('hidden');
+    }
+    function fillQuickKindCategories() {
+        const sel = document.getElementById('quickKindCategory');
+        sel.innerHTML = '<option value="">-- اختر القسم --</option>' + categoriesData.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+    }
+    function refreshCategorySelects() {
+        document.querySelectorAll('select[name="category"]').forEach(sel => {
+            const v = sel.value;
+            sel.innerHTML = categoryOptions();
+            sel.value = v;
+        });
+        fillQuickKindCategories();
+    }
+    function refreshSizeSelects() {
+        // A new size was just added — append its chip to every existing row's
+        // chip-picker, keeping whatever sizes were already selected in that row.
+        const newSize = sizesData[sizesData.length - 1];
+        document.querySelectorAll('.size-chips-wrap').forEach(wrap => {
+            if (wrap.querySelector(`.size-chip[data-size-id="${newSize.id}"]`)) return;
+            const row = wrap.closest('tr');
+            const rowId = row.id.replace('row-', '');
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.dataset.sizeId = newSize.id;
+            btn.textContent = newSize.name;
+            btn.className = 'size-chip px-1.5 py-0.5 rounded-md text-[10px] font-semibold border bg-white text-gray-600 border-gray-300 hover:border-teal-400 transition-colors';
+            btn.onclick = () => toggleSizeChip(btn, rowId);
+            wrap.appendChild(btn);
+        });
+    }
+    async function submitQuickCategory() {
+        const name = document.getElementById('quickCategoryName').value.trim();
+        if (!name) return alert('اسم القسم مطلوب');
+        
+        try {
+            const res = await fetch('/products/api/products/bulk/quick-add/category/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+                body: JSON.stringify({ name })
+            });
+            const data = await res.json();
+            if (data.success) {
+                categoriesData.push({ id: data.id, name: data.name });
+                fillQuickKindCategories();
+                refreshCategorySelects();
+                closeQuickModals();
+            } else { alert(data.error); }
+        } catch(e) { console.error(e); alert('خطأ في الاتصال'); }
+    }
+
+    async function submitQuickKind() {
+        const name = document.getElementById('quickKindName').value.trim();
+        const category_id = document.getElementById('quickKindCategory').value;
+        if (!name || !category_id) return alert('أكمل البيانات');
+        
+        try {
+            const res = await fetch('/products/api/products/bulk/quick-add/kind/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+                body: JSON.stringify({ name, category_id })
+            });
+            const data = await res.json();
+            if (data.success) {
+                kindsData.push({ id: data.id, name: data.name, category_id: parseInt(category_id) });
+                closeQuickModals();
+                document.querySelectorAll('#bulkTable tbody tr').forEach(row => {
+                    const catSel = row.querySelector('select[name="category"]');
+                    populateKindsForRow(row, catSel?.value || '');
+                });
+            } else { alert(data.error); }
+        } catch(e) { console.error(e); alert('خطأ في الاتصال'); }
+    }
+
+    async function submitQuickSize() {
+        const name = document.getElementById('quickSizeName').value.trim();
+        const size_type = document.getElementById('quickSizeType').value;
+        const sort_order = document.getElementById('quickSizeSort').value;
+        if (!name) return alert('أدخل الاسم');
+
+        try {
+            const res = await fetch('/products/api/products/bulk/quick-add/size/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+                body: JSON.stringify({ name, size_type, sort_order })
+            });
+            const data = await res.json();
+            if (data.success) {
+                sizesData.push({ id: data.id, name: data.name });
+                refreshSizeSelects();
+                closeQuickModals();
+            } else { alert(data.error); }
+        } catch(e) { console.error(e); alert('خطأ في الاتصال'); }
+    }
+</script>
+
+<!-- Quick Add Unit Modal -->
+<div id="quickUnitModal" class="fixed inset-0 z-50 flex items-center justify-center hidden bg-black bg-opacity-50 backdrop-blur-sm transition-opacity duration-300">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-md mx-4 overflow-hidden transform scale-95 transition-transform duration-300">
+        <!-- Modal Header -->
+        <div class="bg-teal-600 px-6 py-4 flex justify-between items-center text-white">
+            <h3 class="text-lg font-bold">إضافة وحدة قياس جديدة</h3>
+            <button type="button" onclick="closeQuickUnitModal()" class="text-white hover:text-teal-100 focus:outline-none">
+                <i class="fa-solid fa-xmark text-xl"></i>
+            </button>
+        </div>
+        <!-- Modal Body -->
+        <div class="p-6 text-right" dir="rtl">
+            <div id="quickUnitError" class="mb-4 text-sm text-red-600 bg-red-50 p-3 rounded-lg hidden border border-red-100"></div>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-bold text-gray-700 mb-1">اسم الوحدة (مثال: متر، كرتونة)</label>
+                    <input type="text" id="quickUnitName" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-200" placeholder="أدخل اسم الوحدة">
+                </div>
+                <div>
+                    <label class="block text-sm font-bold text-gray-700 mb-1">الاختصار (بحد أقصى 10 أحرف، بالإنجليزية أو العربية)</label>
+                    <input type="text" id="quickUnitAbbr" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-200" placeholder="مثال: MTR, BOX">
+                </div>
+            </div>
+        </div>
+        <!-- Modal Footer -->
+        <div class="bg-gray-50 px-6 py-4 flex justify-end gap-2 border-t border-gray-100" dir="rtl">
+            <button type="button" onclick="submitQuickUnit()" class="px-4 py-2 text-white bg-teal-600 rounded-lg hover:bg-teal-700 focus:outline-none flex items-center gap-1 transition-colors">
+                <i class="fa-solid fa-save"></i> حفظ
+            </button>
+            <button type="button" onclick="closeQuickUnitModal()" class="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none transition-colors">إلغاء</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    let activeUnitSelect = null;
+    let activeUnitSelectPrevVal = '';
+
+    function openQuickUnitModal() {
+        document.getElementById('quickUnitModal').classList.remove('hidden');
+        document.getElementById('quickUnitModal').classList.add('flex');
+        document.getElementById('quickUnitName').focus();
+    }
+
+    function closeQuickUnitModal() {
+        document.getElementById('quickUnitModal').classList.remove('flex');
+        document.getElementById('quickUnitModal').classList.add('hidden');
+        document.getElementById('quickUnitName').value = '';
+        document.getElementById('quickUnitAbbr').value = '';
+        document.getElementById('quickUnitError').classList.add('hidden');
+        if (activeUnitSelect && activeUnitSelectPrevVal) {
+            activeUnitSelect.value = activeUnitSelectPrevVal;
+        }
+    }
+
+    async function submitQuickUnit() {
+        const name = document.getElementById('quickUnitName').value.trim();
+        const abbr = document.getElementById('quickUnitAbbr').value.trim();
+        const errorEl = document.getElementById('quickUnitError');
+
+        if (!name) {
+            errorEl.textContent = 'يرجى إدخال اسم الوحدة';
+            errorEl.classList.remove('hidden');
+            return;
+        }
+
+        try {
+            const response = await fetch('/api/units/quick-create/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken')
+                },
+                body: JSON.stringify({ name: name, abbreviation: abbr })
+            });
+            const res = await response.json();
+            if (res.success) {
+                // Add new unit to local unitsData array
+                unitsData.push({ val: res.abbreviation, name: res.name });
+                
+                // Clear fallback value
+                activeUnitSelectPrevVal = '';
+                
+                // Re-render choices for all unit selects in the page, preserving current values
+                document.querySelectorAll('select[name="unit_measure"]').forEach(selectEl => {
+                    const currentVal = selectEl === activeUnitSelect ? res.abbreviation : selectEl.value;
+                    selectEl.innerHTML = unitOptions(currentVal);
+                    selectEl.dataset.prevVal = currentVal;
+                });
+                
+                closeQuickUnitModal();
+            } else {
+                errorEl.textContent = res.error || 'حدث خطأ ما';
+                errorEl.classList.remove('hidden');
+            }
+        } catch (err) {
+            console.error(err);
+            errorEl.textContent = 'حدث خطأ في الاتصال بالخادم';
+            errorEl.classList.remove('hidden');
+        }
+    }
+
+    // Capture focusin to save previous selection
+    document.addEventListener('focusin', function(e) {
+        if (e.target && e.target.name === 'unit_measure') {
+            e.target.dataset.prevVal = e.target.value;
+        }
+    });
+
+    // Capture change event to trigger modal when __ADD_NEW__ is selected
+    document.addEventListener('change', function(e) {
+        if (e.target && e.target.name === 'unit_measure') {
+            if (e.target.value === '__ADD_NEW__') {
+                activeUnitSelect = e.target;
+                activeUnitSelectPrevVal = e.target.dataset.prevVal || 'PCS';
+                openQuickUnitModal();
+            } else {
+                e.target.dataset.prevVal = e.target.value;
+            }
+        }
+    });
+</script>
+{% endblock %}

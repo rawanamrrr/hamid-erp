@@ -1,0 +1,398 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}جرد المخزون الفوري{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-6">
+    
+    <!-- Top Bar -->
+    <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+        <div>
+            <h1 class="text-2xl md:text-3xl font-bold text-gray-800 flex items-center">
+                <i class="fas fa-clipboard-check text-blue-600 ml-3"></i>
+                جرد المخزون الفوري
+            </h1>
+            <p class="text-gray-500 text-sm mt-1">يرجى اختيار المخزن للبدء. سيتم جلب الكميات الحالية تلقائياً.</p>
+        </div>
+        
+        <!-- Warehouse Selector & Info -->
+        <div class="w-full md:w-auto flex flex-col md:flex-row items-center gap-3">
+             <div class="relative w-full md:w-72">
+                <div class="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-blue-600">
+                    <i class="fas fa-warehouse"></i>
+                </div>
+                <select id="audit_warehouse_select" class="block w-full pr-10 pl-3 py-2.5 bg-white border border-blue-200 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 font-bold shadow-sm">
+                    <option value="" disabled selected>-- اختر المخزن المراد جرده --</option>
+                    {% for wh in warehouses %}
+                        <option value="{{ wh.id }}">{{ wh.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div class="hidden md:flex items-center gap-2 bg-blue-50 text-blue-800 px-4 py-2.5 rounded-lg text-sm font-bold whitespace-nowrap border border-blue-100">
+                <i class="fas fa-info-circle"></i>
+                <span>أدخل الكمية واضغط Enter</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Instructions Overlay (Visible if no warehouse selected) -->
+    <div id="no-wh-overlay" class="bg-yellow-50 border-r-4 border-yellow-400 p-4 mb-6 shadow-sm rounded-md">
+        <div class="flex items-center">
+            <div class="flex-shrink-0">
+                <i class="fas fa-exclamation-triangle text-yellow-500 text-xl"></i>
+            </div>
+            <div class="mr-3">
+                <p class="text-sm text-yellow-700 font-bold">
+                    تنبيه: القوائم أدناه مغلقة. يجب اختيار المخزن من القائمة في الأعلى لتفعيل إدخال البيانات وجلب الكميات الحالية.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Content Container (Dimmed until warehouse selected) -->
+    <div id="main-audit-content" class="opacity-50 pointer-events-none transition-opacity duration-300">
+        
+        <!-- Controls Bar (Search & Sort) -->
+        <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-6 sticky top-0 z-20 flex flex-col md:flex-row gap-4">
+            <!-- Search -->
+            <div class="relative flex-1">
+                <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                    <i class="fas fa-search text-gray-400"></i>
+                </div>
+                <input type="text" id="searchInput" onkeyup="filterProducts()" 
+                       class="block w-full pr-10 pl-4 py-3 border border-gray-200 rounded-lg bg-gray-50 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all" 
+                       placeholder="بحث باسم المنتج، الكود، أو الصنف...">
+            </div>
+            
+            <!-- Sort Buttons -->
+            <div class="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0">
+                <span class="text-sm text-gray-500 font-medium whitespace-nowrap ml-2">ترتيب حسب:</span>
+                <button onclick="sortProducts('name')" class="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm transition whitespace-nowrap">
+                    الاسم <i class="fas fa-sort-alpha-down ml-1"></i>
+                </button>
+                <button onclick="sortProducts('sku')" class="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm transition whitespace-nowrap">
+                    SKU <i class="fas fa-sort-numeric-down ml-1"></i>
+                </button>
+                <button onclick="sortProducts('diff')" class="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm transition whitespace-nowrap">
+                    الفروقات <i class="fas fa-exchange-alt ml-1"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Desktop View -->
+        <div class="hidden md:block bg-white rounded-xl shadow-md overflow-hidden border border-gray-200">
+            <div class="overflow-x-auto max-h-[600px] overflow-y-auto">
+                <table class="min-w-full divide-y divide-gray-200 relative" id="auditTable">
+                    <thead class="bg-gray-50 sticky top-0 z-10 shadow-sm">
+                        <tr>
+                            <th class="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase">المنتج</th>
+                            <th class="px-6 py-3 text-center text-xs font-bold text-gray-500 uppercase">الكمية المسجلة (System)</th>
+                            <th class="px-6 py-3 text-center text-xs font-bold text-gray-500 uppercase w-48">الفعلي (أدخل للتعديل)</th>
+                            <th class="px-6 py-3 text-center text-xs font-bold text-gray-500 uppercase">الفرق</th>
+                            <th class="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase">ملاحظات</th>
+                            <th class="px-6 py-3 text-center text-xs font-bold text-gray-500 uppercase">الحالة</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200" id="tableBody">
+                        {% for product in products %}
+                        <tr class="hover:bg-gray-50 transition-colors product-row" 
+                            data-id="{{ product.id }}"
+                            data-name="{{ product.name }} {{ product.sku }}"
+                            data-sku="{{ product.sku|default:'0' }}">
+                            
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <div class="flex items-center">
+                                    <div class="flex-shrink-0 h-10 w-10 bg-gray-100 rounded-full flex items-center justify-center text-gray-500">
+                                        <i class="fas fa-box"></i>
+                                    </div>
+                                    <div class="mr-4">
+                                        <div class="text-sm font-bold text-gray-900">{{ product.name }}</div>
+                                        <div class="text-xs text-gray-500">{{ product.sku|default:"--" }}</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <!-- System Qty: Updated via JS -->
+                            <td class="px-6 py-4 whitespace-nowrap text-center">
+                                <span id="sys_qty_{{ product.id }}" class="px-3 py-1 inline-flex text-sm leading-5 font-bold rounded-full bg-gray-100 text-gray-800" data-val="0">
+                                    <i class="fas fa-minus text-gray-400 text-xs"></i>
+                                </span>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-center">
+                                <input type="number" 
+                                       id="input_{{ product.id }}"
+                                       class="w-full text-center p-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:ring-0 font-bold text-gray-700 transition-colors"
+                                       step="0.01" 
+                                       placeholder="الكمية..."
+                                       onchange="saveProduct({{ product.id }}, this.value)"
+                                       onkeypress="handleEnter(event, {{ product.id }}, this.value)">
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-center">
+                                <span id="diff_{{ product.id }}" class="text-sm font-bold text-gray-400 diff-val" data-val="0">-</span>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <input type="text" id="note_{{ product.id }}" placeholder="ملاحظة..." class="w-full text-sm border-gray-200 rounded-md focus:ring-blue-500 focus:border-blue-500">
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-center">
+                                <div id="status_{{ product.id }}" class="text-gray-400 text-lg">
+                                    <i class="far fa-circle"></i>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    const warehouseSelect = document.getElementById('audit_warehouse_select');
+    const mainContent = document.getElementById('main-audit-content');
+    const overlay = document.getElementById('no-wh-overlay');
+
+    // Toggle Content and Fetch Stocks based on Warehouse Selection
+    warehouseSelect.addEventListener('change', function() {
+        const warehouseId = this.value;
+        if (warehouseId) {
+            mainContent.classList.remove('opacity-50', 'pointer-events-none');
+            overlay.classList.add('hidden');
+            
+            // CLEAR PREVIOUS DATA (INPUTS AND NOTES)
+            clearAuditInputs();
+            
+            fetchWarehouseStocks(warehouseId);
+        } else {
+            mainContent.classList.add('opacity-50', 'pointer-events-none');
+            overlay.classList.remove('hidden');
+        }
+    });
+
+    function clearAuditInputs() {
+        // Clear actual quantity inputs
+        document.querySelectorAll('input[id^="input_"]').forEach(input => {
+            input.value = '';
+            input.classList.remove('bg-blue-50', 'bg-green-50', 'border-green-500');
+        });
+        
+        // Clear notes
+        document.querySelectorAll('input[id^="note_"]').forEach(input => {
+            input.value = '';
+        });
+
+        // Reset diffs
+        document.querySelectorAll('[id^="diff_"]').forEach(span => {
+            span.textContent = '-';
+            span.className = 'text-sm font-bold text-gray-400 diff-val';
+            span.dataset.val = 0;
+        });
+
+        // Reset status icons
+        document.querySelectorAll('[id^="status_"]').forEach(div => {
+            div.innerHTML = '<i class="far fa-circle"></i>';
+            div.className = 'text-gray-400 text-lg';
+        });
+        
+        // Reset system quantity display (to loader or dash)
+        document.querySelectorAll('[id^="sys_qty_"]').forEach(el => {
+            el.innerHTML = '<i class="fas fa-minus text-gray-400 text-xs"></i>';
+            el.dataset.val = 0;
+        });
+    }
+
+    function fetchWarehouseStocks(warehouseId) {
+        // Show loading indication on all system qty cells
+        document.querySelectorAll('[id^="sys_qty_"]').forEach(el => {
+            el.innerHTML = '<i class="fas fa-spinner fa-spin text-blue-500"></i>';
+        });
+
+        // FIX: Use Django URL template tag to resolve the correct URL dynamically
+        // We use a dummy ID '0' and replace it with the actual ID in JS
+        const urlTemplate = "{% url 'get_warehouse_stocks_ajax' 0 %}";
+        const url = urlTemplate.replace('0', warehouseId);
+
+        fetch(url)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.success) {
+                    const stocks = data.stocks; // Dictionary {product_id: qty}
+                    
+                    // Iterate over all product rows
+                    document.querySelectorAll('.product-row').forEach(row => {
+                        const prodId = row.getAttribute('data-id');
+                        const sysQtyEl = document.getElementById(`sys_qty_${prodId}`);
+                        
+                        // Get qty or default to 0
+                        const qty = stocks[prodId] !== undefined ? stocks[prodId] : 0;
+                        
+                        // Update UI
+                        if(sysQtyEl) {
+                            sysQtyEl.textContent = qty;
+                            sysQtyEl.dataset.val = qty; // Store for calculation
+                        }
+                    });
+                } else {
+                    alert("فشل في جلب بيانات المخزون: " + data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error fetching stocks:', error);
+                alert('خطأ في الاتصال: تأكد من أن الرابط صحيح وأن الخادم يعمل.');
+            });
+    }
+
+    // AJAX Setup for Django CSRF
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+    const csrftoken = getCookie('csrftoken');
+
+    function handleEnter(e, id, val) {
+        if (e.key === 'Enter') {
+            e.target.blur(); // Triggers change event
+        }
+    }
+
+    function saveProduct(productId, actualQty, isMobile = false) {
+        const warehouseId = warehouseSelect.value;
+        if (!warehouseId) {
+            alert("يرجى اختيار المخزن أولاً!");
+            return;
+        }
+        if (actualQty === '') return;
+
+        // IDs
+        const inputId = `input_${productId}`;
+        const diffId = `diff_${productId}`;
+        const statusId = `status_${productId}`;
+        const noteId = `note_${productId}`;
+        const sysQtyId = `sys_qty_${productId}`;
+
+        const inputEl = document.getElementById(inputId);
+        const statusEl = document.getElementById(statusId);
+        const diffEl = document.getElementById(diffId);
+        const noteVal = document.getElementById(noteId) ? document.getElementById(noteId).value : '';
+        const sysQtyEl = document.getElementById(sysQtyId);
+        const sysQty = parseFloat(sysQtyEl ? sysQtyEl.dataset.val : 0);
+
+        // Calculate Diff immediately for UI feedback
+        const diff = parseFloat(actualQty) - sysQty;
+        updateDiffDisplay(productId, actualQty, sysQty);
+
+        // Show loading state
+        if(statusEl) statusEl.innerHTML = '<i class="fas fa-spinner fa-spin text-blue-500"></i>';
+        if(inputEl) inputEl.classList.add('bg-blue-50');
+
+        // Send AJAX
+        fetch("{% url 'audit_update_ajax' %}", {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrftoken
+            },
+            body: JSON.stringify({
+                product_id: productId,
+                warehouse_id: warehouseId,
+                actual_quantity: actualQty,
+                note: noteVal
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Success UI
+                if(statusEl) statusEl.innerHTML = '<i class="fas fa-check-circle text-green-500 text-xl"></i>';
+                if(inputEl) {
+                    inputEl.classList.remove('bg-blue-50');
+                    inputEl.classList.add('border-green-500', 'bg-green-50');
+                    setTimeout(() => inputEl.classList.remove('border-green-500', 'bg-green-50'), 2000);
+                }
+                
+                // Update System Qty to match Actual
+                if(sysQtyEl) {
+                    sysQtyEl.textContent = data.new_stock; 
+                    sysQtyEl.dataset.val = data.new_stock;
+                }
+                
+                if (data.diff !== undefined && diffEl) {
+                     diffEl.textContent = "0 (تم التعديل)";
+                     diffEl.className = 'text-green-600 font-bold diff-val';
+                     diffEl.dataset.val = 0;
+                }
+
+            } else {
+                if(statusEl) statusEl.innerHTML = '<i class="fas fa-exclamation-circle text-red-500"></i>';
+                alert('خطأ: ' + data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            if(statusEl) statusEl.innerHTML = '<i class="fas fa-times text-red-500"></i>';
+        });
+    }
+
+    function updateDiffDisplay(productId, actual, system) {
+        const diff = parseFloat(actual) - parseFloat(system);
+        const diffEl = document.getElementById(`diff_${productId}`);
+        const diffText = (diff > 0 ? '+' : '') + (diff % 1 === 0 ? diff.toFixed(0) : diff.toFixed(2));
+        
+        if(diffEl) {
+            diffEl.textContent = diffText;
+            diffEl.dataset.val = Math.abs(diff);
+
+            if (diff > 0) diffEl.className = 'text-green-600 font-bold diff-val';
+            else if (diff < 0) diffEl.className = 'text-red-600 font-bold diff-val';
+            else diffEl.className = 'text-gray-400 font-bold diff-val';
+        }
+    }
+
+    function filterProducts() {
+        const query = document.getElementById('searchInput').value.toLowerCase();
+        
+        document.querySelectorAll('.product-row').forEach(row => {
+            const name = row.getAttribute('data-name').toLowerCase();
+            row.style.display = name.includes(query) ? '' : 'none';
+        });
+    }
+
+    function sortProducts(criteria) {
+        const tableBody = document.getElementById('tableBody');
+        const rows = Array.from(document.querySelectorAll('.product-row'));
+
+        rows.sort((a, b) => {
+            if (criteria === 'name') {
+                return a.getAttribute('data-name').localeCompare(b.getAttribute('data-name'));
+            } else if (criteria === 'sku') {
+                const skuA = parseInt(a.getAttribute('data-sku')) || 0;
+                const skuB = parseInt(b.getAttribute('data-sku')) || 0;
+                return skuA - skuB;
+            } else if (criteria === 'diff') {
+                const diffA = parseFloat(a.querySelector('.diff-val').dataset.val || 0);
+                const diffB = parseFloat(b.querySelector('.diff-val').dataset.val || 0);
+                return diffB - diffA;
+            }
+        });
+
+        rows.forEach(row => tableBody.appendChild(row));
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,150 @@
+{% extends 'base.html' %}
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="space-y-6 animate-fade-in-up">
+    <!-- Header -->
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+        <div class="flex items-center gap-4">
+            <div class="w-16 h-16 rounded-full bg-gradient-to-br from-indigo-100 to-purple-100 flex items-center justify-center text-indigo-600 border-2 border-white shadow-sm overflow-hidden">
+                {% if user_obj.profile.profile_photo %}
+                    <img src="{{ user_obj.profile.profile_photo.url }}" class="w-full h-full object-cover">
+                {% else %}
+                    <i class="fas fa-user text-2xl"></i>
+                {% endif %}
+            </div>
+            <div>
+                <h2 class="text-2xl font-bold text-gray-800 flex items-center gap-2">
+                    {{ user_obj.get_full_name|default:user_obj.username }}
+                    {% if not user_obj.is_active %}<span class="px-2 py-1 bg-red-100 text-red-700 text-xs rounded-lg">غير نشط</span>{% endif %}
+                </h2>
+                <p class="text-gray-500 mt-1 text-sm dir-ltr">{{ user_obj.email }}</p>
+            </div>
+        </div>
+        <div class="flex flex-wrap gap-2">
+            <a href="{% url 'user_sidebar_permissions' user_obj.pk %}" class="px-5 py-2.5 bg-teal-600 text-white rounded-xl hover:bg-teal-700 transition font-bold shadow-lg shadow-teal-200 flex items-center gap-2">
+                <i class="fas fa-list-check"></i> صلاحيات القائمة
+            </a>
+            <a href="{% url 'user_edit' user_obj.pk %}" class="px-5 py-2.5 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition font-bold shadow-lg shadow-indigo-200 flex items-center gap-2">
+                <i class="fas fa-pen"></i> تعديل البيانات
+            </a>
+        </div>
+    </div>
+
+    <!-- Quick Stats Grid -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div class="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
+            <p class="text-xs text-gray-500 font-bold mb-1">الرتبة والدور</p>
+            <div class="font-bold text-gray-800">
+                {% if user_obj.profile.is_master %}<span class="text-amber-600"><i class="fas fa-crown"></i> ملك النظام (Master)</span>
+                {% elif user_obj.is_superuser %}مدير نظام (Admin){% else %}
+                    {% for r in user_obj.profile.roles.all %}{{ r.name }}{% if not forloop.last %}، {% endif %}{% empty %}موظف بغير صلاحيات{% endfor %}
+                {% endif %}
+            </div>
+        </div>
+        
+        <div class="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
+            <p class="text-xs text-gray-500 font-bold mb-1">حالة التكوين (Onboarding)</p>
+            <div class="font-bold {% if user_obj.profile.onboarding_completed %}text-emerald-600{% else %}text-orange-600{% endif %}">
+                {% if user_obj.profile.onboarding_completed %}مكتمل بـ 100%{% else %}غير مكتمل (سيتم إجباره){% endif %}
+            </div>
+        </div>
+
+        <div class="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
+            <p class="text-xs text-gray-500 font-bold mb-1">تاريخ الانضمام</p>
+            <div class="font-bold text-gray-800">{{ user_obj.date_joined|date:"d M Y" }}</div>
+        </div>
+
+        <div class="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
+            <p class="text-xs text-gray-500 font-bold mb-1">آخر تسجيل دخول</p>
+            <div class="font-bold text-gray-800">{{ user_obj.last_login|date:"d M Y h:i A"|default:"لم يدخل بعد" }}</div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- left col: Details and IPs -->
+        <div class="lg:col-span-1 space-y-6">
+            <!-- Profile Info Card -->
+            <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
+                <h3 class="text-lg font-bold text-gray-800 mb-4 border-b border-gray-50 pb-2">بيانات الهوية</h3>
+                <ul class="space-y-3 text-sm">
+                    <li class="flex justify-between">
+                        <span class="text-gray-500">رقم الهاتف</span>
+                        <span class="font-bold">{{ user_obj.profile.phone|default:"-" }}</span>
+                    </li>
+                    <li class="flex justify-between">
+                        <span class="text-gray-500">القسم الداخلي</span>
+                        <span class="font-bold">{{ user_obj.profile.department|default:"-" }}</span>
+                    </li>
+                    <li class="flex justify-between">
+                        <span class="text-gray-500">المسمى الوظيفي</span>
+                        <span class="font-bold">{{ user_obj.profile.job_title|default:"-" }}</span>
+                    </li>
+                    <li class="flex justify-between">
+                        <span class="text-gray-500">فرع التعيين</span>
+                        <span class="font-bold">{{ user_obj.profile.branch|default:"-" }}</span>
+                    </li>
+                </ul>
+            </div>
+
+            <!-- IP History -->
+            <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
+                <h3 class="text-lg font-bold text-gray-800 mb-4 border-b border-gray-50 pb-2">عناوين الـ IP (تسجيل الدخول)</h3>
+                <ul class="space-y-2">
+                    {% for ip in ip_history %}
+                    <li class="flex justify-between items-center text-sm p-2 rounded-lg hover:bg-gray-50">
+                        <span class="font-mono text-gray-700 bg-gray-100 px-2 py-0.5 rounded">{{ ip.ip_address }}</span>
+                        <div class="text-right">
+                            <div class="text-xs text-gray-500">{{ ip.last_seen|timesince }}</div>
+                        </div>
+                    </li>
+                    {% empty %}
+                    <li class="text-center text-gray-400 text-sm py-4">لم يتم تسجيل أي معلومات IP بعد</li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+
+        <!-- Right Col: Activity Logs -->
+        <div class="lg:col-span-2">
+            <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
+                <h3 class="text-lg font-bold text-gray-800 mb-4 border-b border-gray-50 pb-2">أحدث الأنشطة لهذا المستخدم</h3>
+                
+                <div class="space-y-0.5">
+                    {% for log in recent_logs %}
+                    <div class="flex gap-4 p-3 hover:bg-gray-50 rounded-xl transition group">
+                        <div class="mt-1">
+                            {% if log.action_type == 'LOGIN' %}
+                                <div class="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs"><i class="fas fa-sign-in-alt"></i></div>
+                            {% elif log.action_type == 'LOGOUT' %}
+                                <div class="w-8 h-8 rounded-full bg-gray-100 text-gray-600 flex items-center justify-center text-xs"><i class="fas fa-sign-out-alt"></i></div>
+                            {% elif log.action_type == 'CREATE' %}
+                                <div class="w-8 h-8 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center text-xs"><i class="fas fa-plus"></i></div>
+                            {% elif log.action_type == 'UPDATE' %}
+                                <div class="w-8 h-8 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center text-xs"><i class="fas fa-pen"></i></div>
+                            {% elif log.action_type == 'DELETE' %}
+                                <div class="w-8 h-8 rounded-full bg-red-100 text-red-600 flex items-center justify-center text-xs"><i class="fas fa-trash"></i></div>
+                            {% else %}
+                                <div class="w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-xs"><i class="fas fa-bolt"></i></div>
+                            {% endif %}
+                        </div>
+                        <div class="flex-1">
+                            <div class="flex justify-between">
+                                <h4 class="font-bold text-gray-800 text-sm">{{ log.description }}</h4>
+                                <span class="text-xs text-gray-400">{{ log.timestamp|timesince }}</span>
+                            </div>
+                            <p class="text-xs text-gray-500 mt-1">الوحدة: <span class="bg-gray-100 text-gray-600 px-1.5 rounded">{{ log.module }}</span> • IP: <span class="font-mono">{{ log.ip_address }}</span></p>
+                        </div>
+                    </div>
+                    {% empty %}
+                    <div class="text-center py-10 text-gray-400">
+                        <i class="fas fa-ghost text-4xl mb-3 opacity-50"></i>
+                        <p>لا توجد أي أنشطة مسجلة لهذا المستخدم حتى الآن</p>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,204 @@
+{% extends 'base.html' %}
+
+{% block title %}دليل المستخدم الشامل{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto space-y-6">
+    <section class="relative overflow-hidden rounded-3xl bg-gradient-to-br from-teal-700 via-cyan-700 to-indigo-700 text-white shadow-2xl">
+        <div class="absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_top_right,_white,_transparent_45%)]"></div>
+        <div class="relative p-8 md:p-10">
+            <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+                <div class="max-w-3xl">
+                    <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/20 border border-white/30 text-xs font-bold mb-4">
+                        <i class="fas fa-compass"></i>
+                        مرجع العمل اليومي
+                    </div>
+                    <h1 class="text-3xl md:text-4xl font-black leading-tight mb-3">دليل المستخدم الشامل</h1>
+                    <p class="text-cyan-50 leading-8 text-sm md:text-base">
+                        شرح موحد ومبسط لكل صفحات النظام: من نقطة البيع وحتى الشحن والمالية. استخدم هذا الدليل لتدريب الموظفين وتقليل الأخطاء وتوحيد طريقة التشغيل.
+                    </p>
+                </div>
+                <div class="bg-white/10 border border-white/20 rounded-2xl p-5 min-w-[280px] backdrop-blur-sm">
+                    <h3 class="font-black mb-3">وصول سريع</h3>
+                    <ul class="space-y-2 text-sm">
+                        <li><a href="#pos" class="hover:underline">المبيعات ونقطة البيع</a></li>
+                        <li><a href="#inventory" class="hover:underline">المخزن والمنتجات</a></li>
+                        <li><a href="#crm" class="hover:underline">العملاء (CRM)</a></li>
+                        <li><a href="#financial" class="hover:underline">المالية والشيفتات</a></li>
+                        <li><a href="#operations" class="hover:underline">الشحن والإدارة</a></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-6 gap-4">
+        <a href="#general" class="group bg-white rounded-2xl border border-gray-200 p-4 hover:border-teal-300 hover:shadow-md transition">
+            <div class="w-10 h-10 rounded-xl bg-teal-50 text-teal-700 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fas fa-play"></i></div>
+            <h2 class="font-bold text-sm text-gray-800">البداية</h2>
+        </a>
+        <a href="#pos" class="group bg-white rounded-2xl border border-gray-200 p-4 hover:border-teal-300 hover:shadow-md transition">
+            <div class="w-10 h-10 rounded-xl bg-cyan-50 text-cyan-700 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fas fa-cash-register"></i></div>
+            <h2 class="font-bold text-sm text-gray-800">المبيعات</h2>
+        </a>
+        <a href="#inventory" class="group bg-white rounded-2xl border border-gray-200 p-4 hover:border-teal-300 hover:shadow-md transition">
+            <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fas fa-boxes-stacked"></i></div>
+            <h2 class="font-bold text-sm text-gray-800">المخزن</h2>
+        </a>
+        <a href="#crm" class="group bg-white rounded-2xl border border-gray-200 p-4 hover:border-teal-300 hover:shadow-md transition">
+            <div class="w-10 h-10 rounded-xl bg-purple-50 text-purple-700 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fas fa-users"></i></div>
+            <h2 class="font-bold text-sm text-gray-800">العملاء</h2>
+        </a>
+        <a href="#financial" class="group bg-white rounded-2xl border border-gray-200 p-4 hover:border-teal-300 hover:shadow-md transition">
+            <div class="w-10 h-10 rounded-xl bg-orange-50 text-orange-700 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fas fa-vault"></i></div>
+            <h2 class="font-bold text-sm text-gray-800">المالية</h2>
+        </a>
+        <a href="#operations" class="group bg-white rounded-2xl border border-gray-200 p-4 hover:border-teal-300 hover:shadow-md transition">
+            <div class="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-700 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fas fa-gear"></i></div>
+            <h2 class="font-bold text-sm text-gray-800">التشغيل</h2>
+        </a>
+    </section>
+
+    <section id="general" class="bg-white border border-gray-200 rounded-3xl p-6 md:p-8">
+        <h3 class="text-2xl font-black text-gray-800 mb-5">1) البداية والتشغيل</h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-700">
+            <div class="p-4 rounded-2xl bg-gray-50 border border-gray-100">
+                <h4 class="font-bold mb-2">قبل بداية اليوم</h4>
+                <ul class="space-y-2 leading-7">
+                    <li>تسجيل الدخول والتأكد من اسم المستخدم الصحيح.</li>
+                    <li>التأكد من الصلاحيات المطلوبة لعملك اليومي.</li>
+                    <li>فتح شيفت جديد إذا كنت مسؤول مالية/كاشير.</li>
+                </ul>
+            </div>
+            <div class="p-4 rounded-2xl bg-gray-50 border border-gray-100">
+                <h4 class="font-bold mb-2">قواعد عمل عامة</h4>
+                <ul class="space-y-2 leading-7">
+                    <li>دوّن أي ملاحظة مهمة داخل الطلب بدل حفظها خارجيًا.</li>
+                    <li>راجع رسائل التنبيه أعلى الشاشة أولًا بأول.</li>
+                    <li>لا تترك العمليات الحساسة بدون حفظ أو إغلاق صحيح.</li>
+                </ul>
+            </div>
+        </div>
+    </section>
+
+    <section id="pos" class="bg-white border border-gray-200 rounded-3xl p-6 md:p-8">
+        <h3 class="text-2xl font-black text-gray-800 mb-5">2) المبيعات ونقطة البيع</h3>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 text-sm">
+            <article class="rounded-2xl border border-cyan-100 bg-cyan-50/50 p-5">
+                <h4 class="font-black text-cyan-800 mb-3">مسار البيع القياسي</h4>
+                <ol class="space-y-2 text-gray-700 leading-7 list-decimal pr-5">
+                    <li>اختيار العميل أو البيع كعميل نقدي.</li>
+                    <li>إضافة الأصناف وتعديل الكمية/السعر.</li>
+                    <li>ضبط الخصم وتكلفة الشحن والملاحظات.</li>
+                    <li>إتمام الدفع وطباعة الفاتورة.</li>
+                </ol>
+            </article>
+            <article class="rounded-2xl border border-teal-100 bg-teal-50/50 p-5">
+                <h4 class="font-black text-teal-800 mb-3">المسودات والحفظ التلقائي</h4>
+                <ul class="space-y-2 text-gray-700 leading-7">
+                    <li>يمكن حفظ السلة كمسودة وفتحها لاحقًا.</li>
+                    <li>يمكن حذف أو طباعة المسودة من النافذة المخصصة.</li>
+                    <li>عند تحديث الصفحة مع سلة غير فارغة، يتم الحفظ التلقائي كمسودة.</li>
+                    <li class="font-bold">رسالة التأكيد: تم حفظ السلة تلقائيًا كمسودة عند التحديث.</li>
+                </ul>
+            </article>
+        </div>
+    </section>
+
+    <section id="inventory" class="bg-white border border-gray-200 rounded-3xl p-6 md:p-8">
+        <h3 class="text-2xl font-black text-gray-800 mb-5">3) المخزن والمنتجات</h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-700">
+            <div class="rounded-2xl bg-emerald-50 border border-emerald-100 p-5">
+                <h4 class="font-black text-emerald-800 mb-3">المنتجات</h4>
+                <ul class="space-y-2 leading-7">
+                    <li>إضافة/تعديل/حذف المنتجات.</li>
+                    <li>استخدام الاستيراد والتصدير لتسريع العمل.</li>
+                    <li>مراجعة السعر والتكلفة قبل اعتماد التعديلات.</li>
+                </ul>
+            </div>
+            <div class="rounded-2xl bg-emerald-50 border border-emerald-100 p-5">
+                <h4 class="font-black text-emerald-800 mb-3">المخازن والحركة</h4>
+                <ul class="space-y-2 leading-7">
+                    <li>إدارة المخازن والرصيد لكل صنف.</li>
+                    <li>تحويل المخزون بين المخازن مع تحقق الكميات.</li>
+                    <li>تشغيل الجرد الدوري ومعالجة الفروقات.</li>
+                </ul>
+            </div>
+        </div>
+    </section>
+
+    <section id="crm" class="bg-white border border-gray-200 rounded-3xl p-6 md:p-8">
+        <h3 class="text-2xl font-black text-gray-800 mb-5">4) العملاء (CRM)</h3>
+        <div class="rounded-2xl bg-purple-50 border border-purple-100 p-5 text-sm text-gray-700">
+            <ul class="space-y-2 leading-7">
+                <li>إدارة بيانات العملاء والبحث السريع بالاسم أو الهاتف.</li>
+                <li>تسجيل سداد المديونيات من شاشة العميل.</li>
+                <li>متابعة تقارير العميل وتاريخ الفواتير المرتبط به.</li>
+                <li>استخدام أدوات الاستيراد الجماعي للبيانات الكبيرة.</li>
+            </ul>
+        </div>
+    </section>
+
+    <section id="financial" class="bg-white border border-gray-200 rounded-3xl p-6 md:p-8">
+        <h3 class="text-2xl font-black text-gray-800 mb-5">5) المالية والشيفتات</h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-700">
+            <div class="rounded-2xl bg-orange-50 border border-orange-100 p-5">
+                <h4 class="font-black text-orange-800 mb-3">الشيفت اليومي</h4>
+                <ul class="space-y-2 leading-7">
+                    <li>فتح الشيفت في بداية اليوم.</li>
+                    <li>تسجيل المعاملات المالية أولًا بأول.</li>
+                    <li>إغلاق الشيفت مع الطباعة بنهاية اليوم.</li>
+                </ul>
+            </div>
+            <div class="rounded-2xl bg-orange-50 border border-orange-100 p-5">
+                <h4 class="font-black text-orange-800 mb-3">الحسابات والتقارير</h4>
+                <ul class="space-y-2 leading-7">
+                    <li>مراجعة كشف الحساب بصورة دورية.</li>
+                    <li>توثيق السحب والإيداع والتحويلات بدقة.</li>
+                    <li>استخدم التقارير لكشف أي فرق مبكرًا.</li>
+                </ul>
+            </div>
+        </div>
+    </section>
+
+    <section id="operations" class="bg-white border border-gray-200 rounded-3xl p-6 md:p-8">
+        <h3 class="text-2xl font-black text-gray-800 mb-5">6) الشحن والإدارة والإعدادات</h3>
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 text-sm text-gray-700">
+            <div class="rounded-2xl bg-indigo-50 border border-indigo-100 p-5">
+                <h4 class="font-black text-indigo-800 mb-3">الشحن</h4>
+                <ul class="space-y-2 leading-7">
+                    <li>إنشاء الشحنة وربطها بالطلب.</li>
+                    <li>تحديث الحالة والدفع حتى التسليم.</li>
+                    <li>طباعة ملصق الشحن عند الحاجة.</li>
+                </ul>
+            </div>
+            <div class="rounded-2xl bg-indigo-50 border border-indigo-100 p-5">
+                <h4 class="font-black text-indigo-800 mb-3">الإدارة والصلاحيات</h4>
+                <ul class="space-y-2 leading-7">
+                    <li>إدارة المستخدمين والأدوار من المسؤول.</li>
+                    <li>مراجعة سجل الأنشطة والأخطاء بشكل دوري.</li>
+                    <li>إرسال إشعارات عامة للفريق عند الحاجة.</li>
+                </ul>
+            </div>
+            <div class="rounded-2xl bg-indigo-50 border border-indigo-100 p-5">
+                <h4 class="font-black text-indigo-800 mb-3">الإعدادات والنسخ الاحتياطي</h4>
+                <ul class="space-y-2 leading-7">
+                    <li>تحديث بيانات المحل وإعدادات النظام.</li>
+                    <li>أخذ نسخة احتياطية دورية من قاعدة البيانات.</li>
+                    <li>قبل الاستيراد: تأكد دائمًا من وجود Backup حديث.</li>
+                </ul>
+            </div>
+        </div>
+    </section>
+
+    <section class="rounded-3xl border border-amber-200 bg-amber-50 p-6 md:p-8">
+        <h3 class="text-xl font-black text-amber-800 mb-3">تنبيهات مهمة لتفادي المشاكل</h3>
+        <ul class="space-y-2 text-sm text-amber-900 leading-7">
+            <li>أي خطأ متكرر يجب رفعه للمسؤول التقني مع وصف واضح لما حدث.</li>
+            <li>عند ظهور خطأ قاعدة بيانات مثل <span class="font-mono">no such table</span> يجب تطبيق التحديثات الفنية (migrate).</li>
+            <li>أفضل أداء يتحقق عند استخدام البحث المفلتر بدل فتح قوائم ضخمة مرة واحدة.</li>
+        </ul>
+    </section>
+</div>
+{% endblock %}
+

@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>غير مصرح (403) | النظام</title>
+    <script src="/static/vendor/js/tailwind.js"></script>
+    <link rel="stylesheet" href="/static/vendor/fontawesome/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap');
+        body { font-family: 'Tajawal', sans-serif; }
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
+            20%, 40%, 60%, 80% { transform: translateX(5px); }
+        }
+        @keyframes lock-bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+        .animate-shake:hover { animation: shake 0.6s cubic-bezier(.36,.07,.19,.97) both; }
+        .animate-lock { animation: lock-bounce 3s ease-in-out infinite; }
+        .modal-enter { opacity: 0; transform: scale(0.9) translateY(20px); }
+        .modal-enter-active { opacity: 1; transform: scale(1) translateY(0); transition: all 0.3s ease-out; }
+    </style>
+</head>
+<body class="bg-slate-50 flex items-center justify-center min-h-screen selection:bg-indigo-200 overflow-x-hidden">
+    <!-- Background Patterns -->
+    <div class="absolute inset-0 z-0 opacity-[0.03] pointer-events-none" style="background-image: radial-gradient(#4f46e5 1px, transparent 1px); background-size: 30px 30px;"></div>
+    
+    <div class="z-10 bg-white p-8 md:p-12 rounded-[2.5rem] shadow-2xl max-w-lg w-[90%] text-center border-b-8 border-indigo-600 transform transition-all duration-500 hover:shadow-indigo-100 group">
+        <div class="relative w-28 h-28 mx-auto mb-8 flex items-center justify-center">
+            <div class="absolute inset-0 bg-indigo-50 rounded-full transform scale-125 group-hover:rotate-12 transition-transform duration-700"></div>
+            <div class="relative z-10 w-20 h-20 bg-white rounded-3xl rotate-12 flex items-center justify-center shadow-lg border border-indigo-50 group-hover:rotate-0 transition-all duration-500">
+                <i class="fas fa-shield-alt text-4xl text-indigo-600"></i>
+            </div>
+            <div class="absolute -right-1 -top-1 bg-red-500 text-white rounded-full w-8 h-8 flex items-center justify-center shadow-lg border-2 border-white animate-bounce">
+                <i class="fas fa-times text-sm"></i>
+            </div>
+        </div>
+
+        <h1 class="text-7xl font-black text-slate-900 mb-2 tracking-tighter">403</h1>
+        <h2 class="text-2xl font-bold text-slate-800 mb-4">هذه المنطقة محظورة</h2>
+        <p class="text-slate-500 mb-8 leading-relaxed text-sm md:text-base">
+            يبدو أنك تحاول الوصول إلى صفحة تتجاوز صلاحيات رتبتك الحالية.<br>
+            يمكنك العودة للخلف أو الانتقال للصفحات المسموحة لك أدناه.
+        </p>
+
+        <!-- Dynamic Action Buttons -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
+            <button onclick="window.history.back()" class="flex items-center justify-center gap-2 px-6 py-3.5 bg-slate-100 text-slate-700 font-bold rounded-2xl hover:bg-slate-200 transition-all active:scale-95">
+                <i class="fas fa-arrow-right"></i> رجوع
+            </button>
+            <a href="/" class="flex items-center justify-center gap-2 px-6 py-3.5 bg-indigo-600 text-white font-bold rounded-2xl hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 active:scale-95">
+                <i class="fas fa-home"></i> الرئيسية
+            </a>
+            
+            <!-- Mobile POS Specific Button (Mobile Only) -->
+            <a href="/sales/pos/mobile/" class="sm:hidden flex items-center justify-center gap-2 px-6 py-3.5 bg-blue-600 text-white font-bold rounded-2xl hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 active:scale-95">
+                <i class="fas fa-mobile-alt"></i> نقطة بيع الجوال
+            </a>
+
+            <button onclick="openPermissionsModal()" class="flex items-center justify-center gap-2 px-6 py-3.5 bg-emerald-50 text-emerald-700 font-bold rounded-2xl border-2 border-emerald-100 hover:bg-emerald-100 transition-all active:scale-95 md:col-span-1 {% if not request.user.is_superuser %}sm:col-span-2{% endif %}">
+                <i class="fas fa-key"></i> رؤية صلاحياتي
+            </button>
+        </div>
+
+        <p class="text-xs text-slate-400">إذا كنت تعتقد أن هذا خطأ، يرجى مراجعة الإدارة.</p>
+    </div>
+
+    <!-- Permissions Modal -->
+    <div id="permsModal" class="fixed inset-0 z-50 flex items-center justify-center hidden bg-slate-900/60 backdrop-blur-sm p-4">
+        <div class="bg-white w-full max-w-md rounded-[2rem] shadow-2xl overflow-hidden transform transition-all duration-300 scale-95 opacity-0" id="modalContent">
+            <div class="p-6 border-b border-slate-100 flex items-center justify-between bg-indigo-600 text-white">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+                        <i class="fas fa-unlock-alt"></i>
+                    </div>
+                    <h3 class="text-lg font-bold">صلاحياتك النشطة</h3>
+                </div>
+                <button onclick="closePermissionsModal()" class="w-8 h-8 rounded-full hover:bg-white/10 transition flex items-center justify-center">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <div class="p-6 bg-slate-50 max-h-[60vh] overflow-y-auto">
+                <div class="space-y-3">
+                    <!-- Dashboard Check -->
+                    <div class="p-4 bg-white rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between">
+                        <div class="flex items-center gap-3">
+                            <span class="w-8 h-8 bg-blue-100 text-blue-600 rounded-lg flex items-center justify-center"><i class="fas fa-chart-pie"></i></span>
+                            <span class="font-bold text-slate-700">لوحة التحكم</span>
+                        </div>
+                        <a id="link-dashboard" href="/" class="hidden text-xs bg-indigo-500 text-white px-3 py-1 rounded-lg font-bold hover:bg-indigo-600 transition">دخول</a>
+                        <span id="fail-dashboard" class="text-xs bg-red-50 text-red-500 px-2 py-1 rounded-lg font-bold">مغلق</span>
+                    </div>
+
+                    <!-- POS Check -->
+                    <div class="p-4 bg-white rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between">
+                        <div class="flex items-center gap-3">
+                            <span class="w-8 h-8 bg-emerald-100 text-emerald-600 rounded-lg flex items-center justify-center"><i class="fas fa-cash-register"></i></span>
+                            <span class="font-bold text-slate-700">نقطة البيع (POS)</span>
+                        </div>
+                        <a id="link-pos" href="/sales/pos/" class="hidden text-xs bg-emerald-500 text-white px-3 py-1 rounded-lg font-bold hover:bg-emerald-600 transition">دخول</a>
+                        <span id="fail-pos" class="text-xs bg-red-50 text-red-500 px-2 py-1 rounded-lg font-bold">مغلق</span>
+                    </div>
+
+                    <!-- Products Check -->
+                    <div class="p-4 bg-white rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between">
+                        <div class="flex items-center gap-3">
+                            <span class="w-8 h-8 bg-amber-100 text-amber-600 rounded-lg flex items-center justify-center"><i class="fas fa-boxes"></i></span>
+                            <span class="font-bold text-slate-700">إدارة المخزون</span>
+                        </div>
+                        <a id="link-products" href="/products/" class="hidden text-xs bg-amber-500 text-white px-3 py-1 rounded-lg font-bold hover:bg-amber-600 transition">دخول</a>
+                        <span id="fail-products" class="text-xs bg-red-50 text-red-500 px-2 py-1 rounded-lg font-bold">مغلق</span>
+                    </div>
+                    
+                    <p class="text-[10px] text-slate-400 text-center mt-4">تقوم هذه القائمة بعرض الوحدات الرئيسية المتاحة لك فقط حسب رتبتك.</p>
+                </div>
+            </div>
+            
+            <div class="p-4 bg-white border-t border-slate-100">
+                <button onclick="closePermissionsModal()" class="w-full py-3 bg-slate-900 text-white rounded-xl font-bold hover:bg-slate-800 transition">إغلاق</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Check permissions via JS/Template Bridge
+        const userPerms = {
+            is_superuser: {% if request.user.is_superuser %}true{% else %}false{% endif %},
+            can_dashboard: false,
+            can_pos: false,
+            can_products: false
+        };
+
+        {% if request.user.is_authenticated %}
+            {% for role in request.user.profile.roles.all %}
+                {% if role.permissions.dashboard %} userPerms.can_dashboard = true; {% endif %}
+                {% if role.permissions.pos %} userPerms.can_pos = true; {% endif %}
+                {% if role.permissions.products %} userPerms.can_products = true; {% endif %}
+            {% endfor %}
+            if (userPerms.is_superuser) {
+                userPerms.can_dashboard = true;
+                userPerms.can_pos = true;
+                userPerms.can_products = true;
+            }
+        {% endif %}
+
+        function updateModalUI() {
+            // Dashboard
+            if (userPerms.can_dashboard) {
+                document.getElementById('link-dashboard').classList.remove('hidden');
+                document.getElementById('fail-dashboard').classList.add('hidden');
+            } else {
+                document.getElementById('link-dashboard').classList.add('hidden');
+                document.getElementById('fail-dashboard').classList.remove('hidden');
+            }
+
+            // POS
+            if (userPerms.can_pos) {
+                document.getElementById('link-pos').classList.remove('hidden');
+                document.getElementById('fail-pos').classList.add('hidden');
+            } else {
+                document.getElementById('link-pos').classList.add('hidden');
+                document.getElementById('fail-pos').classList.remove('hidden');
+            }
+
+            // Products
+            if (userPerms.can_products) {
+                document.getElementById('link-products').classList.remove('hidden');
+                document.getElementById('fail-products').classList.add('hidden');
+            } else {
+                document.getElementById('link-products').classList.add('hidden');
+                document.getElementById('fail-products').classList.remove('hidden');
+            }
+        }
+
+        function openPermissionsModal() {
+            const modal = document.getElementById('permsModal');
+            const content = document.getElementById('modalContent');
+            updateModalUI();
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                content.classList.remove('scale-95', 'opacity-0');
+                content.classList.add('scale-100', 'opacity-100');
+            }, 10);
+        }
+
+        function closePermissionsModal() {
+            const modal = document.getElementById('permsModal');
+            const content = document.getElementById('modalContent');
+            content.classList.add('scale-95', 'opacity-0');
+            content.classList.remove('scale-100', 'opacity-100');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+            }, 300);
+        }
+    </script>
+</body>
+</html>

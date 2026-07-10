@@ -1,0 +1,97 @@
+{% extends 'base.html' %}
+{% load l10n %}
+
+{% block content %}
+<div class="max-w-xl mx-auto">
+    <div class="flex items-center justify-between mb-6">
+        <h2 class="text-2xl font-bold text-gray-800 flex items-center gap-2">
+            <svg class="w-7 h-7 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path></svg>
+            {% if order %}تعديل أمر الشغل #{{ order.id }}{% else %}إضافة أمر شغل جديد{% endif %}
+        </h2>
+        <a href="{% url 'factory_list' %}" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition font-bold text-sm">رجوع لقائمة الأوامر</a>
+    </div>
+
+    <form method="POST" class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-5">
+        {% csrf_token %}
+
+        <div>
+            <label class="block text-sm font-bold text-gray-600 mb-1">العميل (اختياري)</label>
+            <select name="customer_id" class="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:border-indigo-500 outline-none text-sm">
+                <option value="">— بدون عميل محدد —</option>
+                {% for c in customers %}
+                <option value="{{ c.pk }}" {% if order and order.customer_id == c.pk %}selected{% endif %}>{{ c.first_name }} {{ c.last_name }} — {{ c.phone }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div>
+            <label class="block text-sm font-bold text-gray-600 mb-1">نوع التفصيل <span class="text-red-500">*</span></label>
+            <input type="text" name="tailoring_type" required value="{{ order.tailoring_type|default:'' }}" placeholder="مثال: بدلة رجالي، فستان سهرة..." class="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:border-indigo-500 outline-none text-sm">
+        </div>
+
+        <div class="grid grid-cols-2 gap-4">
+            <div>
+                <label class="block text-sm font-bold text-gray-600 mb-1">تكلفة التفصيل</label>
+                <input type="number" step="0.01" min="0" id="id_tailoring_cost" name="tailoring_cost" value="{{ order.tailoring_cost|default:'0'|unlocalize }}" class="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:border-indigo-500 outline-none text-sm dir-ltr">
+            </div>
+            <div>
+                <label class="block text-sm font-bold text-gray-600 mb-1">اسم الترزي (إن وُجد)</label>
+                <input type="text" name="tailor_name" value="{{ order.tailor_name|default:'' }}" class="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:border-indigo-500 outline-none text-sm">
+            </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4">
+            <div>
+                <label class="block text-sm font-bold text-gray-600 mb-1">المدفوع الآن (يُضاف للخزنة)</label>
+                <input type="number" step="0.01" min="0" id="id_deposit_now" name="deposit_now" value="0" class="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:border-indigo-500 outline-none text-sm dir-ltr">
+                {% if order %}<p class="text-xs text-gray-400 mt-1">المدفوع سابقاً: {{ order.received_amount|unlocalize }}</p>{% endif %}
+            </div>
+            <div>
+                <label class="block text-sm font-bold text-gray-600 mb-1">المتبقي</label>
+                <div id="id_remaining_display" class="w-full px-3 py-2.5 bg-gray-100 border border-gray-200 rounded-xl text-sm font-bold dir-ltr">0</div>
+            </div>
+        </div>
+
+        <script>
+        (function() {
+            var cost = document.getElementById('id_tailoring_cost');
+            var deposit = document.getElementById('id_deposit_now');
+            var display = document.getElementById('id_remaining_display');
+            var paidBefore = {{ order.received_amount|default:'0'|unlocalize }};
+            function recalc() {
+                var c = parseFloat(cost.value) || 0;
+                var d = parseFloat(deposit.value) || 0;
+                display.textContent = (c - paidBefore - d).toFixed(2);
+            }
+            cost.addEventListener('input', recalc);
+            deposit.addEventListener('input', recalc);
+            recalc();
+        })();
+        </script>
+
+        {% if order %}
+        <div>
+            <label class="block text-sm font-bold text-gray-600 mb-1">حالة الأمر</label>
+            <select name="tailoring_status" class="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:border-indigo-500 outline-none text-sm">
+                {% for value, label in status_choices %}
+                <option value="{{ value }}" {% if order.tailoring_status == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        {% endif %}
+
+        <div>
+            <label class="block text-sm font-bold text-gray-600 mb-1">ملاحظات / مقاسات</label>
+            <textarea name="notes" rows="3" placeholder="المقاسات، التفاصيل الإضافية..." class="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:border-indigo-500 outline-none text-sm">{{ order.notes|default:'' }}</textarea>
+        </div>
+
+        {% if not order %}
+        <p class="text-xs text-gray-400">سيتم إنشاء الأمر بحالة «لم يرسل بعد» وسيظهر في قائمة أوامر الشغل. هذا الأمر لا يُحسب كفاتورة بيع (القيمة المالية صفر في تقارير المبيعات حتى يتم تحويله لفاتورة فعلية).</p>
+        {% endif %}
+
+        <button type="submit" class="w-full px-5 py-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition font-bold shadow-lg shadow-indigo-200">
+            {% if order %}حفظ التعديلات{% else %}إنشاء أمر الشغل{% endif %}
+        </button>
+    </form>
+</div>
+{% endblock %}

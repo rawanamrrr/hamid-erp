@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>أمر تشغيل #{{ order.id }}</title>
+    <script src="/static/vendor/js/tailwind.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;700&family=Inconsolata:wght@700&display=swap');
+        
+        body { 
+            font-family: 'IBM Plex Sans Arabic', sans-serif; 
+            background-color: #525252; 
+            margin: 0; 
+            padding: 20px 0; 
+        }
+        
+        /* تنسيق الورقة الحرارية */
+        .receipt { 
+            width: 80mm; 
+            background: #fff; 
+            margin: 0 auto; 
+            padding: 5mm; 
+            font-size: 12px; 
+            color: #000; 
+            line-height: 1.4;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+        
+        .dashed-line { 
+            border-top: 1px dashed #000; 
+            margin: 8px 0; 
+            width: 100%; 
+        }
+        
+        .num { 
+            font-family: 'Inconsolata', monospace; 
+            font-weight: 700; 
+        }
+        
+        @media print {
+            body { background: none; margin: 0; padding: 0; }
+            .no-print { display: none !important; }
+            .receipt { width: 100%; margin: 0; padding: 0; box-shadow: none; }
+            @page { margin: 0; size: auto; }
+        }
+    </style>
+</head>
+<body>
+    <!-- أزرار التحكم (تختفي في الطباعة) -->
+    <div class="no-print fixed top-0 w-full bg-white p-2 shadow flex justify-between z-50">
+        <button onclick="window.close(); setTimeout(function(){ if (window.history.length > 1) window.history.back(); }, 50)" class="px-4 py-1 bg-gray-200 rounded font-bold hover:bg-gray-300">إغلاق</button>
+        <button onclick="window.print()" class="px-4 py-1 bg-black text-white rounded font-bold hover:bg-gray-800">طباعة</button>
+    </div>
+    <div class="h-10 no-print"></div>
+
+    <div class="receipt">
+        <!-- الهيدر (اللوجو واسم المحل) -->
+        <div class="text-center mb-2">
+            {% if sys_settings.logo_base64 %}
+            <img src="{{ sys_settings.logo_base64 }}" class="mx-auto h-16 mb-2 grayscale object-contain" alt="Logo">
+            {% endif %}
+            <h1 class="text-xl font-bold mb-1 leading-tight">{{ sys_settings.shop_name }}</h1>
+            <p class="text-[10px]">{{ sys_settings.address }}</p>
+            <p class="text-[10px] font-mono font-bold">{{ sys_settings.phone }}</p>
+        </div>
+
+        <div class="dashed-line"></div>
+
+        <!-- عنوان المستند -->
+        <div class="text-center my-3">
+            <h2 class="text-lg font-bold border-2 border-black inline-block px-3 py-1 rounded">أمر تشغيل / تفصيل</h2>
+        </div>
+
+        <!-- بيانات الطلب الأساسية -->
+        <div class="flex justify-between items-center mb-1 text-sm">
+            <span>رقم الأمر:</span>
+            <span class="num text-lg font-bold">#{{ order.id }}</span>
+        </div>
+        <div class="flex justify-between items-center mb-2 text-[11px]">
+            <span>التاريخ:</span>
+            <span class="num">{{ order.created_at|date:"Y-m-d H:i" }}</span>
+        </div>
+
+        <div class="dashed-line"></div>
+
+        <!-- بيانات العميل -->
+        <div class="mb-2">
+            <p class="text-[10px] text-gray-500 mb-1 font-bold">بيانات العميل:</p>
+            <div class="flex justify-between items-start">
+                <p class="font-bold text-sm">{{ order.customer.first_name }} {{ order.customer.last_name }}</p>
+                <p class="font-mono text-sm bg-gray-100 px-1 rounded">{{ order.customer.phone }}</p>
+            </div>
+        </div>
+
+        <div class="dashed-line"></div>
+
+        <!-- تفاصيل التشغيل -->
+        <div class="mb-3">
+            <p class="text-[10px] text-gray-500 mb-1 font-bold">نوع التفصيل / المطلوب:</p>
+            <p class="font-bold text-lg border-r-4 border-black pr-2 bg-gray-50 py-1">{{ order.tailoring_type }}</p>
+        </div>
+
+        {% if order.items.exists %}
+        <div class="mb-2">
+            <p class="text-[10px] text-gray-500 mb-1 font-bold">الخامات / الأصناف:</p>
+            <ul class="list-disc pr-4 text-sm font-bold space-y-1">
+                {% for item in order.items.all %}
+                <li>{{ item.product.name }} <span class="num text-xs font-normal">({{ item.quantity|floatformat:0 }})</span></li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+
+        {% if order.notes %}
+        <div class="mt-3 border border-black p-2 rounded bg-yellow-50">
+            <p class="text-[10px] font-bold underline mb-1">ملاحظات ومقاسات:</p>
+            <p class="text-sm font-semibold whitespace-pre-line leading-relaxed">{{ order.notes }}</p>
+        </div>
+        {% else %}
+        <div class="mt-2 text-center text-gray-400 text-xs italic">-- لا توجد ملاحظات إضافية --</div>
+        {% endif %}
+
+        <div class="dashed-line"></div>
+
+        <!-- التوقيعات -->
+        <div class="mt-6 text-center">
+            <div class="flex justify-between items-end h-16">
+                <div class="text-center w-1/2">
+                    <p class="text-[10px] mb-6 font-bold">توقيع العميل</p>
+                    <p class="border-b border-dotted border-black w-3/4 mx-auto"></p>
+                </div>
+                <div class="text-center w-1/2">
+                    <p class="text-[10px] mb-6 font-bold">توقيع الفني / المستلم</p>
+                    <p class="border-b border-dotted border-black w-3/4 mx-auto"></p>
+                </div>
+            </div>
+        </div>
+        
+    </div>
+</body>
+</html>

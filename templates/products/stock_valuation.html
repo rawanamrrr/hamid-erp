@@ -1,0 +1,39 @@
+﻿{% extends 'base.html' %}
+{% load humanize %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+<div class="max-w-6xl mx-auto space-y-5">
+    <div class="flex items-center justify-between print:hidden">
+        <h1 class="text-2xl font-black text-gray-800">تقييم المخزون</h1>
+        <a href="?category={{ cat_id }}&print=1" class="px-4 py-2 bg-gray-700 text-white rounded-lg font-bold text-sm">طباعة</a>
+    </div>
+    <form method="get" class="flex items-end gap-3 bg-white p-4 rounded-xl border print:hidden">
+        <div><label class="block text-xs font-bold text-gray-500 mb-1">القسم</label>
+            <select name="category" class="p-2 border rounded-lg">
+                <option value="">كل الأقسام</option>
+                {% for c in categories %}<option value="{{ c.id }}" {% if cat_id == c.id|stringformat:'s' %}selected{% endif %}>{{ c.name }}</option>{% endfor %}
+            </select></div>
+        <button class="px-4 py-2 bg-indigo-600 text-white rounded-lg font-bold">عرض</button>
+    </form>
+    <div class="grid grid-cols-2 gap-3">
+        <div class="bg-white p-4 rounded-xl border text-center"><p class="text-xs text-gray-500 font-bold">إجمالي الكمية</p><p class="text-2xl font-black dir-ltr">{{ grand_qty|floatformat:2 }}</p></div>
+        <div class="bg-gray-800 text-white p-4 rounded-xl text-center"><p class="text-xs text-gray-300 font-bold">قيمة المخزون (بالتكلفة)</p><p class="text-2xl font-black dir-ltr">{{ grand_val|floatformat:2|intcomma }}</p></div>
+    </div>
+    {% for g in groups %}
+    <div class="bg-white rounded-xl border overflow-hidden">
+        <div class="px-5 py-3 bg-gray-800 text-white font-black flex justify-between"><span>{{ g.name }}</span><span class="dir-ltr text-sm">{{ g.value|floatformat:2|intcomma }}</span></div>
+        <table class="w-full text-sm">
+            <thead class="bg-gray-50 text-gray-500 text-xs"><tr><th class="py-2 px-4 text-right">الصنف</th><th class="py-2 px-4 text-left">الكمية</th><th class="py-2 px-4 text-left">القيمة</th></tr></thead>
+            <tbody class="divide-y">
+                {% for r in g.rows %}
+                <tr class="hover:bg-gray-50"><td class="py-2 px-4 font-bold text-gray-700">{{ r.product.name }}</td>
+                    <td class="py-2 px-4 text-left dir-ltr">{{ r.qty|floatformat:2 }}</td>
+                    <td class="py-2 px-4 text-left dir-ltr">{{ r.value|floatformat:2|intcomma }}</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% empty %}<div class="bg-white rounded-xl border py-10 text-center text-gray-400">لا يوجد مخزون بقيمة</div>{% endfor %}
+</div>
+{% if print_mode %}<script>window.onload=function(){window.print();};</script>{% endif %}
+{% endblock %}

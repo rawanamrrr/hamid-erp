@@ -1,0 +1,163 @@
+{% extends 'base.html' %}
+{% load widget_tweaks %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="min-h-[80vh] flex items-center justify-center p-4 bg-gray-50/50">
+    <div class="bg-white rounded-2xl shadow-xl border border-gray-100 w-full max-w-3xl overflow-hidden">
+
+        <!-- Header -->
+        <div class="bg-white px-8 py-5 border-b border-gray-100 flex justify-between items-center">
+            <div>
+                <h2 class="text-2xl font-bold text-gray-800 flex items-center gap-3">
+                    <div class="w-10 h-10 bg-teal-100 text-teal-600 rounded-xl flex items-center justify-center">
+                        <i class="fa-solid fa-warehouse"></i>
+                    </div>
+                    {{ title }}
+                </h2>
+                <p class="text-sm text-gray-500 mt-1 mr-14">إعداد مخزن جديد في النظام</p>
+            </div>
+            <a href="{% url 'warehouse_list' %}" class="text-gray-400 hover:text-red-500 transition bg-gray-50 hover:bg-red-50 p-2 rounded-full w-10 h-10 flex items-center justify-center">
+                <i class="fa-solid fa-xmark text-xl"></i>
+            </a>
+        </div>
+
+        <!-- Form -->
+        <form method="post" class="p-8 space-y-6">
+            {% csrf_token %}
+
+            {% if form.non_field_errors %}
+            <div class="bg-red-50 border-r-4 border-red-500 text-red-700 p-4 rounded-lg text-sm">
+                {{ form.non_field_errors }}
+            </div>
+            {% endif %}
+
+            <!-- Name -->
+            <div>
+                <label class="block text-sm font-bold text-gray-700 mb-2">اسم المخزن <span class="text-red-500">*</span></label>
+                {{ form.name }}
+                {% if form.name.errors %}<p class="text-red-500 text-xs mt-1">{{ form.name.errors.0 }}</p>{% endif %}
+            </div>
+
+            <!-- Address -->
+            <div>
+                <label class="block text-sm font-bold text-gray-700 mb-2">العنوان / الموقع</label>
+                {{ form.address }}
+            </div>
+
+            <!-- ══════════════════════════════════════════ -->
+            <!-- WAREHOUSE TYPE — Card Selector             -->
+            <!-- ══════════════════════════════════════════ -->
+            <div>
+                <label class="block text-sm font-bold text-gray-700 mb-3">نوع المخزن <span class="text-red-500">*</span></label>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-3" id="warehouseTypeCards">
+
+                    <label class="wh-type-card cursor-pointer" data-value="RAW">
+                        <input type="radio" name="warehouse_type" value="RAW" class="hidden wh-radio"
+                            {% if form.warehouse_type.value == 'RAW' or not form.instance.pk %}{% endif %}>
+                        <div class="border-2 rounded-2xl p-4 transition-all border-gray-200 hover:border-orange-400 wh-card-inner text-center">
+                            <div class="w-12 h-12 mx-auto mb-2 rounded-xl bg-orange-100 text-orange-600 flex items-center justify-center text-2xl">
+                                🧵
+                            </div>
+                            <p class="font-bold text-gray-800 text-sm">مواد الخام</p>
+                            <p class="text-xs text-gray-500 mt-1">خيوط، أقمشة، مستلزمات الإنتاج</p>
+                        </div>
+                    </label>
+
+                    <label class="wh-type-card cursor-pointer" data-value="FINISHED">
+                        <input type="radio" name="warehouse_type" value="FINISHED" class="hidden wh-radio">
+                        <div class="border-2 rounded-2xl p-4 transition-all border-gray-200 hover:border-teal-400 wh-card-inner text-center">
+                            <div class="w-12 h-12 mx-auto mb-2 rounded-xl bg-teal-100 text-teal-600 flex items-center justify-center text-2xl">
+                                📦
+                            </div>
+                            <p class="font-bold text-gray-800 text-sm">منتج نهائي</p>
+                            <p class="text-xs text-gray-500 mt-1">ملابس جاهزة، منتجات مصنعة</p>
+                        </div>
+                    </label>
+
+                    <label class="wh-type-card cursor-pointer" data-value="BOTH">
+                        <input type="radio" name="warehouse_type" value="BOTH" class="hidden wh-radio">
+                        <div class="border-2 rounded-2xl p-4 transition-all border-gray-200 hover:border-purple-400 wh-card-inner text-center">
+                            <div class="w-12 h-12 mx-auto mb-2 rounded-xl bg-purple-100 text-purple-600 flex items-center justify-center text-2xl">
+                                🏭
+                            </div>
+                            <p class="font-bold text-gray-800 text-sm">كلاهما</p>
+                            <p class="text-xs text-gray-500 mt-1">خامات ومنتجات نهائية معاً</p>
+                        </div>
+                    </label>
+
+                </div>
+                {% if form.warehouse_type.errors %}<p class="text-red-500 text-xs mt-2">{{ form.warehouse_type.errors.0 }}</p>{% endif %}
+            </div>
+
+            <!-- Flags Grid -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="flex items-center gap-3 bg-gray-50 p-4 rounded-xl border border-gray-200">
+                    {{ form.is_active }}
+                    <div>
+                        <label class="font-bold text-gray-800 block text-sm">نشط</label>
+                        <p class="text-xs text-gray-500">يمكن التعامل عليه في النظام</p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-3 bg-teal-50 p-4 rounded-xl border border-teal-100">
+                    {{ form.is_sales_point }}
+                    <div>
+                        <label class="font-bold text-teal-800 block text-sm">منفذ بيع (يظهر في الكاشير)</label>
+                        <p class="text-xs text-teal-600">يظهر في شاشة البيع لاختيار المخزن</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Buttons -->
+            <div class="flex gap-3 pt-4 border-t border-gray-100">
+                <button type="submit" class="flex-1 bg-teal-600 hover:bg-teal-700 text-white py-3 rounded-xl font-bold shadow-lg shadow-teal-100 transition flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-save"></i> حفظ المخزن
+                </button>
+                <a href="{% url 'warehouse_list' %}" class="px-6 py-3 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition font-medium">
+                    إلغاء
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const cards = document.querySelectorAll('.wh-type-card');
+    const existingVal = '{{ form.instance.warehouse_type|default:"FINISHED" }}';
+
+    // Color maps per type
+    const colors = {
+        'RAW': { border: 'border-orange-500', bg: 'bg-orange-50', text: 'text-orange-700' },
+        'FINISHED': { border: 'border-teal-500', bg: 'bg-teal-50', text: 'text-teal-700' },
+        'BOTH': { border: 'border-purple-500', bg: 'bg-purple-50', text: 'text-purple-700' },
+    };
+
+    function selectCard(value) {
+        cards.forEach(card => {
+            const inner = card.querySelector('.wh-card-inner');
+            const radio = card.querySelector('.wh-radio');
+            const val = card.dataset.value;
+            const c = colors[val] || {};
+            if (val === value) {
+                inner.classList.remove('border-gray-200', 'bg-white');
+                inner.classList.add(c.border, c.bg);
+                radio.checked = true;
+            } else {
+                inner.classList.remove(c.border, c.bg);
+                inner.classList.add('border-gray-200');
+                radio.checked = false;
+            }
+        });
+    }
+
+    // Set default
+    selectCard(existingVal || 'FINISHED');
+
+    cards.forEach(card => {
+        card.addEventListener('click', () => selectCard(card.dataset.value));
+    });
+});
+</script>
+{% endblock %}

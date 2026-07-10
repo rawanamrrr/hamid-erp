@@ -1,0 +1,460 @@
+﻿{% extends 'base.html' %}
+
+{% block title %}تفاصيل المخزن - {{ warehouse.name }}{% endblock %}
+
+{% block content %}
+<style>
+    .ut-wrap {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        background: #fff;
+        border: 1.5px solid #e5e7eb;
+        border-radius: 10px;
+        padding: 5px 14px;
+        cursor: pointer;
+        user-select: none;
+        font-size: 13px;
+        font-weight: 700;
+        transition: all 0.2s;
+    }
+
+    .ut-wrap:hover {
+        border-color: #cbd5e1;
+        box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+    }
+
+    .ut-track {
+        position: relative;
+        width: 40px;
+        height: 22px;
+        background: #d1d5db;
+        border-radius: 999px;
+        transition: background .25s;
+        flex-shrink: 0;
+    }
+
+    .ut-track.active {
+        background: #f59e0b;
+    }
+
+    .ut-thumb {
+        position: absolute;
+        top: 3px;
+        left: 3px;
+        width: 16px;
+        height: 16px;
+        background: #fff;
+        border-radius: 50%;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, .2);
+        transition: transform .25s;
+    }
+
+    .ut-track.active .ut-thumb {
+        transform: translateX(18px);
+    }
+
+    #lbl-pcs {
+        color: #0d9488;
+    }
+
+    #lbl-pkg {
+        color: #9ca3af;
+    }
+
+    .ut-track.active~#lbl-pkg {
+        color: #d97706;
+    }
+
+    /* Scrollbar styling for tables */
+    .custom-scrollbar::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+        background: #f1f5f9;
+        border-radius: 4px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
+        border-radius: 4px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+        background: #94a3b8;
+    }
+</style>
+
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-8">
+
+    <!-- Header Section -->
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+        <div class="flex flex-col md:flex-row md:items-start justify-between gap-6">
+            <div class="flex items-start gap-4">
+                <a href="{% url 'warehouse_list' %}"
+                    class="mt-1 flex-shrink-0 flex items-center justify-center w-10 h-10 rounded-xl bg-gray-50 border border-gray-200 text-gray-500 hover:text-teal-600 hover:bg-teal-50 hover:border-teal-200 transition-colors">
+                    <i class="fas fa-arrow-right"></i>
+                </a>
+                <div>
+                    <h1 class="text-3xl font-extrabold text-gray-900 tracking-tight flex items-center gap-2">
+                        {{ warehouse.name }}
+                        {% if warehouse.is_active %}
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                            نشط
+                        </span>
+                        {% else %}
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                            غير نشط
+                        </span>
+                        {% endif %}
+                    </h1>
+                    <p class="text-sm text-gray-500 mt-2 flex items-center gap-2">
+                        <i class="fas fa-map-marker-alt text-gray-400"></i>
+                        {{ warehouse.address|default:"لا يوجد عنوان مسجل" }}
+                    </p>
+                </div>
+            </div>
+            <div class="flex gap-3 flex-wrap items-center">
+                <!-- Unit Toggle -->
+                <div class="ut-wrap" onclick="toggleUnit()">
+                    {% if sys_settings.market_type == 'pharmacy' %}
+                    <span id="lbl-pcs">علبة</span>
+                    <div class="ut-track" id="ut-track">
+                        <div class="ut-thumb"></div>
+                    </div>
+                    <span id="lbl-pkg">📦 شريط</span>
+                    {% else %}
+                    <span id="lbl-pcs">قطعة</span>
+                    <div class="ut-track" id="ut-track">
+                        <div class="ut-thumb"></div>
+                    </div>
+                    <span id="lbl-pkg">📦 شيكارة</span>
+                    {% endif %}
+                </div>
+
+                <div class="flex gap-2">
+                    <a href="{% url 'warehouse_export_excel' warehouse.pk %}" title="تحميل إكسيل"
+                        class="inline-flex items-center justify-center w-10 h-10 border border-green-200 rounded-xl shadow-sm text-green-700 bg-green-50 hover:bg-green-100 transition-colors">
+                        <i class="fas fa-file-excel"></i>
+                    </a>
+                    <a href="{% url 'warehouse_print' warehouse.pk 'a4' %}" title="طباعة A4"
+                        class="inline-flex items-center justify-center w-10 h-10 border border-gray-300 rounded-xl shadow-sm text-gray-700 bg-white hover:bg-gray-50 transition-colors">
+                        <i class="fas fa-print"></i>
+                    </a>
+                    <a href="{% url 'warehouse_print' warehouse.pk 'a5' %}" title="طباعة A5"
+                        class="inline-flex items-center justify-center w-10 h-10 border border-gray-300 rounded-xl shadow-sm text-gray-700 bg-white hover:bg-gray-50 transition-colors">
+                        <span class="text-xs font-bold mt-1">A5</span>
+                    </a>
+                    <a href="{% url 'warehouse_print' warehouse.pk 'thermal' %}" title="طباعة ريسيت (72مم)"
+                        class="inline-flex items-center justify-center w-10 h-10 border border-gray-300 rounded-xl shadow-sm text-gray-700 bg-white hover:bg-gray-50 transition-colors text-xs">
+                        <i class="fas fa-receipt"></i>
+                    </a>
+                </div>
+
+                <a href="{% url 'stock_transfer' %}?from={{ warehouse.id }}"
+                    class="inline-flex items-center px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 border border-transparent rounded-xl shadow-sm text-sm font-semibold text-white transition-all transform hover:-translate-y-0.5">
+                    <i class="fas fa-exchange-alt ml-2"></i>
+                    نقل مخزون
+                </a>
+                <a href="{% url 'warehouse_update' warehouse.pk %}"
+                    class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-xl shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition-colors">
+                    <i class="fas fa-edit ml-2"></i>
+                    تعديلات
+                </a>
+            </div>
+        </div>
+
+        <!-- Quick Stats -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6 pt-6 border-t border-gray-100">
+            <div>
+                <dt class="text-xs font-medium text-gray-500 uppercase tracking-wider">عدد الأصناف المتوفرة</dt>
+                <dd class="mt-1 text-2xl font-bold text-gray-900">{{ stocks.count }}</dd>
+            </div>
+            <div>
+                <dt class="text-xs font-medium text-gray-500 uppercase tracking-wider">إجمالي حركات المخزن</dt>
+                <dd class="mt-1 text-2xl font-bold text-gray-900">{{ transactions|length }} <span class="text-sm font-normal text-gray-500">حركة حديثة</span></dd>
+            </div>
+            <div>
+                <dt class="text-xs font-medium text-gray-500 uppercase tracking-wider">نقطة بيع مباشر (كاشير)</dt>
+                <dd class="mt-1 text-lg font-semibold {% if warehouse.is_sales_point %}text-purple-600{% else %}text-gray-500{% endif %}">
+                    {% if warehouse.is_sales_point %}
+                    <i class="fas fa-desktop ml-1"></i> نعم
+                    {% else %}
+                    لا
+                    {% endif %}
+                </dd>
+            </div>
+        </div>
+    </div>
+
+    <!-- Top Selling Products Showcase -->
+    {% if top_sold_items %}
+    <div>
+        <h2 class="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+            <i class="fas fa-star text-yellow-500"></i> أكثر 5 أصناف مبيعاً
+        </h2>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+            {% for top in top_sold_items %}
+            <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-4 hover:shadow-md transition-shadow relative overflow-hidden group">
+                <div class="absolute inset-0 bg-gradient-to-br from-yellow-50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                <div class="relative z-10 flex flex-col h-full">
+                    <div class="flex justify-between items-start mb-2">
+                        <span class="inline-flex items-center justify-center w-8 h-8 rounded-full bg-yellow-100 text-yellow-600 font-bold text-xs ring-4 ring-white shadow-sm">
+                            #{{ forloop.counter }}
+                        </span>
+                        <div class="text-xs font-medium text-gray-400 bg-gray-100 px-2 py-1 rounded-md">{{ top.sku }}</div>
+                    </div>
+                    <a href="{% url 'product_detail' top.id %}" class="font-bold text-gray-900 text-sm mb-1 hover:text-teal-600 line-clamp-2" title="{{ top.name }}">
+                        {{ top.name }}
+                    </a>
+                    <div class="mt-auto pt-3 border-t border-gray-50 flex items-center justify-between">
+                        <span class="text-xs text-gray-500">الكمية المباعة</span>
+                        <span class="font-bold text-yellow-600">{{ top.sold_qty|floatformat:2 }}</span>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Top Products Showcase -->
+    {% if top_products %}
+    <div>
+        <h2 class="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+            <i class="fas fa-fire text-orange-500"></i> الأصناف الأكثر حركة
+        </h2>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+            {% for top in top_products %}
+            <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-4 hover:shadow-md transition-shadow relative overflow-hidden group">
+                <div class="absolute inset-0 bg-gradient-to-br from-orange-50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                <div class="relative z-10 flex flex-col h-full">
+                    <div class="flex justify-between items-start mb-2">
+                        <span class="inline-flex items-center justify-center w-8 h-8 rounded-full bg-orange-100 text-orange-600 font-bold text-xs ring-4 ring-white shadow-sm">
+                            #{{ forloop.counter }}
+                        </span>
+                        <div class="text-xs font-medium text-gray-400 bg-gray-100 px-2 py-1 rounded-md">{{ top.sku }}</div>
+                    </div>
+                    <a href="{% url 'product_detail' top.id %}" class="font-bold text-gray-900 text-sm mb-1 hover:text-teal-600 line-clamp-2" title="{{ top.name }}">
+                        {{ top.name }}
+                    </a>
+                    <div class="mt-auto pt-3 border-t border-gray-50 flex items-center justify-between">
+                        <span class="text-xs text-gray-500">عدد الحركات</span>
+                        <span class="font-bold text-orange-600">{{ top.trans_count }}</span>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="grid lg:grid-cols-3 gap-8">
+        
+        <!-- Stock Table (Main Column) -->
+        <div class="lg:col-span-2 flex flex-col space-y-4">
+            <div class="flex items-center justify-between">
+                <h2 class="text-lg font-bold text-gray-900 flex items-center gap-2">
+                    <i class="fas fa-boxes text-teal-600"></i> الرصيد الحالي
+                </h2>
+                <!-- Search -->
+                <form method="get" class="relative w-64 max-w-full">
+                    <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-gray-400">
+                        <i class="fas fa-search text-xs"></i>
+                    </div>
+                    <input type="text" name="search" value="{{ request.GET.search }}"
+                        class="block w-full pr-9 pl-3 py-1.5 border border-gray-200 rounded-lg text-sm bg-gray-50 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all"
+                        placeholder="بحث في المخزون...">
+                </form>
+            </div>
+
+            <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-[600px]">
+                <div class="overflow-x-auto overflow-y-auto custom-scrollbar flex-grow">
+                    <table class="min-w-full divide-y divide-gray-200 relative">
+                        <thead class="bg-gray-50 sticky top-0 z-10 shadow-sm">
+                            <tr>
+                                <th scope="col" class="px-6 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">المنتج</th>
+                                <th scope="col" class="px-3 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">الكود</th>
+                                <th scope="col" class="px-6 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                                    الكمية
+                                    <span id="unit-col-label" class="mr-1 text-teal-600 font-bold block mt-0.5">
+                                        ({% if sys_settings.market_type == 'pharmacy' %}علبة{% else %}قطعة{% endif %})
+                                    </span>
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-100">
+                            {% for stock in stocks %}
+                            <tr class="hover:bg-blue-50/50 stock-row transition-colors" data-qty="{{ stock.quantity }}" data-ppp="{{ stock.product.pieces_per_package }}">
+                                <td class="px-6 py-4">
+                                    <div class="flex items-center">
+                                        <div class="flex-shrink-0 h-10 w-10 rounded-lg bg-teal-100 flex items-center justify-center text-teal-600 border border-teal-200">
+                                            <i class="fas fa-box"></i>
+                                        </div>
+                                        <div class="mr-4">
+                                            <a href="{% url 'product_detail' stock.product.id %}" class="text-sm font-bold text-gray-900 hover:text-teal-600 transition-colors">
+                                                {{ stock.product.name }}
+                                            </a>
+                                            <div class="text-xs text-gray-500 mt-0.5">{{ stock.product.category.name|default:"بدون قسم" }}</div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="px-3 py-4 text-sm text-gray-500 font-mono">{{ stock.product.sku }}</td>
+                                <td class="px-6 py-4 text-center">
+                                    <div class="flex flex-col items-center">
+                                        <span class="qty-cell px-3 py-1.5 inline-flex text-sm leading-none font-bold rounded-lg 
+                                            {% if stock.quantity <= stock.product.low_stock_threshold %}bg-red-50 text-red-700 ring-1 ring-inset ring-red-600/20{% else %}bg-green-50 text-green-700 ring-1 ring-inset ring-green-600/20{% endif %}">
+                                            {% if sys_settings.market_type == 'pharmacy' and stock.product.strips_per_box > 1 %}
+                                                {{ stock.product.box_count }} ع-{{ stock.product.remaining_strips }} ش
+                                            {% else %}
+                                                {{ stock.quantity|floatformat:1 }}
+                                            {% endif %}
+                                        </span>
+                                        <span class="text-[10px] text-gray-400 mt-1" dir="ltr">{% if sys_settings.market_type == 'pharmacy' %}{{ stock.product.strips_per_box }} strips / box{% else %}{{ stock.product.pieces_per_package }} / pkg{% endif %}</span>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="3" class="px-6 py-16 text-center text-gray-500">
+                                    <div class="flex flex-col items-center justify-center">
+                                        <div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+                                            <i class="fas fa-box-open text-2xl text-gray-400"></i>
+                                        </div>
+                                        <h3 class="text-lg font-medium text-gray-900">لا يوجد مخزون</h3>
+                                        <p class="text-sm text-gray-500">لا توجد منتجات مسجلة في هذا المخزن حالياً.</p>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Transactions Log (Sidebar) -->
+        <div class="lg:col-span-1 flex flex-col space-y-4">
+            <h2 class="text-lg font-bold text-gray-900 flex items-center gap-2">
+                <i class="fas fa-history text-blue-600"></i> أحدث الحركات 
+            </h2>
+            
+            <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-[600px]">
+                <div class="p-4 border-b border-gray-100 bg-gray-50/50">
+                    <p class="text-xs text-gray-500">أحدث 50 حركة لهذا المخزن</p>
+                </div>
+                <div class="overflow-y-auto custom-scrollbar flex-grow p-4">
+                    {% if transactions %}
+                    <div class="relative border-r-2 border-gray-100 pr-5 space-y-6 my-2 right-[2px]">
+                        {% for tx in transactions %}
+                        <div class="relative">
+                            <!-- Timeline Dot -->
+                            <div class="absolute w-4 h-4 rounded-full border-4 border-white top-1 -right-[27px] 
+                                {% if tx.transaction_type == 'IN' %}bg-green-500
+                                {% elif tx.transaction_type == 'OUT' %}bg-red-500
+                                {% elif tx.transaction_type == 'RET' %}bg-yellow-500
+                                {% elif tx.transaction_type == 'TRN' %}bg-blue-500
+                                {% else %}bg-gray-500{% endif %} shadow-sm">
+                            </div>
+                            
+                            <div class="bg-white rounded-xl border border-gray-100 p-3 shadow-sm hover:shadow-md transition-shadow">
+                                <div class="flex justify-between items-start mb-1">
+                                    <span class="text-xs font-bold
+                                        {% if tx.transaction_type == 'IN' %}text-green-700
+                                        {% elif tx.transaction_type == 'OUT' %}text-red-700
+                                        {% elif tx.transaction_type == 'RET' %}text-yellow-700
+                                        {% elif tx.transaction_type == 'TRN' %}text-blue-700
+                                        {% else %}text-gray-700{% endif %}">
+                                        {{ tx.get_transaction_type_display }}
+                                    </span>
+                                    <span class="text-[10px] text-gray-400 font-mono">{{ tx.created_at|date:"Y-m-d H:i" }}</span>
+                                </div>
+                                <a href="{% url 'product_detail' tx.product.id %}" class="text-sm font-semibold text-gray-900 block mb-2 hover:text-teal-600">
+                                    {{ tx.product.name }}
+                                </a>
+                                <div class="flex items-center justify-between text-xs">
+                                    <span class="text-gray-500">الكمية:</span>
+                                    <span class="font-bold font-mono text-gray-900">{{ tx.quantity }}</span>
+                                </div>
+                                {% if tx.note %}
+                                <div class="mt-2 text-[10px] text-gray-500 bg-gray-50 p-2 rounded-lg border border-gray-100">
+                                    {{ tx.note }}
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="h-full flex flex-col items-center justify-center text-center pb-10">
+                        <div class="w-12 h-12 bg-gray-50 rounded-full flex items-center justify-center mb-3">
+                            <i class="fas fa-clipboard-list text-xl text-gray-300"></i>
+                        </div>
+                        <p class="text-sm font-medium text-gray-500">لا توجد حركات مسجلة</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<script>
+    let pkgMode = false;
+    const isPharmacy = {% if sys_settings.market_type == 'pharmacy' %}true{% else %}false{% endif %};
+    const unitPcs = isPharmacy ? 'علبة' : 'قطعة';
+    const unitPkg = isPharmacy ? 'شريط' : 'شيكارة';
+
+    function toggleUnit() {
+        pkgMode = !pkgMode;
+        const track = document.getElementById('ut-track');
+        const colLabel = document.getElementById('unit-col-label');
+        const lblPcs = document.getElementById('lbl-pcs');
+        const lblPkg = document.getElementById('lbl-pkg');
+
+        if (pkgMode) {
+            track.classList.add('active');
+            lblPcs.style.color = '#9ca3af';
+            lblPkg.style.color = '#d97706';
+            if (colLabel) { colLabel.textContent = `(${unitPkg})`; colLabel.classList.replace('text-teal-600', 'text-amber-600'); }
+        } else {
+            track.classList.remove('active');
+            lblPcs.style.color = isPharmacy ? '#0d9488' : '#0d9488'; // Keep same emerald
+            lblPkg.style.color = '#9ca3af';
+            if (colLabel) { colLabel.textContent = `(${unitPcs})`; colLabel.classList.replace('text-amber-600', 'text-teal-600'); }
+        }
+
+        document.querySelectorAll('.stock-row').forEach(row => {
+            const qty = parseFloat(row.dataset.qty) || 0;
+            const ppp = parseInt(row.dataset.ppp) || 1;
+            const cell = row.querySelector('.qty-cell');
+            
+            if (isPharmacy) {
+                if (pkgMode) {
+                    // Show total strips
+                    const totalStrips = Math.round(qty * ppp);
+                    cell.textContent = `${totalStrips}`;
+                } else {
+                    // Show Box-Strip format
+                    const boxes = Math.floor(qty);
+                    const remStrips = Math.round((qty % 1) * ppp);
+                    cell.textContent = `${boxes} ع-${remStrips} ش`;
+                }
+            } else {
+                if (pkgMode) {
+                    const pkgs = Math.floor(qty / ppp);
+                    const rem = Math.round((qty % ppp) * 100) / 100;
+                    cell.textContent = rem > 0 ? `${pkgs}+${rem}ق` : `${pkgs}`;
+                } else {
+                    cell.textContent = qty % 1 === 0 ? qty : qty.toFixed(2);
+                }
+            }
+        });
+        try { localStorage.setItem('stockUnitDisplayMode', pkgMode ? 'pkg' : 'pcs'); } catch (e) {}
+    }
+
+    try {
+        if (localStorage.getItem('stockUnitDisplayMode') === 'pkg') toggleUnit();
+    } catch (e) {}
+</script>
+{% endblock %}

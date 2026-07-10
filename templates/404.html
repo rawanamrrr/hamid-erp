@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>الصفحة غير موجودة (404) | النظام</title>
+    <script src="/static/vendor/js/tailwind.js"></script>
+    <link rel="stylesheet" href="/static/vendor/fontawesome/css/all.min.css">
+    <style>
+        @keyframes drift {
+            0% { transform: translate(0, 0) rotate(0deg); }
+            33% { transform: translate(10px, -15px) rotate(5deg); }
+            66% { transform: translate(-10px, 15px) rotate(-5deg); }
+            100% { transform: translate(0, 0) rotate(0deg); }
+        }
+        @keyframes radar-spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        .animate-drift { animation: drift 8s ease-in-out infinite; }
+        .radar-line {
+            position: absolute;
+            width: 50%;
+            height: 2px;
+            background: linear-gradient(90deg, rgba(59, 130, 246, 0) 0%, rgba(59, 130, 246, 0.8) 100%);
+            top: 50%;
+            left: 50%;
+            transform-origin: left center;
+            animation: radar-spin 3s linear infinite;
+        }
+    </style>
+</head>
+<body class="bg-blue-50 flex items-center justify-center min-h-screen font-sans">
+    <div class="absolute inset-0 z-0 opacity-10 pointer-events-none" style="background-image: linear-gradient(#3b82f6 1px, transparent 1px), linear-gradient(90deg, #3b82f6 1px, transparent 1px); background-size: 40px 40px;"></div>
+
+    <div class="z-10 bg-white p-10 rounded-3xl shadow-2xl max-w-lg w-full text-center border-t-8 border-blue-500 overflow-hidden relative group hover:shadow-blue-200 transition-shadow duration-500">
+        <!-- Radar Background Element -->
+        <div class="absolute -top-20 -right-20 w-64 h-64 rounded-full border border-blue-100 opacity-50 flex items-center justify-center">
+            <div class="w-48 h-48 rounded-full border border-blue-200">
+                <div class="radar-line"></div>
+            </div>
+        </div>
+
+        <div class="relative w-32 h-32 mx-auto mb-8 flex items-center justify-center animate-drift">
+            <div class="relative z-10 w-28 h-28 bg-blue-100 rounded-full flex items-center justify-center shadow-lg border-4 border-white overflow-hidden">
+                <i class="fas fa-map-marked-alt text-5xl text-blue-500 transform -translate-x-1 translate-y-1"></i>
+                <!-- Search icon overlay -->
+                <i class="fas fa-search absolute bottom-2 right-2 text-blue-700 text-xl shadow-sm bg-white rounded-full p-1"></i>
+            </div>
+        </div>
+
+        <h1 class="text-6xl font-extrabold text-gray-900 mb-2 tracking-tight">404</h1>
+        <h2 class="text-2xl font-bold text-gray-800 mb-4">الصفحة غير موجودة</h2>
+        <p class="text-gray-500 mb-8 leading-relaxed">
+            المسار الذي تبحث عنه غير موجود، ربما تم حذفه أو تغييره.<br>
+            يرجى التأكد من الرابط والمحاولة مرة أخرى.
+        </p>
+
+        <div class="flex gap-4 justify-center">
+            <button onclick="window.history.back()" class="px-6 py-3 bg-white text-blue-600 font-bold rounded-xl border-2 border-blue-100 hover:bg-blue-50 hover:border-blue-200 transition flex items-center gap-2">
+                <i class="fas fa-arrow-right"></i> رجوع للوراء
+            </button>
+            <a href="/" class="px-6 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition shadow-lg shadow-blue-200 flex items-center gap-2 transform hover:-translate-y-1">
+                <i class="fas fa-home"></i> الرئيسية
+            </a>
+        </div>
+    </div>
+</body>
+</html>

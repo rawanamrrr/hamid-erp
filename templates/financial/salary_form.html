@@ -1,0 +1,53 @@
+{% extends 'base.html' %}
+{% load widget_tweaks %}
+
+{% block title %}تسجيل مسير رواتب{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto py-6">
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <div class="bg-slate-800 px-6 py-5 border-b border-slate-700">
+            <h4 class="text-xl font-bold text-white flex items-center gap-2">
+                <i class="fas fa-plus"></i>
+                مسير راتب جديد
+            </h4>
+        </div>
+        
+        <form method="post" class="p-6 space-y-4">
+            {% csrf_token %}
+            
+            <div>
+                <label class="block text-sm font-bold text-gray-700 mb-2">الموظف</label>
+                {% render_field form.employee class="w-full px-4 py-3 rounded border-gray-300 focus:ring-teal-500" %}
+                {% if form.employee.errors %}<p class="text-red-500 text-xs mt-1">{{ form.employee.errors.0 }}</p>{% endif %}
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                    <label class="block text-sm font-bold text-gray-700 mb-2">الراتب الأساسي</label>
+                    {% render_field form.basic_salary class="w-full px-4 py-3 rounded border-gray-300 focus:ring-teal-500" placeholder="0.00" %}
+                    {% if form.basic_salary.errors %}<p class="text-red-500 text-xs mt-1">{{ form.basic_salary.errors.0 }}</p>{% endif %}
+                </div>
+                <div>
+                    <label class="block text-sm font-bold text-gray-700 mb-2">الحوافز والبدلات</label>
+                    {% render_field form.allowances class="w-full px-4 py-3 rounded border-gray-300 focus:ring-teal-500" placeholder="0.00" %}
+                </div>
+                <div>
+                    <label class="block text-sm font-bold text-gray-700 mb-2">الخصومات والجزاءات</label>
+                    {% render_field form.deductions class="w-full px-4 py-3 rounded border-gray-300 focus:ring-teal-500" placeholder="0.00" %}
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-sm font-bold text-gray-700 mb-2">ملاحظات</label>
+                {% render_field form.notes class="w-full px-4 py-3 rounded border-gray-300 focus:ring-teal-500" %}
+            </div>
+
+            <div class="flex justify-end gap-3 pt-4">
+                <a href="{% url 'financial:salary_list' %}" class="px-5 py-3 bg-white text-gray-600 font-medium rounded-xl border hover:bg-gray-50 transition">إلغاء</a>
+                <button type="submit" class="px-6 py-3 bg-teal-600 text-white font-bold rounded-xl shadow-lg hover:bg-teal-700 transition">حفظ ومتابعة</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

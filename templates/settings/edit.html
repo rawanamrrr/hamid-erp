@@ -1,0 +1,343 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto">
+
+    <div class="flex items-center gap-3 mb-6">
+        <div class="p-3 bg-gray-800 text-white rounded-lg">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z">
+                </path>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+            </svg>
+        </div>
+        <h2 class="text-2xl font-bold text-gray-800">إعدادات النظام والفواتير</h2>
+        <a href="{% url 'policies_view' %}" class="ms-auto inline-flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-sm font-bold">
+            <i class="fa-solid fa-sliders"></i> ثوابت النظام
+        </a>
+    </div>
+
+    {% if messages %}
+    {% for message in messages %}
+    <div class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative mb-4" role="alert">
+        <strong class="font-bold">تم بنجاح!</strong>
+        <span class="block sm:inline">{{ message }}</span>
+    </div>
+    {% endfor %}
+    {% endif %}
+
+    <form method="post" enctype="multipart/form-data"
+        class="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+        {% csrf_token %}
+
+        <div class="p-6 grid grid-cols-1 md:grid-cols-2 gap-8">
+
+            <!-- القسم الأيمن: البيانات -->
+            <div class="space-y-6">
+                <h3 class="text-lg font-semibold text-teal-700 border-b pb-2">بيانات المحل (رأس الفاتورة)</h3>
+
+                <!-- نوع المتجر / السوق -->
+                <div class="bg-gradient-to-l from-teal-50 to-blue-50 p-4 rounded-xl border border-teal-200">
+                    <label class="block text-sm font-bold text-teal-800 mb-1 flex items-center gap-2">
+                        <i class="fa-solid fa-store text-teal-600"></i> نوع المتجر / السوق
+                    </label>
+                    {{ form.market_type }}
+                    <p class="text-xs text-teal-600 mt-1.5">
+                        هذا الإعداد يؤثر على حقول إضافة المنتجات (مقاسات، تعبئة، وحدات...) ويكيّف النظام لنوع نشاطك التجاري.
+                    </p>
+                    <div class="mt-2 grid grid-cols-5 gap-1 text-center text-[10px] text-gray-500">
+                        <div class="bg-white rounded-lg p-1 border border-gray-100"><i class="fa-solid fa-shirt text-indigo-400 block mb-0.5"></i>ملابس</div>
+                        <div class="bg-white rounded-lg p-1 border border-gray-100"><i class="fa-solid fa-pills text-green-400 block mb-0.5"></i>صيدلية</div>
+                        <div class="bg-white rounded-lg p-1 border border-gray-100"><i class="fa-solid fa-laptop text-blue-400 block mb-0.5"></i>إلكترونيات</div>
+                        <div class="bg-white rounded-lg p-1 border border-gray-100"><i class="fa-solid fa-basket-shopping text-orange-400 block mb-0.5"></i>بقالة</div>
+                        <div class="bg-white rounded-lg p-1 border border-gray-100"><i class="fa-solid fa-bag-shopping text-gray-400 block mb-0.5"></i>عام</div>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">اسم المحل</label>
+                    {{ form.shop_name }}
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">أرقام الهاتف</label>
+                    {{ form.phone }}
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">العنوان</label>
+                    {{ form.address }}
+                </div>
+
+                <div class="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">لوجو الفاتورة</label>
+                    {{ form.logo_upload }}
+                    <p class="text-xs text-gray-500 mt-1">سيتم تحويل الصورة وحفظها ككود Base64</p>
+                </div>
+            </div>
+
+            <!-- القسم الأيسر: ذيل الفاتورة وإعدادات الطباعة -->
+            <div class="space-y-6">
+                <h3 class="text-lg font-semibold text-teal-700 border-b pb-2">إعدادات الطباعة</h3>
+
+                <!-- Printer Selection (New Integrated Section) -->
+                <div class="bg-teal-50 p-4 rounded-lg border border-teal-200">
+                    <label class="block text-sm font-bold text-teal-800 mb-2">
+                        <i class="fas fa-print ml-1"></i> الطابعة الأساسية (Direct Print)
+                    </label>
+                    <select name="printer_name"
+                        class="w-full border border-gray-300 rounded-md p-2 bg-white focus:ring-2 focus:ring-teal-500 outline-none text-gray-700">
+                        <option value="">-- اختر طابعة --</option>
+                        {% for printer in available_printers %}
+                        <option value="{{ printer }}" {% if form.instance.printer_name == printer %}selected{% endif %}>
+                            {{ printer }}
+                        </option>
+                        {% endfor %}
+                        <!-- If stored printer is not in list (e.g. offline), show it anyway -->
+                        {% if form.instance.printer_name and form.instance.printer_name not in available_printers %}
+                        <option value="{{ form.instance.printer_name }}" selected>{{ form.instance.printer_name }} (غير
+                            متصلة حالياً)</option>
+                        {% endif %}
+                    </select>
+                    <p class="text-xs text-teal-600 mt-1">يجب أن تكون الطابعة معرفة على الجهاز الذي يعمل عليه السيرفر
+                    </p>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">سياسة الاسترجاع (الفوتر)</label>
+                    {{ form.return_policy }}
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">رسالة الشكر</label>
+                    {{ form.thank_you_text }}
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-cyan-50 rounded-lg border border-cyan-100">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">نسبة ضريبة القيمة المضافة %</label>
+                        {{ form.vat_rate }}
+                        <p class="text-xs text-gray-500 mt-1">0 = غير مفعّلة. تُستخدم في تقرير الضريبة فقط (لا تغيّر أسعار البيع).</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">الرقم الضريبي</label>
+                        {{ form.vat_number }}
+                    </div>
+                    <div class="md:col-span-2 flex items-center gap-3 pt-1">
+                        {{ form.vat_included_in_price }}
+                        <label class="text-sm font-medium text-gray-700">الضريبة مضمنة في الأسعار</label>
+                    </div>
+                    <p class="md:col-span-2 text-xs text-gray-500 -mt-2">
+                        مفعّلة (الوضع الحالي): الأسعار شاملة الضريبة بالفعل — الفاتورة تعرض الضريبة كجزء من نفس الإجمالي دون أي تغيير.
+                        لو ألغيتها: الأسعار المُدخلة تُعتبر بدون ضريبة، وتُضاف الضريبة فوق الإجمالي في الفاتورة المطبوعة.
+                    </p>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-amber-50 rounded-lg border border-amber-100 mt-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">نسبة رسوم الخدمة %</label>
+                        {{ form.service_charge_percent }}
+                        <p class="text-xs text-gray-500 mt-1">0 = غير مفعّلة. تُطبّق على طلبات الصالة (Dine-in) فقط — لا تُحسب أبداً على تيك أواي أو دليفري.</p>
+                    </div>
+                    <div class="flex items-center gap-3 md:pt-7">
+                        {{ form.service_charge_included_in_price }}
+                        <label class="text-sm font-medium text-gray-700">رسوم الخدمة مضمنة في الأسعار</label>
+                    </div>
+                    <p class="md:col-span-2 text-xs text-gray-500 -mt-2">
+                        مفعّلة: الأسعار شاملة رسوم الخدمة بالفعل — الفاتورة تعرض الرسوم كجزء من نفس الإجمالي دون أي تغيير.
+                        غير مفعّلة (الوضع الافتراضي): تُضاف رسوم الخدمة فوق إجمالي الأصناف في فاتورة الصالة فقط.
+                    </p>
+                </div>
+
+                <div class="p-4 bg-gray-50 rounded-lg border border-gray-200 mt-4 space-y-4">
+                    <div class="flex items-center gap-3">
+                        {{ form.show_qr }}
+                        <label class="text-sm font-medium text-gray-700">طباعة QR Code أسفل الفاتورة</label>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">رابط الـ QR (اختياري)</label>
+                        {{ form.qr_link }}
+                        <p class="text-xs text-gray-500 mt-1">اتركه فارغاً لعرض رقم الفاتورة في الـ QR</p>
+                    </div>
+                </div>
+
+                <h3 class="text-lg font-semibold text-teal-700 border-b pb-2 pt-4">إعدادات التنبيهات</h3>
+                <div class="bg-indigo-50 p-4 rounded-lg border border-indigo-200">
+                    <label class="block text-sm font-bold text-indigo-800 mb-2">
+                        <i class="fas fa-volume-up ml-1"></i> صوت تنبيه الإشعارات (MP3)
+                    </label>
+                    {{ form.notification_sound }}
+                    {% if setting.notification_sound %}
+                        <div class="mt-2 flex items-center gap-2">
+                            <span class="text-xs text-indigo-600">الملف الحالي:</span>
+                            <audio controls class="h-8 max-w-full">
+                                <source src="{{ setting.notification_sound.url }}" type="audio/mpeg">
+                            </audio>
+                        </div>
+                    {% endif %}
+                    <p class="text-xs text-indigo-600 mt-2">سيتم تشغيل هذا الصوت لكل الموظفين عند وصول إشعار جديد</p>
+                </div>
+
+                <h3 class="text-lg font-semibold text-teal-700 border-b pb-2 pt-4">إعدادات البريد الإلكتروني</h3>
+                <div class="bg-emerald-50 p-4 rounded-lg border border-emerald-200 space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">البريد المُرسِل (Gmail)</label>
+                        {{ form.gmail_sender_email }}
+                    </div>
+                    <div>
+                        <div class="flex items-center gap-2 mb-1">
+                            <label class="block text-sm font-medium text-gray-700">كلمة مرور التطبيق (App Password)</label>
+                            <button type="button" onclick="openGmailHelpModal()" class="w-5 h-5 rounded-full bg-gray-800 text-white text-xs font-bold leading-5 text-center">?</button>
+                        </div>
+                        {{ form.gmail_app_password }}
+                    </div>
+                    <div class="grid grid-cols-1 gap-3">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">بريد المستلم 1</label>
+                            {{ form.recipient_1 }}
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">بريد المستلم 2</label>
+                            {{ form.recipient_2 }}
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">بريد المستلم 3</label>
+                            {{ form.recipient_3 }}
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">بريد المستلم 4</label>
+                            {{ form.recipient_4 }}
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">بريد المستلم 5</label>
+                            {{ form.recipient_5 }}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- معاينة اللوجو الحالي -->
+                {% if setting.logo_base64 %}
+                <div class="mt-6 text-center">
+                    <p class="text-sm text-gray-500 mb-2">اللوجو الحالي:</p>
+                    <img src="{{ setting.logo_base64 }}" class="h-24 mx-auto border rounded p-1">
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="bg-gray-50 px-6 py-4 flex justify-end">
+            <button type="submit"
+                class="px-6 py-2 bg-teal-600 text-white font-bold rounded-lg hover:bg-teal-700 transition shadow-sm">
+                حفظ التعديلات
+            </button>
+        </div>
+    </form>
+
+    <!-- Database Backup and Restore Card -->
+    <div class="mt-8 bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden mb-6">
+        <div class="p-6">
+            <h3 class="text-xl font-bold text-gray-800 mb-4 border-b pb-2">النسخ الاحتياطي لقاعدة البيانات</h3>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <!-- تحميل النسخة الاحتياطية -->
+                <div
+                    class="bg-blue-50 p-6 rounded-lg border border-blue-200 flex flex-col items-center justify-center text-center">
+                    <div class="p-3 bg-blue-100 text-blue-600 rounded-full mb-3">
+                        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                        </svg>
+                    </div>
+                    <h4 class="text-lg font-bold text-blue-800 mb-2">تحميل نسخة احتياطية</h4>
+                    <p class="text-sm text-blue-600 mb-4">قم بتحميل نسخة كاملة من قاعدة البيانات (.db) للاحتفاظ بها في
+                        مكان آمن.</p>
+                    <a href="{% url 'download_database' %}"
+                        class="px-6 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition shadow-sm inline-flex items-center gap-2">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                        </svg>
+                        تنزيل الآن
+                    </a>
+                </div>
+
+                <!-- استعادة النسخة الاحتياطية -->
+                <div
+                    class="bg-red-50 p-6 rounded-lg border border-red-200 flex flex-col items-center justify-center text-center">
+                    <div class="p-3 bg-red-100 text-red-600 rounded-full mb-3">
+                        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
+                        </svg>
+                    </div>
+                    <h4 class="text-lg font-bold text-red-800 mb-2">استعادة نسخة احتياطية</h4>
+                    <p class="text-sm text-red-600 mb-4">قم برفع ملف قاعدة البيانات (.db) أو (.sqlite3) لاستعادة
+                        البيانات السابقة. <strong>تحذير:</strong> سيتم استبدال البيانات الحالية بالكامل.</p>
+
+                    <form action="{% url 'import_database' %}" method="post" enctype="multipart/form-data"
+                        class="w-full flex flex-col gap-3">
+                        {% csrf_token %}
+                        <input type="file" name="db_file" accept=".db,.sqlite3" required
+                            class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-red-50 file:text-red-700 hover:file:bg-red-100 mb-2">
+                        <button type="submit"
+                            onclick="return confirm('هل أنت متأكد من استعادة النسخة الاحتياطية؟ سيتم مسح جميع البيانات الحالية بالكامل! ينصح بشدة أخذ نسخة احتياطية قبل القيام بهذه العملية.')"
+                            class="px-6 py-2 bg-red-600 text-white font-bold rounded-lg hover:bg-red-700 transition shadow-sm inline-flex items-center justify-center gap-2">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
+                            </svg>
+                            استعادة البيانات
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="gmailHelpModal" class="fixed inset-0 z-[9999] hidden bg-black/50 items-center justify-center p-4" dir="rtl">
+    <div class="bg-white rounded-2xl w-full max-w-xl shadow-2xl border border-gray-200 overflow-hidden">
+        <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+            <h5 class="font-bold text-lg text-gray-800">كيفية الحصول على App Password من Gmail</h5>
+            <button type="button" onclick="closeGmailHelpModal()" class="w-8 h-8 rounded-full bg-gray-100 text-gray-600 font-bold">×</button>
+        </div>
+        <div class="px-5 py-4 text-sm leading-8 text-gray-700">
+            <ol class="list-decimal pr-4 space-y-1">
+                <li>افتح حساب Google ثم ادخل إلى Security (الأمان).</li>
+                <li>فعّل التحقق بخطوتين (Step Verification-2) إذا لم يكن مفعلا.</li>
+                <li>بعد التفعيل، ادخل إلى App passwords.</li>
+                <li>اختر Mail ثم اختر الجهاز أو Custom name.</li>
+                <li>اضغط Generate وانسخ كلمة المرور المكونة من 16 حرفا.</li>
+                <li>ضعها هنا في حقل "كلمة مرور التطبيق" واحفظ الإعدادات.</li>
+            </ol>
+        </div>
+        <div class="px-5 py-4 border-t border-gray-100 flex justify-end">
+            <button type="button" onclick="closeGmailHelpModal()" class="px-4 py-2 bg-gray-800 text-white rounded-lg">إغلاق</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    function openGmailHelpModal() {
+        const modal = document.getElementById('gmailHelpModal');
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+    }
+
+    function closeGmailHelpModal() {
+        const modal = document.getElementById('gmailHelpModal');
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    }
+
+    document.addEventListener('click', function (e) {
+        const modal = document.getElementById('gmailHelpModal');
+        if (!modal.classList.contains('hidden') && e.target === modal) {
+            closeGmailHelpModal();
+        }
+    });
+</script>
+{% endblock %}

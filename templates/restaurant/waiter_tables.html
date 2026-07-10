@@ -1,0 +1,248 @@
+{% extends 'base.html' %}
+{% block title %}شاشة الويتر - الترابيزات{% endblock %}
+{% block content %}
+<div class="p-3 md:p-4" x-data="waiterTables({{ branch.id }})" x-init="init()">
+    <div id="ready-toasts" class="fixed bottom-4 left-4 z-50 w-72"></div>
+
+    <!-- Header -->
+    <div class="flex flex-wrap items-center justify-between gap-3 mb-5">
+        <div class="flex items-center gap-2">
+            <div class="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0">
+                <i class="fa-solid fa-chair"></i>
+            </div>
+            <div>
+                <h1 class="text-xl font-black text-gray-900 leading-tight">شاشة الويتر</h1>
+                <p class="text-xs text-gray-400">{{ branch.name }}</p>
+            </div>
+        </div>
+        <div class="flex items-center gap-2 flex-wrap">
+            {% if warehouses.count > 1 %}
+            <form method="get">
+                <select name="branch_id" onchange="this.form.submit()" class="border border-gray-200 rounded-xl px-3 py-2 text-sm font-bold text-gray-700 outline-none">
+                    {% for w in warehouses %}
+                    <option value="{{ w.id }}" {% if w.id == branch.id %}selected{% endif %}>{{ w.name }}</option>
+                    {% endfor %}
+                </select>
+            </form>
+            {% endif %}
+            <button onclick="startOrderWithoutTable()" class="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-sm flex items-center gap-2 transition-colors shadow-sm">
+                <i class="fa-solid fa-bag-shopping text-xs"></i> طلب جديد بدون ترابيزة
+            </button>
+        </div>
+    </div>
+
+    <!-- Status summary chips -->
+    <div class="flex items-center gap-2 mb-6 flex-wrap" x-show="totalTables > 0">
+        <div class="flex items-center gap-1.5 bg-emerald-50 border border-emerald-100 rounded-xl px-3 py-1.5">
+            <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+            <span class="text-xs font-black text-emerald-700" x-text="counts.available"></span>
+            <span class="text-xs font-bold text-emerald-600">متاحة</span>
+        </div>
+        <div class="flex items-center gap-1.5 bg-red-50 border border-red-100 rounded-xl px-3 py-1.5">
+            <span class="w-2 h-2 rounded-full bg-red-500"></span>
+            <span class="text-xs font-black text-red-700" x-text="counts.busy"></span>
+            <span class="text-xs font-bold text-red-600">مشغولة</span>
+        </div>
+        <div class="flex items-center gap-1.5 bg-amber-50 border border-amber-100 rounded-xl px-3 py-1.5">
+            <span class="w-2 h-2 rounded-full bg-amber-500"></span>
+            <span class="text-xs font-black text-amber-700" x-text="counts.reserved"></span>
+            <span class="text-xs font-bold text-amber-600">محجوزة</span>
+        </div>
+    </div>
+
+    {% if no_table_orders %}
+    <div class="mb-8">
+        <h2 class="text-sm font-black text-gray-500 uppercase tracking-wide mb-3 flex items-center gap-2">
+            <i class="fa-solid fa-bag-shopping text-indigo-400"></i> طلبات بدون ترابيزة (قيد التنفيذ)
+        </h2>
+        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-3">
+            {% for o in no_table_orders %}
+            <a href="{% url 'restaurant:waiter_order_no_table' o.id %}"
+               class="relative block rounded-2xl border-2 border-indigo-200 bg-indigo-50/70 hover:bg-indigo-100/70 hover:shadow-md transition-all p-4 text-center">
+                <span class="absolute top-2 left-2 text-[9px] font-black bg-indigo-600 text-white px-1.5 py-0.5 rounded-md">قيد التنفيذ</span>
+                <div class="w-9 h-9 mx-auto rounded-xl bg-white shadow-sm text-indigo-500 flex items-center justify-center mb-2">
+                    <i class="fa-solid fa-bag-shopping text-sm"></i>
+                </div>
+                <div class="text-xl font-black text-gray-900">#{{ o.id }}</div>
+                <div class="text-[11px] text-gray-500 mb-1">{{ o.get_order_type_display }}</div>
+                <div class="text-sm font-black text-indigo-700">{{ o.total_amount }} ج.م</div>
+                {% if o.waiter %}<div class="text-[10px] text-gray-400 mt-1">{{ o.waiter.first_name|default:o.waiter.username }}</div>{% endif %}
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    {% for section in sections %}
+    <div class="mb-8">
+        <h2 class="text-sm font-black text-gray-500 uppercase tracking-wide mb-3 flex items-center gap-2">
+            <i class="fa-solid fa-location-dot text-emerald-400"></i> {{ section.name }}
+        </h2>
+        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-3">
+            {% for table in section.tables.all %}
+            {% include 'restaurant/_table_card.html' %}
+            {% endfor %}
+        </div>
+    </div>
+    {% empty %}
+    <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-3">
+        {% for table in tables %}
+        {% include 'restaurant/_table_card.html' %}
+        {% empty %}
+        <div class="col-span-full text-center py-16 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200">
+            <i class="fa-solid fa-chair text-3xl text-gray-300 mb-3"></i>
+            <p class="text-gray-500 text-sm mb-4">لا توجد ترابيزات مُعرّفة لهذا الفرع — مش لازم تضيف ترابيزات عشان تاخد أوردر.</p>
+            <button onclick="startOrderWithoutTable()" class="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-sm transition-colors">
+                <i class="fa-solid fa-bag-shopping text-xs ml-1"></i> ابدأ طلب جديد بدون ترابيزة
+            </button>
+        </div>
+        {% endfor %}
+    </div>
+    {% endfor %}
+
+    <!-- Reserve table modal -->
+    <div x-show="reserveModal.open" x-cloak class="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" @click.self="reserveModal.open=false">
+        <div class="bg-white rounded-2xl p-4 w-full max-w-sm shadow-2xl">
+            <h3 class="font-black text-gray-900 mb-3 flex items-center gap-2">
+                <i class="fa-solid fa-calendar-plus text-amber-500"></i> حجز ترابيزة <span x-text="reserveModal.tableNumber"></span>
+            </h3>
+            <div class="space-y-2.5">
+                <input type="text" x-model="reserveModal.name" placeholder="اسم صاحب الحجز"
+                       class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-amber-400">
+                <input type="text" x-model="reserveModal.phone" placeholder="رقم الهاتف (اختياري)"
+                       class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-amber-400">
+                <div class="grid grid-cols-2 gap-2.5">
+                    <input type="number" min="1" x-model="reserveModal.partySize" placeholder="عدد الأفراد"
+                           class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-amber-400">
+                    <input type="datetime-local" x-model="reserveModal.time"
+                           class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-amber-400">
+                </div>
+                <input type="text" x-model="reserveModal.notes" placeholder="ملاحظات (اختياري)"
+                       class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-amber-400">
+            </div>
+            <p x-show="reserveModal.error" x-text="reserveModal.error" class="text-red-600 text-xs mt-2 font-bold"></p>
+            <div class="flex gap-2 mt-4">
+                <button @click="reserveModal.open=false" class="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-600 font-black text-sm">إلغاء</button>
+                <button @click="submitReservation()" class="flex-1 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-black text-sm transition-colors">تأكيد الحجز</button>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+function waiterTables(branchId) {
+    return {
+        branchId: branchId,
+        counts: {available: 0, busy: 0, reserved: 0},
+        totalTables: 0,
+        reserveModal: {open: false, tableId: null, tableNumber: '', name: '', phone: '', partySize: '', time: '', notes: '', error: ''},
+        submitReservation() {
+            if (!this.reserveModal.name.trim()) {
+                this.reserveModal.error = 'اسم صاحب الحجز مطلوب';
+                return;
+            }
+            this.reserveModal.error = '';
+            const body = new URLSearchParams({
+                name: this.reserveModal.name, phone: this.reserveModal.phone,
+                party_size: this.reserveModal.partySize, time: this.reserveModal.time,
+                notes: this.reserveModal.notes,
+            });
+            fetch(`/restaurant/waiter/tables/${this.reserveModal.tableId}/reserve/`, {
+                method: 'POST', headers: {'X-CSRFToken': getCookie('csrftoken'), 'Content-Type': 'application/x-www-form-urlencoded'},
+                body: body,
+            }).then(r => r.json()).then(data => {
+                if (data.status === 'ok') { location.reload(); }
+                else { this.reserveModal.error = data.message || 'حدث خطأ'; }
+            });
+        },
+        init() {
+            this.recomputeCounts();
+            if (!this.branchId) return;
+            const ws = new WebSocket((location.protocol==='https:'?'wss://':'ws://') + location.host + '/ws/waiter/' + this.branchId + '/');
+            ws.onmessage = (e) => {
+                const data = JSON.parse(e.data);
+                if (data.event === 'table_status') {
+                    const el = document.querySelector('[data-table-id="' + data.table_id + '"]');
+                    if (el) { el.dataset.status = data.status; this.updateTableCard(el, data.status); this.recomputeCounts(); }
+                } else if (data.event === 'order_ready') {
+                    this.showReadyToast(data);
+                }
+            };
+        },
+        recomputeCounts() {
+            const cards = document.querySelectorAll('[data-table-id]');
+            const c = {available: 0, busy: 0, reserved: 0};
+            cards.forEach(el => {
+                const s = el.dataset.status === 'busy' ? 'busy' : el.dataset.status === 'reserved' ? 'reserved' : 'available';
+                c[s]++;
+            });
+            this.counts = c;
+            this.totalTables = cards.length;
+        },
+        showReadyToast(data) {
+            const sound = document.getElementById('notification-sound');
+            if (sound) { try { sound.currentTime = 0; sound.play(); } catch (err) {} }
+            const box = document.getElementById('ready-toasts');
+            if (!box) return;
+            const div = document.createElement('div');
+            div.className = 'bg-emerald-600 text-white px-4 py-3 rounded-lg shadow-lg mb-2 animate-fade-in-up';
+            div.textContent = 'طلب #' + data.order_id + (data.table ? ' - ترابيزة ' + data.table : '') + ' جاهز للاستلام';
+            box.appendChild(div);
+            setTimeout(() => div.remove(), 8000);
+        },
+        updateTableCard(el, status) {
+            el.classList.remove('bg-emerald-50/80', 'border-emerald-200', 'bg-red-50/80', 'border-red-200', 'bg-amber-50/80', 'border-amber-200');
+            const dot = el.querySelector('.status-dot');
+            const label = el.querySelector('.status-label');
+            if (dot) dot.classList.remove('bg-emerald-500', 'bg-red-500', 'bg-amber-500');
+            if (label) label.classList.remove('text-emerald-600', 'text-red-600', 'text-amber-600');
+            if (status === 'busy') {
+                el.classList.add('bg-red-50/80', 'border-red-200');
+                if (dot) dot.classList.add('bg-red-500');
+                if (label) { label.classList.add('text-red-600'); label.textContent = 'مشغولة'; }
+            } else if (status === 'reserved') {
+                el.classList.add('bg-amber-50/80', 'border-amber-200');
+                if (dot) dot.classList.add('bg-amber-500');
+                if (label) { label.classList.add('text-amber-600'); label.textContent = 'محجوزة'; }
+            } else {
+                el.classList.add('bg-emerald-50/80', 'border-emerald-200');
+                if (dot) dot.classList.add('bg-emerald-500');
+                if (label) { label.classList.add('text-emerald-600'); label.textContent = 'متاحة'; }
+            }
+        },
+    }
+}
+function getCookie(name) {
+    let v = null;
+    document.cookie.split(';').forEach(c => { c = c.trim(); if (c.startsWith(name+'=')) v = decodeURIComponent(c.slice(name.length+1)); });
+    return v;
+}
+function startOrderWithoutTable() {
+    fetch("{% url 'restaurant:waiter_new_order_no_table' %}", {
+        method: 'POST',
+        headers: {'X-CSRFToken': getCookie('csrftoken')},
+    }).then(r => r.json()).then(data => {
+        if (data.status === 'ok') {
+            window.location.href = `/restaurant/waiter/order/${data.order_id}/`;
+        } else {
+            alert(data.message || 'حدث خطأ');
+        }
+    });
+}
+// These two are called directly from the per-card buttons rendered by
+// restaurant/_table_card.html — reached via Alpine.$data so the modal state lives on
+// the single page-level waiterTables() root instead of duplicating it per card.
+function openReserveModal(tableId, tableNumber) {
+    const root = Alpine.$data(document.querySelector('[x-data]'));
+    root.reserveModal = {open: true, tableId, tableNumber, name: '', phone: '', partySize: '', time: '', notes: '', error: ''};
+}
+function cancelReservation(tableId) {
+    if (!confirm('تأكيد إلغاء الحجز؟')) return;
+    fetch(`/restaurant/waiter/tables/${tableId}/unreserve/`, {
+        method: 'POST', headers: {'X-CSRFToken': getCookie('csrftoken')},
+    }).then(r => r.json()).then(data => {
+        if (data.status === 'ok') location.reload();
+        else alert(data.message || 'حدث خطأ');
+    });
+}
+</script>
+{% endblock %}

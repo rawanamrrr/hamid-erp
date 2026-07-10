@@ -1,0 +1,670 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<style>
+  :root {
+    --ink: #0f172a;
+    --muted: #64748b;
+    --card-bg: rgba(255,255,255,0.85);
+  }
+  .glass-card {
+    background: var(--card-bg);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(255,255,255,0.5);
+    border-radius: 1.5rem;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.07);
+  }
+  .kpi-card {
+    border-radius: 1.25rem;
+    padding: 1.5rem;
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+  .kpi-card:hover { transform: translateY(-3px); box-shadow: 0 12px 32px rgba(0,0,0,0.12); }
+  .kpi-glow {
+    position: absolute; inset: -40px; opacity: 0.15;
+    border-radius: 50%; filter: blur(60px); pointer-events: none;
+  }
+  .pay-btn {
+    background: linear-gradient(135deg, #10b981, #059669);
+    color: #fff;
+    border-radius: 1rem;
+    padding: 0.75rem 1.5rem;
+    font-weight: 800;
+    font-size: 1rem;
+    display: flex; align-items: center; gap: 0.5rem;
+    transition: transform 0.15s, box-shadow 0.15s;
+    cursor: pointer; border: none; outline: none;
+    box-shadow: 0 4px 16px rgba(16,185,129,0.35);
+  }
+  .pay-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(16,185,129,0.4); }
+  .pay-btn:active { transform: scale(0.97); }
+  .pay-btn.danger {
+    background: linear-gradient(135deg, #f43f5e, #e11d48);
+    box-shadow: 0 4px 16px rgba(244,63,94,0.35);
+  }
+  .modal-overlay {
+    position: fixed; inset: 0; z-index: 999;
+    background: rgba(15,23,42,0.55);
+    backdrop-filter: blur(6px);
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.25s;
+  }
+  .modal-overlay.active { opacity: 1; pointer-events: all; }
+  .modal-box {
+    background: #fff;
+    border-radius: 2rem;
+    padding: 2.5rem;
+    width: 100%; max-width: 480px;
+    box-shadow: 0 24px 80px rgba(0,0,0,0.2);
+    transform: translateY(24px) scale(0.97);
+    transition: transform 0.3s, opacity 0.3s;
+    opacity: 0;
+  }
+  .modal-overlay.active .modal-box { transform: translateY(0) scale(1); opacity: 1; }
+  .inp {
+    width: 100%;
+    padding: 0.875rem 1rem;
+    border: 2px solid #e2e8f0;
+    border-radius: 0.875rem;
+    font-size: 1rem;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    background: #f8fafc;
+  }
+  .inp:focus { border-color: #10b981; box-shadow: 0 0 0 4px rgba(16,185,129,0.12); background: #fff; }
+  .inp.amount-inp { font-size: 2rem; font-weight: 900; text-align: center; color: #0f172a; }
+  .badge { border-radius: 999px; font-size: 0.7rem; font-weight: 800; padding: 0.2rem 0.6rem; }
+  .row-hover:hover { background: #f8fafc; }
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateX(-12px); }
+    to   { opacity: 1; transform: translateX(0); }
+  }
+  .entry-row { animation: slideIn 0.3s ease both; }
+  #toast-container { position: fixed; bottom: 2rem; right: 2rem; z-index: 9999; display: flex; flex-direction: column; gap: 0.75rem; }
+  .toast {
+    display: flex; align-items: center; gap: 0.75rem;
+    padding: 1rem 1.5rem; border-radius: 1rem;
+    font-weight: 700; font-size: 0.95rem;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+    animation: slideInRight 0.35s ease;
+    min-width: 280px;
+  }
+  @keyframes slideInRight {
+    from { opacity: 0; transform: translateX(32px); }
+    to   { opacity: 1; transform: translateX(0); }
+  }
+  .toast.success { background: #10b981; color: #fff; }
+  .toast.error   { background: #f43f5e; color: #fff; }
+  .progress-bar { height: 6px; border-radius: 3px; background: #e2e8f0; overflow: hidden; }
+  .progress-fill { height: 100%; border-radius: 3px; transition: width 0.4s ease; }
+</style>
+
+<div id="toast-container"></div>
+
+<div class="space-y-6" dir="rtl">
+
+  {# ── HEADER ──────────────────────────────────────────────────────────── #}
+  <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+    <div class="flex items-center gap-4">
+      <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow-lg shadow-indigo-200">
+        <i class="fas fa-building text-white text-xl"></i>
+      </div>
+      <div>
+        <h1 class="text-2xl font-black text-gray-900">{{ supplier.name }}</h1>
+        <p class="text-sm text-gray-500 mt-0.5">
+          {% if supplier.contact_name %}<span class="font-semibold">{{ supplier.contact_name }}</span> &bull; {% endif %}
+          <i class="fas fa-phone text-xs ml-1"></i>{{ supplier.phone }}
+          {% if supplier.supplier_type %} &bull; {{ supplier.get_supplier_type_display }}{% endif %}
+        </p>
+      </div>
+    </div>
+    <div class="flex flex-wrap gap-2">
+      <a href="{% url 'purchase_invoice_create' %}?supplier_id={{ supplier.id }}"
+         class="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold shadow-md transition-all hover:scale-105">
+        <i class="fas fa-file-invoice"></i> فاتورة مشتريات
+      </a>
+      <a href="{% url 'supplier_account' supplier.id %}"
+         class="flex items-center gap-2 px-4 py-2.5 bg-white border-2 border-gray-200 hover:border-indigo-400 text-gray-700 hover:text-indigo-700 rounded-xl text-sm font-bold transition-all hover:scale-105">
+        <i class="fas fa-table-list"></i> كشف الحساب
+      </a>
+      <a href="{% url 'supplier_statement' supplier.id %}"
+         class="flex items-center gap-2 px-4 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-sm font-bold shadow-md transition-all hover:scale-105">
+        <i class="fas fa-scroll"></i> كشف حساب مفصّل
+      </a>
+      <button id="openPayModal"
+              class="pay-btn {% if supplier.outstanding_balance <= 0 %}opacity-60{% endif %}">
+        <i class="fas fa-hand-holding-dollar"></i>
+        سداد الدين
+        {% if supplier.outstanding_balance > 0 %}
+        <span class="bg-white/30 text-white text-xs font-black px-2 py-0.5 rounded-full mr-1">
+          {{ supplier.outstanding_balance|floatformat:0 }} ج.م
+        </span>
+        {% endif %}
+      </button>
+    </div>
+  </div>
+
+  {# ── KPI STRIP ──────────────────────────────────────────────────────── #}
+  <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+    {# Purchases #}
+    <div class="kpi-card bg-gradient-to-br from-indigo-50 to-indigo-100 border border-indigo-100">
+      <div class="kpi-glow bg-indigo-400"></div>
+      <div class="relative z-10">
+        <div class="w-9 h-9 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center mb-3">
+          <i class="fas fa-cart-shopping"></i>
+        </div>
+        <p class="text-xs font-black text-indigo-400 uppercase tracking-widest mb-1">إجمالي المشتريات</p>
+        <p class="text-2xl font-black text-gray-900">{{ supplier.total_purchases|floatformat:2 }}<span class="text-sm font-bold text-gray-400 mr-1">ج.م</span></p>
+      </div>
+    </div>
+
+    {# Returns #}
+    <div class="kpi-card bg-gradient-to-br from-amber-50 to-amber-100 border border-amber-100">
+      <div class="kpi-glow bg-amber-400"></div>
+      <div class="relative z-10">
+        <div class="w-9 h-9 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center mb-3">
+          <i class="fas fa-rotate-left"></i>
+        </div>
+        <p class="text-xs font-black text-amber-400 uppercase tracking-widest mb-1">إجمالي المرتجعات</p>
+        <p class="text-2xl font-black text-gray-900">{{ supplier.total_returns|floatformat:2 }}<span class="text-sm font-bold text-gray-400 mr-1">ج.م</span></p>
+      </div>
+    </div>
+
+    {# Paid #}
+    <div class="kpi-card bg-gradient-to-br from-emerald-50 to-emerald-100 border border-emerald-100">
+      <div class="kpi-glow bg-emerald-400"></div>
+      <div class="relative z-10">
+        <div class="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center mb-3">
+          <i class="fas fa-check-circle"></i>
+        </div>
+        <p class="text-xs font-black text-emerald-400 uppercase tracking-widest mb-1">إجمالي المدفوع</p>
+        <p class="text-2xl font-black text-gray-900" id="kpi-paid">{{ supplier.total_payments|floatformat:2 }}<span class="text-sm font-bold text-gray-400 mr-1">ج.م</span></p>
+      </div>
+    </div>
+
+    {# Outstanding #}
+    <div class="kpi-card {% if supplier.outstanding_balance > 0 %}bg-gradient-to-br from-rose-500 to-pink-600 text-white{% else %}bg-gradient-to-br from-emerald-500 to-teal-600 text-white{% endif %}">
+      <div class="kpi-glow bg-white"></div>
+      <div class="relative z-10">
+        <div class="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center mb-3">
+          <i class="fas fa-scale-unbalanced-flip text-white"></i>
+        </div>
+        <p class="text-xs font-black {% if supplier.outstanding_balance > 0 %}text-rose-100{% else %}text-emerald-100{% endif %} uppercase tracking-widest mb-1">
+          {% if supplier.outstanding_balance > 0 %}الدين المتبقي{% else %}لا يوجد دين{% endif %}
+        </p>
+        <p class="text-3xl font-black" id="kpi-outstanding">{{ supplier.outstanding_balance|floatformat:2 }}<span class="text-sm font-bold opacity-70 mr-1">ج.م</span></p>
+        {% if supplier.outstanding_balance > 0 %}
+        <div class="mt-3">
+          <div class="progress-bar bg-rose-400/40">
+            <div class="progress-fill bg-white"
+                 style="width: {% widthratio supplier.total_payments supplier.total_purchases 100 %}%"></div>
+          </div>
+          <p class="text-[10px] text-rose-100 mt-1">
+            {% widthratio supplier.total_payments supplier.total_purchases 100 %}% تم سداده
+          </p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  {# ── MAIN CONTENT: Invoices + Payments side by side ──────────────────── #}
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+    {# Invoices list #}
+    <div class="glass-card overflow-hidden">
+      <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+            <i class="fas fa-file-invoice text-sm"></i>
+          </div>
+          <h2 class="text-base font-black text-gray-800">فواتير المشتريات</h2>
+        </div>
+        <span class="badge bg-indigo-100 text-indigo-700">{{ invoices.count }} فاتورة</span>
+      </div>
+
+      {% if invoices %}
+      <div class="divide-y divide-gray-50 max-h-96 overflow-y-auto">
+        {% for inv in invoices %}
+        <div class="px-6 py-4 row-hover flex justify-between items-center entry-row" style="animation-delay: {{ forloop.counter0 }}00ms">
+          <div>
+            <div class="flex items-center gap-2 flex-wrap">
+              <a href="{% url 'purchase_invoice_detail' inv.id %}"
+                 class="text-sm font-bold text-indigo-600 hover:underline">
+                فاتورة #{{ inv.invoice_number|default:inv.id }}
+              </a>
+              {% if inv.status == 'DRAFT' %}
+                <span class="badge bg-amber-100 text-amber-700">مسودة</span>
+                <a href="{% url 'purchase_invoice_edit' inv.id %}"
+                   class="badge bg-amber-500 text-white hover:bg-amber-600 transition">تعديل</a>
+              {% elif inv.status == 'CONFIRMED' %}
+                <span class="badge bg-emerald-100 text-emerald-700">مؤكدة</span>
+              {% elif inv.status == 'CANCELLED' %}
+                <span class="badge bg-rose-100 text-rose-700">ملغية</span>
+              {% endif %}
+            </div>
+            <span class="text-xs text-gray-400 mt-0.5 block">{{ inv.created_at|date:"Y-m-d H:i" }}</span>
+            {% if inv.notes %}<p class="text-xs text-gray-500 mt-1 line-clamp-1">{{ inv.notes }}</p>{% endif %}
+          </div>
+          <div class="text-right">
+            <p class="text-lg font-black text-gray-900">{{ inv.net_amount|floatformat:2 }}<span class="text-xs text-gray-400 mr-0.5">ج.م</span></p>
+            {% if inv.paid_amount > 0 %}
+            <p class="text-xs text-emerald-600 font-bold">مدفوع: {{ inv.paid_amount|floatformat:2 }}</p>
+            {% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="py-16 text-center text-gray-400">
+        <i class="fas fa-file-circle-xmark text-4xl mb-3 block text-gray-200"></i>
+        <p class="font-semibold">لا توجد فواتير بعد</p>
+      </div>
+      {% endif %}
+    </div>
+
+    {# Payments and Returns Tabs Card #}
+    <div class="glass-card overflow-hidden">
+      <!-- Tabs Header -->
+      <div class="px-6 border-b border-gray-100 bg-gray-50/50 flex items-center justify-between">
+        <div class="flex gap-4">
+          <button id="tab-payments-btn" onclick="switchProfileTab('payments')" 
+                  class="py-4 font-black text-sm border-b-2 border-emerald-600 text-emerald-600 flex items-center gap-2 transition-all">
+            <i class="fas fa-money-bill-transfer text-emerald-500"></i>
+            <span>سجل الدفعات</span>
+            <span class="px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-full text-[10px]" id="pay-count">{{ payments.count }}</span>
+          </button>
+          <button id="tab-returns-btn" onclick="switchProfileTab('returns')" 
+                  class="py-4 font-black text-sm border-b-2 border-transparent text-gray-400 hover:text-gray-600 flex items-center gap-2 transition-all">
+            <i class="fas fa-rotate-left text-gray-400"></i>
+            <span>سجل المرتجعات</span>
+            <span class="px-2 py-0.5 bg-rose-100 text-rose-700 rounded-full text-[10px]">{{ returns.count }}</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Payments Tab Content -->
+      <div id="tab-payments-content" class="divide-y divide-gray-50 max-h-96 overflow-y-auto">
+        {% if payments %}
+          {% for pay in payments %}
+          <div class="px-6 py-4 row-hover flex justify-between items-center entry-row" style="animation-delay: {{ forloop.counter0 }}00ms">
+            <div class="flex items-center gap-3">
+              <div class="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center flex-shrink-0">
+                <i class="fas fa-check text-sm"></i>
+              </div>
+              <div>
+                <p class="text-sm font-bold text-gray-800">سند صرف #{{ pay.id }}</p>
+                <p class="text-xs text-gray-400 font-mono">{{ pay.date|date:"Y-m-d H:i" }}</p>
+                {% if pay.notes %}<p class="text-xs text-gray-500 mt-0.5">{{ pay.notes }}</p>{% endif %}
+              </div>
+            </div>
+            <span class="text-lg font-black text-emerald-600 font-mono">{{ pay.amount|floatformat:2 }}<span class="text-xs text-gray-400 mr-0.5">ج.م</span></span>
+          </div>
+          {% endfor %}
+        {% else %}
+          <div class="py-16 text-center text-gray-400" id="no-payments-msg">
+            <i class="fas fa-money-bill-wave text-4xl mb-3 block text-gray-200"></i>
+            <p class="font-semibold">لا توجد دفعات مسجلة</p>
+          </div>
+        {% endif %}
+      </div>
+
+      <!-- Returns Tab Content -->
+      <div id="tab-returns-content" class="divide-y divide-gray-50 max-h-96 overflow-y-auto hidden">
+        {% if returns %}
+          {% for ret in returns %}
+          <div class="px-6 py-4 row-hover flex justify-between items-center entry-row" style="animation-delay: {{ forloop.counter0 }}00ms">
+            <div class="flex items-center gap-3">
+              <div class="w-9 h-9 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center flex-shrink-0">
+                <i class="fas fa-arrow-rotate-left text-sm"></i>
+              </div>
+              <div>
+                <p class="text-sm font-bold text-gray-800">
+                  مرتجع مشتريات #{{ ret.id }}
+                  {% if ret.refund_method == 'cash' %}
+                  <span class="badge bg-emerald-100 text-emerald-700 mr-1.5 font-black">💵 استرداد نقدي</span>
+                  {% else %}
+                  <span class="badge bg-indigo-100 text-indigo-700 mr-1.5 font-black">📋 دين مقتطع</span>
+                  {% endif %}
+                </p>
+                <p class="text-xs text-gray-400 font-mono">{{ ret.created_at|date:"Y-m-d H:i" }}</p>
+                {% if ret.notes %}<p class="text-xs text-gray-500 mt-0.5">{{ ret.notes }}</p>{% endif %}
+              </div>
+            </div>
+            <span class="text-lg font-black text-rose-600 font-mono">{{ ret.total_amount|floatformat:2 }}<span class="text-xs text-gray-400 mr-0.5">ج.م</span></span>
+          </div>
+          {% endfor %}
+        {% else %}
+          <div class="py-16 text-center text-gray-400">
+            <i class="fas fa-rotate-left text-4xl mb-3 block text-gray-200"></i>
+            <p class="font-semibold">لا توجد مرتجعات مسجلة</p>
+          </div>
+        {% endif %}
+      </div>
+
+      {# Quick-pay row at the bottom #}
+      {% if supplier.outstanding_balance > 0 and accounts %}
+      <div class="px-6 py-4 bg-gradient-to-r from-emerald-50 to-teal-50 border-t border-emerald-100">
+        <p class="text-xs font-black text-emerald-600 mb-3 flex items-center gap-1.5">
+          <i class="fas fa-bolt"></i> دفع سريع من هنا
+        </p>
+        <div class="flex gap-2 flex-wrap">
+          <button onclick="openPayModal({{ supplier.outstanding_balance }})"
+                  class="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-black rounded-xl transition flex items-center justify-center gap-1.5">
+            <i class="fas fa-money-bills"></i> سدد كل الدين ({{ supplier.outstanding_balance|floatformat:2 }} ج.م)
+          </button>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+</div>{# end main container #}
+
+
+{# ══════════════════════════════════════════════════════════════════════════
+   PAYMENT MODAL
+══════════════════════════════════════════════════════════════════════════ #}
+<div id="payModal" class="modal-overlay" onclick="if(event.target===this) closePayModal()">
+  <div class="modal-box" onclick="event.stopPropagation()">
+
+    <div class="flex items-center justify-between mb-6">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-md">
+          <i class="fas fa-hand-holding-dollar text-white"></i>
+        </div>
+        <div>
+          <h3 class="text-lg font-black text-gray-900">سداد دين مورد</h3>
+          <p class="text-xs text-gray-500">{{ supplier.name }}</p>
+        </div>
+      </div>
+      <button onclick="closePayModal()" class="w-9 h-9 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-500 flex items-center justify-center transition">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+
+    {# Outstanding badge #}
+    {% if supplier.outstanding_balance > 0 %}
+    <div class="bg-rose-50 border border-rose-200 rounded-xl p-3 mb-5 flex items-center justify-between">
+      <span class="text-sm font-bold text-rose-700"><i class="fas fa-triangle-exclamation mr-1"></i> الدين الكلي</span>
+      <span class="text-xl font-black text-rose-700" id="modal-outstanding-display">{{ supplier.outstanding_balance|floatformat:2 }} ج.م</span>
+    </div>
+    {% endif %}
+
+    <form id="payForm" class="space-y-4">
+      {% csrf_token %}
+
+      {# Amount #}
+      <div>
+        <label class="block text-sm font-black text-gray-700 mb-2">المبلغ المدفوع <span class="text-rose-500">*</span></label>
+        <div class="relative">
+          <input type="number" id="payAmount" name="amount" step="0.01" min="0.01" required
+                 value="{{ supplier.outstanding_balance|default:0|floatformat:2 }}"
+                 class="inp amount-inp pl-16"
+                 oninput="updatePreview()" />
+          <span class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-bold text-sm">ج.م</span>
+        </div>
+        {# Quick amount buttons #}
+        {% if supplier.outstanding_balance > 0 %}
+        <div class="flex gap-2 mt-2 flex-wrap">
+          <button type="button" onclick="setAmount({{ supplier.outstanding_balance|floatformat:2 }})"
+                  class="flex-1 py-1.5 bg-rose-100 hover:bg-rose-200 text-rose-700 text-xs font-black rounded-lg transition">
+            كل الدين ({{ supplier.outstanding_balance|floatformat:2 }})
+          </button>
+          <button type="button" onclick="setAmount(({{ supplier.outstanding_balance }} / 2).toFixed(2))"
+                  class="flex-1 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-black rounded-lg transition">
+            نصف الدين
+          </button>
+        </div>
+        {% endif %}
+      </div>
+
+      {# Account selector #}
+      <div>
+        <label class="block text-sm font-black text-gray-700 mb-2">الدفع من حساب <span class="text-rose-500">*</span></label>
+        <select id="payAccount" name="account_id" required class="inp" onchange="updatePreview()">
+          <option value="">— اختر الخزينة أو الحساب —</option>
+          {% for acc in accounts %}
+          <option value="{{ acc.id }}"
+                  data-balance="{{ acc.balance }}"
+                  data-name="{{ acc.name }}">
+            {{ acc.name }} — الرصيد: {{ acc.balance|floatformat:2 }} ج.م
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      {# Balance preview #}
+      <div id="balance-preview" class="hidden rounded-xl p-3 border text-sm font-bold">
+      </div>
+
+      {# Notes #}
+      <div>
+        <label class="block text-sm font-black text-gray-700 mb-2">ملاحظات (اختياري)</label>
+        <textarea id="payNotes" name="notes" rows="2"
+                  class="inp text-sm"
+                  placeholder="رقم الإيصال، ملاحظة..."></textarea>
+      </div>
+
+      {# Submit #}
+      <button type="submit" id="paySubmitBtn"
+              class="w-full py-4 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-black text-lg rounded-xl shadow-lg hover:shadow-emerald-200 transition-all flex items-center justify-center gap-2">
+        <i class="fas fa-check-circle"></i>
+        <span id="paySubmitLabel">تأكيد السداد وخصم من الحساب</span>
+      </button>
+    </form>
+  </div>
+</div>
+
+
+<script>
+const SUPPLIER_ID = {{ supplier.id }};
+const PAYMENT_URL = "{% url 'supplier_add_payment' supplier.id %}";
+const CSRF_TOKEN  = document.querySelector('[name=csrfmiddlewaretoken]')?.value
+                 || '{{ csrf_token }}';
+
+let payModalOpen = false;
+
+// Ensure the modal is a direct child of <body> so position:fixed centres it correctly
+// even if an ancestor uses transform/filter (which would otherwise trap it at the bottom).
+(function relocatePayModal() {
+  const m = document.getElementById('payModal');
+  if (m && m.parentElement !== document.body) document.body.appendChild(m);
+})();
+
+function openPayModal(prefillAmount) {
+  if (prefillAmount !== undefined) {
+    document.getElementById('payAmount').value = parseFloat(prefillAmount).toFixed(2);
+  }
+  document.getElementById('payModal').classList.add('active');
+  payModalOpen = true;
+  setTimeout(() => document.getElementById('payAmount').focus(), 300);
+  updatePreview();
+}
+
+function closePayModal() {
+  document.getElementById('payModal').classList.remove('active');
+  payModalOpen = false;
+}
+
+document.getElementById('openPayModal').addEventListener('click', () => openPayModal());
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && payModalOpen) closePayModal();
+});
+
+function setAmount(val) {
+  document.getElementById('payAmount').value = parseFloat(val).toFixed(2);
+  updatePreview();
+}
+
+function updatePreview() {
+  const amount  = parseFloat(document.getElementById('payAmount').value) || 0;
+  const sel     = document.getElementById('payAccount');
+  const opt     = sel.options[sel.selectedIndex];
+  const preview = document.getElementById('balance-preview');
+  const btn     = document.getElementById('paySubmitLabel');
+
+  if (!opt || !opt.dataset.balance) {
+    preview.classList.add('hidden');
+    return;
+  }
+
+  const balance = parseFloat(opt.dataset.balance) || 0;
+  const after   = balance - amount;
+  preview.classList.remove('hidden');
+
+  if (amount <= 0) {
+    preview.className = 'rounded-xl p-3 border text-sm font-bold bg-gray-50 border-gray-200 text-gray-600';
+    preview.innerHTML = '<i class="fas fa-info-circle ml-1"></i>أدخل مبلغاً صحيحاً';
+    return;
+  }
+
+  if (after < 0) {
+    preview.className = 'rounded-xl p-3 border text-sm font-bold bg-rose-50 border-rose-300 text-rose-700';
+    preview.innerHTML = `<i class="fas fa-triangle-exclamation ml-1"></i>رصيد غير كافٍ — المتاح: ${balance.toFixed(2)} ج.م`;
+    document.getElementById('paySubmitBtn').disabled = true;
+    document.getElementById('paySubmitBtn').style.opacity = '0.5';
+  } else {
+    preview.className = 'rounded-xl p-3 border text-sm font-bold bg-emerald-50 border-emerald-200 text-emerald-700';
+    preview.innerHTML = `<i class="fas fa-check-circle ml-1"></i>بعد الخصم سيصبح رصيد "${opt.dataset.name}": <strong>${after.toFixed(2)} ج.م</strong>`;
+    document.getElementById('paySubmitBtn').disabled = false;
+    document.getElementById('paySubmitBtn').style.opacity = '1';
+    btn.textContent = `تأكيد سداد ${amount.toFixed(2)} ج.م`;
+  }
+}
+
+// ── AJAX Submit ──────────────────────────────────────────────────────────
+document.getElementById('payForm').addEventListener('submit', async function(e) {
+  e.preventDefault();
+
+  const btn   = document.getElementById('paySubmitBtn');
+  const label = document.getElementById('paySubmitLabel');
+  const origText = label.textContent;
+
+  btn.disabled = true;
+  label.innerHTML = '<i class="fas fa-spinner fa-spin ml-1"></i>جاري التنفيذ...';
+
+  const formData = new FormData(this);
+
+  try {
+    const resp = await fetch(PAYMENT_URL, {
+      method: 'POST',
+      headers: {
+        'X-Requested-With': 'XMLHttpRequest',
+        'X-CSRFToken': CSRF_TOKEN,
+      },
+      body: formData,
+    });
+
+    const data = await resp.json();
+
+    if (data.status === 'ok') {
+      // ── Update KPI numbers live ──
+      const outstanding = data.new_outstanding;
+
+      document.getElementById('kpi-outstanding').innerHTML =
+        `${outstanding.toFixed(2)}<span class="text-sm font-bold opacity-70 mr-1">ج.م</span>`;
+
+      // Update the header button badge
+      const heroBadge = document.querySelector('#openPayModal span');
+      if (heroBadge) {
+        heroBadge.textContent = outstanding > 0
+          ? outstanding.toFixed(0) + ' ج.م'
+          : '';
+      }
+
+      // Update modal display
+      const modalDisp = document.getElementById('modal-outstanding-display');
+      if (modalDisp) modalDisp.textContent = outstanding.toFixed(2) + ' ج.م';
+
+      // ── Prepend new payment row ──
+      const list    = document.getElementById('payments-list');
+      const noMsg   = document.getElementById('no-payments-msg');
+      if (noMsg) noMsg.remove();
+
+      const newRow = document.createElement('div');
+      newRow.className = 'px-6 py-4 row-hover flex justify-between items-center entry-row bg-emerald-50/50';
+      newRow.innerHTML = `
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center flex-shrink-0">
+            <i class="fas fa-check text-sm"></i>
+          </div>
+          <div>
+            <p class="text-sm font-bold text-gray-800">سند صرف #${data.payment_id} <span class="badge bg-emerald-100 text-emerald-700 mr-1">جديد</span></p>
+            <p class="text-xs text-gray-400">${data.payment_date}</p>
+            ${data.notes ? `<p class="text-xs text-gray-500 mt-0.5">${data.notes}</p>` : ''}
+          </div>
+        </div>
+        <span class="text-lg font-black text-emerald-600">${data.amount.toFixed(2)}<span class="text-xs text-gray-400 mr-0.5">ج.م</span></span>`;
+      list.prepend(newRow);
+
+      // Update count badge
+      const badge = document.getElementById('pay-count');
+      if (badge) {
+        const cur = parseInt(badge.textContent) || 0;
+        badge.textContent = (cur + 1) + ' سند';
+      }
+
+      // Update account option balance in select
+      const sel = document.getElementById('payAccount');
+      for (const opt of sel.options) {
+        if (opt.dataset.name === data.account_name) {
+          opt.dataset.balance = data.new_account_balance;
+          opt.text = `${data.account_name} — الرصيد: ${data.new_account_balance.toFixed(2)} ج.م`;
+        }
+      }
+
+      closePayModal();
+      showToast(data.message, 'success');
+
+      // Reset form for next use
+      this.reset();
+      document.getElementById('payAmount').value = outstanding > 0 ? outstanding.toFixed(2) : '0.00';
+
+    } else {
+      showToast(data.message || 'حدث خطأ ما', 'error');
+    }
+  } catch (err) {
+    showToast('فشل الاتصال بالخادم. تحقق من الإنترنت.', 'error');
+  } finally {
+    btn.disabled = false;
+    label.textContent = origText;
+  }
+});
+
+// ── Toast helper ────────────────────────────────────────────────────────
+function showToast(msg, type = 'success') {
+  const c = document.getElementById('toast-container');
+  const t = document.createElement('div');
+  t.className = 'toast ' + type;
+  t.innerHTML = `<i class="fas fa-${type === 'success' ? 'check-circle' : 'circle-exclamation'}"></i> ${msg}`;
+  c.prepend(t);
+  setTimeout(() => t.style.opacity = '0', 3500);
+  setTimeout(() => t.remove(), 4000);
+}
+// ── Tab Switcher Helper ──────────────────────────────────────────────────
+function switchProfileTab(tab) {
+  const payBtn = document.getElementById('tab-payments-btn');
+  const retBtn = document.getElementById('tab-returns-btn');
+  const payCont = document.getElementById('tab-payments-content');
+  const retCont = document.getElementById('tab-returns-content');
+
+  if (tab === 'payments') {
+    payBtn.className = "py-4 font-black text-sm border-b-2 border-emerald-600 text-emerald-600 flex items-center gap-2 transition-all";
+    retBtn.className = "py-4 font-black text-sm border-b-2 border-transparent text-gray-400 hover:text-gray-600 flex items-center gap-2 transition-all";
+    payCont.classList.remove('hidden');
+    retCont.classList.add('hidden');
+  } else {
+    retBtn.className = "py-4 font-black text-sm border-b-2 border-rose-600 text-rose-600 flex items-center gap-2 transition-all";
+    payBtn.className = "py-4 font-black text-sm border-b-2 border-transparent text-gray-400 hover:text-gray-600 flex items-center gap-2 transition-all";
+    retCont.classList.remove('hidden');
+    payCont.classList.add('hidden');
+  }
+}
+</script>
+
+{% endblock %}

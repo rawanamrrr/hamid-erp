@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <title>تقرير المنتجات</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            background: #f1f5f9;
+            margin: 0;
+            padding: 20px;
+            color: #1e293b;
+        }
+
+        .page {
+            max-width: 297mm;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            text-align: center;
+            color: #0f172a;
+            border-bottom: 2px solid #e2e8f0;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        th,
+        td {
+            border: 1px solid #cbd5e1;
+            padding: 8px 10px;
+            text-align: right;
+        }
+
+        th {
+            background-color: #f8fafc;
+            color: #475569;
+            font-weight: bold;
+        }
+
+        .text-center {
+            text-align: center;
+        }
+
+        .text-bold {
+            font-weight: bold;
+        }
+
+        /* ===== no-print toolbar ===== */
+        .no-print {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .no-print button {
+            padding: 10px 20px;
+            font-size: 15px;
+            cursor: pointer;
+            background: #0f172a;
+            color: white;
+            border: none;
+            border-radius: 6px;
+        }
+
+        /* Toggle styles */
+        .toggle-wrap {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: white;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 6px 14px;
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        .toggle-track {
+            position: relative;
+            display: inline-block;
+            width: 44px;
+            height: 24px;
+            background: #cbd5e1;
+            border-radius: 999px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .toggle-track.active {
+            background: #f59e0b;
+        }
+
+        .toggle-thumb {
+            position: absolute;
+            top: 3px;
+            left: 3px;
+            width: 18px;
+            height: 18px;
+            background: white;
+            border-radius: 50%;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, .2);
+            transition: transform 0.2s;
+        }
+
+        .toggle-track.active .toggle-thumb {
+            transform: translateX(20px);
+        }
+
+        #lbl-pcs {
+            color: #0f766e;
+        }
+
+        #lbl-pkg {
+            color: #9ca3af;
+        }
+
+        .pkg-active #lbl-pcs {
+            color: #9ca3af;
+        }
+
+        .pkg-active #lbl-pkg {
+            color: #d97706;
+        }
+
+        @media print {
+            @page {
+                size: A4 landscape;
+                margin: 10mm;
+            }
+
+            body {
+                background: white;
+                padding: 0;
+            }
+
+            .page {
+                box-shadow: none;
+                max-width: 100%;
+            }
+
+            .no-print {
+                display: none;
+            }
+        }
+    </style>
+</head>
+
+<body onload="window.print()">
+
+    <!-- ===== Toolbar (hidden on print) ===== -->
+    <div class="no-print" id="toolbar">
+        <button onclick="window.print()">🖨️ طباعة / حفظ كـ PDF</button>
+        <button onclick="window.close(); setTimeout(function(){ if (window.history.length > 1) window.history.back(); }, 50)" style="background:#ef4444;">إغلاق</button>
+
+        <!-- شيكارة / قطعة toggle -->
+        <div class="toggle-wrap" id="toggle-wrap">
+            <span id="lbl-pcs">قطعة</span>
+            <div class="toggle-track" id="toggle-track" onclick="toggleUnit()">
+                <div class="toggle-thumb" id="toggle-thumb"></div>
+            </div>
+            <span id="lbl-pkg">📦 شيكارة</span>
+        </div>
+    </div>
+
+    <div class="page">
+        <h1 id="report-title">تقرير المنتجات والأرصدة حسب المخازن — <span id="unit-label">عدد القطع</span></h1>
+        <table>
+            <thead>
+                <tr>
+                    <th width="15%">كود المنتج (SKU)</th>
+                    <th width="30%">اسم المنتج</th>
+                    <th width="15%">القسم</th>
+                    <th width="12%" class="text-center">سعر الجملة</th>
+                    {% for wh in warehouses %}
+                    <th class="text-center">{{ wh.name }}</th>
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for p in products %}
+                <tr class="product-row" data-ppp="{{ p.pieces_per_package }}">
+                    <td>{{ p.sku }}</td>
+                    <td class="text-bold">{{ p.name }}</td>
+                    <td>{{ p.category.name|default:"-" }}</td>
+                    <td class="text-center">{{ p.price_wholesale }}</td>
+
+                    {% for qty in p.warehouse_quantities %}
+                    <td class="text-center text-bold qty-cell" data-qty="{{ qty }}"
+                        style="color: {% if qty <= 0 %}red{% else %}green{% endif %};">
+                        {{ qty|floatformat:"0" }}
+                    </td>
+                    {% endfor %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <p style="text-align: left; font-size: 12px; color: #64748b; margin-top: 20px;">
+            تاريخ الطباعة: {% now "Y-m-d H:i" %}
+        </p>
+    </div>
+
+    <script>
+        let isPkgMode = false;
+
+        function toggleUnit() {
+            isPkgMode = !isPkgMode;
+            const track = document.getElementById('toggle-track');
+            const wrap = document.getElementById('toggle-wrap');
+            const unitLabel = document.getElementById('unit-label');
+
+            if (isPkgMode) {
+                track.classList.add('active');
+                wrap.classList.add('pkg-active');
+                unitLabel.textContent = 'شيكارة';
+            } else {
+                track.classList.remove('active');
+                wrap.classList.remove('pkg-active');
+                unitLabel.textContent = 'عدد القطع';
+            }
+
+            // Update every qty cell
+            document.querySelectorAll('.product-row').forEach(row => {
+                const ppp = parseInt(row.dataset.ppp) || 1;
+                row.querySelectorAll('.qty-cell').forEach(cell => {
+                    const qty = parseFloat(cell.dataset.qty) || 0;
+                    if (isPkgMode) {
+                        const pkgs = Math.floor(qty / ppp);
+                        const remainder = Math.round((qty % ppp) * 100) / 100;
+                        cell.textContent = remainder > 0 ? `${pkgs}+${remainder}ق` : `${pkgs}`;
+                    } else {
+                        cell.textContent = (qty % 1 === 0) ? qty : qty.toFixed(2);
+                    }
+                });
+            });
+            try { localStorage.setItem('stockUnitDisplayMode', isPkgMode ? 'pkg' : 'pcs'); } catch (e) {}
+        }
+
+        try {
+            if (localStorage.getItem('stockUnitDisplayMode') === 'pkg') toggleUnit();
+        } catch (e) {}
+    </script>
+</body>
+
+</html>

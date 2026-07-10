@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>تسجيل الدخول - {{ sys_settings.shop_name|default:"النظام" }}</title>
+
+    <!-- Tailwind CSS & Fonts -->
+    <script src="/static/vendor/js/tailwind.js"></script>
+    <link href="/static/vendor/fonts/cairo.css" rel="stylesheet">
+
+    <style>
+        /* Strict prevention of horizontal scrolling on mobile */
+        html,
+        body {
+            max-width: 100vw;
+            overflow-x: hidden;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Cairo', sans-serif;
+            background-color: #f8fafc;
+        }
+
+        /* Subtle animated background pattern */
+        .bg-pattern {
+            position: absolute;
+            inset: 0;
+            background-image: radial-gradient(#cbd5e1 1px, transparent 1px);
+            background-size: 32px 32px;
+            opacity: 0.4;
+        }
+
+        /* Ambient animated orbs (Light theme adapted) */
+        .orb {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(80px);
+            animation: float 8s ease-in-out infinite;
+            pointer-events: none;
+        }
+
+        .orb-red {
+            width: 350px;
+            height: 350px;
+            background: rgba(220, 38, 38, 0.12);
+            /* Soft Red */
+            top: -100px;
+            right: -100px;
+        }
+
+        .orb-black {
+            width: 400px;
+            height: 400px;
+            background: rgba(15, 23, 42, 0.08);
+            /* Soft Slate/Black */
+            bottom: -150px;
+            left: -150px;
+            animation-delay: -4s;
+        }
+
+        @keyframes float {
+
+            0%,
+            100% {
+                transform: translateY(0) scale(1);
+            }
+
+            50% {
+                transform: translateY(20px) scale(1.05);
+            }
+        }
+
+        /* Custom styling for Django form inputs */
+        input[type="text"],
+        input[type="password"],
+        input.password-text-mode {
+            width: 100%;
+            padding: 14px 16px;
+            background-color: #f8fafc;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            font-family: 'Cairo', sans-serif;
+            font-size: 15px;
+            font-weight: 600;
+            color: #0f172a;
+            outline: none;
+            transition: all 0.3s ease;
+            text-align: right;
+            direction: rtl;
+        }
+
+        /* Make room for the eye icon on the left side of the password field */
+        input[type="password"],
+        input.password-text-mode {
+            padding-left: 3rem;
+        }
+
+        input[type="text"]:hover,
+        input[type="password"]:hover,
+        input.password-text-mode:hover {
+            border-color: #cbd5e1;
+        }
+
+        input[type="text"]:focus,
+        input[type="password"]:focus,
+        input.password-text-mode:focus {
+            background-color: #ffffff;
+            border-color: #dc2626;
+            /* Red focus */
+            box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.1);
+        }
+    </style>
+</head>
+
+<body class="min-h-screen flex items-center justify-center relative">
+
+    <!-- Background Elements Wrapper (Isolated to prevent mobile overflow) -->
+    <div class="fixed inset-0 z-0 overflow-hidden pointer-events-none bg-slate-50">
+        <div class="bg-pattern"></div>
+        <div class="orb orb-red"></div>
+        <div class="orb orb-black"></div>
+    </div>
+
+    <!-- Main Content Container (Mobile First Padded Wrapper) -->
+    <div class="w-full max-w-[420px] px-4 sm:px-6 relative z-10 py-8">
+
+        <!-- The Card -->
+        <div class="bg-white rounded-[2rem] shadow-2xl overflow-hidden border border-slate-100 relative w-full">
+
+            <!-- Decorative Header Line (Red & Black Gradient) -->
+            <div class="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-red-600 to-slate-900"></div>
+
+            <!-- Logo & Brand Area (Matches Sidebar) -->
+            <div class="px-6 sm:px-8 pt-10 pb-6 text-center bg-white border-b border-slate-50">
+                <div class="flex justify-center mb-4">
+                    {% if sys_settings.logo_base64 %}
+                    <div class="h-16 sm:h-20 w-auto flex items-center justify-center">
+                        <img src="{{ sys_settings.logo_base64 }}" alt="Logo"
+                            class="max-h-full object-contain drop-shadow-sm">
+                    </div>
+                    {% else %}
+                    <!-- Fallback Icon if no logo -->
+                    <div
+                        class="w-14 h-14 sm:w-16 sm:h-16 bg-gradient-to-br from-red-600 to-red-800 text-white rounded-2xl shadow-lg flex items-center justify-center transform rotate-3">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-7 h-7 sm:w-8 sm:h-8 -rotate-3" fill="none"
+                            viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                        </svg>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <h1 class="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
+                    {{ sys_settings.shop_name|default:"Wholesale POS System" }}
+                </h1>
+                <p class="text-[11px] sm:text-xs font-bold text-slate-400 mt-2 tracking-widest uppercase">تسجيل الدخول
+                    للنظام</p>
+            </div>
+
+            <!-- Form Area -->
+            <div class="p-6 sm:p-8 bg-white">
+                <form method="post" autocomplete="off">
+                    {% csrf_token %}
+
+                    <!-- Errors Box -->
+                    {% if form.errors %}
+                    <div
+                        class="mb-6 p-4 bg-red-50 border border-red-200 rounded-2xl flex items-center gap-3 text-red-600 animate-[pulse_0.5s_ease-in-out]">
+                        <svg class="w-6 h-6 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <span class="text-sm font-bold leading-tight">اسم المستخدم أو كلمة المرور غير صحيحة.</span>
+                    </div>
+                    {% endif %}
+
+                    <div class="space-y-5">
+                        <!-- Username Field -->
+                        <div>
+                            <label for="id_username" class="block text-sm font-bold text-slate-600 mb-2">اسم
+                                المستخدم</label>
+                            <div class="relative">
+                                {{ form.username }}
+                            </div>
+                        </div>
+
+                        <!-- Password Field -->
+                        <div>
+                            <label for="id_password" class="block text-sm font-bold text-slate-600 mb-2">كلمة
+                                المرور</label>
+                            <div class="relative">
+                                {{ form.password }}
+
+                                <!-- Toggle Password Visibility Button -->
+                                <button type="button" id="togglePassword"
+                                    class="absolute inset-y-0 left-0 flex items-center pl-4 pr-3 text-slate-400 hover:text-slate-600 focus:outline-none transition-colors"
+                                    tabindex="-1">
+                                    <!-- Eye Open Icon -->
+                                    <svg id="eyeOpen" class="w-5 h-5" fill="none" viewBox="0 0 24 24"
+                                        stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                            d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                            d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                    </svg>
+                                    <!-- Eye Closed Icon (Hidden by default) -->
+                                    <svg id="eyeClosed" class="w-5 h-5 hidden" fill="none" viewBox="0 0 24 24"
+                                        stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                            d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Remember me + Forgot password -->
+                    <div class="flex items-center justify-between mt-5">
+                        <label class="flex items-center gap-2 cursor-pointer select-none">
+                            <input type="checkbox" name="remember_me" value="1"
+                                   class="w-4 h-4 rounded border-slate-300 text-slate-900 focus:ring-slate-400">
+                            <span class="text-sm font-bold text-slate-600">تذكّرني</span>
+                        </label>
+                        <a href="{% url 'forgot_password' %}" class="text-sm font-bold text-red-600 hover:text-red-700 hover:underline">
+                            نسيت كلمة المرور؟
+                        </a>
+                    </div>
+
+                    <!-- Submit Button -->
+                    <button type="submit"
+                        class="w-full mt-6 py-3.5 bg-slate-900 hover:bg-red-600 text-white text-lg font-black rounded-xl shadow-lg transition-all duration-300 hover:-translate-y-0.5">
+                        دخول
+                    </button>
+                </form>
+            </div>
+
+            <!-- Footer -->
+            <div class="py-4 text-center bg-slate-50 border-t border-slate-100 space-y-2">
+                <a href="{% url 'license_activation' %}" class="inline-block text-xs font-bold text-slate-500 hover:text-red-600">
+                    <i class="fas fa-key text-[10px]"></i> تفعيل النظام / إنشاء حساب المالك
+                </a>
+                <div class="text-xs font-bold text-slate-400">جميع الحقوق محفوظة &copy; {% now "Y" %}</div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Script for Toggling Password Visibility -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const toggleBtn = document.getElementById('togglePassword');
+            const passwordInput = document.getElementById('id_password');
+            const eyeOpen = document.getElementById('eyeOpen');
+            const eyeClosed = document.getElementById('eyeClosed');
+
+            if (toggleBtn && passwordInput) {
+                toggleBtn.addEventListener('click', function () {
+                    const isPassword = passwordInput.getAttribute('type') === 'password';
+
+                    passwordInput.setAttribute('type', isPassword ? 'text' : 'password');
+
+                    if (isPassword) {
+                        passwordInput.classList.add('password-text-mode');
+                    } else {
+                        passwordInput.classList.remove('password-text-mode');
+                    }
+
+                    eyeOpen.classList.toggle('hidden');
+                    eyeClosed.classList.toggle('hidden');
+                });
+            }
+        });
+    </script>
+</body>
+
+</html>

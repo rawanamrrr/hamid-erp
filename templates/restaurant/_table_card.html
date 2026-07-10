@@ -1,0 +1,41 @@
+{% load rbac_tags %}
+<a href="{% url 'restaurant:waiter_order' table.id %}"
+   data-table-id="{{ table.id }}" data-status="{{ table.status }}"
+   class="table-card relative block rounded-2xl border-2 p-4 text-center shadow-sm hover:shadow-md transition-all
+          {% if table.status == 'busy' %}bg-red-50/80 border-red-200
+          {% elif table.status == 'reserved' %}bg-amber-50/80 border-amber-200
+          {% else %}bg-emerald-50/80 border-emerald-200{% endif %}">
+    <span class="status-dot absolute top-2.5 left-2.5 w-2.5 h-2.5 rounded-full
+                 {% if table.status == 'busy' %}bg-red-500
+                 {% elif table.status == 'reserved' %}bg-amber-500
+                 {% else %}bg-emerald-500{% endif %}"></span>
+
+    {% if table.status == 'free' %}
+    <button onclick="event.preventDefault(); event.stopPropagation(); openReserveModal({{ table.id }}, '{{ table.number|escapejs }}');"
+            class="absolute top-2 left-2 w-6 h-6 rounded-lg bg-white/80 hover:bg-amber-100 text-amber-600 flex items-center justify-center shadow-sm" title="حجز الترابيزة">
+        <i class="fa-solid fa-calendar-plus text-[10px]"></i>
+    </button>
+    {% elif table.status == 'reserved' %}
+    <button onclick="event.preventDefault(); event.stopPropagation(); cancelReservation({{ table.id }});"
+            class="absolute top-2 left-2 w-6 h-6 rounded-lg bg-white/80 hover:bg-red-100 text-red-600 flex items-center justify-center shadow-sm" title="إلغاء الحجز">
+        <i class="fa-solid fa-calendar-xmark text-[10px]"></i>
+    </button>
+    {% endif %}
+
+    <div class="w-9 h-9 mx-auto rounded-xl bg-white shadow-sm text-gray-400 flex items-center justify-center mb-2">
+        <i class="fa-solid fa-chair text-sm"></i>
+    </div>
+    <div class="text-2xl font-black text-gray-900 mb-0.5">{{ table.number }}</div>
+    <div class="text-[11px] text-gray-500 mb-1.5"><i class="fa-solid fa-user text-[9px] ml-1"></i>{{ table.seats }} كراسي</div>
+    <div class="status-label text-[11px] font-black
+                {% if table.status == 'busy' %}text-red-600
+                {% elif table.status == 'reserved' %}text-amber-600
+                {% else %}text-emerald-600{% endif %}">
+        {% if table.status == 'busy' %}مشغولة{% elif table.status == 'reserved' %}محجوزة{% else %}متاحة{% endif %}
+    </div>
+    {% if table.status == 'reserved' and table.reserved_name %}
+    <div class="reserved-info text-[10px] text-amber-700 mt-1 truncate" title="{{ table.reserved_name }}{% if table.reserved_time %} — {{ table.reserved_time|date:'H:i' }}{% endif %}">
+        {{ table.reserved_name }}{% if table.reserved_time %} — {{ table.reserved_time|date:"H:i" }}{% endif %}
+    </div>
+    {% endif %}
+</a>

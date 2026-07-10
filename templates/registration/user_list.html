@@ -1,0 +1,47 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="flex justify-between items-center mb-6">
+    <h2 class="text-xl font-semibold text-gray-800">إدارة المستخدمين</h2>
+    <a href="{% url 'user_create' %}" class="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition">
+        + إضافة مستخدم
+    </a>
+</div>
+
+<div class="bg-white rounded-lg shadow overflow-hidden">
+    <table class="w-full text-right">
+        <thead class="bg-gray-50 text-gray-600 border-b">
+            <tr>
+                <th class="py-3 px-6">اسم المستخدم</th>
+                <th class="py-3 px-6">الاسم</th>
+                <th class="py-3 px-6">الصلاحية</th>
+                <th class="py-3 px-6">آخر دخول</th>
+                <th class="py-3 px-6">إجراءات</th>
+            </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-100">
+            {% for u in users %}
+            <tr class="hover:bg-gray-50">
+                <td class="py-3 px-6 font-bold">{{ u.username }}</td>
+                <td class="py-3 px-6">{{ u.first_name }} {{ u.last_name }}</td>
+                <td class="py-3 px-6">
+                    {% if u.is_superuser %}
+                        <span class="bg-purple-100 text-purple-800 text-xs px-2 py-1 rounded-full">سوبر أدمن</span>
+                    {% elif u.groups.first.name == 'Managers' %}
+                        <span class="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full">مدير</span>
+                    {% else %}
+                        <span class="bg-gray-100 text-gray-800 text-xs px-2 py-1 rounded-full">موظف</span>
+                    {% endif %}
+                </td>
+                <td class="py-3 px-6 text-sm text-gray-500">{{ u.last_login|date:"Y-m-d H:i" }}</td>
+                <td class="py-3 px-6">
+                    {% if not u.is_superuser and u != request.user %}
+                    <a href="{% url 'user_delete' u.pk %}" class="text-red-500 hover:text-red-700" onclick="return confirm('هل أنت متأكد من حذف هذا المستخدم؟')">حذف</a>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

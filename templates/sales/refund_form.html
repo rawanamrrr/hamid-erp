@@ -1,0 +1,379 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto">
+    
+    <!-- Title and Info -->
+    <div class="mb-6 flex justify-between items-center">
+        <h2 class="text-2xl font-bold text-gray-800">تسجيل مرتجع جديد</h2>
+        <div class="flex items-center gap-3">
+            <a href="{% url 'returns_register' %}" class="text-red-600 hover:text-red-800 font-bold flex items-center gap-1">سجل المرتجعات</a>
+            <a href="{% url 'order_list' %}" class="text-blue-600 hover:text-blue-800 flex items-center gap-1">
+                <span>&larr;</span> عودة للقائمة
+            </a>
+        </div>
+    </div>
+
+    <!-- Messages Display -->
+    {% if messages %}
+    <div class="mb-6">
+        {% for message in messages %}
+        <div class="p-4 rounded-lg mb-2 {% if message.tags == 'error' %}bg-red-100 text-red-700 border-l-4 border-red-500{% else %}bg-green-100 text-green-700 border-l-4 border-green-500{% endif %}">
+            {{ message }}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <div class="bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden">
+        <!-- Return Policy Warning -->
+        <div class="bg-yellow-50 border-b border-yellow-200 p-4">
+            <div class="flex">
+                <div class="flex-shrink-0">
+                    <svg class="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.742-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                    </svg>
+                </div>
+                <div class="mr-3">
+                    <p class="text-sm text-yellow-700 font-bold">تنبيه هام:</p>
+                    <p class="text-sm text-yellow-700">{{ sys_settings.return_policy|default:"يرجى التأكد من سياسة الاسترجاع قبل إتمام العملية. المبالغ المستردة تخصم من الدرج مباشرة." }}</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="p-6">
+            <form method="post" id="refundForm" onsubmit="return validateForm()">
+                {% csrf_token %}
+                <input type="hidden" name="refund_items" id="refundItemsInput">
+
+                <!-- 0. Warehouse Selection (NEW) -->
+                <div class="mb-6 bg-blue-50 p-4 rounded-lg border border-blue-100">
+                    <label class="block text-sm font-bold text-gray-700 mb-2">إرجاع المخزون إلى:</label>
+                    <select name="warehouse_id" required class="w-full p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white">
+                        {% for w in warehouses %}
+                        <option value="{{ w.id }}">{{ w.name }}</option>
+                        {% endfor %}
+                    </select>
+                    <p class="text-xs text-gray-500 mt-1">سيتم إضافة الكميات المسترجعة إلى رصيد هذا المخزن.</p>
+                </div>
+
+                <!-- 0b. Refund settlement method -->
+                <div class="mb-6 bg-amber-50 p-4 rounded-lg border border-amber-100 grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-2">طريقة استرداد المبلغ:</label>
+                        <select name="refund_method" class="w-full p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 bg-white">
+                            <option value="cash">استرداد نقدي (صرف من الدرج)</option>
+                            <option value="customer_credit">إضافة لرصيد العميل (خصم من مديونيته)</option>
+                        </select>
+                        <p class="text-xs text-gray-500 mt-1">«إضافة لرصيد العميل» تتطلب اختيار عميل مسجل.</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-2">تصنيف سبب الإرجاع:</label>
+                        <select name="reason_category" class="w-full p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 bg-white">
+                            <option value="">— اختر —</option>
+                            <option value="defect">عيب صناعة / تالف</option>
+                            <option value="wrong_item">صنف خاطئ</option>
+                            <option value="size">مقاس غير مناسب</option>
+                            <option value="changed_mind">العميل غيّر رأيه</option>
+                            <option value="exchange">استبدال</option>
+                            <option value="other">أخرى</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- 1. Invoice Lookup -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8 items-end bg-gray-50 p-4 rounded-lg border">
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-2">رقم الفاتورة الأصلية (لجلب المنتجات)</label>
+                        <div class="flex gap-2">
+                            <input type="number" name="invoice_id" id="invoiceIdInput" class="flex-1 p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="أدخل رقم الفاتورة..">
+                            <button type="button" onclick="searchInvoice()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-bold transition">بحث</button>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">العميل (يملأ تلقائياً عند البحث)</label>
+                        <select name="customer" id="customerSelect" class="w-full p-2.5 border border-gray-300 rounded-lg bg-gray-100 pointer-events-none">
+                            <option value="">-- عميل عام / غير محدد --</option>
+                            {% for customer in customers %}
+                            <option value="{{ customer.id }}">{{ customer.first_name }} {{ customer.last_name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+
+                <!-- 2. Manual Product Add (If no invoice) -->
+                <div class="mb-6">
+                    <h3 class="font-bold text-gray-800 mb-3 border-b pb-2">إضافة منتجات للمرتجع</h3>
+                    <div class="flex flex-wrap md:flex-nowrap gap-2 items-center bg-gray-50 p-3 rounded-lg border border-gray-200">
+                        <div class="flex-1 min-w-[200px]">
+                            <select id="productSelect" class="w-full p-2 border border-gray-300 rounded-lg text-sm">
+                                <option value="">-- اختر المنتج يدوياً --</option>
+                                {% for product in products %}
+                                <option value="{{ product.id }}" data-name="{{ product.name }}" data-price="{{ product.price_retail }}">{{ product.name }} ({{ product.sku|default:product.id }})</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="w-24">
+                            <input type="number" id="qtyInput" placeholder="الكمية" class="w-full p-2 border border-gray-300 rounded-lg text-sm text-center">
+                        </div>
+                        <div class="w-32">
+                            <input type="number" id="priceInput" placeholder="السعر" class="w-full p-2 border border-gray-300 rounded-lg text-sm text-center">
+                        </div>
+                        <button type="button" onclick="addManualItem()" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-bold whitespace-nowrap">إضافة +</button>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-1 mr-1">* يمكنك إضافة منتجات يدوياً إذا لم تكن الفاتورة موجودة على النظام.</p>
+                </div>
+
+                <!-- 3. Items Table -->
+                <div class="border border-gray-200 rounded-lg overflow-hidden mb-6">
+                    <table class="w-full text-right">
+                        <thead class="bg-gray-100 text-gray-700 text-sm">
+                            <tr>
+                                <th class="p-3">المنتج</th>
+                                <th class="p-3">الكمية</th>
+                                <th class="p-3">سعر الاسترجاع</th>
+                                <th class="p-3">الإجمالي</th>
+                                <th class="p-3"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="refundTableBody" class="divide-y divide-gray-100 text-sm">
+                            <!-- Items will be injected here -->
+                            <tr id="emptyRow">
+                                <td colspan="5" class="p-8 text-center text-gray-400">لا توجد منتجات مضافة حالياً</td>
+                            </tr>
+                        </tbody>
+                        <tfoot class="bg-gray-50 font-bold border-t">
+                            <tr>
+                                <td colspan="3" class="p-4 text-gray-800">إجمالي المبلغ المسترد:</td>
+                                <td class="p-4 text-red-600 text-xl" id="totalRefundDisplay">0.00</td>
+                                <td>ج.م</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+
+                <!-- 4. Reason -->
+                <div class="mb-8">
+                    <label class="block text-sm font-bold text-gray-700 mb-2">سبب الإرجاع <span class="text-red-500">*</span></label>
+                    <textarea name="reason" rows="2" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-200" placeholder="يرجى كتابة سبب الإرجاع بوضوح (عيب صناعة، مقاس، استبدال...)" required></textarea>
+                </div>
+
+                <!-- Actions -->
+                <div class="flex justify-end gap-3 pt-4 border-t">
+                    <button type="button" onclick="window.location.reload()" class="px-6 py-2.5 bg-gray-200 text-gray-700 rounded-lg font-bold hover:bg-gray-300 transition">إلغاء / مسح</button>
+                    <button type="submit" class="px-8 py-2.5 bg-red-600 text-white rounded-lg font-bold hover:bg-red-700 shadow-lg shadow-red-200 transition">تأكيد الإرجاع</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div id="toast" class="fixed bottom-5 left-5 bg-gray-800 text-white px-6 py-3 rounded-lg shadow-lg transform translate-y-20 opacity-0 transition-all duration-300 z-50">
+    رسالة التنبيه
+</div>
+
+<script>
+    let refundItems = [];
+
+    // --- Toast Notification ---
+    function showToast(message, isError = false) {
+        const toast = document.getElementById('toast');
+        toast.innerText = message;
+        toast.className = `fixed bottom-5 left-5 px-6 py-3 rounded-lg shadow-lg transform transition-all duration-300 z-50 ${isError ? 'bg-red-600' : 'bg-gray-800'} text-white translate-y-0 opacity-100`;
+        
+        setTimeout(() => {
+            toast.classList.add('translate-y-20', 'opacity-0');
+        }, 3000);
+    }
+
+    // --- Search Invoice ---
+    function searchInvoice() {
+        const invoiceId = document.getElementById('invoiceIdInput').value;
+        if (!invoiceId) {
+            showToast('يرجى إدخال رقم الفاتورة أولاً', true);
+            return;
+        }
+
+        const btn = document.querySelector('button[onclick="searchInvoice()"]');
+        const originalText = btn.innerText;
+        btn.innerText = 'جاري البحث...';
+        btn.disabled = true;
+
+        fetch(`/sales/api/get-order-details/?id=${invoiceId}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    // Fully-returned items (nothing left to return) are excluded from the
+                    // cart entirely — a selectable 0-qty row would be confusing/pointless.
+                    const fullyReturned = data.items.filter(item => parseFloat(item.max_qty) <= 0);
+                    refundItems = data.items
+                        .filter(item => parseFloat(item.max_qty) > 0)
+                        .map(item => ({
+                            product_id: item.product_id,
+                            variant_id: item.variant_id || null,
+                            variant_label: item.variant_label || '',
+                            name: item.variant_label ? `${item.name} (${item.variant_label})` : item.name,
+                            quantity: parseFloat(item.max_qty), // Default to what's actually still returnable
+                            price: parseFloat(item.price),
+                            max_qty: parseFloat(item.max_qty), // Real remaining (original qty minus already-returned)
+                            already_returned: parseFloat(item.already_returned || 0),
+                            total: parseFloat(item.max_qty) * item.price
+                        }));
+
+                    renderTable();
+
+                    // Set Customer
+                    if(data.customer_id) {
+                        document.getElementById('customerSelect').value = data.customer_id;
+                    }
+
+                    if (fullyReturned.length > 0) {
+                        showToast(`تنبيه: ${fullyReturned.map(i => i.name).join('، ')} تم إرجاعه بالكامل مسبقاً ولن يظهر في القائمة`, true);
+                    } else {
+                        showToast('تم جلب بيانات الفاتورة بنجاح');
+                    }
+                } else {
+                    showToast(data.message || 'خطأ في البحث', true);
+                    refundItems = [];
+                    renderTable();
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showToast('حدث خطأ في الاتصال بالخادم', true);
+            })
+            .finally(() => {
+                btn.innerText = originalText;
+                btn.disabled = false;
+            });
+    }
+
+    // --- Add Manual Item ---
+    function addManualItem() {
+        const select = document.getElementById('productSelect');
+        const qty = parseFloat(document.getElementById('qtyInput').value);
+        const price = parseFloat(document.getElementById('priceInput').value);
+        
+        if (!select.value || !qty || isNaN(price)) {
+            showToast('يرجى اختيار المنتج وتحديد الكمية والسعر', true);
+            return;
+        }
+
+        const option = select.options[select.selectedIndex];
+        
+        // Check if item exists
+        const existing = refundItems.find(i => i.product_id == select.value);
+        if (existing) {
+            existing.quantity += qty;
+            existing.total = existing.quantity * existing.price;
+        } else {
+            refundItems.push({
+                product_id: select.value,
+                name: option.dataset.name,
+                quantity: qty,
+                price: price,
+                total: qty * price,
+                max_qty: null // No limit for manual
+            });
+        }
+
+        renderTable();
+        
+        // Reset inputs
+        select.value = "";
+        document.getElementById('qtyInput').value = "";
+        document.getElementById('priceInput').value = "";
+    }
+
+    // --- Remove Item ---
+    function removeItem(index) {
+        refundItems.splice(index, 1);
+        renderTable();
+    }
+
+    // --- Update Quantity in Table ---
+    function updateItemQty(index, newQty) {
+        const item = refundItems[index];
+        newQty = parseFloat(newQty);
+
+        if (newQty <= 0) {
+            removeItem(index);
+            return;
+        }
+
+        if (item.max_qty !== null && newQty > item.max_qty) {
+            showToast(`لا يمكن استرجاع أكثر من المتاح للإرجاع (${item.max_qty})`, true);
+            // Reset input value to max
+            document.getElementById(`qty_input_${index}`).value = item.max_qty;
+            item.quantity = item.max_qty;
+        } else {
+            item.quantity = newQty;
+        }
+
+        item.total = item.quantity * item.price;
+        document.getElementById(`total_cell_${index}`).innerText = item.total.toFixed(2);
+        updateTotalDisplay();
+    }
+
+    // --- Render Table ---
+    function renderTable() {
+        const tbody = document.getElementById('refundTableBody');
+        tbody.innerHTML = '';
+
+        if (refundItems.length === 0) {
+            tbody.innerHTML = `<tr id="emptyRow"><td colspan="5" class="p-8 text-center text-gray-400">لا توجد منتجات مضافة حالياً</td></tr>`;
+            updateTotalDisplay();
+            return;
+        }
+
+        refundItems.forEach((item, index) => {
+            tbody.innerHTML += `
+                <tr class="bg-white border-b hover:bg-gray-50 transition">
+                    <td class="p-3 font-medium text-gray-800">
+                        ${item.name}
+                        ${item.already_returned ? `<span class="block text-xs text-amber-600 font-bold">تم إرجاع ${item.already_returned} مسبقاً — المتاح: ${item.max_qty}</span>` : (item.max_qty ? `<span class="block text-xs text-gray-500">المتاح للإرجاع: ${item.max_qty}</span>` : '')}
+                    </td>
+                    <td class="p-3">
+                        <input type="number" id="qty_input_${index}" value="${item.quantity}"
+                            class="w-20 p-1 border rounded text-center focus:ring-blue-500"
+                            min="0.1" step="any" ${item.max_qty ? `max="${item.max_qty}"` : ''}
+                            onchange="updateItemQty(${index}, this.value)">
+                    </td>
+                    <td class="p-3 text-gray-600">${item.price}</td>
+                    <td class="p-3 font-bold text-gray-800" id="total_cell_${index}">${item.total.toFixed(2)}</td>
+                    <td class="p-3 text-center">
+                        <button type="button" onclick="removeItem(${index})" class="text-red-500 hover:text-red-700 p-1 rounded-full hover:bg-red-50 transition">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                        </button>
+                    </td>
+                </tr>
+            `;
+        });
+
+        updateTotalDisplay();
+    }
+
+    function updateTotalDisplay() {
+        const total = refundItems.reduce((sum, item) => sum + item.total, 0);
+        document.getElementById('totalRefundDisplay').innerText = total.toFixed(2);
+    }
+
+    // --- Submit Validation ---
+    function validateForm() {
+        if (refundItems.length === 0) {
+            showToast('يجب إضافة منتجات للإرجاع', true);
+            return false;
+        }
+        document.getElementById('refundItemsInput').value = JSON.stringify(refundItems);
+        return true;
+    }
+    
+    // Auto-fill price in manual add
+    document.getElementById('productSelect').addEventListener('change', function() {
+        const option = this.options[this.selectedIndex];
+        if(option.value) {
+            document.getElementById('priceInput').value = option.dataset.price;
+        }
+    });
+</script>
+{% endblock %}

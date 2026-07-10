@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>طباعة لوحات المنتجات | أفقي A4</title>
+    <script src="/static/vendor/js/qrcode.min.js"></script>
+    <script src="/static/vendor/js/jsbarcode.all.min.js"></script>
+    <style>
+        @import url('/static/vendor/fonts/cairo.css');
+        
+        :root {
+            --primary: #0f172a;   
+            --accent: #0d9488;    
+            --gray-bg: #f8fafc;
+            --border: #e2e8f0;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: 'Cairo', Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background: #cbd5e1;
+        }
+
+        .no-print {
+            background: white;
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+
+        .btn {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            font-size: 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-family: inherit;
+            font-weight: bold;
+            margin: 0 5px;
+            transition: 0.2s;
+        }
+        .btn:hover { background: #000; }
+        
+        .alert-box {
+            display: none;
+            background: #fffbeb;
+            color: #b45309;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px auto;
+            max-width: 700px;
+            font-weight: 700;
+            border: 2px solid #fcd34d;
+            font-size: 15px;
+        }
+
+        .a4-page {
+            width: 297mm;
+            height: 210mm;
+            margin: 0 auto 20mm auto;
+            background: white;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+            page-break-after: always;
+            position: relative;
+            padding: 12mm;
+        }
+
+        .poster-frame {
+            border: 5px solid var(--primary);
+            border-radius: 30px;
+            height: 100%;
+            display: flex;
+            flex-direction: row; 
+            overflow: hidden;
+            position: relative;
+            background: white;
+            z-index: 1;
+        }
+
+        /* --- WATERMARK --- */
+        .watermark {
+            position: absolute;
+            top: 50%;
+            right: 50%;
+            transform: translate(50%, -50%) rotate(-15deg);
+            opacity: 0.04; /* شفافية خفيفة جداً */
+            z-index: -1;
+            pointer-events: none;
+            white-space: nowrap;
+            font-size: 150px;
+            font-weight: 900;
+            color: var(--primary);
+            user-select: none;
+        }
+
+        .poster-info {
+            flex: 1.2;
+            padding: 40px;
+            display: flex;
+            flex-direction: column;
+            background: rgba(255,255,255,0.7); /* لجعل النص مقروء فوق العلامة المائية */
+        }
+
+        /* --- BRAND HEADER (Like Sidebar) --- */
+        .brand-header {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 25px;
+            padding-bottom: 20px;
+            border-bottom: 2px dashed var(--border);
+        }
+
+        .brand-logo-container {
+            width: 70px;
+            height: 70px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .brand-logo-container img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+
+        .brand-icon {
+            width: 60px;
+            height: 60px;
+            background: var(--accent);
+            color: white;
+            border-radius: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .brand-icon svg { width: 35px; height: 35px; }
+
+        .brand-name {
+            font-size: 34px;
+            font-weight: 900;
+            color: var(--primary);
+            line-height: 1.1;
+        }
+
+        /* Titles Section */
+        .title-section {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .category-badge {
+            display: inline-block;
+            background: var(--accent);
+            color: white;
+            padding: 8px 30px;
+            border-radius: 50px;
+            font-size: 22px;
+            font-weight: 800;
+            margin-bottom: 20px;
+            letter-spacing: 1px;
+            align-self: flex-start;
+        }
+
+        .product-title {
+            font-size: 60px;
+            font-weight: 900;
+            color: var(--primary);
+            margin: 0;
+            line-height: 1.2;
+        }
+
+        /* Footer Section */
+        .footer-section {
+            margin-top: auto;
+        }
+
+        .specs {
+            font-size: 26px;
+            font-weight: 800;
+            color: var(--primary);
+            margin-bottom: 20px;
+        }
+        
+        .specs span {
+            display: block;
+            font-size: 18px;
+            color: #64748b;
+            margin-bottom: 5px;
+        }
+
+        .barcode-area {
+            margin-top: 15px;
+        }
+
+        /* Left Column: QR Area */
+        .poster-qr {
+            flex: 1;
+            background: var(--primary);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 30px;
+            z-index: 2;
+        }
+
+        .qr-wrapper {
+            background: white;
+            padding: 25px;
+            border-radius: 30px;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.4);
+            margin-bottom: 25px;
+        }
+
+        .qr-code {
+            width: 350px;
+            height: 350px;
+        }
+
+        .scan-hint {
+            font-size: 28px;
+            color: white;
+            font-weight: 800;
+            text-align: center;
+        }
+
+        @media print {
+            @page { size: A4 landscape; margin: 0; }
+            body { background: white; margin: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            .no-print { display: none !important; }
+            .a4-page {
+                margin: 0;
+                box-shadow: none;
+                width: 297mm;
+                height: 210mm;
+                page-break-after: always;
+                page-break-inside: avoid;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="no-print">
+        <h2 style="margin-top:0;">لوحات عرض المنتجات (A4 - أفقي)</h2>
+        <div id="localhost-warning" class="alert-box">
+            ⚠️ <b>انتبه:</b> أنت تفتح النظام حالياً باستخدام (localhost). <br>
+            الكاميرا الخاصة بالموبايل لن تستطيع قراءة الكود بهذه الطريقة!<br>
+            <b>يرجى الدخول للنظام باستخدام الـ IP الخاص بجهازك (مثال: 192.168.1.16:8000) قبل الطباعة.</b>
+        </div>
+        <button class="btn" onclick="window.print()">🖨️ طباعة اللوحات</button>
+        <button class="btn" style="background:#dc2626;" onclick="window.close(); setTimeout(function(){ if (window.history.length > 1) window.history.back(); }, 50)">إلغاء</button>
+    </div>
+
+    {% for p in products %}
+    <div class="a4-page">
+        <div class="poster-frame">
+            
+            <!-- WATERMARK TEXT -->
+            <div class="watermark">{{ sys_settings.shop_name|default:"تكس تايل POS" }}</div>
+
+            <!-- Right Column: Info & Specs -->
+            <div class="poster-info">
+                
+                <!-- Logo & Brand Header (Sidebar Style) -->
+                <div class="brand-header">
+                    {% if sys_settings.logo_base64 %}
+                        <div class="brand-logo-container">
+                            <img src="{{ sys_settings.logo_base64 }}" alt="Logo">
+                        </div>
+                    {% else %}
+                        <div class="brand-icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                            </svg>
+                        </div>
+                    {% endif %}
+                    <div class="brand-name">{{ sys_settings.shop_name|default:"تكس تايل POS" }}</div>
+                </div>
+
+                <div class="title-section">
+                    <div class="category-badge">
+                        {% if p.category %}{{ p.category.name }}{% else %}عام{% endif %}
+                    </div>
+                    <h1 class="product-title">{{ p.name }}</h1>
+                </div>
+
+                <div class="footer-section">
+                    <div class="specs">
+                        <span>الخامة واللون:</span>
+                        {% if p.material %}{{ p.material }}{% else %}غير محدد{% endif %} - {% if p.color %}{{ p.color }}{% else %}-{% endif %}
+                    </div>
+                    <div class="barcode-area">
+                        <svg class="footer-barcode" jsbarcode-value="{{ p.sku }}"></svg>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Left Column: Big QR Area -->
+            <div class="poster-qr">
+                {% if p.sku %}
+                <div class="qr-wrapper">
+                    <div class="qr-code" data-url="{{ base_url }}{% url 'public_product_detail' p.sku %}"></div>
+                </div>
+                <div class="scan-hint">📸 امسح الكود لمعرفة التفاصيل</div>
+                {% else %}
+                <div class="scan-hint" style="color: #ef4444;">⚠️ لا يوجد كود للمنتج</div>
+                {% endif %}
+            </div>
+
+        </div>
+    </div>
+    {% empty %}
+    <div class="no-print" style="padding: 50px; font-size: 20px; text-align: center;">
+        لا توجد منتجات لطباعتها في التصفية الحالية.
+    </div>
+    {% endfor %}
+
+    <script>
+        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+            document.getElementById('localhost-warning').style.display = 'block';
+        }
+
+        document.querySelectorAll('.qr-code').forEach(el => {
+            const url = el.getAttribute('data-url');
+            new QRCode(el, {
+                text: url,
+                width: 350,
+                height: 350,
+                colorDark : "#0f172a", 
+                colorLight : "#ffffff",
+                correctLevel : QRCode.CorrectLevel.H
+            });
+        });
+
+        JsBarcode(".footer-barcode").init({
+            format: "CODE128", 
+            displayValue: true, 
+            fontSize: 20,       
+            font: "Cairo",      
+            fontOptions: "bold",
+            height: 50,         
+            margin: 0,
+            background: "transparent"
+        });
+
+        window.onload = function() {
+            setTimeout(() => {
+                if(document.querySelectorAll('.qr-code').length > 0){
+                    window.print();
+                }
+            }, 800);
+        };
+    </script>
+</body>
+</html>

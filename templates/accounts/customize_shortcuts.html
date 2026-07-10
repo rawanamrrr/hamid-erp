@@ -1,0 +1,119 @@
+{% extends 'base.html' %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+<div class="max-w-2xl mx-auto py-6 px-4 font-arabic" dir="rtl">
+
+    <!-- Header -->
+    <div class="flex items-center gap-3 mb-8">
+        <div class="w-10 h-10 rounded-2xl bg-amber-50 flex items-center justify-center shrink-0">
+            <i class="fas fa-star text-amber-400"></i>
+        </div>
+        <div>
+            <h1 class="text-xl font-black text-gray-900 leading-none">تخصيص المفضلة</h1>
+            <p class="text-xs text-gray-400 mt-0.5">اختر الصفحات التي تظهر عند تفعيل وضع المفضلة في الشريط الجانبي</p>
+        </div>
+    </div>
+
+    <form method="post" id="favForm">
+        {% csrf_token %}
+
+        <!-- Top bar: counter + clear -->
+        <div class="flex items-center justify-between mb-6">
+            <span id="countBadge" class="inline-flex items-center gap-1.5 bg-amber-50 text-amber-600 px-3 py-1.5 rounded-full text-xs font-black">
+                <i class="fas fa-star text-[10px]"></i>
+                <span id="countNum">{{ current|length }}</span> محدد
+            </span>
+            <button type="button" onclick="clearAll()" class="text-xs text-gray-400 hover:text-red-500 transition font-bold">
+                إلغاء الكل
+            </button>
+        </div>
+
+        <!-- Sections -->
+        <div class="space-y-8 mb-24">
+            {% for group in groups %}
+            <div class="section-block">
+                <!-- Section header -->
+                <div class="flex items-center gap-2.5 mb-3 px-1">
+                    <span class="w-1.5 h-4 rounded-full bg-indigo-400"></span>
+                    <span class="text-[11px] font-black text-indigo-500 uppercase tracking-widest">{{ group.section }}</span>
+                </div>
+
+                <!-- Cards grid -->
+                <div class="grid grid-cols-3 sm:grid-cols-4 gap-2.5">
+                    {% for s in group.items %}
+                    <label class="shortcut-card relative flex flex-col items-center gap-2 p-3.5 rounded-2xl border-2 cursor-pointer transition-all duration-200 select-none
+                        {% if s.key in current %}border-amber-300 bg-amber-50 shadow-sm shadow-amber-100{% else %}border-gray-100 bg-white hover:border-gray-200 hover:bg-gray-50{% endif %}">
+                        <input type="checkbox" name="favorites" value="{{ s.key }}"
+                            {% if s.key in current %}checked{% endif %}
+                            class="sr-only fav-checkbox" onchange="onToggle(this)">
+
+                        <!-- Check dot -->
+                        <span class="check-dot absolute top-2 left-2 w-4 h-4 rounded-full flex items-center justify-center transition-all duration-200
+                            {% if s.key in current %}bg-amber-400 opacity-100{% else %}bg-gray-100 opacity-0{% endif %}">
+                            <i class="fas fa-check text-white text-[8px]"></i>
+                        </span>
+
+                        <!-- Icon -->
+                        <span class="icon-wrap w-10 h-10 rounded-xl flex items-center justify-center text-base transition-all duration-200
+                            {% if s.key in current %}bg-amber-400 text-white shadow-md shadow-amber-200{% else %}bg-gray-100 text-gray-400{% endif %}">
+                            <i class="fa-solid {{ s.icon }}"></i>
+                        </span>
+
+                        <!-- Label -->
+                        <span class="text-[11px] font-black text-center leading-tight text-gray-700 line-clamp-2">{{ s.label }}</span>
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Sticky save -->
+        <div class="fixed bottom-4 left-1/2 -translate-x-1/2 w-full max-w-2xl px-4 z-50">
+            <button type="submit"
+                class="w-full py-3.5 bg-gradient-to-l from-amber-500 to-amber-400 hover:from-amber-600 hover:to-amber-500 text-white font-black rounded-2xl shadow-xl shadow-amber-200 transition-all duration-200 flex items-center justify-center gap-2 text-sm">
+                <i class="fas fa-check-circle"></i>
+                حفظ المفضلة
+            </button>
+        </div>
+    </form>
+</div>
+
+<script>
+function onToggle(cb) {
+    const label = cb.closest('label');
+    const dot   = label.querySelector('.check-dot');
+    const icon  = label.querySelector('.icon-wrap');
+    const on    = cb.checked;
+
+    label.classList.toggle('border-amber-300',   on);
+    label.classList.toggle('bg-amber-50',         on);
+    label.classList.toggle('shadow-sm',           on);
+    label.classList.toggle('shadow-amber-100',    on);
+    label.classList.toggle('border-gray-100',    !on);
+    label.classList.toggle('bg-white',           !on);
+
+    dot.classList.toggle('bg-amber-400',  on);
+    dot.classList.toggle('opacity-100',   on);
+    dot.classList.toggle('bg-gray-100',  !on);
+    dot.classList.toggle('opacity-0',    !on);
+
+    icon.classList.toggle('bg-amber-400',      on);
+    icon.classList.toggle('text-white',        on);
+    icon.classList.toggle('shadow-md',         on);
+    icon.classList.toggle('shadow-amber-200',  on);
+    icon.classList.toggle('bg-gray-100',      !on);
+    icon.classList.toggle('text-gray-400',    !on);
+
+    document.getElementById('countNum').textContent =
+        document.querySelectorAll('.fav-checkbox:checked').length;
+}
+
+function clearAll() {
+    document.querySelectorAll('.fav-checkbox:checked').forEach(cb => {
+        cb.checked = false;
+        onToggle(cb);
+    });
+}
+</script>
+{% endblock %}

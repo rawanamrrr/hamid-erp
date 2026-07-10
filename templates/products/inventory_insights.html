@@ -1,0 +1,68 @@
+﻿{% extends 'base.html' %}
+{% load humanize %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+<div class="max-w-6xl mx-auto space-y-5">
+    <div class="flex items-center justify-between print:hidden">
+        <h1 class="text-2xl font-black text-gray-800">تحليل المخزون والطلب</h1>
+        <div class="flex items-end gap-2">
+            <form method="get" class="flex items-end gap-2">
+                <div><label class="block text-xs font-bold text-gray-500 mb-1">فترة التحليل (يوم)</label><input type="number" name="window" value="{{ window }}" min="7" max="365" class="w-24 p-2 border rounded-lg"></div>
+                <button class="px-4 py-2 bg-indigo-600 text-white rounded-lg font-bold">تحديث</button>
+            </form>
+            <a href="?window={{ window }}&print=1" class="px-4 py-2 bg-gray-700 text-white rounded-lg font-bold">طباعة</a>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-2 gap-3">
+        <div class="bg-white p-4 rounded-xl border text-center"><p class="text-xs text-gray-500 font-bold">أصناف تحتاج إعادة طلب قريباً</p><p class="text-2xl font-black text-amber-600">{{ d.reorder_count }}</p></div>
+        <div class="bg-white p-4 rounded-xl border text-center"><p class="text-xs text-gray-500 font-bold">أصناف راكدة (بدون مبيعات)</p><p class="text-2xl font-black text-red-600">{{ d.dead_count }}</p></div>
+    </div>
+
+    <div class="bg-white rounded-xl border overflow-hidden">
+        <div class="px-4 py-2 bg-gray-800 text-white font-black text-sm">معدل البيع والتغطية (آخر {{ d.window_days }} يوم)</div>
+        <table class="w-full text-sm">
+            <thead class="bg-gray-50 text-gray-500 text-xs"><tr>
+                <th class="py-2 px-4 text-right">الصنف</th><th class="py-2 px-4 text-left">المتوفر</th>
+                <th class="py-2 px-4 text-left">مُباع</th><th class="py-2 px-4 text-left">معدل/يوم</th>
+                <th class="py-2 px-4 text-left">تغطية (يوم)</th><th class="py-2 px-4 text-right">الحالة</th>
+            </tr></thead>
+            <tbody class="divide-y">
+                {% for r in d.rows %}
+                <tr class="hover:bg-gray-50 {% if r.status == 'reorder' %}bg-amber-50/50{% endif %}">
+                    <td class="py-2 px-4 font-bold text-gray-700"><a href="{% url 'item_movement_card' r.product.id %}" class="hover:text-indigo-600">{{ r.product.name }}</a></td>
+                    <td class="py-2 px-4 text-left dir-ltr">{{ r.stock|floatformat:2 }}</td>
+                    <td class="py-2 px-4 text-left dir-ltr">{{ r.sold|floatformat:2 }}</td>
+                    <td class="py-2 px-4 text-left dir-ltr">{{ r.velocity|floatformat:2 }}</td>
+                    <td class="py-2 px-4 text-left dir-ltr font-bold">{% if r.days_cover %}{{ r.days_cover|floatformat:0 }}{% else %}—{% endif %}</td>
+                    <td class="py-2 px-4 text-right">
+                        {% if r.status == 'reorder' %}<span class="px-2 py-0.5 bg-amber-100 text-amber-700 rounded text-xs font-bold">أعد الطلب</span>
+                        {% elif r.status == 'idle' %}<span class="px-2 py-0.5 bg-gray-100 text-gray-500 rounded text-xs">بطيء</span>
+                        {% else %}<span class="px-2 py-0.5 bg-green-100 text-green-700 rounded text-xs">جيد</span>{% endif %}
+                    </td>
+                </tr>
+                {% empty %}<tr><td colspan="6" class="py-8 text-center text-gray-400">لا توجد بيانات</td></tr>{% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if d.dead %}
+    <div class="bg-white rounded-xl border overflow-hidden">
+        <div class="px-4 py-2 bg-red-600 text-white font-black text-sm">مخزون راكد (لا مبيعات خلال الفترة)</div>
+        <table class="w-full text-sm">
+            <thead class="bg-gray-50 text-gray-500 text-xs"><tr><th class="py-2 px-4 text-right">الصنف</th><th class="py-2 px-4 text-left">المتوفر</th><th class="py-2 px-4 text-left">قيمة بالتكلفة</th></tr></thead>
+            <tbody class="divide-y">
+                {% for r in d.dead %}
+                <tr class="hover:bg-red-50/40">
+                    <td class="py-2 px-4 font-bold text-gray-700">{{ r.product.name }}</td>
+                    <td class="py-2 px-4 text-left dir-ltr">{{ r.stock|floatformat:2 }}</td>
+                    <td class="py-2 px-4 text-left dir-ltr text-red-600">{{ r.stock|floatformat:2 }}{% if r.product.cost_price %} × {{ r.product.cost_price|floatformat:2 }}{% endif %}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+</div>
+{% if print_mode %}<script>window.onload=function(){window.print();};</script>{% endif %}
+{% endblock %}

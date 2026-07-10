@@ -1,0 +1,39 @@
+﻿{% extends 'base.html' %}
+{% load humanize %}
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="max-w-md mx-auto space-y-5">
+    <div class="flex items-center justify-between print:hidden">
+        <h1 class="text-2xl font-black text-gray-800">تقرير X (لقطة الشيفت)</h1>
+        <div class="flex gap-2">
+            <a href="?print=1" class="px-4 py-2 bg-gray-700 text-white rounded-lg font-bold text-sm">طباعة</a>
+            <a href="{% url 'financial:dashboard' %}" class="px-4 py-2 bg-gray-100 rounded-lg font-bold text-sm">رجوع</a>
+        </div>
+    </div>
+
+    <div class="bg-amber-50 border border-amber-200 rounded-lg px-4 py-2 text-sm text-amber-800 print:hidden">
+        لقطة فقط — لا تُغلق الشيفت. لإغلاق الشيفت استخدم «تقفيل الشيفت».
+    </div>
+
+    <div class="bg-white rounded-xl border divide-y">
+        <div class="px-5 py-3 bg-gray-800 text-white font-black flex justify-between">
+            <span>شيفت #{{ shift.id }} — {{ shift.employee.username }}</span>
+            <span class="text-xs font-normal">{{ now|date:"Y-m-d H:i" }}</span>
+        </div>
+        <div class="flex justify-between px-5 py-2"><span class="text-gray-600">رصيد بداية الدرج</span><span class="dir-ltr">{{ start_bal|floatformat:2|intcomma }}</span></div>
+        <div class="flex justify-between px-5 py-2"><span class="text-gray-600">+ مبيعات نقدية</span><span class="dir-ltr text-green-600">{{ cash_sales|floatformat:2|intcomma }}</span></div>
+        <div class="flex justify-between px-5 py-2"><span class="text-gray-600">+ إيداعات / إيرادات</span><span class="dir-ltr text-green-600">{{ cash_in|floatformat:2|intcomma }}</span></div>
+        <div class="flex justify-between px-5 py-2"><span class="text-gray-600">− مرتجعات نقدية</span><span class="dir-ltr text-red-600">{{ refunds|floatformat:2|intcomma }}</span></div>
+        <div class="flex justify-between px-5 py-2"><span class="text-gray-600">− مصروفات</span><span class="dir-ltr text-red-600">{{ expenses|floatformat:2|intcomma }}</span></div>
+        <div class="flex justify-between px-5 py-2"><span class="text-gray-600">− مسحوبات</span><span class="dir-ltr text-red-600">{{ withdrawals|floatformat:2|intcomma }}</span></div>
+        <div class="flex justify-between px-5 py-2"><span class="text-gray-600">− سداد موردين</span><span class="dir-ltr text-red-600">{{ supplier_pay|floatformat:2|intcomma }}</span></div>
+        <div class="flex justify-between px-5 py-4 bg-gray-800 text-white font-black text-lg">
+            <span>في الدرج الآن</span><span class="dir-ltr">{{ expected|floatformat:2|intcomma }}</span>
+        </div>
+    </div>
+    <p class="text-center text-xs text-gray-400">عُدّ النقدية في الدرج وقارنها بهذا الرقم.</p>
+</div>
+
+{% if print_mode %}<script>window.onload=function(){window.print();};</script>{% endif %}
+{% endblock %}

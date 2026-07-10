@@ -1,0 +1,432 @@
+{% extends 'base.html' %}
+{% block title %}{% if table %}ترابيزة {{ table.number }}{% else %}طلب #{{ order.id }} (بدون ترابيزة){% endif %}{% endblock %}
+{% block content %}
+<div class="p-3 md:p-4" x-data="waiterOrder()" x-init="init()">
+    <div id="ready-toasts" class="fixed bottom-4 left-4 z-50 w-72"></div>
+
+    <!-- Header -->
+    <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+        <div class="flex items-center gap-2">
+            <div class="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0">
+                <i class="fa-solid {% if table %}fa-chair{% else %}fa-bag-shopping{% endif %}"></i>
+            </div>
+            <div>
+                <h1 class="text-xl font-black text-gray-900 leading-tight">{% if table %}ترابيزة {{ table.number }}{% else %}طلب تيك أواي #{{ order.id }}{% endif %}</h1>
+                <p class="text-xs text-gray-400" x-show="orderId">طلب #<span x-text="orderId"></span></p>
+            </div>
+        </div>
+        <div class="flex gap-2">
+            <a href="{% url 'restaurant:waiter_tables' %}" class="px-3 py-2 rounded-xl border border-gray-200 text-sm font-bold text-gray-600 hover:bg-gray-50 flex items-center gap-1.5">
+                <i class="fa-solid fa-arrow-right text-xs"></i> رجوع للترابيزات
+            </a>
+            <template x-if="orderId">
+                <a :href="'/restaurant/order/' + orderId + '/ticket/'" target="_blank" class="px-3 py-2 rounded-xl border border-gray-200 text-sm font-bold text-gray-600 hover:bg-gray-50 flex items-center gap-1.5">
+                    <i class="fa-solid fa-print text-xs"></i> تذكرة المطبخ
+                </a>
+            </template>
+            <template x-if="orderId">
+                <button @click="voidCheck()" class="px-3 py-2 rounded-xl bg-red-50 text-red-600 border border-red-100 text-sm font-bold hover:bg-red-100 flex items-center gap-1.5">
+                    <i class="fa-solid fa-ban text-xs"></i> إلغاء الشيك
+                </button>
+            </template>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
+        <!-- Menu -->
+        <div class="lg:col-span-2 bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+            <!-- Search -->
+            <div class="relative mb-3">
+                <i class="fa-solid fa-magnifying-glass absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-300 text-sm"></i>
+                <input type="text" x-model="search" placeholder="بحث عن صنف بالاسم..."
+                       class="w-full pr-10 pl-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:border-emerald-400 focus:ring-0 outline-none">
+            </div>
+            <script type="application/json" id="menu-categories-data">
+                [{% for cat in categories %}{"id": {{ cat.id }}, "items": [{% for p in cat.products.all %}{"n":"{{ p.name|escapejs|lower }}","ok":{% if p.is_active and not p.is_raw_material %}true{% else %}false{% endif %}}{% if not forloop.last %},{% endif %}{% endfor %}]}{% if not forloop.last %},{% endif %}{% endfor %}]
+            </script>
+
+            <!-- Category chips -->
+            <div class="flex items-center gap-2 overflow-x-auto pb-3 mb-2 -mx-1 px-1" style="scrollbar-width:thin">
+                <button @click="activeCategory = 'all'"
+                        :class="activeCategory === 'all' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-gray-600 border-gray-200 hover:border-emerald-300'"
+                        class="shrink-0 px-3.5 py-1.5 rounded-full text-xs font-black border transition-colors whitespace-nowrap">
+                    الكل
+                </button>
+                {% for cat in categories %}
+                <button @click="activeCategory = {{ cat.id }}"
+                        :class="activeCategory === {{ cat.id }} ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-gray-600 border-gray-200 hover:border-emerald-300'"
+                        class="shrink-0 px-3.5 py-1.5 rounded-full text-xs font-black border transition-colors whitespace-nowrap">
+                    {{ cat.name }}
+                </button>
+                {% endfor %}
+            </div>
+
+            <!-- Items -->
+            {% for cat in categories %}
+            <div class="mb-5" x-show="(activeCategory === 'all' || activeCategory === {{ cat.id }}) && categoryHasMatch({{ cat.id }})">
+                <h3 class="text-xs font-black text-gray-400 uppercase tracking-wide mb-2 flex items-center gap-2">
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> {{ cat.name }}
+                </h3>
+                <div class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-2.5">
+                    {% for p in cat.products.all %}
+                    {% if p.is_active and not p.is_raw_material %}
+                    <button @click="addItem({{ p.id }}, '{{ p.name|escapejs }}', {{ p.price_retail }})"
+                            x-show="!search || '{{ p.name|escapejs|lower }}'.includes(search.toLowerCase())"
+                            class="relative border border-gray-100 bg-gray-50/60 rounded-2xl p-3 text-right hover:border-emerald-300 hover:bg-emerald-50/60 hover:shadow-sm active:scale-[0.97] transition-all group">
+                        <div class="flex items-center gap-1 flex-wrap mb-2 min-h-[16px]">
+                            <span x-show="variantMap[{{ p.id }}]" class="text-[9px] font-black bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded-md">أحجام</span>
+                            <span x-show="!variantMap[{{ p.id }}] && modifierMap[{{ p.id }}]" class="text-[9px] font-black bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-md">إضافات</span>
+                        </div>
+                        <div class="font-black text-gray-800 text-sm leading-snug mb-1.5">{{ p.name }}</div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-emerald-700 font-black text-sm" x-show="!variantMap[{{ p.id }}]">{{ p.price_retail }} <span class="text-[10px] font-bold text-emerald-500">ج.م</span></span>
+                            <span class="text-emerald-700 font-black text-sm" x-show="variantMap[{{ p.id }}]">من <span x-text="variantMap[{{ p.id }}] ? Math.min(...variantMap[{{ p.id }}].map(v=>v.price)) : ''"></span> <span class="text-[10px] font-bold text-emerald-500">ج.م</span></span>
+                            <span class="w-6 h-6 rounded-lg bg-white border border-gray-200 group-hover:bg-emerald-600 group-hover:border-emerald-600 group-hover:text-white text-gray-400 flex items-center justify-center transition-colors">
+                                <i class="fa-solid fa-plus text-[10px]"></i>
+                            </span>
+                        </div>
+                    </button>
+                    {% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+            {% endfor %}
+
+            <div class="text-center py-14 text-gray-400 text-sm" x-show="!menuHasAnyMatch()">
+                <i class="fa-solid fa-mug-hot text-3xl mb-2 opacity-30"></i>
+                <p>لا توجد أصناف مطابقة للبحث</p>
+            </div>
+        </div>
+
+        <!-- Cart -->
+        <div class="bg-white rounded-2xl border border-gray-100 shadow-sm flex flex-col lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)]">
+            <div class="p-4 border-b border-gray-100 flex items-center justify-between">
+                <h2 class="font-black text-gray-900 flex items-center gap-2"><i class="fa-solid fa-receipt text-gray-400 text-sm"></i> الشيك الحالي</h2>
+                <span class="text-[10px] font-black text-gray-400" x-show="order">
+                    <span x-text="(order ? order.items.filter(i=>!i.is_void).length : 0)"></span> صنف مرسل
+                </span>
+            </div>
+
+            <div class="flex-1 overflow-y-auto p-4 space-y-4">
+                <!-- Sent items -->
+                <template x-if="order && order.items.length">
+                    <div class="space-y-2">
+                        <template x-for="it in order.items" :key="it.id">
+                            <div class="border border-gray-100 rounded-xl p-2.5" :class="it.is_void ? 'opacity-40 line-through bg-gray-50' : 'bg-white'">
+                                <div class="flex items-center justify-between gap-2">
+                                    <span class="text-sm font-bold text-gray-800" x-text="it.product_name + (it.variant_label ? ' (' + it.variant_label + ')' : '') + ' ×' + it.quantity"></span>
+                                    <div class="flex items-center gap-2 shrink-0">
+                                        <span class="text-sm font-black text-gray-700" x-text="it.subtotal.toFixed(2)"></span>
+                                        <button x-show="!it.is_void" @click="voidItem(it.id)" class="w-6 h-6 rounded-lg bg-red-50 text-red-500 hover:bg-red-100 flex items-center justify-center">
+                                            <i class="fa-solid fa-xmark text-[10px]"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-1 flex-wrap mt-1.5" x-show="it.modifiers && it.modifiers.length">
+                                    <template x-for="m in it.modifiers" :key="m.option">
+                                        <span class="bg-indigo-50 text-indigo-700 text-[10px] font-bold px-1.5 py-0.5 rounded-md border border-indigo-100" x-text="m.option"></span>
+                                    </template>
+                                </div>
+                                <div x-show="it.note" class="text-[11px] text-amber-700 mt-1 flex items-center gap-1"><i class="fa-solid fa-note-sticky text-[10px]"></i> <span x-text="it.note"></span></div>
+                            </div>
+                        </template>
+                    </div>
+                </template>
+                <template x-if="!order || !order.items.length">
+                    <div class="text-center py-8 text-gray-300">
+                        <i class="fa-solid fa-basket-shopping text-3xl mb-2"></i>
+                        <p class="text-xs text-gray-400">لا يوجد أصناف بعد — اضغط على صنف لإضافته</p>
+                    </div>
+                </template>
+
+                <!-- Pending (not yet sent) items -->
+                <div x-show="pendingCart.length">
+                    <h3 class="text-[10px] font-black text-amber-600 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                        <span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span> أصناف جديدة (لم تُرسل بعد)
+                    </h3>
+                    <div class="space-y-2">
+                        <template x-for="(pc, idx) in pendingCart" :key="idx">
+                            <div class="border border-amber-200 bg-amber-50/60 rounded-xl p-2.5">
+                                <div class="flex items-center justify-between gap-2">
+                                    <span class="text-sm font-bold text-gray-800" x-text="pc.name + (pc.variant_label ? ' (' + pc.variant_label + ')' : '') + ' ×' + pc.quantity"></span>
+                                    <div class="flex items-center gap-2 shrink-0">
+                                        <span class="text-sm font-black text-gray-700" x-text="(pc.price * pc.quantity).toFixed(2)"></span>
+                                        <button @click="pendingCart.splice(idx, 1)" class="w-6 h-6 rounded-lg bg-red-50 text-red-500 hover:bg-red-100 flex items-center justify-center">
+                                            <i class="fa-solid fa-xmark text-[10px]"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-1 flex-wrap mt-1.5" x-show="pc.modifiers && pc.modifiers.length">
+                                    <template x-for="m in pc.modifiers" :key="m.option">
+                                        <span class="bg-indigo-50 text-indigo-700 text-[10px] font-bold px-1.5 py-0.5 rounded-md border border-indigo-100" x-text="m.option"></span>
+                                    </template>
+                                </div>
+                                <input type="text" x-model="pc.note" placeholder="ملاحظة (مثال: بدون سكر، سخن زيادة)"
+                                       class="w-full text-xs border border-amber-200 bg-white rounded-lg px-2 py-1.5 mt-1.5 outline-none focus:border-amber-400">
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Totals + actions (sticky bottom section) -->
+            <div class="border-t border-gray-100 p-4 space-y-3">
+                <template x-if="order">
+                    <div class="text-xs text-gray-500 space-y-1">
+                        <div class="flex justify-between"><span>المجموع الفرعي</span><span x-text="order.subtotal_amount.toFixed(2)"></span></div>
+                        <div class="flex justify-between" x-show="order.service_charge > 0"><span>الخدمة</span><span x-text="order.service_charge.toFixed(2)"></span></div>
+                        <div class="flex justify-between" x-show="order.vat_amount > 0"><span>ضريبة القيمة المضافة (شاملة)</span><span x-text="order.vat_amount.toFixed(2)"></span></div>
+                    </div>
+                </template>
+                <div class="flex justify-between items-center font-black text-lg text-gray-900 border-t border-gray-100 pt-2">
+                    <span>الإجمالي</span>
+                    <span x-text="(order ? order.total_amount : 0).toFixed(2) + ' ج.م'"></span>
+                </div>
+
+                <button x-show="pendingCart.length" @click="sendToKitchen()" class="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black flex items-center justify-center gap-2 transition-colors">
+                    <i class="fa-solid fa-kitchen-set"></i> إرسال للمطبخ
+                </button>
+
+                <template x-if="order">
+                    <div class="grid grid-cols-3 gap-2">
+                        <button @click="closeCheck('cash')" class="py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-black transition-colors">كاش</button>
+                        <button @click="closeCheck('visa')" class="py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black transition-colors">فيزا</button>
+                        <button @click="closeCheck('cl')" class="py-2.5 rounded-xl bg-gray-600 hover:bg-gray-700 text-white text-xs font-black transition-colors">آجل (CL)</button>
+                    </div>
+                </template>
+            </div>
+        </div>
+    </div>
+
+    <!-- Size picker modal — must be chosen BEFORE the item can be added to the cart -->
+    <div x-show="sizePicker.open" x-cloak class="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" @click.self="sizePicker.open=false">
+        <div class="bg-white rounded-2xl p-4 w-full max-w-sm max-h-[80vh] overflow-y-auto shadow-2xl">
+            <h3 class="font-black text-gray-900 mb-3 flex items-center gap-2"><i class="fa-solid fa-ruler text-indigo-500"></i> <span x-text="'اختر المقاس — ' + sizePicker.name"></span></h3>
+            <div class="space-y-2">
+                <template x-for="v in sizePicker.variants" :key="v.id">
+                    <button @click="selectSize(v)" class="w-full flex items-center justify-between border border-gray-200 rounded-xl p-3 text-sm hover:border-emerald-400 hover:bg-emerald-50 transition-colors">
+                        <b x-text="v.label"></b>
+                        <span class="text-emerald-700 font-black" x-text="v.price.toFixed(2) + ' ج.م'"></span>
+                    </button>
+                </template>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modifier picker modal -->
+    <div x-show="picker.open" x-cloak class="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" @click.self="picker.open=false">
+        <div class="bg-white rounded-2xl p-4 w-full max-w-sm max-h-[80vh] overflow-y-auto shadow-2xl">
+            <h3 class="font-black text-gray-900 mb-3 flex items-center gap-2"><i class="fa-solid fa-plus-circle text-amber-500"></i> <span x-text="picker.name"></span></h3>
+            <template x-for="g in picker.groups" :key="g.group">
+                <div class="mb-4">
+                    <div class="text-xs font-bold text-gray-500 mb-1.5 flex items-center gap-1.5">
+                        <span x-text="g.group"></span>
+                        <span x-show="g.is_required" class="text-[9px] bg-red-50 text-red-600 px-1.5 py-0.5 rounded-md font-black">إجباري</span>
+                        <span x-show="(g.max_select || 1) > 1" class="text-[9px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-md font-black" x-text="'حتى ' + g.max_select"></span>
+                    </div>
+                    <div class="space-y-1">
+                        <template x-for="opt in g.options" :key="opt.id">
+                            <label class="flex items-center justify-between text-sm py-2 px-2.5 rounded-xl cursor-pointer border border-gray-100 hover:bg-gray-50"
+                                   :class="picker.selected.some(m => m.group === g.group && m.option === opt.name) ? 'border-emerald-300 bg-emerald-50/60' : ''">
+                                <span class="flex items-center gap-2">
+                                    <input :type="(g.max_select || 1) <= 1 ? 'radio' : 'checkbox'" :name="'modgrp-' + g.group" :value="opt.id"
+                                           :checked="picker.selected.some(m => m.group === g.group && m.option === opt.name)"
+                                           @click="handleModifierClick(g, opt, $event)">
+                                    <span x-text="opt.name"></span>
+                                </span>
+                                <span class="text-gray-400 text-xs font-bold" x-text="opt.price_delta ? ('+' + opt.price_delta) : ''"></span>
+                            </label>
+                        </template>
+                    </div>
+                </div>
+            </template>
+            <p x-show="picker.error" x-text="picker.error" class="text-red-600 text-xs mb-2 font-bold"></p>
+            <button @click="confirmModifiers()" class="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black mt-1 transition-colors">
+                إضافة للسلة
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+function waiterOrder() {
+    return {
+        orderId: {{ order.id|default:"null" }},
+        addItemsUrl: {% if table %}"{% url 'restaurant:waiter_add_items' table.id %}"{% else %}"{% url 'restaurant:waiter_add_items_no_table' order.id %}"{% endif %},
+        order: {{ order_json|default:"null"|safe }},
+        modifierMap: {{ modifier_map_json|default:"{}"|safe }},
+        variantMap: {{ variant_map_json|default:"{}"|safe }},
+        branchId: {{ branch.id|default:"null" }},
+        pendingCart: [],
+        search: '',
+        activeCategory: 'all',
+        categoriesData: [],
+        picker: {open: false, productId: null, name: '', groups: [], selected: [], variantId: null, variantLabel: '', error: ''},
+        sizePicker: {open: false, productId: null, name: '', variants: []},
+        init() {
+            const dataEl = document.getElementById('menu-categories-data');
+            if (dataEl) { try { this.categoriesData = JSON.parse(dataEl.textContent); } catch (e) { this.categoriesData = []; } }
+            if (!this.branchId) return;
+            const ws = new WebSocket((location.protocol==='https:'?'wss://':'ws://') + location.host + '/ws/waiter/' + this.branchId + '/');
+            ws.onmessage = (e) => {
+                const data = JSON.parse(e.data);
+                if (data.event === 'order_ready') {
+                    const sound = document.getElementById('notification-sound');
+                    if (sound) { try { sound.currentTime = 0; sound.play(); } catch (err) {} }
+                    const box = document.getElementById('ready-toasts');
+                    if (!box) return;
+                    const div = document.createElement('div');
+                    div.className = 'bg-emerald-600 text-white px-4 py-3 rounded-lg shadow-lg mb-2';
+                    div.textContent = 'طلب #' + data.order_id + (data.table ? ' - ترابيزة ' + data.table : '') + ' جاهز للاستلام';
+                    box.appendChild(div);
+                    setTimeout(() => div.remove(), 8000);
+                }
+            };
+        },
+        // Whether a category has at least one active, sellable product name matching the
+        // current search — used to hide whole category sections instead of leaving an
+        // empty heading behind when the search text rules out everything in it.
+        categoryHasMatch(catId) {
+            const cat = this.categoriesData.find(c => c.id === catId);
+            if (!cat) return false;
+            const sellable = cat.items.filter(i => i.ok);
+            if (!this.search) return sellable.length > 0;
+            const q = this.search.toLowerCase();
+            return sellable.some(i => i.n.includes(q));
+        },
+        // Drives the page-wide "no items match" empty state — true only when every
+        // category currently in scope (respecting the active category chip) has nothing
+        // matching the search text.
+        menuHasAnyMatch() {
+            const inScope = this.activeCategory === 'all'
+                ? this.categoriesData
+                : this.categoriesData.filter(c => c.id === this.activeCategory);
+            return inScope.some(c => this.categoryHasMatch(c.id));
+        },
+        addItem(id, name, price) {
+            // Sizes must be chosen BEFORE anything else — same "اختر المقاس" rule as POS.
+            const variants = this.variantMap[id];
+            if (variants && variants.length) {
+                this.sizePicker = {open: true, productId: id, name: name, variants: variants};
+                return;
+            }
+            const groups = this.modifierMap[id];
+            if (groups && groups.length) {
+                this.picker = {open: true, productId: id, name: name, price: price, groups: groups, selected: [], variantId: null, variantLabel: '', error: ''};
+                return;
+            }
+            this.pendingCart.push({product_id: id, name: name, price: price, quantity: 1, modifiers: [], note: '', variant_id: null, variant_label: ''});
+        },
+        selectSize(variant) {
+            this.sizePicker.open = false;
+            const id = this.sizePicker.productId;
+            const name = this.sizePicker.name;
+            const groups = this.modifierMap[id];
+            if (groups && groups.length) {
+                this.picker = {open: true, productId: id, name: name, price: variant.price, groups: groups, selected: [], variantId: variant.id, variantLabel: variant.label, error: ''};
+                return;
+            }
+            this.pendingCart.push({product_id: id, name: name, price: variant.price, quantity: 1, modifiers: [], note: '', variant_id: variant.id, variant_label: variant.label});
+        },
+        handleModifierClick(group, opt, event) {
+            const max = group.max_select || 1;
+            const alreadySelected = this.picker.selected.some(m => m.group === group.group && m.option === opt.name);
+            if (max <= 1) {
+                // Single-choice group rendered as a radio — clicking the already-selected
+                // option again clears it (a plain radio can't be unchecked by itself).
+                event.target.checked = false;
+                this.picker.selected = this.picker.selected.filter(m => m.group !== group.group);
+                if (!alreadySelected) {
+                    this.picker.selected.push({group: group.group, option: opt.name, price_delta: opt.price_delta, show_on_receipt: group.show_on_receipt !== false});
+                }
+                return;
+            }
+            const checked = event.target.checked;
+            if (checked && this.picker.selected.filter(m => m.group === group.group).length >= max) {
+                event.target.checked = false;
+                this.picker.error = `أقصى عدد اختيارات لـ "${group.group}" هو ${max}`;
+                return;
+            }
+            this.picker.selected = this.picker.selected.filter(m => !(m.group === group.group && m.option === opt.name));
+            if (checked) {
+                this.picker.error = '';
+                this.picker.selected.push({group: group.group, option: opt.name, price_delta: opt.price_delta, show_on_receipt: group.show_on_receipt !== false});
+            }
+        },
+        confirmModifiers() {
+            // Only groups marked "إجباري" block adding the item — an unchecked group is
+            // purely optional, so confirming with nothing picked in it must go through.
+            const missing = this.picker.groups.find(g => g.is_required &&
+                this.picker.selected.filter(m => m.group === g.group).length === 0);
+            if (missing) {
+                this.picker.error = `"${missing.group}" إجباري — اختر واحد على الأقل`;
+                return;
+            }
+            this.picker.error = '';
+            const extra = this.picker.selected.reduce((s, m) => s + (m.price_delta || 0), 0);
+            this.pendingCart.push({
+                product_id: this.picker.productId, name: this.picker.name,
+                price: this.picker.price + extra, quantity: 1, modifiers: this.picker.selected, note: '',
+                variant_id: this.picker.variantId, variant_label: this.picker.variantLabel,
+            });
+            this.picker.open = false;
+        },
+        sendToKitchen() {
+            fetch(this.addItemsUrl, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken')},
+                body: JSON.stringify({items: this.pendingCart.map(p => ({product_id: p.product_id, quantity: p.quantity, modifiers: p.modifiers || [], note: p.note || '', variant_id: p.variant_id || null}))}),
+            }).then(r => r.json()).then(data => {
+                if (data.status === 'ok') { location.reload(); }
+                else { alert(data.message || 'حدث خطأ'); }
+            });
+        },
+        voidItem(itemId) {
+            if (!confirm('تأكيد إلغاء هذا الصنف؟')) return;
+            fetch(`/restaurant/order-item/${itemId}/void/`, {
+                method: 'POST', headers: {'X-CSRFToken': getCookie('csrftoken')},
+            }).then(r => r.json()).then(data => {
+                if (data.status === 'ok') location.reload();
+                else alert(data.message || 'حدث خطأ');
+            });
+        },
+        voidCheck() {
+            if (!confirm('تأكيد إلغاء الشيك بالكامل؟')) return;
+            fetch(`/restaurant/order/${this.orderId}/void/`, {
+                method: 'POST', headers: {'X-CSRFToken': getCookie('csrftoken')},
+            }).then(r => r.json()).then(data => {
+                if (data.status === 'ok') window.location.href = "{% url 'restaurant:waiter_tables' %}";
+            });
+        },
+        closeCheck(type) {
+            if (!confirm('تأكيد قفل الشيك؟')) return;
+            const body = new URLSearchParams({close_type: type});
+            fetch(`/restaurant/order/${this.orderId}/close/`, {
+                method: 'POST', headers: {'X-CSRFToken': getCookie('csrftoken'), 'Content-Type': 'application/x-www-form-urlencoded'},
+                body: body,
+            }).then(r => r.json()).then(data => {
+                if (data.status === 'ok') {
+                    // Same receipt the cashier POS opens right after "دفع وطباعة" — a new
+                    // tab with the printable invoice, ready for the waiter to print.
+                    window.open(`/sales/invoice/${this.orderId}/?style=thermal`, '_blank');
+                    window.location.href = "{% url 'restaurant:waiter_tables' %}";
+                } else {
+                    alert(data.message || 'حدث خطأ');
+                }
+            });
+        },
+    }
+}
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let c of cookies) {
+            c = c.trim();
+            if (c.startsWith(name + '=')) { cookieValue = decodeURIComponent(c.slice(name.length + 1)); break; }
+        }
+    }
+    return cookieValue;
+}
+</script>
+{% endblock %}

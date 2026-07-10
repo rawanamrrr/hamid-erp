@@ -1,0 +1,241 @@
+{% load humanize %}
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>تقرير منتج - {{ product.name }}</title>
+    <style>
+        /* Base Resets */
+        body { margin: 0; padding: 0; background: #fff; color: #000; font-family: 'Arial', sans-serif; direction: rtl; text-align: right; }
+        .no-print { text-align: center; margin: 20px 0; padding-bottom: 20px; border-bottom: 1px solid #ddd; }
+        .no-print button { cursor: pointer; padding: 10px 20px; font-size: 16px; font-weight: bold; margin: 0 5px; border-radius: 6px; border: 1px solid #ccc; }
+        .no-print .btn-print { background: #059669; color: #fff; border: none; }
+        .no-print .btn-close { background: #f3f4f6; color: #333; }
+        @media print { .no-print { display: none !important; } }
+
+        /* A4 Layout */
+        @page { size: A4; margin: 12mm; }
+        body { font-size: 13px; max-width: 210mm; margin: 0 auto; }
+
+        /* Header */
+        .report-header {
+            display: flex; justify-content: space-between; align-items: flex-start;
+            padding-bottom: 15px; border-bottom: 2px solid #111; margin-bottom: 20px;
+        }
+        .company-name { font-size: 22px; margin: 0 0 5px 0; font-weight: bold; }
+        .print-logo { max-height: 60px; max-width: 200px; display: block; margin-bottom: 5px; }
+        .report-title {
+            font-size: 16px; font-weight: bold; border: 1px solid #333;
+            padding: 5px 15px; border-radius: 4px; display: inline-block; margin-bottom: 8px;
+        }
+        .report-date { font-size: 12px; color: #555; }
+        .text-center { text-align: center; }
+
+        /* Sections */
+        .section { page-break-inside: avoid; margin-bottom: 20px; }
+        .section-title {
+            font-size: 14px; font-weight: bold; border-bottom: 2px solid #333;
+            padding-bottom: 4px; margin-bottom: 12px;
+        }
+
+        /* Grid */
+        .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 30px; }
+        .info-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px 20px; }
+        .info-item { display: flex; align-items: center; padding: 6px 0; }
+        .info-item .label { font-weight: bold; color: #555; width: 120px; flex-shrink: 0; }
+        .info-item .value { font-weight: bold; color: #111; }
+
+        /* Pricing Card */
+        .price-grid { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 8px; margin-top: 8px; }
+        .price-box {
+            background: #f9f9f9; border: 1px solid #e0e0e0; padding: 10px;
+            border-radius: 6px; text-align: center;
+        }
+        .price-box .price-label { font-size: 11px; color: #777; margin-bottom: 4px; }
+        .price-box .price-value { font-size: 18px; font-weight: bold; color: #111; }
+        .price-box.highlight { background: #ecfdf5; border-color: #6ee7b7; }
+        .price-box.highlight .price-value { color: #047857; }
+
+        /* Stock Table */
+        .stock-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-top: 8px; }
+        .stock-box {
+            background: #f9f9f9; border: 1px solid #e5e5e5; padding: 8px 12px;
+            border-radius: 4px; display: flex; justify-content: space-between; align-items: center;
+        }
+        .stock-box .wh-name { color: #555; }
+        .stock-box .wh-qty { font-weight: bold; font-size: 15px; }
+
+        /* Tables */
+        table.report-table { width: 100%; border-collapse: collapse; margin-top: 5px; }
+        .report-table th, .report-table td { border: 1px solid #ccc; padding: 7px 10px; text-align: right; }
+        .report-table th { background: #f5f5f5; font-weight: bold; font-size: 12px; }
+        .report-table td { font-size: 12px; }
+        .report-table tfoot td { background: #f0f0f0; font-weight: bold; }
+
+        /* Total Row */
+        .total-big {
+            background: #ecfdf5; border: 1px solid #6ee7b7; padding: 12px 16px;
+            border-radius: 6px; display: flex; justify-content: space-between;
+            align-items: center; margin-top: 10px; font-size: 14px; font-weight: bold;
+        }
+
+        /* Footer */
+        .report-footer {
+            text-align: center; margin-top: 30px; font-weight: bold; color: #555; position: relative;
+        }
+        .report-footer span {
+            background: #fff; padding: 0 15px; position: relative; z-index: 1;
+        }
+        .report-footer::before {
+            content: ''; position: absolute; top: 50%; left: 0; right: 0;
+            height: 1px; background: #ddd; z-index: 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="no-print">
+        <button class="btn-close" onclick="window.close(); setTimeout(function(){ if (window.history.length > 1) window.history.back(); }, 50)">إغلاق</button>
+        <button class="btn-print" onclick="window.print()">🖨️ طباعة التقرير</button>
+    </div>
+
+    <!-- ===== HEADER ===== -->
+    <div class="report-header">
+        <div>
+            {% if sys_settings.logo_base64 %}
+                <img src="{{ sys_settings.logo_base64 }}" alt="logo" class="print-logo">
+            {% else %}
+                <div class="company-name">{{ sys_settings.shop_name }}</div>
+            {% endif %}
+            <div style="font-size:12px; color:#777;">{{ sys_settings.address }}</div>
+            <div style="font-size:12px; color:#777;">{{ sys_settings.phone }}</div>
+        </div>
+        <div class="text-center">
+            <div class="report-title">📦 تقرير تفاصيل منتج</div><br>
+            <div class="report-date">تاريخ التقرير: {{ print_date|date:"d/m/Y H:i" }}</div>
+        </div>
+    </div>
+
+    <!-- ===== PRODUCT INFO ===== -->
+    <div class="section">
+        <div class="section-title">📋 بيانات المنتج</div>
+        <div class="info-grid">
+            <div class="info-item"><span class="label">اسم المنتج:</span> <span class="value">{{ product.name }}</span></div>
+            <div class="info-item"><span class="label">كود المنتج (SKU):</span> <span class="value" style="font-family:monospace;">{{ product.sku }}</span></div>
+            <div class="info-item"><span class="label">القسم:</span> <span>{{ product.category.name|default:"—" }}</span></div>
+            <div class="info-item"><span class="label">المورد:</span> <span>{{ product.supplier.name|default:"—" }}</span></div>
+            <div class="info-item"><span class="label">وحدة القياس:</span> <span>{{ product.get_unit_measure_display }}</span></div>
+            <div class="info-item">
+                <span class="label">الحالة:</span>
+                <span>{% if product.is_active %}✅ نشط ومتاح للبيع{% else %}❌ غير نشط{% endif %}</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== FABRIC SPECS ===== -->
+    {% if product.material or product.pattern or product.color %}
+    <div class="section">
+        <div class="section-title">🧵 مواصفات القماش</div>
+        <div class="info-grid-3">
+            <div class="info-item"><span class="label">الخامة:</span> <span>{{ product.material|default:"—" }}</span></div>
+            <div class="info-item"><span class="label">النقشة:</span> <span>{{ product.pattern|default:"—" }}</span></div>
+            <div class="info-item"><span class="label">اللون:</span> <span>{{ product.color|default:"—" }}</span></div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- ===== PRICING ===== -->
+    <div class="section">
+        <div class="section-title">💰 قائمة الأسعار</div>
+        <div class="price-grid">
+            <div class="price-box">
+                <div class="price-label">سعر التكلفة</div>
+                <div class="price-value">{{ product.cost_price|floatformat:2 }}</div>
+            </div>
+            <div class="price-box highlight">
+                <div class="price-label">سعر الجملة</div>
+                <div class="price-value">{{ product.price_wholesale|floatformat:2 }}</div>
+            </div>
+            <div class="price-box">
+                <div class="price-label">نص جملة</div>
+                <div class="price-value">{{ product.price_semi_wholesale|floatformat:2 }}</div>
+            </div>
+            <div class="price-box">
+                <div class="price-label">سعر قطاعي</div>
+                <div class="price-value">{{ product.price_retail|floatformat:2 }}</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== INVENTORY ===== -->
+    <div class="section">
+        <div class="section-title">📦 أرصدة المخزون</div>
+        <div class="total-big">
+            <span>إجمالي المخزون الكلي:</span>
+            <span>{{ product.stock_quantity|floatformat:"-2" }} {{ product.get_unit_measure_display }}</span>
+        </div>
+        {% if stocks %}
+        <div class="stock-grid">
+            {% for stock in stocks %}
+            <div class="stock-box">
+                <span class="wh-name">🏭 {{ stock.warehouse.name }}</span>
+                <span class="wh-qty">{{ stock.quantity|floatformat:"-2" }}</span>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- ===== SALES HISTORY ===== -->
+    <div class="section">
+        <div class="section-title">📊 سجل المبيعات (آخر {{ sale_items|length }} عملية)</div>
+        {% if sale_items %}
+        <table class="report-table">
+            <thead>
+                <tr>
+                    <th>رقم الفاتورة</th>
+                    <th>التاريخ</th>
+                    <th>العميل</th>
+                    <th>الكمية</th>
+                    <th>سعر الوحدة</th>
+                    <th>الإجمالي</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in sale_items %}
+                <tr>
+                    <td style="font-family:monospace;">#{{ item.order.id }}</td>
+                    <td>{{ item.order.created_at|date:"d/m/Y" }}</td>
+                    <td>
+                        {% if item.order.customer %}
+                            {{ item.order.customer.first_name }} {{ item.order.customer.last_name }}
+                        {% else %}
+                            عميل نقدي
+                        {% endif %}
+                    </td>
+                    <td>{{ item.quantity|floatformat:"-2" }} {{ product.get_unit_measure_display }}</td>
+                    <td>{{ item.price|floatformat:2 }}</td>
+                    <td style="font-weight:bold;">{{ item.subtotal|floatformat:2 }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+            <tfoot>
+                <tr>
+                    <td colspan="3" style="text-align:right; font-weight:bold;">الإجمالي</td>
+                    <td style="font-weight:bold;">{{ total_sold_qty|floatformat:"-2" }}</td>
+                    <td></td>
+                    <td style="font-weight:bold; font-size:14px;">{{ total_sold_revenue|floatformat:2 }}</td>
+                </tr>
+            </tfoot>
+        </table>
+        {% else %}
+        <div style="text-align:center; padding:20px; color:#999;">لا توجد مبيعات مسجلة لهذا المنتج</div>
+        {% endif %}
+    </div>
+
+    <!-- ===== FOOTER ===== -->
+    <div class="report-footer">
+        <span>--- نهاية التقرير ---</span>
+    </div>
+
+</body>
+</html>

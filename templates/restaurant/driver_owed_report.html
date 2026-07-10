@@ -1,0 +1,27 @@
+{% extends 'base.html' %}
+{% block title %}ريبورت مديونية الطيارين{% endblock %}
+{% block content %}
+<div class="p-4">
+    <h1 class="text-2xl font-bold mb-4">فلوس الطيارين آخر اليوم{% if branch %} — {{ branch.name }}{% endif %}</h1>
+    <table class="w-full bg-white rounded-xl border overflow-hidden">
+        <thead class="bg-gray-50 text-sm text-gray-600">
+            <tr>
+                <th class="p-3 text-right">الطيار</th>
+                <th class="p-3 text-right">الهاتف</th>
+                <th class="p-3 text-right">معاه (غير مُسلَّم)</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for r in rows %}
+            <tr class="border-t text-sm">
+                <td class="p-3">{{ r.driver.name }}</td>
+                <td class="p-3">{{ r.driver.phone }}</td>
+                <td class="p-3 font-bold {% if r.owed > 0 %}text-red-600{% endif %}">{{ r.owed }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="3" class="p-4 text-center text-gray-500">لا يوجد طيارين.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

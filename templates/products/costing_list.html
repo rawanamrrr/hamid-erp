@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block title %}سجل التكاليف{% endblock %}
+
+{% block content %}
+<!-- Password Gate Overlay -->
+<div id="password-gate" class="fixed inset-0 bg-slate-900/95 backdrop-blur-md z-[99999] flex items-center justify-center p-4 hidden">
+    <div class="bg-white p-10 rounded-[2.5rem] shadow-2xl w-full max-w-md text-center">
+        <div class="w-16 h-16 bg-teal-50 text-teal-600 rounded-2xl flex items-center justify-center mx-auto mb-6"><i class="fas fa-lock text-2xl"></i></div>
+        <h2 class="text-2xl font-black text-slate-800 mb-2">وصول محمي</h2>
+        <p class="text-slate-400 mb-8 text-sm">يرجى إدخال كلمة المرور للمتابعة</p>
+        <input type="password" id="gate-pass" class="w-full px-6 py-4 rounded-2xl border-2 border-slate-100 text-center mb-6 focus:border-teal-500 outline-none" placeholder="••••••••">
+        <button onclick="submitGate()" class="w-full bg-teal-600 text-white py-4 rounded-2xl font-black hover:bg-teal-700 transition-all">دخول</button>
+        <p id="gate-error" class="text-red-500 mt-4 text-xs hidden">كلمة المرور غير صحيحة</p>
+    </div>
+</div>
+
+<div id="main-ui" class="opacity-0 pointer-events-none transition-all duration-700">
+    <div class="flex flex-col md:flex-row justify-between items-center mb-10 gap-6">
+        <div>
+            <h1 class="text-3xl font-black text-slate-800 flex items-center gap-4">
+                <i class="fas fa-history text-teal-600"></i> سجل الحسابات السابقة
+            </h1>
+            <p class="text-slate-400 font-bold mt-2">تتبع تطور تكاليف منتجاتك</p>
+        </div>
+        <div class="w-full md:w-auto">
+            <form method="GET" class="relative group">
+                <input type="text" name="q" value="{{ query }}" placeholder="بحث في السجل..." class="w-full md:w-80 bg-white border border-slate-100 px-6 py-4 rounded-2xl font-bold focus:ring-2 focus:ring-teal-500 transition-all shadow-sm">
+                <button type="submit" class="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-hover:text-teal-600 transition-all">
+                    <i class="fas fa-magnifying-glass"></i>
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-[2.5rem] shadow-xl shadow-slate-100 overflow-hidden border border-slate-50">
+        <div class="overflow-x-auto">
+            <table class="w-full text-right">
+                <thead class="bg-slate-50 text-slate-400 text-[10px] font-black uppercase tracking-widest">
+                    <tr>
+                        <th class="px-10 py-6">التاريخ</th>
+                        <th class="px-10 py-6">اسم الحسبة / المنتج</th>
+                        <th class="px-10 py-6">النوع</th>
+                        <th class="px-10 py-6">إجمالي التكلفة</th>
+                        <th class="px-10 py-6">سعر البيع</th>
+                        <th class="px-10 py-6 text-center">إجراءات</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-50">
+                    {% for costing in costings %}
+                    <tr class="hover:bg-teal-50/30 transition-all">
+                        <td class="px-10 py-6 font-bold text-slate-400 text-xs">{{ costing.created_at|date:"Y-m-d H:i" }}</td>
+                        <td class="px-10 py-6 whitespace-nowrap">
+                            <div class="font-black text-slate-800">{{ costing.name }}</div>
+                            {% if costing.product %}
+                            <div class="text-[10px] text-teal-600 font-bold">مرتبط بمنتج: {{ costing.product.sku }}</div>
+                            {% endif %}
+                        </td>
+                        <td class="px-10 py-6">
+                            {% if costing.mode == 'RETAIL' %}
+                            <span class="px-3 py-1 bg-blue-50 text-blue-600 rounded-lg text-[10px] font-black">شراء</span>
+                            {% else %}
+                            <span class="px-3 py-1 bg-purple-50 text-purple-600 rounded-lg text-[10px] font-black">تصنيع</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-10 py-6 font-black text-slate-800">{{ costing.total_cost }} ج.م</td>
+                        <td class="px-10 py-6 font-black text-emerald-600">{{ costing.selling_price }} ج.م</td>
+                        <td class="px-10 py-6 text-center">
+                            <div class="flex items-center justify-center gap-3">
+                                <button onclick="window.open('{% url 'costing_print' costing.pk %}', 'PrintTarget', 'width=900,height=700')" class="w-10 h-10 bg-white text-slate-400 rounded-xl hover:text-teal-600 hover:bg-teal-50 transition-all shadow-sm border border-slate-100">
+                                    <i class="fas fa-print"></i>
+                                </button>
+                                <a href="{% url 'costing_view' %}" class="w-10 h-10 bg-white text-blue-400 rounded-xl hover:text-blue-600 hover:bg-blue-50 transition-all shadow-sm border border-slate-100 flex items-center justify-center">
+                                    <i class="fas fa-calculator"></i>
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="px-10 py-20 text-center">
+                            <div class="w-20 h-20 bg-slate-50 text-slate-200 rounded-full flex items-center justify-center mx-auto mb-6 text-3xl"><i class="fas fa-folder-open"></i></div>
+                            <p class="text-slate-400 font-bold">لا توجد حسابات مسجلة حالياً</p>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+{% include "products/include_costing_security.html" %}
+
+<script>
+    async function submitGate() {
+        if (await authenticateCosting(document.getElementById('gate-pass').value)) {
+            enforceCostingSecurity();
+        } else {
+            document.getElementById('gate-error').classList.remove('hidden');
+        }
+    }
+</script>
+{% endblock %}

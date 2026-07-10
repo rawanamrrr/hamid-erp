@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>إيصال #{{ order.id }}</title>
+    <!-- Tailwind CSS -->
+    <script src="/static/vendor/js/tailwind.js"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;700&family=Inconsolata:wght@700&display=swap');
+
+        body {
+            font-family: 'IBM Plex Sans Arabic', sans-serif;
+            background-color: #525252;
+            margin: 0;
+            padding: 20px 0;
+        }
+
+        /* --- SHEET SIZES --- */
+
+        /* 1. Thermal (80mm) - Keep EXACTLY as is */
+        .sheet-thermal {
+            width: 80mm;
+            padding: 4mm;
+            font-size: 12px;
+            background: #fff;
+            margin: 0 auto;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+            color: #000;
+            line-height: 1.4;
+        }
+
+        /* 2. A4 & A5 - Professional Invoice Style */
+        .sheet-a4,
+        .sheet-a5 {
+            background: #fff;
+            margin: 0 auto;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+            color: #000;
+            box-sizing: border-box;
+            position: relative;
+        }
+
+        .sheet-a4 {
+            width: 210mm;
+            min-height: 297mm;
+            padding: 15mm;
+            font-size: 14px;
+        }
+
+        .sheet-a5 {
+            width: 148mm;
+            min-height: 210mm;
+            padding: 10mm;
+            font-size: 13px;
+        }
+
+        /* --- SHARED UTILS --- */
+        .num {
+            font-family: 'Inconsolata', monospace;
+            font-weight: 700;
+        }
+
+        /* Dashed/Double lines - Only for Thermal */
+        .dashed-line {
+            border-top: 1px dashed #000;
+            margin: 8px 0;
+            width: 100%;
+        }
+
+        .double-line {
+            border-top: 3px double #000;
+            margin: 8px 0;
+            width: 100%;
+        }
+
+        /* Info Table (Thermal receipt info section) */
+        .info-tbl {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 11px;
+            direction: rtl;
+            border: none !important;
+        }
+        .info-tbl tr td {
+            padding: 2px 1px;
+            vertical-align: top;
+            line-height: 1.5;
+            border: none !important;
+        }
+        .info-label {
+            font-weight: bold;
+            white-space: nowrap;
+            text-align: right;
+            width: 35%;
+        }
+        .info-sep {
+            text-align: center;
+            width: 5%;
+            padding: 0 2px;
+        }
+        .info-val {
+            text-align: right;
+            width: 60%;
+            word-break: break-word;
+            white-space: normal;
+        }
+
+        /* Tables - Base */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 10px;
+        }
+
+        th {
+            text-align: right;
+            padding: 4px 0;
+            font-weight: bold;
+        }
+
+        td {
+            padding: 4px 0;
+            vertical-align: top;
+        }
+
+        /* --- A4/A5 SPECIFIC OVERRIDES --- */
+
+        /* Hide Thermal elements in A4 */
+        .sheet-a4 .dashed-line,
+        .sheet-a5 .dashed-line,
+        .sheet-a4 .double-line,
+        .sheet-a5 .double-line {
+            display: none;
+        }
+
+        /* Header Transformation for A4 */
+        .sheet-a4 .header-section,
+        .sheet-a5 .header-section {
+            display: flex !important;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid #000;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+            text-align: right !important;
+            /* Override Tailwind center */
+        }
+
+        /* Force Logo and Text separation */
+        .sheet-a4 .header-content,
+        .sheet-a5 .header-content {
+            text-align: right;
+            flex: 1;
+        }
+
+        .sheet-a4 .header-logo,
+        .sheet-a5 .header-logo {
+            order: 2;
+            /* Logo on the left (since RTL, order 2 moves it to visual left) */
+            margin-right: 20px;
+        }
+
+        .sheet-a4 .header-logo img,
+        .sheet-a5 .header-logo img {
+            height: 100px !important;
+            width: auto;
+        }
+
+        /* Info Section for A4/A5 */
+        .sheet-a4 .info-section,
+        .sheet-a5 .info-section {
+            background-color: #f9fafb;
+            padding: 15px;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            margin-bottom: 30px;
+        }
+        .sheet-a4 .info-tbl,
+        .sheet-a5 .info-tbl {
+            font-size: 14px;
+            border: none !important;
+        }
+        .sheet-a4 .info-tbl td,
+        .sheet-a5 .info-tbl td {
+            padding: 6px 8px;
+            border: none !important;
+        }
+
+        /* Table Styles for A4 */
+        .sheet-a4 table,
+        .sheet-a5 table {
+            margin-top: 10px;
+            border: 1px solid #000;
+        }
+
+        .sheet-a4 th,
+        .sheet-a5 th {
+            background-color: #f3f4f6;
+            border: 1px solid #000;
+            padding: 12px;
+            text-align: center;
+        }
+
+        .sheet-a4 th:first-child,
+        .sheet-a5 th:first-child {
+            text-align: right;
+        }
+
+        .sheet-a4 td,
+        .sheet-a5 td {
+            border: 1px solid #ccc;
+            padding: 10px;
+        }
+
+        .sheet-a4 tr:nth-child(even),
+        .sheet-a5 tr:nth-child(even) {
+            background-color: #fcfcfc;
+        }
+
+        /* Totals Section for A4 */
+        .sheet-a4 .totals-section,
+        .sheet-a5 .totals-section {
+            display: flex;
+            justify-content: flex-end;
+            margin-top: 20px;
+        }
+
+        .sheet-a4 .totals-box,
+        .sheet-a5 .totals-box {
+            width: 40%;
+            border: 1px solid #000;
+            padding: 15px;
+            border-radius: 4px;
+        }
+
+        /* Footer for A4 */
+        .sheet-a4 .footer-section,
+        .sheet-a5 .footer-section {
+            position: absolute;
+            bottom: 15mm;
+            left: 0;
+            right: 0;
+            border-top: 1px solid #ccc;
+            padding-top: 10px;
+            width: 100%;
+        }
+
+        /* PRINT SETTINGS */
+        @media print {
+            body {
+                background: none;
+                margin: 0;
+                padding: 0;
+            }
+
+            .no-print {
+                display: none !important;
+            }
+
+            .sheet-thermal,
+            .sheet-a4,
+            .sheet-a5 {
+                margin: 0;
+                box-shadow: none;
+                width: 100%;
+            }
+
+            @page {
+                margin: 0;
+            }
+
+            .sheet-a4 {
+                padding: 10mm;
+                height: 100vh;
+            }
+
+            .sheet-a5 {
+                padding: 10mm;
+            }
+
+            /* Color fixes */
+            * {
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+
+            .bg-gray-100 {
+                background-color: #f3f4f6 !important;
+            }
+
+            .bg-yellow-50 {
+                background-color: #fefce8 !important;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- Controls -->
+    <div class="no-print fixed top-0 left-0 right-0 bg-white p-2 shadow-md flex justify-between items-center z-50 h-14">
+        <div class="font-bold text-gray-700 px-4">
+            معاينة:
+            {% if print_style == 'a4' %}A4{% elif print_style == 'a5' %}A5{% else %}Thermal{% endif %}
+        </div>
+        <div class="flex gap-2 px-4">
+            <button onclick="window.close(); setTimeout(function(){ if (window.history.length > 1) window.history.back(); }, 50)"
+                class="px-3 py-1 bg-gray-200 text-gray-700 rounded text-sm hover:bg-gray-300 font-bold transition">إغلاق</button>
+            <button onclick="window.print()"
+                class="px-4 py-1 bg-black text-white rounded text-sm hover:bg-gray-800 font-bold transition flex items-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z">
+                    </path>
+                </svg>
+                طباعة
+            </button>
+        </div>
+    </div>
+
+    <div class="h-14 no-print"></div>
+
+    <!-- Main Container -->
+    <div class="receipt sheet-{{ print_style }}">
+
+        <!-- HEADER -->
+        <div class="header-section text-center mb-4">
+            <!-- Logo Area -->
+            <div class="header-logo">
+                {% if sys_settings.logo_base64 %}
+                <img src="{{ sys_settings.logo_base64 }}" class="mx-auto h-20 mb-2 grayscale object-contain" alt="Logo">
+                {% endif %}
+            </div>
+
+            <!-- Text Area -->
+            <div class="header-content">
+                <h1 class="text-2xl font-bold mb-1 leading-tight">{{ sys_settings.shop_name }}</h1>
+                <p class="text-sm text-gray-600">{{ sys_settings.address }}</p>
+                <p class="text-sm font-mono font-bold">{{ sys_settings.phone }}</p>
+            </div>
+        </div>
+
+        <div class="dashed-line"></div>
+
+        <!-- INFO SECTION -->
+        <div class="info-section mb-2">
+            <table class="info-tbl">
+                <tr>
+                    <td class="info-label">رقم الإيصال</td>
+                    <td class="info-sep">:</td>
+                    <td class="info-val"><span class="num font-bold">#{{ order.id }}</span></td>
+                </tr>
+                <tr>
+                    <td class="info-label">التاريخ</td>
+                    <td class="info-sep">:</td>
+                    <td class="info-val"><span class="num">{{ order.created_at|date:"d/m/Y H:i" }}</span></td>
+                </tr>
+                {% if policies.receipts.show_salesman_name %}
+                <tr>
+                    <td class="info-label">{% if order.salesman_name %}البائع{% else %}الكاشير{% endif %}</td>
+                    <td class="info-sep">:</td>
+                    <td class="info-val">{{ order.salesman_name|default:order.user.username }}</td>
+                </tr>
+                {% endif %}
+                <tr>
+                    <td class="info-label">العميل</td>
+                    <td class="info-sep">:</td>
+                    <td class="info-val font-bold">{% if order.customer %}{{ order.customer.first_name }} {{ order.customer.last_name }}{% else %}عميل نقدي{% endif %}</td>
+                </tr>
+                {% if order.is_online_order and order.customer %}
+                <tr>
+                    <td class="info-label">هاتف التوصيل</td>
+                    <td class="info-sep">:</td>
+                    <td class="info-val dir-ltr">{{ order.customer.phone }}</td>
+                </tr>
+                <tr>
+                    <td class="info-label">عنوان التوصيل</td>
+                    <td class="info-sep">:</td>
+                    <td class="info-val">{{ order.shipping_address|default:order.customer.address }}</td>
+                </tr>
+                {% if order.shipment.comment %}
+                <tr>
+                    <td class="info-label">ملاحظات الشحن</td>
+                    <td class="info-sep">:</td>
+                    <td class="info-val">{{ order.shipment.comment }}</td>
+                </tr>
+                {% endif %}
+                {% endif %}
+            </table>
+        </div>
+
+        <div class="dashed-line"></div>
+
+        <!-- ITEMS TABLE -->
+        <table>
+            <thead>
+                <tr>
+                    <th class="w-[45%] text-right">الصنف</th>
+                    <th class="w-[15%] text-center">الكمية</th>
+                    <th class="w-[20%] text-center">السعر</th>
+                    <th class="w-[20%] text-left">الإجمالي</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in order.items.all %}
+                <tr>
+                    <td class="font-bold leading-tight">
+                        {{ item.product.name }}
+                        {% if item.variant %}<span class="text-xs text-indigo-600 block">{{ item.variant.label }}</span>{% endif %}
+                        {% if item.modifiers %}
+                        {% for m in item.modifiers %}{% if m.show_on_receipt != False %}<span class="text-xs text-gray-600 block">{{ m.option }}</span>{% endif %}{% endfor %}
+                        {% endif %}
+                        {% if item.price_tier == 'semi_wholesale' %}<span class="text-xs text-amber-600 font-bold block">سعر نص جملة</span>
+                        {% elif item.price_tier == 'wholesale' %}<span class="text-xs text-purple-600 font-bold block">سعر جملة</span>{% endif %}
+                        {% if item.is_oversold and can_view_profit %}<span class="text-xs text-red-600 font-bold block">⚠ تجاوز المخزون المتاح (نقص: {{ item.shortfall_qty|floatformat:-2 }})</span>{% endif %}
+                        {% if item.serial_number %}<span class="text-xs text-gray-600 block dir-ltr">S/N: {{ item.serial_number }}{% if item.product.warranty_months %} — ضمان {{ item.product.warranty_months }} شهر{% endif %}</span>{% endif %}
+                        {% if item.product.sku and print_style != 'thermal' %}
+                        <span class="text-xs text-gray-500 block mt-1">كود: {{ item.product.sku }}</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-center num">{{ item.quantity|floatformat:-2 }}</td>
+                    <td class="text-center num">{{ item.price|floatformat:2 }}</td>
+                    <td class="text-left num">{{ item.subtotal|floatformat:2 }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <div class="dashed-line"></div>
+
+        <!-- TOTALS SECTION -->
+        <div class="totals-section">
+            <div class="totals-box space-y-1 text-sm {% if print_style == 'thermal' %}w-full{% endif %}">
+
+                <div class="flex justify-between items-center">
+                    <span>المجموع:</span>
+                    <span class="num">{{ order.subtotal_amount }}</span>
+                </div>
+
+                {% if order.discount > 0 %}
+                <div class="flex justify-between items-center text-red-600">
+                    <span>- خصم:</span>
+                    <span class="num">({% if order.discount_type == 'percent' %}{{ order.discount|floatformat:"-2" }}%{% else %}{{ order.discount }}{% endif %})</span>
+                </div>
+                {% endif %}
+
+                {% if order.delivery_cost > 0 %}
+                <div class="flex justify-between items-center">
+                    <span>+ خدمة توصيل:</span>
+                    <span class="num">{{ order.delivery_cost }}</span>
+                </div>
+                {% endif %}
+
+                {% if order.is_tailoring and order.tailoring_cost > 0 %}
+                <div class="flex justify-between items-center">
+                    <span>+ مصنعية/تفصيل:</span>
+                    <span class="num">{{ order.tailoring_cost }}</span>
+                </div>
+                {% endif %}
+
+                {% if print_style == 'thermal' %}
+                <div class="double-line"></div>
+                {% else %}
+                <div class="border-t-2 border-black my-2"></div>
+                {% endif %}
+
+                {% with vat=order.vat_breakdown %}
+                <div class="flex justify-between items-center text-xl font-bold bg-gray-100 p-1 rounded">
+                    <span>الإجمالي:</span>
+                    <span class="num">{{ vat.total|default:order.total_amount|floatformat:2 }}</span>
+                </div>
+
+                {% if vat %}
+                <div class="flex justify-between items-center text-xs text-gray-600 pt-1">
+                    <span>ض.ق.م ({{ vat.rate|floatformat:"-2" }}%) {% if vat.included %}شاملة{% else %}مضافة{% endif %}:</span>
+                    <span class="num">{{ vat.tax|floatformat:2 }}</span>
+                </div>
+                {% if vat.vat_number %}
+                <div class="text-[10px] text-gray-400">الرقم الضريبي: {{ vat.vat_number }}</div>
+                {% endif %}
+                {% endif %}
+                {% endwith %}
+
+                {% with svc=order.service_charge_breakdown %}
+                {% if svc %}
+                <div class="flex justify-between items-center text-xs text-gray-600">
+                    <span>رسوم الخدمة ({{ svc.pct|floatformat:"-2" }}%) {% if svc.included %}مضمنة{% else %}مضافة{% endif %}:</span>
+                    <span class="num">{{ svc.amount|floatformat:2 }}</span>
+                </div>
+                {% endif %}
+                {% endwith %}
+
+                {% if can_view_profit and policies.sales.show_profit_on_invoice %}
+                <div class="flex justify-between items-center text-xs text-green-700 font-bold pt-1">
+                    <span>الربح:</span>
+                    <span class="num">{{ order.gross_profit|floatformat:2 }}</span>
+                </div>
+                {% endif %}
+
+                <!-- Payment Details -->
+                <div class="pt-2 mt-2 border-t border-gray-300">
+                    <div class="flex justify-between text-sm mt-1"><span>المدفوع:</span><span class="num font-bold">{{ order.received_amount }}</span></div>
+                    
+                    <div class="flex justify-between text-xs mt-1">
+                        <span>طريقة الدفع:</span>
+                        <span class="font-bold">
+                            {% if order.cash_paid > 0 and order.wallet_paid == 0 and order.instapay_paid == 0 and order.visa_paid == 0 and order.credit_paid == 0 %}
+                                نقدي
+                            {% elif order.wallet_paid > 0 and order.cash_paid == 0 and order.instapay_paid == 0 and order.visa_paid == 0 and order.credit_paid == 0 %}
+                                محفظة
+                            {% elif order.instapay_paid > 0 and order.cash_paid == 0 and order.wallet_paid == 0 and order.visa_paid == 0 and order.credit_paid == 0 %}
+                                إنستا باي
+                            {% elif order.visa_paid > 0 and order.cash_paid == 0 and order.wallet_paid == 0 and order.instapay_paid == 0 and order.credit_paid == 0 %}
+                                فيزا
+                            {% elif order.credit_paid > 0 and order.cash_paid == 0 and order.wallet_paid == 0 and order.instapay_paid == 0 and order.visa_paid == 0 %}
+                                رصيد سابق
+                            {% else %}
+                                مقسم (Split)
+                            {% endif %}
+                        </span>
+                    </div>
+
+                    {% if order.payment_method == 'custom' or order.credit_paid > 0 %}
+                        <div class="mt-1 space-y-0.5">
+                            {% if order.cash_paid > 0 %}<div class="flex justify-between text-[10px] pr-3 text-gray-500 italic"><span>- نقدي:</span><span class="num">{{ order.cash_paid }}</span></div>{% endif %}
+                            {% if order.wallet_paid > 0 %}<div class="flex justify-between text-[10px] pr-3 text-gray-500 italic"><span>- فودافون كاش:</span><span class="num">{{ order.wallet_paid }}</span></div>{% endif %}
+                            {% if order.instapay_paid > 0 %}<div class="flex justify-between text-[10px] pr-3 text-gray-500 italic"><span>- إنستا باي:</span><span class="num">{{ order.instapay_paid }}</span></div>{% endif %}
+                            {% if order.visa_paid > 0 %}<div class="flex justify-between text-[10px] pr-3 text-gray-500 italic"><span>- فيزا:</span><span class="num">{{ order.visa_paid }}</span></div>{% endif %}
+                            {% if order.credit_paid > 0 %}<div class="flex justify-between text-[10px] pr-3 text-emerald-600 font-bold"><span>- رصيد سابق:</span><span class="num">{{ order.credit_paid }}</span></div>{% endif %}
+                        </div>
+                    {% endif %}
+                    {% if order.remaining_amount > 0 %}
+                    <div class="flex justify-between text-sm text-red-600 font-bold mt-1 border-t border-red-100 pt-1">
+                        <span>⚠️ المتبقي (عليه):</span>
+                        <span class="num">{{ order.remaining_amount }}</span>
+                    </div>
+                    {% elif order.remaining_amount < 0 %}
+                    <div class="flex justify-between text-sm text-gray-800 font-bold mt-1 border-t border-gray-100 pt-1">
+                        <span>الباقي:</span>
+                        <span class="num">{{ order.remaining_amount|floatformat:2|slice:"1:" }}</span>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        {% if order.is_tailoring %}
+        <div class="mt-4 border border-gray-400 p-2 text-center rounded bg-yellow-50 w-full">
+            <p class="font-bold text-sm underline mb-2">تفاصيل التفصيل</p>
+            <p class="font-bold">{{ order.tailoring_type }}</p>
+            {% if order.notes %}<p class="text-sm text-gray-700 mt-1">{{ order.notes }}</p>{% endif %}
+        </div>
+        {% endif %}
+
+        <div class="dashed-line"></div>
+
+        <!-- FOOTER -->
+        <div class="footer-section text-center text-xs mt-4 space-y-2">
+            <p class="font-bold text-sm">{{ sys_settings.thank_you_text }}</p>
+            <p class="text-gray-600 px-4 leading-tight">{{ sys_settings.return_policy }}</p>
+
+            {% if sys_settings.show_qr %}
+            <div class="mt-3 flex justify-center">
+                <img src="https://api.qrserver.com/v1/create-qr-code/?size=90x90&data={{ sys_settings.qr_link|default:order.id }}"
+                    class="h-20 w-20 grayscale" alt="QR Code">
+            </div>
+            {% endif %}
+
+            <p class="num text-gray-500">*** {{ order.created_at|date:"d-m-Y H:i:s" }} ***</p>
+        </div>
+
+    </div>
+
+</body>
+
+</html>

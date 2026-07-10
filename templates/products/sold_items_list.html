@@ -1,0 +1,146 @@
+﻿{% extends 'base.html' %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="flex flex-col md:flex-row justify-between items-center gap-4">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-800">سجل مبيعات الأصناف</h1>
+            <p class="text-gray-500 text-sm mt-1">عرض وتحليل حركة خروج المنتجات (المبيعات)</p>
+        </div>
+        <div class="flex gap-2">
+            <!-- Link to POS -->
+            <a href="{% url 'pos_view' %}" class="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 flex items-center shadow-sm transition">
+                <svg class="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                تسجيل بيع جديد
+            </a>
+        </div>
+    </div>
+
+    <!-- Filter Form -->
+    <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 animate-fade-in-down smooth-transition hover:shadow-md">
+        <div class="flex flex-wrap items-center justify-between gap-4 mb-4 border-b border-gray-100 pb-4">
+            <div class="flex items-center gap-2">
+                <div class="w-1.5 h-6 bg-teal-500 rounded-full animate-pulse"></div>
+                <h3 class="font-bold text-gray-800">خيارات التصفية</h3>
+            </div>
+            
+            <!-- Quick Ranges -->
+            <div class="flex items-center gap-1 bg-gray-50 p-1 rounded-lg border border-gray-200">
+                <button type="button" onclick="setRange('today')" class="px-3 py-1.5 text-xs font-bold rounded-md smooth-transition hover:bg-white hover:shadow-sm text-gray-600 btn-press">اليوم</button>
+                <button type="button" onclick="setRange('yesterday')" class="px-3 py-1.5 text-xs font-bold rounded-md smooth-transition hover:bg-white hover:shadow-sm text-gray-600 btn-press">أمس</button>
+                <button type="button" onclick="setRange('7days')" class="px-3 py-1.5 text-xs font-bold rounded-md smooth-transition hover:bg-white hover:shadow-sm text-gray-600 btn-press">أخر 7 أيام</button>
+                <button type="button" onclick="setRange('thisMonth')" class="px-3 py-1.5 text-xs font-bold rounded-md smooth-transition hover:bg-white hover:shadow-sm text-gray-600 btn-press">هذا الشهر</button>
+            </div>
+        </div>
+
+        <form id="filterForm" method="get" class="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-6 gap-3 items-end">
+            <!-- Date From -->
+            <div class="col-span-1">
+                <label class="block text-[10px] font-bold text-gray-400 mb-1 mr-1 uppercase">من تاريخ</label>
+                <div class="relative group cursor-pointer" onclick="this.querySelector('input').showPicker()">
+                    <input type="date" id="date_from" name="date_from" value="{{ filter_params.date_from }}" class="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 focus:bg-white smooth-transition cursor-pointer">
+                    <div class="absolute inset-y-0 left-3 flex items-center pointer-events-none text-gray-400 group-hover:text-teal-500 smooth-transition">
+                        <i class="fas fa-calendar-alt text-xs"></i>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Date To -->
+            <div class="col-span-1">
+                <label class="block text-[10px] font-bold text-gray-400 mb-1 mr-1 uppercase">إلى تاريخ</label>
+                <div class="relative group cursor-pointer" onclick="this.querySelector('input').showPicker()">
+                    <input type="date" id="date_to" name="date_to" value="{{ filter_params.date_to }}" class="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 focus:bg-white smooth-transition cursor-pointer">
+                    <div class="absolute inset-y-0 left-3 flex items-center pointer-events-none text-gray-400 group-hover:text-teal-500 smooth-transition">
+                        <i class="fas fa-calendar-alt text-xs"></i>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Search -->
+            <div class="col-span-2">
+                <label class="block text-[10px] font-bold text-gray-400 mb-1 mr-1 uppercase">بحث (المنتج / كود SKU / فاتورة)</label>
+                <div class="relative group">
+                    <input type="text" name="search" value="{{ filter_params.search }}" placeholder="بحث..." class="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 focus:bg-white smooth-transition pl-10">
+                    <svg class="w-4 h-4 absolute left-3 top-3 text-gray-400 group-hover:text-teal-500 smooth-transition" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="col-span-2 flex gap-2">
+                <button type="submit" class="flex-1 bg-gray-800 text-white py-2.5 rounded-xl text-sm font-bold smooth-transition hover:bg-gray-900 hover:shadow-lg btn-press">تصفية</button>
+                <a href="{% url 'sold_items_list' %}" class="px-4 py-2.5 bg-gray-100 text-gray-600 rounded-xl text-sm font-bold smooth-transition hover:bg-gray-200 flex items-center justify-center btn-press">✕</a>
+                
+                <!-- Print Button (Opens the Report View) -->
+                <a href="{% url 'sold_items_report' %}?{{ request.GET.urlencode }}" class="px-4 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-bold smooth-transition hover:bg-indigo-700 hover:shadow-lg shadow-indigo-100 flex items-center justify-center btn-press" title="طباعة التقرير">
+                    <svg class="w-5 h-5 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
+                    طباعة
+                </a>
+            </div>
+        </form>
+    </div>
+
+    <!-- Stats Summary -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div class="p-4 bg-teal-50 border border-teal-100 rounded-xl flex justify-between items-center">
+            <div>
+                <p class="text-sm text-teal-600 font-medium">إجمالي المبيعات (المعروضة)</p>
+                <p class="text-2xl font-bold text-teal-800 mt-1">{{ total_revenue|floatformat:2 }} <span class="text-xs">ج.م</span></p>
+            </div>
+            <div class="p-3 bg-white rounded-full text-teal-600 shadow-sm">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            </div>
+        </div>
+        <div class="p-4 bg-blue-50 border border-blue-100 rounded-xl flex justify-between items-center">
+            <div>
+                <p class="text-sm text-blue-600 font-medium">عدد القطع المباعة</p>
+                <p class="text-2xl font-bold text-blue-800 mt-1">{{ total_quantity|floatformat:0 }}</p>
+            </div>
+            <div class="p-3 bg-white rounded-full text-blue-600 shadow-sm">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path></svg>
+            </div>
+        </div>
+    </div>
+
+    <!-- Data Table -->
+    <div class="bg-white rounded-lg shadow overflow-hidden border border-gray-200">
+        <div class="overflow-x-auto">
+            <table class="w-full text-right">
+                <thead class="bg-gray-50 text-gray-600 font-medium border-b text-xs uppercase">
+                    <tr>
+                        <th class="py-3 px-4">رقم الفاتورة</th>
+                        <th class="py-3 px-4">المنتج</th>
+                        <th class="py-3 px-4">سعر الوحدة</th>
+                        <th class="py-3 px-4">الكمية</th>
+                        <th class="py-3 px-4">الخصم</th>
+                        <th class="py-3 px-4">الإجمالي</th>
+                        <th class="py-3 px-4">التاريخ</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100 text-sm">
+                    {% for item in sold_items %}
+                    <tr class="hover:bg-gray-50 transition">
+                        <td class="py-3 px-4 font-mono text-gray-500">
+                            {{ item.reference_number|default:"-" }}
+                        </td>
+                        <td class="py-3 px-4">
+                            <div class="font-bold text-gray-800">{{ item.product.name }}</div>
+                            <div class="text-xs text-gray-500">{{ item.product.sku }}</div>
+                        </td>
+                        <td class="py-3 px-4">{{ item.unit_price }}</td>
+                        <td class="py-3 px-4 font-bold">{{ item.quantity|floatformat:0 }}</td>
+                        <td class="py-3 px-4 text-red-600">{{ item.discount }}</td>
+                        <td class="py-3 px-4 font-bold text-teal-700">{{ item.total_price }}</td>
+                        <td class="py-3 px-4 text-gray-500">{{ item.created_at|date:"Y-m-d H:i" }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="7" class="py-10 text-center text-gray-500">لا توجد بيانات مطابقة للفلاتر.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

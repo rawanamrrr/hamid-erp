@@ -1,0 +1,67 @@
+{% extends 'base.html' %}
+{% block title %}شاشة المطبخ{% endblock %}
+{% block content %}
+<div class="p-4" x-data="{ branchId: {{ branch.id }} }" x-init="
+    let ws = new WebSocket((location.protocol==='https:'?'wss://':'ws://') + location.host + '/ws/kds/' + branchId + '/');
+    ws.onmessage = (e) => {
+        const sound = document.getElementById('notification-sound');
+        if (sound) { try { sound.currentTime = 0; sound.play(); } catch (err) {} }
+        setTimeout(() => location.reload(), 400);
+    };
+">
+    <h1 class="text-2xl font-bold mb-4">شاشة المطبخ — {{ branch.name }}</h1>
+    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+        {% for ticket in tickets %}
+        <div class="rounded-xl border-2 p-4 shadow-sm
+                    {% if ticket.status == 'new' %}bg-red-50 border-red-300
+                    {% elif ticket.status == 'preparing' %}bg-amber-50 border-amber-300
+                    {% else %}bg-emerald-50 border-emerald-300{% endif %}">
+            <div class="text-xs text-gray-500 mb-2">
+                {% if ticket.order.table %}ترابيزة {{ ticket.order.table.number }}{% else %}{{ ticket.order.get_order_type_display }}{% endif %}
+                — طلب #{{ ticket.order.id }}
+            </div>
+            <ul class="space-y-2 mb-3">
+                {% for item in ticket.items %}
+                <li>
+                    <div class="font-bold">{{ item.product.name }}{% if item.variant %} <span class="text-indigo-600">({{ item.variant.label }})</span>{% endif %} <span class="font-normal text-sm text-gray-500">x{{ item.quantity|floatformat:0 }}</span></div>
+                    {% if item.modifiers %}
+                    <div class="text-xs text-gray-600">
+                        {% for m in item.modifiers %}{{ m.option }}{% if not forloop.last %}، {% endif %}{% endfor %}
+                    </div>
+                    {% endif %}
+                    {% if item.note %}
+                    <div class="text-xs text-amber-700 font-semibold">ملاحظة: {{ item.note }}</div>
+                    {% endif %}
+                </li>
+                {% endfor %}
+            </ul>
+            <div class="flex gap-2">
+                {% if ticket.status == 'new' %}
+                <button onclick="setOrderStatus({{ ticket.order.id }}, 'preparing')" class="flex-1 py-2 rounded-lg bg-amber-500 text-white text-sm">بدأ التحضير</button>
+                {% elif ticket.status == 'preparing' %}
+                <button onclick="setOrderStatus({{ ticket.order.id }}, 'ready')" class="flex-1 py-2 rounded-lg bg-emerald-600 text-white text-sm">جاهز</button>
+                {% else %}
+                <button onclick="setOrderStatus({{ ticket.order.id }}, 'served')" class="flex-1 py-2 rounded-lg bg-gray-600 text-white text-sm">تم التقديم</button>
+                {% endif %}
+            </div>
+        </div>
+        {% empty %}
+        <p class="text-gray-500 col-span-full">لا توجد طلبات قيد التحضير حالياً.</p>
+        {% endfor %}
+    </div>
+</div>
+<script>
+function getCookie(name) {
+    let v = null;
+    document.cookie.split(';').forEach(c => { c = c.trim(); if (c.startsWith(name+'=')) v = decodeURIComponent(c.slice(name.length+1)); });
+    return v;
+}
+function setOrderStatus(orderId, status) {
+    fetch(`/restaurant/kds/order/${orderId}/status/`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': getCookie('csrftoken')},
+        body: new URLSearchParams({status: status}),
+    }).then(r => r.json()).then(d => { if (d.status === 'ok') location.reload(); });
+}
+</script>
+{% endblock %}

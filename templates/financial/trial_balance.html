@@ -1,0 +1,67 @@
+{% extends 'base.html' %}
+{% load humanize %}
+
+{% block title %}ميزان المراجعة{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="flex items-center justify-between">
+        <h1 class="text-2xl font-black text-gray-800">ميزان المراجعة</h1>
+        <a href="{% url 'financial:income_statement' %}{% if date_from %}?date_from={{ date_from }}&date_to={{ date_to }}{% endif %}"
+           class="text-sm font-bold text-indigo-600 hover:underline">قائمة الدخل ←</a>
+    </div>
+
+    <form method="get" class="flex flex-wrap items-end gap-3 bg-white p-4 rounded-xl border">
+        <div>
+            <label class="block text-xs font-bold text-gray-500 mb-1">من تاريخ</label>
+            <input type="date" name="date_from" value="{{ date_from }}" class="p-2 border rounded-lg">
+        </div>
+        <div>
+            <label class="block text-xs font-bold text-gray-500 mb-1">إلى تاريخ</label>
+            <input type="date" name="date_to" value="{{ date_to }}" class="p-2 border rounded-lg">
+        </div>
+        <button class="px-4 py-2 bg-indigo-600 text-white rounded-lg font-bold">تطبيق</button>
+        {% if date_from or date_to %}<a href="{% url 'financial:trial_balance' %}" class="px-4 py-2 bg-gray-100 rounded-lg font-bold">الكل</a>{% endif %}
+    </form>
+
+    <div class="bg-white rounded-xl border overflow-hidden">
+        <table class="w-full text-sm">
+            <thead class="bg-gray-50 text-gray-500 text-xs">
+                <tr>
+                    <th class="py-3 px-4 text-right">الكود</th>
+                    <th class="py-3 px-4 text-right">الحساب</th>
+                    <th class="py-3 px-4 text-left">مدين</th>
+                    <th class="py-3 px-4 text-left">دائن</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y">
+                {% for r in tb.rows %}
+                <tr class="hover:bg-gray-50">
+                    <td class="py-2 px-4 font-mono text-gray-400">{{ r.code }}</td>
+                    <td class="py-2 px-4 font-bold text-gray-700">{{ r.name }}</td>
+                    <td class="py-2 px-4 text-left dir-ltr">{% if r.debit_col %}{{ r.debit_col|floatformat:2|intcomma }}{% endif %}</td>
+                    <td class="py-2 px-4 text-left dir-ltr">{% if r.credit_col %}{{ r.credit_col|floatformat:2|intcomma }}{% endif %}</td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="4" class="py-8 text-center text-gray-400">لا توجد قيود في هذه الفترة</td></tr>
+                {% endfor %}
+            </tbody>
+            <tfoot class="bg-gray-800 text-white font-black">
+                <tr>
+                    <td class="py-3 px-4" colspan="2">الإجمالي</td>
+                    <td class="py-3 px-4 text-left dir-ltr">{{ tb.total_debit|floatformat:2|intcomma }}</td>
+                    <td class="py-3 px-4 text-left dir-ltr">{{ tb.total_credit|floatformat:2|intcomma }}</td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+
+    <div class="text-center">
+        {% if tb.balanced %}
+            <span class="inline-block px-4 py-2 bg-green-100 text-green-700 rounded-full font-bold">✓ الميزان متوازن (مدين = دائن)</span>
+        {% else %}
+            <span class="inline-block px-4 py-2 bg-red-100 text-red-700 rounded-full font-bold">⚠️ الميزان غير متوازن — شغّل rebuild_journal</span>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

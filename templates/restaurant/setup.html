@@ -1,0 +1,83 @@
+{% extends 'base.html' %}
+{% block title %}إعداد المطعم — الترابيزات والطيارين{% endblock %}
+{% block content %}
+<div class="p-4">
+    <div class="flex items-center justify-between mb-4">
+        <h1 class="text-2xl font-bold">إعداد المطعم{% if branch %} — {{ branch.name }}{% endif %}</h1>
+        {% if warehouses.count > 1 %}
+        <form method="get" class="flex items-center gap-2">
+            <select name="branch_id" onchange="this.form.submit()" class="border rounded-lg px-3 py-2">
+                {% for w in warehouses %}
+                <option value="{{ w.id }}" {% if w.id == branch.id %}selected{% endif %}>{{ w.name }}</option>
+                {% endfor %}
+            </select>
+        </form>
+        {% endif %}
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <!-- Sections -->
+        <div class="bg-white rounded-xl border p-4">
+            <h2 class="font-semibold mb-3">الصالات</h2>
+            <form method="post" class="flex gap-2 mb-3">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="add_section">
+                <input type="text" name="name" placeholder="اسم الصالة" required class="flex-1 border rounded-lg px-2 py-1 text-sm">
+                <button class="px-3 py-1 bg-emerald-600 text-white rounded-lg text-sm">إضافة</button>
+            </form>
+            <ul class="text-sm space-y-1">
+                {% for s in sections %}
+                <li class="flex justify-between border-b py-1">
+                    <span>{{ s.name }}</span>
+                    <span class="text-gray-400">{{ s.tables.count }} ترابيزة</span>
+                </li>
+                {% empty %}<li class="text-gray-400">لا توجد صالات بعد.</li>{% endfor %}
+            </ul>
+        </div>
+
+        <!-- Tables -->
+        <div class="bg-white rounded-xl border p-4">
+            <h2 class="font-semibold mb-3">الترابيزات</h2>
+            <form method="post" class="space-y-2 mb-3">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="add_table">
+                <input type="text" name="number" placeholder="رقم الترابيزة" required class="w-full border rounded-lg px-2 py-1 text-sm">
+                <select name="section_id" class="w-full border rounded-lg px-2 py-1 text-sm">
+                    <option value="">بدون صالة</option>
+                    {% for s in sections %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}
+                </select>
+                <input type="number" name="seats" placeholder="عدد الكراسي" value="4" class="w-full border rounded-lg px-2 py-1 text-sm">
+                <button class="w-full py-1 bg-emerald-600 text-white rounded-lg text-sm">إضافة ترابيزة</button>
+            </form>
+            <ul class="text-sm space-y-1 max-h-64 overflow-y-auto">
+                {% for t in tables %}
+                <li class="flex justify-between border-b py-1">
+                    <span>{{ t.number }} {% if t.section %}({{ t.section.name }}){% endif %}</span>
+                    <span class="text-gray-400">{{ t.get_status_display }}</span>
+                </li>
+                {% empty %}<li class="text-gray-400">لا توجد ترابيزات بعد.</li>{% endfor %}
+            </ul>
+        </div>
+
+        <!-- Drivers -->
+        <div class="bg-white rounded-xl border p-4">
+            <h2 class="font-semibold mb-3">الطيارين</h2>
+            <form method="post" class="space-y-2 mb-3">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="add_driver">
+                <input type="text" name="name" placeholder="اسم الطيار" required class="w-full border rounded-lg px-2 py-1 text-sm">
+                <input type="text" name="phone" placeholder="رقم الهاتف" class="w-full border rounded-lg px-2 py-1 text-sm">
+                <button class="w-full py-1 bg-emerald-600 text-white rounded-lg text-sm">إضافة طيار</button>
+            </form>
+            <ul class="text-sm space-y-1">
+                {% for d in drivers %}
+                <li class="flex justify-between border-b py-1">
+                    <span>{{ d.name }}</span>
+                    <span class="text-gray-400">{{ d.phone }}</span>
+                </li>
+                {% empty %}<li class="text-gray-400">لا يوجد طيارين بعد.</li>{% endfor %}
+            </ul>
+        </div>
+    </div>
+</div>
+{% endblock %}

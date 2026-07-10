@@ -1,0 +1,194 @@
+{% extends 'base.html' %}
+{% load humanize %}
+
+{% block title %}رواتب الموظفين{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
+    <!-- Header Section -->
+    <div class="mb-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-gradient-to-r from-slate-900 to-slate-800 p-8 rounded-3xl shadow-2xl relative overflow-hidden">
+        <div class="absolute -right-20 -top-20 w-64 h-64 bg-teal-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20"></div>
+        <div class="absolute -left-20 -bottom-20 w-64 h-64 bg-indigo-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20"></div>
+        
+        <div class="relative z-10">
+            <h1 class="text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-teal-200 to-teal-400 mb-2">
+                <i class="fas fa-wallet me-2"></i>إدارة رواتب الموظفين
+            </h1>
+            <p class="text-slate-300 font-medium">إعدادات رواتب الموظفين الثابتة وصرف الرواتب الشهرية بسهولة.</p>
+        </div>
+        <div class="relative z-10 flex items-center gap-3">
+            <a href="{% url 'financial:advance_list' %}" class="inline-flex items-center px-5 py-3 bg-white/10 text-white font-bold rounded-2xl ring-1 ring-white/20 hover:bg-white/20 transition-all duration-300">
+                <i class="fas fa-hand-holding-usd me-2"></i> السلف
+            </a>
+            <a href="{% url 'financial:salary_create' %}" class="inline-flex items-center px-6 py-3 bg-gradient-to-r from-teal-500 to-teal-600 text-white font-bold rounded-2xl shadow-[0_0_20px_rgba(20,184,166,0.3)] hover:shadow-[0_0_25px_rgba(20,184,166,0.5)] hover:-translate-y-1 transition-all duration-300">
+                <i class="fas fa-user-plus me-2 text-xl"></i> إضافة إعداد راتب جديد
+            </a>
+        </div>
+    </div>
+
+    <!-- Employee Salary Grid -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        {% for sal in salaries %}
+        <div class="group bg-white rounded-3xl border border-gray-100 shadow-xl shadow-gray-200/50 hover:shadow-2xl hover:shadow-teal-100/50 hover:-translate-y-2 transition-all duration-500 overflow-hidden relative">
+            
+            <div class="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-teal-100 to-transparent rounded-bl-full z-0 opacity-50 group-hover:opacity-100 transition-opacity"></div>
+            
+            <div class="p-8 relative z-10">
+                <div class="flex justify-between items-start mb-6">
+                    <div class="flex items-center gap-4">
+                        <div class="w-14 h-14 rounded-full bg-gradient-to-tr from-slate-800 to-slate-600 text-white flex items-center justify-center text-2xl font-bold shadow-lg">
+                            {{ sal.employee.username|make_list|first|upper }}
+                        </div>
+                        <div>
+                            <h3 class="text-xl font-bold text-gray-900">{{ sal.employee.username }}</h3>
+                            <p class="text-sm font-medium text-gray-500">إعداد راتب مفعل</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="space-y-4 mb-8">
+                    <div class="flex justify-between items-center py-2 border-b border-gray-50">
+                        <span class="text-gray-500 font-medium">الراتب الأساسي</span>
+                        <span class="font-bold font-mono text-gray-900">{{ sal.basic_salary|intcomma }} ج.م</span>
+                    </div>
+                    <div class="flex justify-between items-center py-2 border-b border-gray-50">
+                        <span class="text-gray-500 font-medium">بدلات وحوافز</span>
+                        <span class="font-bold font-mono text-teal-600">+{{ sal.allowances|intcomma }} ج.م</span>
+                    </div>
+                    <div class="flex justify-between items-center py-2 border-b border-gray-50">
+                        <span class="text-gray-500 font-medium">خصومات ثابتة</span>
+                        <span class="font-bold font-mono text-red-500">-{{ sal.deductions|intcomma }} ج.م</span>
+                    </div>
+                    
+                    {% if sal.pending_advance > 0 %}
+                    <div class="flex justify-between items-center py-2 border-b border-gray-50">
+                        <span class="text-gray-500 font-medium">خصم سلفة مستحقة</span>
+                        <span class="font-bold font-mono text-red-500">-{{ sal.pending_advance|intcomma }} ج.م</span>
+                    </div>
+                    {% endif %}
+
+                    <div class="pt-4 flex justify-between items-center">
+                        <span class="text-lg font-bold text-slate-800">{% if sal.pending_advance > 0 %}الصافي بعد خصم السلفة{% else %}الصافي الشهري{% endif %}</span>
+                        <span class="text-2xl font-black font-mono text-transparent bg-clip-text bg-gradient-to-r from-teal-600 to-teal-400">
+                            {{ sal.net_after_advance|intcomma }}
+                        </span>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3 mt-4">
+                    <button type="button" onclick="openPayModal('{{ sal.id }}', '{{ sal.employee.username }}', '{{ sal.net_after_advance|intcomma }}', '{{ sal.pending_advance|intcomma }}')" class="w-full py-3 bg-slate-800 hover:bg-slate-900 text-white text-center font-bold rounded-2xl transition-all duration-300 shadow-md hover:shadow-lg">
+                        صرف الراتب <i class="fas fa-hand-holding-dollar ms-1"></i>
+                    </button>
+                    <a href="{% url 'financial:salary_edit' sal.id %}" class="w-full py-3 bg-white hover:bg-gray-50 text-slate-700 text-center font-bold rounded-2xl transition-all duration-300 shadow-sm border border-gray-200 hover:border-gray-300">
+                        تعديل <i class="fas fa-pen ms-1"></i>
+                    </a>
+                </div>
+                <form method="post" action="{% url 'financial:payslip_generate' sal.id %}" class="mt-3">
+                    {% csrf_token %}
+                    <button type="submit" class="w-full py-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-center font-bold rounded-2xl border border-emerald-200 transition">
+                        قسيمة راتب مفصّلة (حوافز/خصم/سلف) <i class="fas fa-receipt ms-1"></i>
+                    </button>
+                </form>
+            </div>
+        </div>
+        {% empty %}
+        <div class="col-span-full py-20 px-6 bg-white rounded-3xl border border-dashed border-gray-300 text-center">
+            <div class="w-24 h-24 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-6">
+                <i class="fas fa-users-slash text-4xl text-gray-400"></i>
+            </div>
+            <h3 class="text-2xl font-bold text-gray-900 mb-2">لا توجد إعدادات رواتب</h3>
+            <p class="text-gray-500 max-w-md mx-auto">لم يتم إعداد رواتب لأي موظف بعد. قم بإضافة الإعدادات للموظفين ليتم صرف الرواتب بنقرة واحدة كل شهر.</p>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Custom Payment Modal -->
+<div id="payModal" class="fixed inset-0 z-50 hidden overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+    <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+        <!-- Background overlay -->
+        <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity backdrop-blur-sm" aria-hidden="true" onclick="closePayModal()"></div>
+
+        <!-- This element is to trick the browser into centering the modal contents. -->
+        <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+
+        <!-- Modal Panel -->
+        <div class="inline-block align-bottom bg-white rounded-3xl text-right overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg w-full">
+            <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                <div class="sm:flex sm:items-start flex-row-reverse">
+                    <div class="mx-auto flex-shrink-0 flex items-center justify-center h-16 w-16 rounded-full bg-teal-100 sm:mx-0 sm:h-12 sm:w-12 ml-4">
+                        <i class="fas fa-wallet text-2xl text-teal-600"></i>
+                    </div>
+                    <div class="mt-3 text-center sm:mt-0 sm:text-right w-full">
+                        <h3 class="text-2xl leading-6 font-black text-gray-900" id="modal-title">
+                            تأكيد صرف راتب
+                        </h3>
+                        <div class="mt-4 bg-slate-50 p-4 rounded-xl border border-slate-100">
+                            <p class="text-sm text-gray-500 mb-2">سيتم صرف الراتب للموظف:</p>
+                            <p class="text-lg font-bold text-gray-900" id="modalEmployeeName">--</p>
+
+                            <div id="modalAdvanceRow" class="mt-4 flex justify-between items-center border-t border-slate-200 pt-4 hidden">
+                                <span class="font-medium text-red-500">خصم سلفة مستحقة</span>
+                                <span class="text-lg font-bold font-mono text-red-500" id="modalAdvanceAmount">--</span>
+                            </div>
+
+                            <div class="mt-4 flex justify-between items-center border-t border-slate-200 pt-4">
+                                <span class="font-medium text-gray-600" id="modalNetLabel">القيمة الإجمالية</span>
+                                <span class="text-2xl font-black font-mono text-teal-600" id="modalNetSalary">--</span>
+                            </div>
+                        </div>
+
+                        <form id="payForm" method="POST" action="">
+                            {% csrf_token %}
+                            <div class="mt-6">
+                                <label for="account_id" class="block text-sm font-bold text-gray-700 mb-2">اختر حساب الدفع (كاشير، فودافون كاش، انستاباي، الخ)</label>
+                                <select id="account_id" name="account_id" class="block w-full pl-3 pr-10 py-3 text-base border-gray-300 focus:outline-none focus:ring-teal-500 focus:border-teal-500 sm:text-sm rounded-xl" required>
+                                    <option value="" disabled selected>-- حدد الحساب --</option>
+                                    {% for acc in accounts %}
+                                    <option value="{{ acc.id }}">{{ acc.name }} - الرصيد: {{ acc.balance|intcomma }} ج.م</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            <div class="bg-gray-50 px-4 py-4 sm:px-6 sm:flex sm:flex-row-reverse gap-3">
+                <button type="button" onclick="document.getElementById('payForm').submit();" class="w-full inline-flex justify-center rounded-xl border border-transparent shadow-sm px-6 py-3 bg-teal-600 text-base font-bold text-white hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 sm:w-auto sm:text-sm transition-all duration-300">
+                    تأكيد وصرف الراتب
+                </button>
+                <button type="button" onclick="closePayModal()" class="mt-3 w-full inline-flex justify-center rounded-xl border border-gray-300 shadow-sm px-6 py-3 bg-white text-base font-bold text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 sm:mt-0 sm:w-auto sm:text-sm transition-all duration-300">
+                    إلغاء
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function openPayModal(salaryId, employeeName, netSalary, pendingAdvance) {
+        document.getElementById('modalEmployeeName').innerText = employeeName;
+        document.getElementById('modalNetSalary').innerText = netSalary + ' ج.م';
+
+        const advanceRow = document.getElementById('modalAdvanceRow');
+        const hasAdvance = pendingAdvance && parseFloat(pendingAdvance.replace(/,/g, '')) > 0;
+        if (hasAdvance) {
+            document.getElementById('modalAdvanceAmount').innerText = '-' + pendingAdvance + ' ج.م';
+            advanceRow.classList.remove('hidden');
+            document.getElementById('modalNetLabel').innerText = 'الصافي بعد خصم السلفة';
+        } else {
+            advanceRow.classList.add('hidden');
+            document.getElementById('modalNetLabel').innerText = 'القيمة الإجمالية';
+        }
+
+        // Update form action dynamically - use correct URL: financial/salaries/[salaryId]/pay/
+        document.getElementById('payForm').action = "{% url 'financial:salary_pay' 0 %}".replace('0', salaryId);
+
+        document.getElementById('payModal').classList.remove('hidden');
+    }
+
+    function closePayModal() {
+        document.getElementById('payModal').classList.add('hidden');
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,80 @@
+{% extends 'base.html' %}
+{% load humanize %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+<div class="max-w-6xl mx-auto space-y-5">
+    <div class="flex items-center justify-between">
+        <h1 class="text-2xl font-black text-gray-800">تحليلات المبيعات</h1>
+    </div>
+    <form method="get" class="flex flex-wrap items-end gap-3 bg-white p-4 rounded-xl border">
+        <div><label class="block text-xs font-bold text-gray-500 mb-1">من</label><input type="date" name="date_from" value="{{ date_from }}" class="p-2 border rounded-lg"></div>
+        <div><label class="block text-xs font-bold text-gray-500 mb-1">إلى</label><input type="date" name="date_to" value="{{ date_to }}" class="p-2 border rounded-lg"></div>
+        <button class="px-4 py-2 bg-indigo-600 text-white rounded-lg font-bold">عرض</button>
+        {% if date_from or date_to %}<a href="{% url 'financial:sales_analytics' %}" class="px-4 py-2 bg-gray-100 rounded-lg font-bold">الكل</a>{% endif %}
+    </form>
+
+    <div class="grid grid-cols-3 gap-3">
+        <div class="bg-white p-4 rounded-xl border text-center"><p class="text-xs text-gray-500 font-bold">عدد الفواتير</p><p class="text-2xl font-black text-indigo-600">{{ a.summary.invoices }}</p></div>
+        <div class="bg-white p-4 rounded-xl border text-center"><p class="text-xs text-gray-500 font-bold">إجمالي المبيعات</p><p class="text-2xl font-black text-teal-600 dir-ltr">{{ a.summary.total|floatformat:2|intcomma }}</p></div>
+        <div class="bg-white p-4 rounded-xl border text-center"><p class="text-xs text-gray-500 font-bold">متوسط الفاتورة</p><p class="text-2xl font-black text-gray-700 dir-ltr">{{ a.avg_basket|floatformat:2|intcomma }}</p></div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+        <div class="bg-white rounded-xl border overflow-hidden">
+            <div class="px-4 py-2 bg-gray-800 text-white font-black text-sm">الأكثر مبيعاً (كمية)</div>
+            <table class="w-full text-xs"><tbody class="divide-y">
+                {% for r in a.best_qty %}<tr><td class="py-1.5 px-3 font-bold">{{ r.product__name|default:'—' }}</td><td class="py-1.5 px-3 text-left dir-ltr">{{ r.qty|floatformat:0 }}</td></tr>{% empty %}<tr><td class="py-4 text-center text-gray-400">لا يوجد</td></tr>{% endfor %}
+            </tbody></table>
+        </div>
+        <div class="bg-white rounded-xl border overflow-hidden">
+            <div class="px-4 py-2 bg-teal-700 text-white font-black text-sm">الأعلى إيراداً</div>
+            <table class="w-full text-xs"><tbody class="divide-y">
+                {% for r in a.top_rev %}<tr><td class="py-1.5 px-3 font-bold">{{ r.product__name|default:'—' }}</td><td class="py-1.5 px-3 text-left dir-ltr">{{ r.revenue|floatformat:2|intcomma }}</td></tr>{% empty %}<tr><td class="py-4 text-center text-gray-400">لا يوجد</td></tr>{% endfor %}
+            </tbody></table>
+        </div>
+        <div class="bg-white rounded-xl border overflow-hidden">
+            <div class="px-4 py-2 bg-green-700 text-white font-black text-sm">الأعلى ربحاً</div>
+            <table class="w-full text-xs"><tbody class="divide-y">
+                {% for r in a.top_profit %}<tr><td class="py-1.5 px-3 font-bold">{{ r.name }}</td><td class="py-1.5 px-3 text-left dir-ltr {% if r.profit < 0 %}text-red-600{% endif %}">{{ r.profit|floatformat:2|intcomma }}</td></tr>{% empty %}<tr><td class="py-4 text-center text-gray-400">لا يوجد</td></tr>{% endfor %}
+            </tbody></table>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+        <div class="bg-white rounded-xl border p-4">
+            <div class="font-black text-sm mb-3">المبيعات حسب الساعة</div>
+            {% for r in a.hour_rows %}
+            <div class="flex items-center gap-2 mb-1">
+                <span class="text-[10px] text-gray-400 w-10 dir-ltr">{{ r.label }}</span>
+                <div class="flex-1 bg-gray-100 rounded h-3"><div class="bg-indigo-500 h-3 rounded" style="width: {% widthratio r.total a.hour_max 100 %}%"></div></div>
+                <span class="text-[10px] text-gray-500 w-16 text-left dir-ltr">{{ r.total|floatformat:0|intcomma }}</span>
+            </div>
+            {% endfor %}
+        </div>
+        <div class="bg-white rounded-xl border p-4">
+            <div class="font-black text-sm mb-3">المبيعات حسب اليوم</div>
+            {% for r in a.wd_rows %}
+            <div class="flex items-center gap-2 mb-2">
+                <span class="text-[11px] text-gray-500 w-14">{{ r.label }}</span>
+                <div class="flex-1 bg-gray-100 rounded h-4"><div class="bg-teal-500 h-4 rounded" style="width: {% widthratio r.total a.wd_max 100 %}%"></div></div>
+                <span class="text-[11px] text-gray-500 w-16 text-left dir-ltr">{{ r.total|floatformat:0|intcomma }}</span>
+            </div>
+            {% endfor %}
+            <div class="mt-4 pt-3 border-t grid grid-cols-4 gap-2 text-center text-xs">
+                <div><p class="text-gray-400">نقدي</p><p class="font-bold dir-ltr">{{ a.by_payment.cash|floatformat:0|intcomma }}</p></div>
+                <div><p class="text-gray-400">محفظة</p><p class="font-bold dir-ltr">{{ a.by_payment.wallet|floatformat:0|intcomma }}</p></div>
+                <div><p class="text-gray-400">إنستا</p><p class="font-bold dir-ltr">{{ a.by_payment.instapay|floatformat:0|intcomma }}</p></div>
+                <div><p class="text-gray-400">فيزا</p><p class="font-bold dir-ltr">{{ a.by_payment.visa|floatformat:0|intcomma }}</p></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-xl border overflow-hidden">
+        <div class="px-4 py-2 bg-gray-800 text-white font-black text-sm">المبيعات حسب الكاشير</div>
+        <table class="w-full text-sm"><thead class="bg-gray-50 text-gray-500 text-xs"><tr><th class="py-2 px-4 text-right">الكاشير</th><th class="py-2 px-4 text-left">عدد الفواتير</th><th class="py-2 px-4 text-left">الإجمالي</th></tr></thead>
+        <tbody class="divide-y">
+            {% for r in a.by_cashier %}<tr><td class="py-2 px-4 font-bold">{{ r.user__username|default:'—' }}</td><td class="py-2 px-4 text-left dir-ltr">{{ r.invoices }}</td><td class="py-2 px-4 text-left dir-ltr font-bold">{{ r.total|floatformat:2|intcomma }}</td></tr>{% empty %}<tr><td colspan="3" class="py-4 text-center text-gray-400">لا يوجد</td></tr>{% endfor %}
+        </tbody></table>
+    </div>
+</div>
+{% endblock %}

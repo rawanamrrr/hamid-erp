@@ -1,0 +1,200 @@
+<header class="flex items-center justify-between px-6 py-3 bg-white border-b border-gray-200">
+    <div class="flex items-center">
+        <h1 class="text-xl font-semibold text-gray-800">{{ title|default:"نظام الإدارة" }}</h1>
+    </div>
+</header>
+
+<script>
+    // --- Notification System Logic ---
+    // lastUnreadCount/lastLatestId must survive page navigation (this is a multi-page
+    // app — nearly every click reloads the page), or the very first poll on each new
+    // page treats the entire existing unread backlog as "new" and plays the sound.
+    // sessionStorage persists within the tab across those reloads without replaying
+    // sound for notifications already seen earlier in this session.
+    let lastUnreadCount = parseInt(sessionStorage.getItem('notif_last_count') || '-1', 10);
+    let lastLatestId = parseInt(sessionStorage.getItem('notif_last_id') || '-1', 10);
+    const sound = document.getElementById('notification-sound');
+
+    // Request Notification Permission (no audio "unlock" trick — it caused an
+    // audible blip on the first click of every page load in this multi-page app).
+    function enableAudioOnInteraction() {
+        if ("Notification" in window && Notification.permission === "default") {
+            Notification.requestPermission();
+        }
+    }
+
+    // Toggle Dropdown
+    function toggleNotifications() {
+        const dropdown = document.getElementById('notification-dropdown');
+        dropdown.classList.toggle('hidden');
+    }
+
+    // Close dropdown when clicking outside
+    document.addEventListener('click', function(event) {
+        const container = document.getElementById('notification-container');
+        if (!container && !event.target) return;
+        if (container && !container.contains(event.target)) {
+            const dropdown = document.getElementById('notification-dropdown');
+            if (dropdown) dropdown.classList.add('hidden');
+        }
+    });
+
+    /**
+     * Optimized Polling:
+     * 1. First check unread_count and latest_id (lightweight)
+     * 2. Only fetch full data if they changed
+     */
+    async function pollNotifications() {
+        try {
+            const checkResponse = await fetch('/notifications/api/check/');
+            if (!checkResponse.ok) return;
+            const checkData = await checkResponse.json();
+
+            // Check if something changed
+            if (checkData.unread_count !== lastUnreadCount || checkData.latest_id !== lastLatestId) {
+                const isFirstCheckThisSession = lastUnreadCount === -1;
+
+                // Fetch full data for UI update
+                const response = await fetch('/notifications/api/get/');
+                const data = await response.json();
+                updateNotificationUI(data);
+
+                // Play Sound and Show Native Notification only for genuinely new
+                // notifications — never on the first check of a session (that would
+                // just be replaying the existing unread backlog).
+                if (!isFirstCheckThisSession && (checkData.unread_count > lastUnreadCount || checkData.latest_id > lastLatestId)) {
+                    playNotificationSound();
+
+                    // Show Native Notification for the newest one
+                    if (data.notifications && data.notifications.length > 0) {
+                        showNativeNotification(data.notifications[0]);
+                    }
+                }
+
+                lastUnreadCount = checkData.unread_count;
+                lastLatestId = checkData.latest_id;
+                sessionStorage.setItem('notif_last_count', String(lastUnreadCount));
+                sessionStorage.setItem('notif_last_id', String(lastLatestId));
+            }
+        } catch (error) {
+            // Error logged by global interceptor if critical
+        }
+    }
+
+    function showNativeNotification(notif) {
+        if (!("Notification" in window)) return;
+
+        if (Notification.permission === "granted") {
+            const n = new Notification(notif.title, {
+                body: notif.message
+            });
+            n.onclick = () => {
+                window.focus();
+                markReadAndRedirect(notif.id, notif.link);
+            };
+        }
+    }
+
+    function playNotificationSound() {
+        if (!sound) return;
+        try {
+            sound.currentTime = 0;
+            const playPromise = sound.play();
+            if (playPromise !== undefined) {
+                playPromise.catch(e => {
+                    // Normal behavior if user hasn't clicked yet
+                    console.log("Audio play deferred.");
+                });
+            }
+        } catch(e) { /* ignore */ }
+    }
+
+    // Update UI
+    function updateNotificationUI(data) {
+        const badge = document.getElementById('notification-badge');
+        const list = document.getElementById('notification-list');
+        if (!badge || !list) return;
+
+        // Update Badge
+        if (data.unread_count > 0) {
+            badge.textContent = data.unread_count;
+            badge.classList.remove('hidden');
+        } else {
+            badge.classList.add('hidden');
+        }
+
+        // Update List
+        list.innerHTML = '';
+        if (!data.notifications || data.notifications.length === 0) {
+            list.innerHTML = '<li class="px-4 py-3 text-sm text-gray-500 text-center">لا توجد إشعارات جديدة</li>';
+            return;
+        }
+
+        data.notifications.forEach(notif => {
+            const item = document.createElement('li');
+            item.className = 'px-4 py-3 hover:bg-gray-50 transition cursor-pointer flex flex-col gap-1';
+            item.onclick = (e) => {
+                e.stopPropagation();
+                markReadAndRedirect(notif.id, notif.link);
+            };
+
+            item.innerHTML = `
+                <div class="flex justify-between items-start">
+                    <span class="font-bold text-gray-800 text-sm">${notif.title}</span>
+                    <span class="text-xs text-gray-400">${notif.time}</span>
+                </div>
+                <p class="text-xs text-gray-600 line-clamp-2">${notif.message}</p>
+                <span class="text-xs text-teal-600 font-medium">بواسطة: ${notif.sender}</span>
+            `;
+            list.appendChild(item);
+        });
+    }
+
+    // Mark as Read & Redirect
+    async function markReadAndRedirect(id, link) {
+        try {
+            await fetch(`/notifications/api/read/${id}/`, {
+                method: 'POST',
+                headers: { 'X-CSRFToken': getCookie('csrftoken') }
+            });
+            lastUnreadCount = -1;
+            pollNotifications();
+            if (link && link !== '#') window.location.href = link;
+        } catch(e) { console.error(e); }
+    }
+
+    // Helper to get CSRF
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+
+    // Mark All Read
+    async function markAllRead() {
+        await fetch('/notifications/api/read-all/', {
+            method: 'POST',
+            headers: { 'X-CSRFToken': getCookie('csrftoken') }
+        });
+        lastUnreadCount = -1;
+        pollNotifications();
+    }
+
+    // Initially poll
+    document.addEventListener('DOMContentLoaded', () => {
+        pollNotifications();
+        enableAudioOnInteraction();
+    });
+
+    // Poll every 8 seconds for a better "live" feel while remaining bandwidth-efficient
+    setInterval(pollNotifications, 8000);
+</script>

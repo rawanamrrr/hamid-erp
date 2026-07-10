@@ -1,0 +1,409 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<script src="/static/vendor/js/jsbarcode.all.min.js"></script>
+
+<style>
+    /* Prevent printing of the UI controls */
+    @media print {
+        body { margin: 0; padding: 0; background: white; }
+        .no-print, header, nav, aside, footer, #sidebar { display: none !important; }
+        .print-preview-bg { background: white !important; border: none !important; padding: 0 !important; margin: 0 !important; border-radius: 0 !important; min-h-0 !important; overflow: visible !important; }
+        #print-area { display: block !important; width: 100%; margin: 0; padding: 0; }
+        .page-content { padding: 0 !important; margin: 0 !important; max-width: none !important; }
+        #app { padding: 0 !important; margin: 0 !important; }
+        
+        /* Printer specific pages */
+        @page { margin: 0; }
+    }
+
+    /* Shared Styles */
+    .label-preview {
+        background: white;
+        box-sizing: border-box;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        align-items: center;
+        text-align: center;
+        border: 1px dashed #cbd5e1;
+    }
+
+    .label-name { font-weight: 900; line-height: 1.2; width: 100%; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+    .label-barcode-container { flex-grow: 1; display: flex; align-items: center; justify-content: center; width: 100%; overflow: hidden; }
+    .label-barcode { width: 100%; object-fit: contain; }
+    .label-meta { display: flex; justify-content: space-between; align-items: flex-end; width: 100%; font-weight: 700; white-space: nowrap; }
+    .label-price { font-weight: 900; }
+    .label-custom { font-weight: bold; width: 100%; text-align: center; border-bottom: 1px dashed #ccc; padding-bottom: 2px; margin-bottom: 2px; }
+
+    /* Layout specific */
+    /* 1. Thermal 58mm (approx 58x40mm) */
+    .layout-thermal58 .label-preview { width: 58mm; height: 40mm; padding: 2mm; margin: 0 auto 5mm; border-radius: 4px; }
+    .layout-thermal58 .label-name { font-size: 11px; }
+    .layout-thermal58 .label-meta { font-size: 10px; }
+    .layout-thermal58 .label-price { font-size: 13px; }
+    .layout-thermal58 .label-custom { font-size: 10px; }
+    .layout-thermal58 .label-barcode { max-height: 14mm; }
+
+    /* 2. Thermal 80mm (approx 78x50mm) */
+    .layout-thermal80 .label-preview { width: 78mm; height: 50mm; padding: 3mm; margin: 0 auto 5mm; border-radius: 4px; }
+    .layout-thermal80 .label-name { font-size: 14px; }
+    .layout-thermal80 .label-meta { font-size: 12px; }
+    .layout-thermal80 .label-price { font-size: 16px; }
+    .layout-thermal80 .label-custom { font-size: 12px; }
+    .layout-thermal80 .label-barcode { max-height: 20mm; }
+
+    /* 3. A4 Sheet (Standard 38x21mm labels, usually 65 per page, or customize to 3x8) */
+    /* Let's make a grid for A4 */
+    .layout-a4 #print-area { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2mm; width: 210mm; padding: 10mm; margin: 0 auto; background: white; }
+    .layout-a4 .label-preview { width: 100%; height: 35mm; padding: 2mm; margin: 0; border: 1px dashed #eee; }
+    .layout-a4 .label-name { font-size: 10px; }
+    .layout-a4 .label-meta { font-size: 9px; }
+    .layout-a4 .label-price { font-size: 11px; }
+    .layout-a4 .label-custom { font-size: 9px; }
+    .layout-a4 .label-barcode { max-height: 12mm; }
+
+    @media print {
+        .label-preview { border: none !important; }
+
+        /* Thermal: one label per page, centered on the roll */
+        .layout-thermal58 #print-area,
+        .layout-thermal80 #print-area {
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: center !important;
+            width: 100% !important;
+            margin: 0 !important;
+            padding: 0 !important;
+        }
+        .layout-thermal58 .label-preview,
+        .layout-thermal80 .label-preview {
+            margin: 0 auto !important;
+            break-after: page;
+            page-break-after: always;
+        }
+
+        /* A4: grid centered on the A4 sheet */
+        .layout-a4 #print-area { padding: 5mm !important; margin: 0 auto !important; }
+        .layout-a4 .label-preview { margin: 0 !important; }
+    }
+</style>
+
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8" id="app">
+    <div class="flex items-center justify-between mb-8 no-print">
+        <div>
+            <h1 class="text-2xl font-black text-gray-900">مولد وملصقات الباركود</h1>
+            <p class="text-sm text-gray-500 mt-1">تخصيص كامل وتوليد فوري للطباعة على جميع المقاسات والطابعات.</p>
+        </div>
+        <div class="flex gap-2">
+            <a href="{% url 'product_list' %}" class="px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-xl hover:bg-gray-50 transition shadow-sm font-bold flex items-center gap-2">
+                <i class="fa-solid fa-arrow-right"></i> رجوع
+            </a>
+            <button onclick="printNow()" class="px-6 py-2 bg-teal-600 text-white rounded-xl hover:bg-teal-700 transition shadow-lg shadow-teal-100 font-bold flex items-center gap-2">
+                <i class="fa-solid fa-print"></i> طباعة الآن
+            </button>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        
+        <!-- Controls Sidebar -->
+        <div class="lg:col-span-4 space-y-6 no-print">
+            <!-- Format Selector -->
+            <div class="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
+                <h3 class="text-sm font-black text-gray-800 mb-4 flex items-center gap-2"><i class="fa-solid fa-print text-teal-600"></i> نوع الطابعة والورق</h3>
+                <div class="space-y-3">
+                    <label class="flex items-center gap-3 p-3 border border-gray-200 rounded-xl cursor-pointer hover:bg-gray-50 transition format-option" id="fmt-t58">
+                        <input type="radio" name="printer_format" value="thermal58" class="text-teal-600 focus:ring-teal-500 w-4 h-4" checked onchange="updateFormat()">
+                        <div class="flex flex-col">
+                            <span class="font-bold text-gray-800">طابعة بونات حرارية (58mm)</span>
+                            <span class="text-[10px] text-gray-400">ملصق مفرد مستمر</span>
+                        </div>
+                    </label>
+                    <label class="flex items-center gap-3 p-3 border border-gray-200 rounded-xl cursor-pointer hover:bg-gray-50 transition format-option" id="fmt-t80">
+                        <input type="radio" name="printer_format" value="thermal80" class="text-teal-600 focus:ring-teal-500 w-4 h-4" onchange="updateFormat()">
+                        <div class="flex flex-col">
+                            <span class="font-bold text-gray-800">طابعة بونات عريضة (80mm)</span>
+                            <span class="text-[10px] text-gray-400">ملصق مفرد كبير مستمر</span>
+                        </div>
+                    </label>
+                    <label class="flex items-center gap-3 p-3 border border-gray-200 rounded-xl cursor-pointer hover:bg-gray-50 transition format-option" id="fmt-a4">
+                        <input type="radio" name="printer_format" value="a4" class="text-teal-600 focus:ring-teal-500 w-4 h-4" onchange="updateFormat()">
+                        <div class="flex flex-col">
+                            <span class="font-bold text-gray-800">ورق ملصقات (A4)</span>
+                            <span class="text-[10px] text-gray-400">طباعة شبكية (متعددة)</span>
+                        </div>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Content Toggles -->
+            <div class="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
+                <h3 class="text-sm font-black text-gray-800 mb-4 flex items-center gap-2"><i class="fa-solid fa-layer-group text-indigo-600"></i> مكونات الملصق</h3>
+                
+                <div class="grid grid-cols-2 gap-3 mb-4">
+                    <label class="flex items-center gap-2 cursor-pointer bg-gray-50 p-2.5 rounded-lg border border-gray-100 hover:border-gray-300 transition">
+                        <input type="checkbox" id="chk-name" checked class="rounded text-teal-600 focus:ring-teal-500" onchange="renderLabels()">
+                        <span class="text-sm font-bold text-gray-700">اسم الصنف</span>
+                    </label>
+                    <label class="flex items-center gap-2 cursor-pointer bg-gray-50 p-2.5 rounded-lg border border-gray-100 hover:border-gray-300 transition">
+                        <input type="checkbox" id="chk-barcode" checked class="rounded text-teal-600 focus:ring-teal-500" onchange="renderLabels()">
+                        <span class="text-sm font-bold text-gray-700">خطوط الباركود</span>
+                    </label>
+                    <label class="flex items-center gap-2 cursor-pointer bg-gray-50 p-2.5 rounded-lg border border-gray-100 hover:border-gray-300 transition">
+                        <input type="checkbox" id="chk-price" checked class="rounded text-teal-600 focus:ring-teal-500" onchange="renderLabels()">
+                        <span class="text-sm font-bold text-gray-700">السعر</span>
+                    </label>
+                    <label class="flex items-center gap-2 cursor-pointer bg-gray-50 p-2.5 rounded-lg border border-gray-100 hover:border-gray-300 transition">
+                        <input type="checkbox" id="chk-size" checked class="rounded text-teal-600 focus:ring-teal-500" onchange="renderLabels()">
+                        <span class="text-sm font-bold text-gray-700">المقاس</span>
+                    </label>
+                </div>
+
+                <div class="mt-4">
+                    <label class="block text-xs font-bold text-gray-500 mb-2">نص إضافي (اختياري)</label>
+                    <input type="text" id="custom-text" placeholder="مثال: عرض خاص، اسم المحل..." class="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:bg-white outline-none transition text-sm" oninput="renderLabels()">
+                </div>
+            </div>
+
+            <!-- Selected Products & Quantities -->
+            <div class="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden flex flex-col" style="max-height: 500px;">
+                <div class="p-6 border-b border-gray-100 bg-gray-50">
+                    <h3 class="text-sm font-black text-gray-800 flex items-center justify-between">
+                        <span class="flex items-center gap-2"><i class="fa-solid fa-boxes-stacked text-amber-500"></i> الأصناف المحددة</span>
+                        <span id="total-labels-badge" class="px-2 py-1 bg-teal-100 text-teal-700 rounded-md text-[10px]">0 ملصق</span>
+                    </h3>
+                </div>
+                <div class="overflow-y-auto p-4 space-y-3" id="products-list">
+                    <!-- Products injected by JS -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Live Preview -->
+        <div class="lg:col-span-8">
+            <div class="bg-gray-100 rounded-3xl border-2 border-dashed border-gray-300 p-8 min-h-[600px] flex items-start justify-center overflow-x-auto relative print-preview-bg">
+                <div class="absolute top-4 right-4 bg-white px-3 py-1.5 rounded-lg shadow-sm border border-gray-200 text-xs font-bold text-gray-500 flex items-center gap-2 z-10 no-print">
+                    <span class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
+                    معاينة حية (Live Preview)
+                </div>
+                
+                <!-- The container that will be printed -->
+                <div id="print-area" class="layout-thermal58 mt-8">
+                    <!-- Labels injected here -->
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const productsData = JSON.parse('{{ products_json|escapejs }}');
+    const printArea = document.getElementById('print-area');
+    const productsListEl = document.getElementById('products-list');
+    
+    // We will track the quantity desired for each size of each product.
+    // Default to 1 label per product size.
+    let printQueue = [];
+
+    const LABEL_FIELDS_KEY = 'barcodeGeneratorLabelFields';
+    function loadLabelFields() {
+        try {
+            const saved = JSON.parse(localStorage.getItem(LABEL_FIELDS_KEY));
+            if (!saved) return;
+            if (typeof saved.name === 'boolean') document.getElementById('chk-name').checked = saved.name;
+            if (typeof saved.barcode === 'boolean') document.getElementById('chk-barcode').checked = saved.barcode;
+            if (typeof saved.price === 'boolean') document.getElementById('chk-price').checked = saved.price;
+            if (typeof saved.size === 'boolean') document.getElementById('chk-size').checked = saved.size;
+        } catch (e) {}
+    }
+    function saveLabelFields() {
+        try {
+            localStorage.setItem(LABEL_FIELDS_KEY, JSON.stringify({
+                name: document.getElementById('chk-name').checked,
+                barcode: document.getElementById('chk-barcode').checked,
+                price: document.getElementById('chk-price').checked,
+                size: document.getElementById('chk-size').checked
+            }));
+        } catch (e) {}
+    }
+
+    function init() {
+        loadLabelFields();
+        productsData.forEach(p => {
+            if (p.sizes && p.sizes.length > 0) {
+                p.sizes.forEach(s => {
+                    printQueue.push({ product: p, size: s, qty: 1, id: `${p.id}-${s.id}` });
+                });
+            } else {
+                printQueue.push({ product: p, size: null, qty: 1, id: `${p.id}-nosize` });
+            }
+        });
+
+        renderControlList();
+        renderLabels();
+    }
+
+    function renderControlList() {
+        productsListEl.innerHTML = '';
+        let total = 0;
+
+        if (printQueue.length === 0) {
+            productsListEl.innerHTML = `<div class="text-center text-gray-400 py-8 text-sm font-medium">لم يتم تحديد أصناف. قم باختيار الأصناف من صفحة قائمة المنتجات.</div>`;
+            document.getElementById('total-labels-badge').innerText = `0 ملصق`;
+            return;
+        }
+
+        printQueue.forEach((item, index) => {
+            total += parseInt(item.qty);
+            
+            let sizeBadge = item.size ? `<span class="px-1.5 py-0.5 bg-indigo-50 text-indigo-600 rounded text-[9px] border border-indigo-100">${item.size.name}</span>` : '';
+            
+            const el = document.createElement('div');
+            el.className = 'flex items-center justify-between p-3 bg-white border border-gray-100 rounded-xl hover:border-teal-200 transition';
+            el.innerHTML = `
+                <div class="flex-1 min-w-0 pr-2">
+                    <div class="text-xs font-bold text-gray-800 truncate">${item.product.name}</div>
+                    <div class="flex items-center gap-2 mt-1">
+                        <span class="text-[10px] text-gray-400 font-mono">${item.product.sku}</span>
+                        ${sizeBadge}
+                    </div>
+                </div>
+                <div class="flex items-center gap-2 shrink-0">
+                    <button onclick="updateQty(${index}, -1)" class="w-6 h-6 rounded bg-gray-100 text-gray-600 flex items-center justify-center hover:bg-gray-200"><i class="fa-solid fa-minus text-[10px]"></i></button>
+                    <input type="number" min="0" value="${item.qty}" class="w-12 text-center text-sm font-bold bg-transparent border-none p-0 focus:ring-0" onchange="setQty(${index}, this.value)">
+                    <button onclick="updateQty(${index}, 1)" class="w-6 h-6 rounded bg-teal-50 text-teal-600 flex items-center justify-center hover:bg-teal-100 border border-teal-100"><i class="fa-solid fa-plus text-[10px]"></i></button>
+                    <button onclick="removeItem(${index})" class="w-6 h-6 ml-2 rounded text-red-400 hover:text-red-600 hover:bg-red-50 flex items-center justify-center"><i class="fa-solid fa-xmark text-[10px]"></i></button>
+                </div>
+            `;
+            productsListEl.appendChild(el);
+        });
+
+        document.getElementById('total-labels-badge').innerText = `${total} ملصق`;
+    }
+
+    function updateQty(index, delta) {
+        let q = parseInt(printQueue[index].qty) + delta;
+        if (q < 0) q = 0;
+        printQueue[index].qty = q;
+        renderControlList();
+        renderLabels();
+    }
+
+    function setQty(index, val) {
+        let q = parseInt(val);
+        if (isNaN(q) || q < 0) q = 0;
+        printQueue[index].qty = q;
+        renderControlList();
+        renderLabels();
+    }
+
+    function removeItem(index) {
+        printQueue.splice(index, 1);
+        renderControlList();
+        renderLabels();
+    }
+
+    function updateFormat() {
+        const format = document.querySelector('input[name="printer_format"]:checked').value;
+        printArea.className = `layout-${format} mt-8`;
+        
+        // Update active styling on format buttons
+        document.querySelectorAll('.format-option').forEach(el => el.classList.replace('border-teal-500', 'border-gray-200'));
+        document.querySelector(`input[name="printer_format"]:checked`).parentElement.classList.replace('border-gray-200', 'border-teal-500');
+        
+        // Re-init barcodes because sizes change
+        renderLabels();
+    }
+
+    function renderLabels() {
+        printArea.innerHTML = '';
+        
+        const showName = document.getElementById('chk-name').checked;
+        const showBarcode = document.getElementById('chk-barcode').checked;
+        const showPrice = document.getElementById('chk-price').checked;
+        const showSize = document.getElementById('chk-size').checked;
+        const customText = document.getElementById('custom-text').value.trim();
+
+        saveLabelFields();
+
+        let labelsHTML = '';
+        let barcodeValues = [];
+
+        printQueue.forEach(item => {
+            for (let i = 0; i < item.qty; i++) {
+                let uniqueId = `bc-${item.id}-${i}`;
+                barcodeValues.push({ id: uniqueId, val: item.product.barcode });
+
+                labelsHTML += `
+                    <div class="label-preview">
+                        ${customText ? `<div class="label-custom">${customText}</div>` : ''}
+                        ${showName ? `<div class="label-name">${item.product.name}</div>` : ''}
+                        ${showBarcode ? `
+                            <div class="label-barcode-container">
+                                <svg id="${uniqueId}" class="label-barcode"></svg>
+                            </div>
+                        ` : ''}
+                        
+                        <div class="label-meta" style="${(!showPrice && !showSize && !item.product.category) ? 'display:none;' : ''}">
+                            <div class="flex gap-1 items-center overflow-hidden">
+                                <span class="text-[9px] text-gray-500 truncate">${item.product.category}</span>
+                                ${showSize && item.size ? `<span class="px-1 bg-black text-white rounded text-[10px] ml-1">${item.size.name}</span>` : ''}
+                            </div>
+                            ${showPrice ? `<div class="label-price">${item.product.price} <span>ج</span></div>` : ''}
+                        </div>
+                    </div>
+                `;
+            }
+        });
+
+        printArea.innerHTML = labelsHTML;
+
+        // Render SVGs using JsBarcode
+        if (showBarcode) {
+            barcodeValues.forEach(bc => {
+                JsBarcode(`#${bc.id}`, bc.val, {
+                    format: "CODE128",
+                    displayValue: true,
+                    fontSize: 14,
+                    fontOptions: "bold",
+                    margin: 0,
+                    textMargin: 2,
+                    height: 40
+                });
+            });
+        }
+    }
+
+    // Initialize on load
+    init();
+    updateFormat(); // Set initial format active state
+
+    // ─── Smart Print: inject correct @page size before printing ───
+    function printNow() {
+        const format = document.querySelector('input[name="printer_format"]:checked').value;
+
+        let pageSize;
+        if (format === 'thermal58') {
+            pageSize = '58mm 40mm portrait';
+        } else if (format === 'thermal80') {
+            pageSize = '80mm 50mm portrait';
+        } else {
+            pageSize = 'A4 portrait';
+        }
+
+        // Inject (or update) a dynamic @page rule so the browser
+        // uses the correct roll/paper size instead of the system default.
+        let styleEl = document.getElementById('dynamic-print-style');
+        if (!styleEl) {
+            styleEl = document.createElement('style');
+            styleEl.id = 'dynamic-print-style';
+            document.head.appendChild(styleEl);
+        }
+        styleEl.textContent = `@media print { @page { size: ${pageSize}; margin: 0; } }`;
+
+        window.print();
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,152 @@
+{% extends 'base.html' %}
+{% load widget_tweaks %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="p-4">
+  <div class="bg-white rounded-2xl shadow-xl border border-gray-100 w-full max-w-3xl mx-auto overflow-hidden">
+
+    <!-- Header -->
+    <div class="bg-white px-8 py-5 border-b border-gray-100 flex justify-between items-center">
+      <div>
+        <h2 class="text-2xl font-bold text-gray-800 flex items-center gap-3">
+          <div class="w-10 h-10 bg-blue-100 text-blue-600 rounded-xl flex items-center justify-center">
+            <i class="fa-solid fa-building"></i>
+          </div>
+          {{ title }}
+        </h2>
+        <p class="text-sm text-gray-500 mt-1 mr-14">بيانات التواصل والحساب مع المورد</p>
+      </div>
+      <a href="{% url 'supplier_list' %}" class="text-gray-400 hover:text-red-500 transition bg-gray-50 hover:bg-red-50 p-2 rounded-full w-10 h-10 flex items-center justify-center">
+        <i class="fa-solid fa-xmark text-xl"></i>
+      </a>
+    </div>
+
+    <form method="post" class="p-8 space-y-6">
+      {% csrf_token %}
+
+      {% if form.non_field_errors %}
+      <div class="bg-red-50 border-r-4 border-red-500 text-red-700 p-4 rounded-lg text-sm">{{ form.non_field_errors }}</div>
+      {% endif %}
+
+      <!-- SECTION 1: Identity -->
+      <div class="bg-gray-50/50 p-5 rounded-2xl border border-gray-100 space-y-4">
+        <h3 class="text-sm font-bold text-gray-600 uppercase tracking-wide border-b border-gray-200 pb-2">بيانات التعريف</h3>
+
+        <div>
+          <label class="block text-sm font-bold text-gray-700 mb-2">اسم المورد / الشركة <span class="text-red-500">*</span></label>
+          {{ form.name }}
+          {% if form.name.errors %}<p class="text-red-500 text-xs mt-1">{{ form.name.errors.0 }}</p>{% endif %}
+        </div>
+
+        <div>
+          <label class="block text-sm font-bold text-gray-700 mb-2">اسم المسؤول / المندوب</label>
+          {{ form.contact_name }}
+        </div>
+
+        <!-- Supplier Type (card selector) -->
+        <div>
+          <label class="block text-sm font-bold text-gray-700 mb-3">نوع المورد <span class="text-red-500">*</span></label>
+          <div class="grid grid-cols-3 gap-3" id="supplierTypeCards">
+            {% for val, label in form.fields.supplier_type.choices %}
+            {% if val %}
+            <label class="cursor-pointer sup-type-card" data-value="{{ val }}">
+              <input type="radio" name="supplier_type" value="{{ val }}" class="hidden sup-radio"
+                {% if form.instance.supplier_type == val %}checked{% endif %}>
+              <div class="border-2 rounded-xl p-3 text-center transition sup-card-inner
+                {% if form.instance.supplier_type == val %}border-teal-500 bg-teal-50{% else %}border-gray-200 bg-white hover:border-teal-300{% endif %}">
+                <p class="font-bold text-sm text-gray-800">{{ label }}</p>
+              </div>
+            </label>
+            {% endif %}
+            {% endfor %}
+          </div>
+          {% if form.supplier_type.errors %}<p class="text-red-500 text-xs mt-1">{{ form.supplier_type.errors.0 }}</p>{% endif %}
+        </div>
+      </div>
+
+      <!-- SECTION 2: Contact -->
+      <div class="bg-gray-50/50 p-5 rounded-2xl border border-gray-100 space-y-4">
+        <h3 class="text-sm font-bold text-gray-600 uppercase tracking-wide border-b border-gray-200 pb-2">بيانات التواصل</h3>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm font-bold text-gray-700 mb-2">الهاتف <span class="text-red-500">*</span></label>
+            {{ form.phone }}
+            {% if form.phone.errors %}<p class="text-red-500 text-xs mt-1">{{ form.phone.errors.0 }}</p>{% endif %}
+          </div>
+          <div>
+            <label class="block text-sm font-bold text-gray-700 mb-2">البريد الإلكتروني</label>
+            {{ form.email }}
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-sm font-bold text-gray-700 mb-2">العنوان</label>
+          {{ form.address }}
+        </div>
+      </div>
+
+      <!-- SECTION 3: Financial -->
+      <div class="bg-gray-50/50 p-5 rounded-2xl border border-gray-100 space-y-4">
+        <h3 class="text-sm font-bold text-gray-600 uppercase tracking-wide border-b border-gray-200 pb-2">البيانات المالية</h3>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm font-bold text-gray-700 mb-2">رصيد افتتاحي (مديونية)</label>
+            {{ form.opening_balance }}
+            <p class="text-[10px] text-gray-400 mt-1">المبلغ المستحق عليك للمورد عند بدء التشغيل</p>
+          </div>
+          <div>
+            <label class="block text-sm font-bold text-gray-700 mb-2">حد الائتمان</label>
+            {{ form.credit_limit }}
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-sm font-bold text-gray-700 mb-2">ملاحظات</label>
+          {{ form.notes }}
+        </div>
+      </div>
+
+      <!-- Is Active -->
+      <div class="flex items-center gap-4 bg-white border border-gray-200 p-4 rounded-xl">
+        {{ form.is_active }}
+        <div>
+          <label class="font-bold text-gray-800 block">مورد نشط</label>
+          <p class="text-xs text-gray-500">يظهر في قوائم المشتريات وأوامر الشراء</p>
+        </div>
+      </div>
+
+      <!-- Buttons -->
+      <div class="flex gap-3 pt-2 border-t border-gray-100">
+        <button type="submit" class="flex-1 bg-teal-600 hover:bg-teal-700 text-white py-3 rounded-xl font-bold shadow-lg transition flex items-center justify-center gap-2">
+          <i class="fa-solid fa-save"></i> حفظ المورد
+        </button>
+        <a href="{% url 'supplier_list' %}" class="px-6 py-3 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition font-medium">
+          إلغاء
+        </a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const cards = document.querySelectorAll('.sup-type-card');
+  cards.forEach(card => {
+    card.addEventListener('click', () => {
+      cards.forEach(c => {
+        c.querySelector('.sup-card-inner').classList.remove('border-teal-500', 'bg-teal-50');
+        c.querySelector('.sup-card-inner').classList.add('border-gray-200', 'bg-white');
+        c.querySelector('.sup-radio').checked = false;
+      });
+      card.querySelector('.sup-card-inner').classList.remove('border-gray-200', 'bg-white');
+      card.querySelector('.sup-card-inner').classList.add('border-teal-500', 'bg-teal-50');
+      card.querySelector('.sup-radio').checked = true;
+    });
+  });
+});
+</script>
+{% endblock %}

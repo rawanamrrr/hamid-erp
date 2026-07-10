@@ -1,0 +1,87 @@
+from decimal import Decimal
+from django.db import models
+from .market_profiles import MARKET_TYPE_CHOICES as _MARKET_TYPE_CHOICES
+
+class SystemSetting(models.Model):
+    # Single source of truth lives in settings/market_profiles.py (the MarketProfile engine).
+    MARKET_TYPE_CHOICES = _MARKET_TYPE_CHOICES
+
+    shop_name = models.CharField(max_length=200, default="Wholesale POS System", verbose_name="اسم المحل")
+    address = models.TextField(blank=True, default="العنوان الافتراضي", verbose_name="العنوان")
+    phone = models.CharField(max_length=50, blank=True, default="01000000000", verbose_name="أرقام الهاتف")
+    
+    # Market Type (NEW)
+    market_type = models.CharField(
+        max_length=20,
+        choices=MARKET_TYPE_CHOICES,
+        default='clothes',
+        verbose_name="نوع المتجر / السوق"
+    )
+    is_market_type_locked = models.BooleanField(
+        default=False,
+        verbose_name="قفل نوع المتجر؟ (لا يمكن تغييره)"
+    )
+
+    # VAT / tax (Phase 4.8). Rate 0 = disabled (no behavior change). When enabled, retail
+    # prices are treated as VAT-inclusive and the report extracts the tax portion.
+    vat_rate = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal('0.00'), verbose_name="نسبة ضريبة القيمة المضافة %")
+    vat_number = models.CharField(max_length=50, blank=True, default='', verbose_name="الرقم الضريبي للمنشأة")
+    # True (default) = current behavior unchanged — retail prices already include VAT, so
+    # the receipt just extracts the tax portion out of the existing total. False = retail
+    # prices are tax-exclusive, so VAT is added ON TOP of the total on the receipt.
+    vat_included_in_price = models.BooleanField(default=True, verbose_name="الضريبة مضمنة في الأسعار")
+
+    # Service charge — dine-in only (never applied to takeaway/delivery orders). Works the
+    # same way as VAT above: included = already baked into the subtotal (receipt just
+    # shows the extracted portion, no change to what's charged); not included = added on
+    # top of the subtotal, same as VAT's excluded mode.
+    service_charge_percent = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal('0.00'), verbose_name="نسبة رسوم الخدمة % (صالة فقط)")
+    service_charge_included_in_price = models.BooleanField(default=False, verbose_name="رسوم الخدمة مضمنة في الأسعار")
+
+    # Logo stored as Base64 string
+    logo_base64 = models.TextField(blank=True, null=True, verbose_name="كود اللوجو (Base64)")
+    
+    # Receipt Footer
+    return_policy = models.TextField(blank=True, default="البضاعة المباعة ترد وتستبدل خلال 14 يوم", verbose_name="سياسة الاسترجاع")
+    thank_you_text = models.CharField(max_length=200, default="شكراً لزيارتكم", verbose_name="رسالة الشكر")
+    
+    # QR Options
+    show_qr = models.BooleanField(default=True, verbose_name="إظهار QR Code")
+    qr_link = models.CharField(max_length=255, blank=True, verbose_name="رابط QR Code (اختياري)")
+
+    # Printer Settings
+    printer_name = models.CharField(max_length=255, blank=True, null=True, verbose_name="اسم الطابعة الأساسية (Direct Print)")
+    
+    # Notification Sound
+    notification_sound = models.FileField(upload_to='sounds/', blank=True, null=True, verbose_name="صوت التنبيه (MP3)")
+
+    # Email Settings
+    gmail_sender_email = models.EmailField(blank=True, default='', verbose_name="بريد Gmail المرسل")
+    gmail_app_password = models.CharField(max_length=64, blank=True, default='', verbose_name="كلمة مرور التطبيق")
+    email_recipients = models.TextField(blank=True, default='', verbose_name="المستلمون (مفصولين بفواصل)")
+    
+    def save(self, *args, **kwargs):
+        # ضمان وجود ID=1 دائماً (Singleton)
+        self.pk = 1
+        super(SystemSetting, self).save(*args, **kwargs)
+
+    def __str__(self):
+        return "إعدادات النظام"
+
+
+class SystemPolicy(models.Model):
+    """Singleton store for the Layer-2 policy engine (settings/policies.py).
+
+    `values` holds only the policies the customer has overridden; everything else falls back
+    to the registry default. Master/customer-configurable — distinct from per-user permissions
+    and from dev-locked feature entitlements.
+    """
+    values = models.JSONField(default=dict, blank=True, verbose_name="قيم ثوابت النظام")
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def save(self, *args, **kwargs):
+        self.pk = 1  # Singleton
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return "ثوابت النظام"

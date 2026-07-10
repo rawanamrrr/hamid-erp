@@ -1,0 +1,684 @@
+{% extends "base.html" %}
+{% block title %}حساب التكاليف والأسعار{% endblock %}
+
+{% block extra_head %}
+<style>
+    @media print { .no-print { display: none !important; } }
+    
+    .tab-active { border-bottom: 4px solid #0d9488; color: #0d9488; font-weight: 900; }
+    
+    /* Layout Overrides for Sticky Sidebar */
+    @media (min-width: 1024px) {
+        .sticky-summary { position: sticky; top: 1.5rem; max-height: calc(100vh - 3rem); overflow-y: auto; }
+    }
+
+    /* Fix Search Alignment */
+    .search-container { position: relative; width: 100%; }
+    .search-results { 
+        position: absolute; top: 100%; left: 0; right: 0; 
+        background: white; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        z-index: 1000; max-height: 250px; overflow-y: auto;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Password Gate Overlay -->
+<div id="password-gate" class="fixed inset-0 bg-slate-900/95 backdrop-blur-md z-[99999] flex items-center justify-center p-4 hidden">
+    <div class="bg-white p-10 rounded-[2.5rem] shadow-2xl w-full max-w-md text-center border border-slate-100">
+        <div class="w-20 h-20 bg-teal-50 text-teal-600 rounded-3xl flex items-center justify-center mx-auto mb-8 transform -rotate-6 shadow-sm">
+            <i class="fas fa-shield-halved text-3xl"></i>
+        </div>
+        <h2 class="text-3xl font-black text-slate-800 mb-3">دخول آمن</h2>
+        <p class="text-slate-500 mb-8 leading-relaxed">يرجى إدخال كلمة المرور. الجلسة صالحة لمدة 10 دقائق فقط.</p>
+        <div class="relative mb-6">
+            <input type="password" id="gate-pass" class="w-full px-6 py-4 rounded-2xl border-2 border-slate-100 text-center text-xl font-bold focus:border-teal-500 focus:ring-0 outline-none transition-all placeholder:text-slate-200" placeholder="••••••••">
+        </div>
+        <button onclick="submitGate()" class="w-full bg-teal-600 text-white py-4 rounded-2xl font-black text-lg shadow-lg shadow-teal-100 hover:bg-teal-700 hover:-translate-y-1 transition-all active:scale-95">فتح النظام</button>
+        <p id="gate-error" class="text-red-500 mt-6 text-sm font-bold hidden flex items-center justify-center gap-2">
+            <i class="fas fa-circle-exclamation"></i> كلمة المرور غير صحيحة
+        </p>
+    </div>
+</div>
+
+<!-- Help Modal -->
+<div id="help-modal" class="fixed inset-0 bg-slate-900/60 z-[100000] opacity-0 pointer-events-none transition-all duration-300 flex items-center justify-center p-4">
+    <div class="bg-white rounded-[2.5rem] p-10 max-w-2xl w-full shadow-2xl overflow-y-auto max-h-[90vh] border border-slate-100">
+        <div class="flex justify-between items-center mb-8 pb-4 border-b border-slate-50">
+            <h3 class="text-2xl font-black text-slate-800">دليل الاستخدام الذكي</h3>
+            <button onclick="closeHelp()" class="w-10 h-10 bg-slate-50 text-slate-400 rounded-xl hover:text-red-500 hover:bg-red-50 transition-all">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 text-right">
+            <div class="p-6 bg-teal-50 rounded-3xl border border-teal-100/50">
+                <i class="fas fa-route text-teal-600 text-2xl mb-4 block"></i>
+                <h4 class="font-black text-teal-900 mb-2">1. المسار الصحيح</h4>
+                <p class="text-sm text-teal-700 leading-relaxed font-bold">اختر "شراء" للبضاعة الجاهزة، و "تصنيع" لمنتجات المشغل والمصنع.</p>
+            </div>
+            <div class="p-6 bg-blue-50 rounded-3xl border border-blue-100/50">
+                <i class="fas fa-link text-blue-600 text-2xl mb-4 block"></i>
+                <h4 class="font-black text-blue-900 mb-2">2. ربط البيانات</h4>
+                <p class="text-sm text-blue-700 leading-relaxed font-bold">ابحث عن منتج بالسيستم لربط التكلفة به وتحديث سعره فوراً، أو اتركه لمنتجات خارجية.</p>
+            </div>
+            <div class="p-6 bg-purple-50 rounded-3xl border border-purple-100/50">
+                <i class="fas fa-chart-line text-purple-600 text-2xl mb-4 block"></i>
+                <h4 class="font-black text-purple-900 mb-2">3. الهامش الحقيقي</h4>
+                <p class="text-sm text-purple-700 leading-relaxed font-bold">المعادلة تضمن ربحك من "سعر البيع النهائي" وليس مضافاً فوق التكلفة، لضمان أعلى دقة.</p>
+            </div>
+            <div class="p-6 bg-amber-50 rounded-3xl border border-amber-100/50">
+                <i class="fas fa-print text-amber-600 text-2xl mb-4 block"></i>
+                <h4 class="font-black text-amber-900 mb-2">4. نواتج احترافية</h4>
+                <p class="text-sm text-amber-700 leading-relaxed font-bold">احفظ الحسبة لتراها في السجل، واطبعها بصيغة A4 أو Thermal لتسهيل العمل.</p>
+            </div>
+        </div>
+        <button onclick="closeHelp()" class="w-full mt-10 bg-slate-900 text-white py-5 rounded-3xl font-black text-lg hover:bg-black transition-all">فهمت، لنبدأ الآن</button>
+    </div>
+</div>
+
+<!-- Main Application UI -->
+<div id="main-ui" class="opacity-0 pointer-events-none transition-all duration-700 pb-20 no-print">
+    <!-- Header Section -->
+    <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-12 gap-8">
+        <div>
+            <div class="flex items-center gap-4 mb-3">
+                <span class="p-4 bg-teal-600 text-white rounded-[1.5rem] shadow-xl shadow-teal-100 transform rotate-3">
+                    <i class="fas fa-calculator text-2xl"></i>
+                </span>
+                <h1 class="text-4xl lg:text-5xl font-black text-slate-800 tracking-tight">محرك التكاليف</h1>
+            </div>
+            <div class="flex flex-wrap items-center gap-4">
+                <p class="text-slate-400 font-bold">نظام تسعير استراتيجي - دقة 100%</p>
+                <button onclick="openHelp()" class="px-4 py-1.5 bg-slate-100 text-slate-600 rounded-full text-xs font-black hover:bg-teal-600 hover:text-white transition-all">
+                    <i class="fas fa-circle-info ml-1"></i> دليل الاستخدام
+                </button>
+            </div>
+        </div>
+        <div class="flex flex-wrap gap-4 w-full lg:w-auto">
+            <a href="{% url 'costing_list' %}" class="flex-1 lg:flex-none px-6 py-4 bg-white text-slate-600 rounded-2xl font-black hover:bg-slate-50 transition-all border border-slate-100 shadow-sm flex items-center justify-center gap-3">
+                <i class="fas fa-clock-rotate-left text-teal-600"></i> سجل التاريخ
+            </a>
+            <button onclick="saveCosting()" class="flex-1 lg:flex-none px-8 py-4 bg-teal-600 text-white rounded-2xl font-black hover:bg-teal-700 transition-all shadow-xl shadow-teal-100 flex items-center justify-center gap-3">
+                <i class="fas fa-cloud-arrow-up"></i> حفظ وتأمين الحسبة
+            </button>
+        </div>
+    </div>
+
+    <!-- Tab Switcher -->
+    <div class="flex border-b-2 border-slate-100 mb-10 gap-12 overflow-x-auto no-scrollbar">
+        <button onclick="switchTab('retail')" id="tab-retail" class="tab-active pb-5 text-xl transition-all whitespace-nowrap">حساب تكلفة شراء</button>
+        <button onclick="switchTab('manufacture')" id="tab-manufacture" class="pb-5 text-slate-300 text-xl transition-all whitespace-nowrap">حساب تكلفة تصنيع (إنتاج)</button>
+    </div>
+
+    <!-- CALCULATOR PANE: RETAIL -->
+    <div id="pane-retail" class="grid grid-cols-1 lg:grid-cols-12 gap-10">
+        <div class="lg:col-span-8 space-y-10">
+            <!-- Basic Data Box -->
+            <div class="bg-white rounded-[2.5rem] p-10 shadow-xl shadow-slate-100 border border-slate-50">
+                <h3 class="text-2xl font-black text-slate-800 mb-10 border-r-4 border-teal-500 pr-5 flex justify-between items-center">
+                    بيانات شراء المنتج
+                    <span class="text-xs text-slate-300 font-bold">(القيم بالعملة المحلية)</span>
+                </h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div>
+                        <label class="block text-sm font-black text-slate-600 mb-3">سعر الشراء (فاتورة المورد)</label>
+                        <input type="number" id="retail-purchase-price" oninput="calcRetail()" class="w-full bg-slate-50 border-0 px-6 py-4 rounded-2xl font-bold focus:ring-2 focus:ring-teal-500 outline-none transition-all" placeholder="0.00">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-black text-slate-600 mb-3">نصيب التوصيل/النقل</label>
+                        <input type="number" id="retail-shipping" oninput="calcRetail()" class="w-full bg-slate-50 border-0 px-6 py-4 rounded-2xl font-bold focus:ring-2 focus:ring-teal-500 outline-none transition-all" placeholder="0.00">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-black text-slate-600 mb-3">مصروفات أخرى (جمارك/تعبئة)</label>
+                        <input type="number" id="retail-extra" oninput="calcRetail()" class="w-full bg-slate-50 border-0 px-6 py-4 rounded-2xl font-bold focus:ring-2 focus:ring-teal-500 outline-none transition-all" placeholder="0.00">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-black text-slate-600 mb-3">هامش الربح المستهدف (%)</label>
+                        <div class="relative">
+                            <input type="number" id="retail-profit-pct" value="30" oninput="calcRetail()" class="w-full bg-slate-50 border-0 px-6 py-4 rounded-2xl font-bold focus:ring-2 focus:ring-teal-500 outline-none transition-all">
+                            <span class="absolute left-6 top-4 text-slate-300 font-black text-lg">%</span>
+                        </div>
+                    </div>
+                    <div class="md:col-span-2">
+                        <label class="block text-sm font-black text-slate-600 mb-3">عنوان الحسبة (للسجل)</label>
+                        <input type="text" id="retail-name" class="w-full bg-slate-50 border-0 px-6 py-4 rounded-2xl font-bold focus:ring-2 focus:ring-teal-500 outline-none transition-all" placeholder="أدخل اسماً يميز هذه الحسبة...">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Visual Result Box -->
+            <div class="bg-gradient-to-br from-slate-900 to-slate-800 rounded-[3rem] p-12 text-white shadow-2xl relative overflow-hidden group">
+                <div class="absolute -top-24 -right-24 w-64 h-64 bg-teal-500/10 rounded-full blur-3xl transition-all group-hover:bg-teal-500/20"></div>
+                <div class="relative z-10 grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
+                    <div>
+                        <div class="flex items-center gap-3 mb-4">
+                            <span class="w-3 h-3 bg-teal-400 rounded-full animate-pulse"></span>
+                            <p class="text-teal-400 font-black tracking-widest uppercase text-xs">الحساب النهائي</p>
+                        </div>
+                        <h4 class="text-slate-300 text-3xl font-black mb-6 leading-tight">صافي التكلفة الحقيقية <br> للقطعة الواحدة</h4>
+                        <div class="flex items-baseline gap-4">
+                            <span id="retail-total-cost" class="text-7xl font-black text-white tracking-tighter">0.00</span>
+                            <span class="text-2xl font-bold text-slate-500">ج.م</span>
+                        </div>
+                    </div>
+                    <div class="bg-white/5 backdrop-blur-sm p-10 rounded-[2.5rem] border border-white/10">
+                        <span class="block text-slate-400 text-xs font-black uppercase tracking-[0.2em] mb-4">سعر البيع الاستراتيجي</span>
+                        <div class="text-5xl font-black text-emerald-400 mb-2 truncate" id="retail-selling-price">0.00 <span class="text-lg">ج.م</span></div>
+                        <p class="text-slate-500 text-[10px] leading-relaxed">السعر المحسوب يضمن هامش ربحك الحقيقي من إجمالي المبيعات.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sidebar Section -->
+        <div class="lg:col-span-4 lg:pl-4">
+            <div class="sticky-summary space-y-8">
+                <div class="bg-white p-10 rounded-[2.5rem] shadow-xl shadow-slate-100 border border-slate-50">
+                    <h4 class="text-xl font-black text-slate-800 mb-8 flex items-center gap-3">
+                        <i class="fas fa-link text-blue-500"></i> ربط بالمنتجات
+                    </h4>
+                    
+                    <div class="search-container mb-8">
+                        <label class="block text-xs font-black text-slate-400 uppercase mb-3 pr-2">البحث الذكي</label>
+                        <div class="relative">
+                            <input type="text" id="product-search-retail" oninput="searchProduct('retail')" class="w-full bg-slate-50 border-0 px-6 py-4 rounded-2xl font-bold focus:ring-2 focus:ring-blue-500 outline-none transition-all pl-12" placeholder="اكتب اسم المنتج...">
+                            <i class="fas fa-magnifying-glass absolute left-5 top-5 text-slate-200"></i>
+                        </div>
+                        <div id="search-results-retail" class="search-results hidden"></div>
+                    </div>
+
+                    <div id="selected-product-retail" class="hidden p-6 bg-teal-50 rounded-3xl border border-teal-100 mb-8 animate-in fade-in slide-in-from-top-4 duration-500">
+                        <div class="flex justify-between items-center">
+                            <div class="flex items-center gap-3 truncate">
+                                <div class="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-teal-600 shadow-sm flex-shrink-0">
+                                    <i class="fas fa-check"></i>
+                                </div>
+                                <span id="selected-name-retail" class="font-black text-teal-900 text-sm truncate"></span>
+                            </div>
+                            <button onclick="clearSelected('retail')" class="w-8 h-8 flex items-center justify-center text-red-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <button id="sync-btn-retail" disabled onclick="openSyncModal('retail')" class="w-full py-5 bg-slate-100 text-slate-300 rounded-2xl font-black text-lg transition-all flex items-center justify-center gap-3">
+                        <i class="fas fa-arrows-rotate"></i> تحديث قاعدة البيانات
+                    </button>
+                    <p class="text-[9px] text-slate-300 text-center mt-4">عند تفعيل الزر سيتم تحديث حقل "سعر التكلفة" فوراً.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- CALCULATOR PANE: MANUFACTURE -->
+    <div id="pane-manufacture" class="hidden animate-in fade-in duration-500">
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-10 items-start">
+            <!-- Left Data Inputs -->
+            <div class="lg:col-span-8 space-y-10">
+                <div class="bg-white rounded-[2.5rem] p-10 shadow-xl shadow-slate-100 border border-slate-50">
+                    <label class="block text-sm font-black text-slate-400 uppercase mb-4 pr-2">تعريف الحسبة</label>
+                    <input type="text" id="m-name-calc" class="w-full bg-slate-50 border-0 px-8 py-5 rounded-3xl font-black text-2xl focus:ring-2 focus:ring-teal-500 outline-none transition-all placeholder:text-slate-100" placeholder="اسم المنتج المراد إنتاجه...">
+                </div>
+
+                <!-- 1. Materials Table -->
+                <div class="bg-white rounded-[2.5rem] p-10 shadow-xl shadow-slate-100 border border-slate-50">
+                    <div class="flex flex-col md:flex-row justify-between items-center mb-10 gap-6">
+                        <h3 class="text-2xl font-black text-slate-800 border-r-4 border-purple-500 pr-5">1. المواد الخام الأساسية</h3>
+                        <button onclick="addRow('materials')" class="w-full md:w-auto px-6 py-3 bg-purple-600 text-white rounded-2xl text-sm font-black hover:bg-purple-700 shadow-lg shadow-purple-100 transition-all flex items-center justify-center gap-2">
+                            <i class="fas fa-circle-plus"></i> إضافة خامة جديدة
+                        </button>
+                    </div>
+                    <div class="overflow-x-auto -mx-10 px-10">
+                        <table class="w-full text-right" id="table-materials">
+                            <thead class="text-slate-400 text-[10px] font-black uppercase tracking-[0.2em]">
+                                <tr>
+                                    <th class="pb-6 pr-4">اسم الخام</th>
+                                    <th class="pb-6 text-center">الكمية</th>
+                                    <th class="pb-6 text-center">سعر الوحدة</th>
+                                    <th class="pb-6 text-left pl-4">الإجمالي</th>
+                                    <th class="pb-6"></th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y-8 divide-transparent" id="tbody-materials">
+                                <tr class="material-row group">
+                                    <td class="pb-4"><input type="text" class="w-full bg-slate-50 border-0 px-5 py-3 rounded-xl font-bold m-name" placeholder="قماش ليكرا"></td>
+                                    <td class="pb-4"><input type="number" oninput="calcManufacture()" class="w-24 bg-slate-50 border-0 px-5 py-3 rounded-xl font-bold m-qty mx-auto block text-center" value="1.0"></td>
+                                    <td class="pb-4"><input type="number" oninput="calcManufacture()" class="w-24 bg-slate-50 border-0 px-5 py-3 rounded-xl font-bold m-price mx-auto block text-center" value="0.00"></td>
+                                    <td class="pb-4 text-left font-black text-slate-800 pl-4"><span class="m-total">0.00</span></td>
+                                    <td class="pb-4 text-center">
+                                        <button onclick="removeRow(this)" class="w-10 h-10 bg-slate-50 text-slate-300 rounded-xl hover:text-red-500 hover:bg-red-50 transition-all opacity-0 group-hover:opacity-100">
+                                            <i class="fas fa-trash-can text-sm"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <!-- Waste Section -->
+                    <div class="mt-8 p-8 bg-purple-50 rounded-[2rem] border border-purple-100 flex flex-col md:flex-row justify-between items-center gap-6">
+                        <div class="flex items-center gap-6">
+                            <div class="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-purple-600 shadow-sm"><i class="fas fa-recycle"></i></div>
+                            <div>
+                                <h5 class="font-black text-purple-900 text-sm">حساب فاقد الهدر (Waste)</h5>
+                                <p class="text-[10px] text-purple-600 font-bold uppercase tracking-widest">يتم رفعه فوق تكلفة الخامات</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-6">
+                            <div class="relative">
+                                <input type="number" id="waste-pct" value="12" oninput="calcManufacture()" class="w-28 bg-white border-0 px-6 py-4 rounded-2xl font-black text-center text-purple-800 shadow-sm focus:ring-2 focus:ring-purple-400">
+                                <span class="absolute left-4 top-4 text-purple-200">%</span>
+                            </div>
+                            <div class="text-3xl font-black text-purple-900" id="final-material-cost">0.00 <span class="text-sm">ج.م</span></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 2. Labor Section -->
+                <div class="bg-white rounded-[2.5rem] p-10 shadow-xl shadow-slate-100 border border-slate-50">
+                    <div class="flex justify-between items-center mb-10">
+                        <h3 class="text-2xl font-black text-slate-800 border-r-4 border-emerald-500 pr-5">2. العمالة والتشغيل الداخلي</h3>
+                        <button onclick="addRow('labor')" class="px-6 py-3 bg-emerald-600 text-white rounded-2xl text-sm font-black hover:bg-emerald-700 shadow-lg shadow-emerald-100 transition-all">+ إضافة عملية</button>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-right" id="table-labor">
+                             <thead class="text-slate-400 text-[10px] font-black uppercase tracking-[0.2em]">
+                                <tr>
+                                    <th class="pb-6">العملية / المرحلة</th>
+                                    <th class="pb-6 text-center">الوقت (دقيقة)</th>
+                                    <th class="pb-6 text-center">أجر الساعة</th>
+                                    <th class="pb-6 text-left">التكلفة</th>
+                                    <th class="pb-6"></th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y-8 divide-transparent">
+                                 <tr class="labor-row group">
+                                    <td class="pb-4"><input type="text" class="w-full bg-slate-50 border-0 px-5 py-3 rounded-xl font-bold l-name" placeholder="خياطة / كي"></td>
+                                    <td class="pb-4"><input type="number" oninput="calcManufacture()" class="w-24 bg-slate-50 border-0 px-5 py-3 rounded-xl font-bold l-time mx-auto block text-center" value="10"></td>
+                                    <td class="pb-4"><input type="number" oninput="calcManufacture()" class="w-24 bg-slate-50 border-0 px-5 py-3 rounded-xl font-bold l-wage mx-auto block text-center" value="20"></td>
+                                    <td class="pb-4 text-left font-black text-slate-800"><span class="l-total">3.33</span></td>
+                                    <td class="pb-4 text-center">
+                                        <button onclick="removeRow(this)" class="w-10 h-10 bg-slate-50 text-slate-300 rounded-xl hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all">
+                                            <i class="fas fa-trash-can"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- 3. Dyeing (New Step) -->
+                <div class="bg-white rounded-[2.5rem] p-10 shadow-xl shadow-slate-100 border border-slate-50">
+                    <h3 class="text-2xl font-black text-slate-800 mb-10 border-r-4 border-indigo-500 pr-5">3. خدمات خارجية (المصبغة)</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div>
+                            <label class="block text-sm font-black text-slate-600 mb-3">تكلفة الصباغة/التجهيز (للقطعة)</label>
+                            <input type="number" id="dyeing-cost" oninput="calcManufacture()" class="w-full bg-slate-50 border-0 px-6 py-4 rounded-2xl font-bold focus:ring-2 focus:ring-indigo-500 outline-none transition-all" placeholder="0.00">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-black text-slate-600 mb-3">مصروفات نقل القطعة للمصبغة</label>
+                            <input type="number" id="dyeing-transport" oninput="calcManufacture()" class="w-full bg-slate-50 border-0 px-6 py-4 rounded-2xl font-bold focus:ring-2 focus:ring-indigo-500 outline-none transition-all" placeholder="0.00">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 4 & 5. Overhead & Packaging -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-10">
+                    <div class="bg-white rounded-[2.5rem] p-10 shadow-xl shadow-slate-100 border border-slate-50">
+                        <h3 class="text-xl font-black text-slate-800 mb-8 flex items-center gap-3">
+                            <span class="w-10 h-10 bg-orange-100 text-orange-600 rounded-2xl flex items-center justify-center shadow-sm"><i class="fas fa-building"></i></span>
+                            4. أوفرهيد ومصاريف تشغيلية
+                        </h3>
+                        <div class="space-y-6">
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label class="text-[10px] font-black text-slate-400 block mb-2 uppercase">الإيجار الشهري</label>
+                                    <input type="number" id="oh-rent" oninput="calcManufacture()" class="w-full bg-slate-50 border-0 px-4 py-3 rounded-xl font-bold text-sm outline-none" placeholder="0">
+                                </div>
+                                <div>
+                                    <label class="text-[10px] font-black text-slate-400 block mb-2 uppercase">كهرباء ومياه</label>
+                                    <input type="number" id="oh-util" oninput="calcManufacture()" class="w-full bg-slate-50 border-0 px-4 py-3 rounded-xl font-bold text-sm outline-none" placeholder="0">
+                                </div>
+                                <div>
+                                    <label class="text-[10px] font-black text-slate-400 block mb-2 uppercase">صيانة وأدوات</label>
+                                    <input type="number" id="oh-maint" oninput="calcManufacture()" class="w-full bg-slate-50 border-0 px-4 py-3 rounded-xl font-bold text-sm outline-none" placeholder="0">
+                                </div>
+                                <div>
+                                    <label class="text-[10px] font-black text-slate-400 block mb-2 uppercase">إداريات ونثرية</label>
+                                    <input type="number" id="oh-admin" oninput="calcManufacture()" class="w-full bg-slate-50 border-0 px-4 py-3 rounded-xl font-bold text-sm outline-none" placeholder="0">
+                                </div>
+                            </div>
+                            <div class="pt-4 border-t border-slate-50">
+                                <label class="text-xs font-black text-slate-700 block mb-2">متوسط حجم الإنتاج الفعلي (شهرياً)</label>
+                                <input type="number" id="overhead-qty" oninput="calcManufacture()" class="w-full bg-teal-50 border-2 border-teal-100/50 px-6 py-4 rounded-2xl font-black text-center text-teal-900 focus:border-teal-500 outline-none transition-all shadow-sm" placeholder="1">
+                                <p class="text-[9px] text-slate-400 text-center mt-2 font-bold whitespace-nowrap">سيتم تقسيم إجمالي المصاريف أعلاه على هذا العدد</p>
+                            </div>
+                            <div class="pt-6 border-t border-slate-50 flex justify-between items-center text-sm bg-orange-50/30 p-4 rounded-2xl">
+                                <span class="text-slate-500 font-bold">نصيب القطعة الواحدة:</span>
+                                <span class="font-black text-orange-600 text-lg" id="overhead-per-unit">0.00 ج.م</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="bg-white rounded-[2.5rem] p-10 shadow-xl shadow-slate-100 border border-slate-50">
+                        <h3 class="text-xl font-black text-slate-800 mb-8 flex items-center gap-3">
+                            <span class="w-10 h-10 bg-blue-100 text-blue-600 rounded-2xl flex items-center justify-center shadow-sm"><i class="fas fa-box-open"></i></span>
+                            5. التعبئة واللوجيستيات
+                        </h3>
+                        <div class="space-y-6">
+                            <div>
+                                <label class="text-xs font-black text-slate-400 block mb-2">تكلفة التغليف (للقطعة)</label>
+                                <input type="number" id="pack-cost" oninput="calcManufacture()" class="w-full bg-slate-50 border-0 px-6 py-4 rounded-2xl font-bold outline-none" placeholder="0.00">
+                            </div>
+                            <div>
+                                <label class="text-xs font-black text-slate-400 block mb-2">مصاريف نقل وتجهيز نهائي</label>
+                                <input type="number" id="logistic-cost" oninput="calcManufacture()" class="w-full bg-slate-50 border-0 px-6 py-4 rounded-2xl font-bold outline-none" placeholder="0.00">
+                            </div>
+                            <div class="pt-6 border-t border-slate-50 flex justify-between items-center text-sm">
+                                <span class="text-slate-400">الإجمالي النهائي:</span>
+                                <span class="font-black text-blue-600" id="logistic-total">0.00 ج.م</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sticky Summary Sidebar -->
+            <div class="lg:col-span-4 lg:pl-4">
+                <div class="sticky-summary space-y-8">
+                    <!-- FINAL BOX -->
+                    <div class="bg-slate-900 rounded-[3rem] p-10 text-white shadow-2xl relative overflow-hidden">
+                        <div class="absolute top-0 right-0 w-32 h-32 bg-teal-500/10 rounded-full blur-3xl"></div>
+                        <h4 class="text-2xl font-black mb-10 flex items-center gap-4">
+                            <span class="w-1.5 h-6 bg-teal-500 rounded-full"></span>
+                            ملخص الوحدة
+                        </h4>
+                        
+                        <div class="space-y-6 mb-10">
+                            <div class="flex justify-between items-center py-2 border-b border-white/5 group hover:border-teal-500/30 transition-all">
+                                <span class="text-slate-500 font-bold">المواد الخام</span>
+                                <span id="sum-m" class="font-black text-slate-200">0.00</span>
+                            </div>
+                            <div class="flex justify-between items-center py-2 border-b border-white/5 group hover:border-emerald-500/30 transition-all">
+                                <span class="text-slate-500 font-bold">العمالة الداخلية</span>
+                                <span id="sum-l" class="font-black text-slate-200">0.00</span>
+                            </div>
+                            <div class="flex justify-between items-center py-2 border-b border-white/5 group hover:border-indigo-500/30 transition-all">
+                                <span class="text-slate-500 font-bold">المصبغة</span>
+                                <span id="sum-d" class="font-black text-slate-200">0.00</span>
+                            </div>
+                            <div class="flex justify-between items-center py-2 border-b border-white/5 group hover:border-orange-500/30 transition-all">
+                                <span class="text-slate-500 font-bold">أوفرهيد</span>
+                                <span id="sum-o" class="font-black text-slate-200">0.00</span>
+                            </div>
+                            <div class="flex justify-between items-center py-2 border-b border-white/10 group hover:border-blue-500/30 transition-all">
+                                <span class="text-slate-500 font-bold text-xs uppercase tracking-widest">تعبئة وشحن</span>
+                                <span id="sum-p" class="font-black text-slate-200">0.00</span>
+                            </div>
+                        </div>
+
+                        <div class="text-center bg-teal-500/10 p-8 rounded-[2rem] border border-teal-500/20 mb-10">
+                            <p class="text-xs text-teal-400 font-black uppercase mb-2 tracking-widest">إجمالي تكلفة المنتج</p>
+                            <span class="text-6xl font-black block text-teal-400" id="m-total-final">0.00</span>
+                        </div>
+
+                        <div class="space-y-6">
+                            <label class="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] mb-2 pr-2">نسبة الربح المستهدفة %</label>
+                            <input type="number" id="m-profit-pct" value="30" oninput="calcManufacture()" class="w-full bg-slate-800/50 border-2 border-slate-700/50 rounded-2xl px-6 py-4 font-black text-center text-white text-2xl outline-none focus:border-teal-500 transition-all">
+                            
+                            <div class="p-8 bg-emerald-500 rounded-[2.5rem] text-center shadow-lg shadow-emerald-500/20 transform hover:-translate-y-1 transition-all">
+                                 <p class="text-slate-900/40 text-[10px] font-black uppercase mb-1 tracking-widest">سعر البيع المقترح</p>
+                                 <div class="text-4xl font-black text-slate-900" id="m-selling-price">0.00 ج.م</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Sync Sidebar for Manufacture -->
+                    <div class="bg-white p-10 rounded-[2.5rem] shadow-xl shadow-slate-100 border border-slate-50">
+                        <h4 class="text-xl font-black text-slate-800 mb-8">ربط بالمخزن الفعلي</h4>
+                        <div class="search-container mb-8">
+                            <div class="relative">
+                                <input type="text" id="product-search-m" oninput="searchProduct('m')" class="w-full bg-slate-50 border-0 px-6 py-4 rounded-2xl font-bold focus:ring-2 focus:ring-purple-500 outline-none transition-all pl-12" placeholder="ابحث...">
+                                <i class="fas fa-magnifying-glass absolute left-5 top-5 text-slate-200"></i>
+                            </div>
+                            <div id="search-results-m" class="search-results hidden"></div>
+                        </div>
+                        <div id="selected-product-m" class="hidden p-6 bg-purple-50 rounded-3xl border border-purple-100 mb-8">
+                            <div class="flex justify-between items-center text-sm">
+                                <span id="selected-name-m" class="font-black text-purple-900 truncate pr-2"></span>
+                                <button onclick="clearSelected('m')" class="text-red-300 hover:text-red-500"><i class="fas fa-times"></i></button>
+                            </div>
+                        </div>
+                        <button id="sync-btn-m" disabled onclick="openSyncModal('m')" class="w-full py-5 bg-slate-50 text-slate-300 rounded-2xl font-black transition-all">تحديث السعر في المخزن</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Popups (Sync & Security) -->
+<div id="sync-modal" class="fixed inset-0 bg-slate-900/60 z-[99999] opacity-0 pointer-events-none transition-all duration-300 flex items-center justify-center p-4">
+    <div class="bg-white rounded-[2.5rem] p-10 max-w-sm w-full text-center shadow-2xl scale-95 transition-all duration-300" id="sync-modal-box">
+        <div class="w-16 h-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-sm"><i class="fas fa-sync-alt text-xl"></i></div>
+        <h3 class="text-2xl font-black text-slate-800 mb-3">تأكيد التحديث؟</h3>
+        <p class="text-slate-500 mb-10 leading-relaxed text-sm" id="sync-modal-msg"></p>
+        <div class="flex gap-4">
+            <button onclick="confirmSync()" class="flex-1 bg-emerald-600 text-white py-4 rounded-2xl font-black shadow-lg shadow-emerald-100 hover:bg-emerald-700 transition-all">تحديث الآن</button>
+            <button onclick="closeSyncModal()" class="flex-1 bg-slate-50 text-slate-400 py-4 rounded-2xl font-bold hover:bg-slate-100 transition-all">تراجع</button>
+        </div>
+    </div>
+</div>
+
+{% include "products/include_costing_security.html" %}
+
+<script>
+    let selectedProduct = null;
+    let currentMode = 'retail';
+
+    async function submitGate() {
+        const pass = document.getElementById('gate-pass').value;
+        if (await authenticateCosting(pass)) {
+            enforceCostingSecurity();
+        } else {
+            document.getElementById('gate-error').classList.remove('hidden');
+        }
+    }
+
+    function openHelp() { 
+        document.getElementById('help-modal').classList.remove('opacity-0', 'pointer-events-none'); 
+    }
+    function closeHelp() { 
+        document.getElementById('help-modal').classList.add('opacity-0', 'pointer-events-none'); 
+    }
+
+    function switchTab(mode) {
+        currentMode = mode;
+        const btnR = document.getElementById('tab-retail'), btnM = document.getElementById('tab-manufacture');
+        const paneR = document.getElementById('pane-retail'), paneM = document.getElementById('pane-manufacture');
+        if (mode === 'retail') {
+            btnR.classList.add('tab-active'); btnR.classList.remove('text-slate-300');
+            btnM.classList.remove('tab-active'); btnM.classList.add('text-slate-300');
+            paneR.classList.remove('hidden'); paneM.classList.add('hidden');
+        } else {
+            btnM.classList.add('tab-active'); btnM.classList.remove('text-slate-300');
+            btnR.classList.remove('tab-active'); btnR.classList.add('text-slate-300');
+            paneM.classList.remove('hidden'); paneR.classList.add('hidden');
+        }
+    }
+
+    function calcRetail() {
+        const p = parseFloat(document.getElementById('retail-purchase-price').value) || 0;
+        const s = parseFloat(document.getElementById('retail-shipping').value) || 0;
+        const e = parseFloat(document.getElementById('retail-extra').value) || 0;
+        const pct = (parseFloat(document.getElementById('retail-profit-pct').value) || 0) / 100;
+        const total = p + s + e;
+        const sell = pct < 1 ? total / (1 - pct) : total * (1 + pct);
+        document.getElementById('retail-total-cost').innerText = total.toFixed(2);
+        document.getElementById('retail-selling-price').innerHTML = `${sell.toFixed(2)} <span class="text-sm font-bold">ج.م</span>`;
+        updateSyncBtnState('retail', total);
+    }
+
+    function addRow(type) {
+        const tbody = document.querySelector(type === 'labor' ? '#table-labor tbody' : '#table-materials tbody' || '#tbody-materials'); 
+        // Note: fix tbody selector to be specific
+        const targetTbody = type === 'materials' ? document.getElementById('tbody-materials') : document.querySelector('#table-labor tbody');
+        
+        const row = document.createElement('tr');
+        row.className = `group ${type === 'materials' ? 'material-row' : 'labor-row'}`;
+        if (type === 'materials') {
+            row.innerHTML = `<td class="pb-4"><input type="text" class="w-full bg-slate-50 border-0 px-5 py-3 rounded-xl font-bold m-name"></td><td><input type="number" oninput="calcManufacture()" class="w-24 bg-slate-50 border-0 px-5 py-3 rounded-xl font-bold m-qty mx-auto block text-center" value="1"></td><td><input type="number" oninput="calcManufacture()" class="w-24 bg-slate-50 border-0 px-5 py-3 rounded-xl font-bold m-price mx-auto block text-center" value="0"></td><td class="pb-4 text-left font-black text-slate-800"><span class="m-total">0.00</span></td><td class="pb-4 text-center"><button onclick="removeRow(this)" class="w-8 h-8 text-red-300 hover:text-red-500 rounded-lg transition-all"><i class="fas fa-trash-can"></i></button></td>`;
+        } else {
+            row.innerHTML = `<td class="pb-4"><input type="text" class="w-full bg-slate-50 border-0 px-5 py-3 rounded-xl font-bold l-name"></td><td><input type="number" oninput="calcManufacture()" class="w-24 bg-slate-50 border-0 px-5 py-3 rounded-xl font-bold l-time mx-auto block text-center" value="0"></td><td><input type="number" oninput="calcManufacture()" class="w-24 bg-slate-50 border-0 px-5 py-3 rounded-xl font-bold l-wage mx-auto block text-center" value="0"></td><td class="pb-4 text-left font-black text-slate-800"><span class="l-total">0.00</span></td><td class="pb-4 text-center"><button onclick="removeRow(this)" class="w-8 h-8 text-red-300 hover:text-red-500 rounded-lg transition-all"><i class="fas fa-trash-can"></i></button></td>`;
+        }
+        targetTbody.appendChild(row);
+    }
+    function removeRow(btn) { btn.closest('tr').remove(); calcManufacture(); }
+
+    function calcManufacture() {
+        let m = 0, l = 0;
+        document.querySelectorAll('.material-row').forEach(row => {
+            const sum = (parseFloat(row.querySelector('.m-qty').value) || 0) * (parseFloat(row.querySelector('.m-price').value) || 0);
+            row.querySelector('.m-total').innerText = sum.toFixed(2); m += sum;
+        });
+        const wp = (parseFloat(document.getElementById('waste-pct').value) || 0) / 100;
+        const mFinal = wp < 1 ? m / (1 - wp) : m * (1 + wp);
+        document.getElementById('final-material-cost').innerText = mFinal.toFixed(2);
+        document.getElementById('sum-m').innerText = mFinal.toFixed(2);
+
+        document.querySelectorAll('.labor-row').forEach(row => {
+            const sum = ((parseFloat(row.querySelector('.l-time').value) || 0) * (parseFloat(row.querySelector('.l-wage').value) || 0)) / 60;
+            row.querySelector('.l-total').innerText = sum.toFixed(2); l += sum;
+        });
+        document.getElementById('sum-l').innerText = l.toFixed(2);
+
+        const dyC = parseFloat(document.getElementById('dyeing-cost').value) || 0;
+        const dyT = parseFloat(document.getElementById('dyeing-transport').value) || 0;
+        const dyTotal = dyC + dyT;
+        document.getElementById('sum-d').innerText = dyTotal.toFixed(2);
+
+        const r = parseFloat(document.getElementById('oh-rent').value) || 0;
+        const u = parseFloat(document.getElementById('oh-util').value) || 0;
+        const mnt = parseFloat(document.getElementById('oh-maint').value) || 0;
+        const adm = parseFloat(document.getElementById('oh-admin').value) || 0;
+        const oQ = parseFloat(document.getElementById('overhead-qty').value) || 1;
+        const oT = r + u + mnt + adm;
+        const oUnit = oT / oQ; 
+        document.getElementById('overhead-per-unit').innerText = oUnit.toFixed(2);
+        document.getElementById('sum-o').innerText = oUnit.toFixed(2);
+
+        const pc = parseFloat(document.getElementById('pack-cost').value) || 0, lc = parseFloat(document.getElementById('logistic-cost').value) || 0;
+        document.getElementById('logistic-total').innerText = (pc + lc).toFixed(2);
+        document.getElementById('sum-p').innerText = (pc + lc).toFixed(2);
+
+        const total = mFinal + l + oUnit + (pc + lc) + dyTotal;
+        document.getElementById('m-total-final').innerText = total.toFixed(2);
+        const pct = (parseFloat(document.getElementById('m-profit-pct').value) || 0) / 100;
+        document.getElementById('m-selling-price').innerText = (pct < 1 ? total / (1 - pct) : total * (1 + pct)).toFixed(2) + ' ج.م';
+        updateSyncBtnState('m', total);
+    }
+
+    function searchProduct(mode) {
+        const inp = document.getElementById(`product-search-${mode}`).value;
+        const div = document.getElementById(`search-results-${mode}`);
+        if (inp.length < 2) { div.classList.add('hidden'); return; }
+        fetch(`/products/api/products/search-costing/?q=${encodeURIComponent(inp)}`).then(r => r.json()).then(data => {
+            if (data.products && data.products.length) {
+                div.innerHTML = '';
+                data.products.forEach(p => {
+                    const row = document.createElement('div');
+                    row.className = 'p-4 hover:bg-slate-50 cursor-pointer border-b border-slate-50 text-right';
+                    row.innerHTML = `<div class="font-black text-slate-800 text-sm">${p.name}</div><div class="text-[10px] text-slate-300 font-bold uppercase tracking-widest mt-1">SKU: ${p.sku} | ${p.cost_price} ج.م</div>`;
+                    row.onclick = () => selectProduct(mode, p.id, p.name, p.sku);
+                    div.appendChild(row);
+                });
+                div.classList.remove('hidden');
+            } else div.classList.add('hidden');
+        });
+    }
+
+    function selectProduct(mode, id, name, sku) {
+        selectedProduct = { id, name, sku };
+        const selDiv = document.getElementById(`selected-product-${mode}`);
+        selDiv.classList.remove('hidden');
+        document.getElementById(`selected-name-${mode}`).innerText = name;
+        document.getElementById(`search-results-${mode}`).classList.add('hidden');
+        document.getElementById(`product-search-${mode}`).value = '';
+        updateSyncBtnState(mode, mode === 'retail' ? parseFloat(document.getElementById('retail-total-cost').innerText) : parseFloat(document.getElementById('m-total-final').innerText));
+    }
+    function clearSelected(mode) { selectedProduct = null; document.getElementById(`selected-product-${mode}`).classList.add('hidden'); updateSyncBtnState(mode, 0); }
+
+    function updateSyncBtnState(mode, total) {
+        const btn = document.getElementById(`sync-btn-${mode}`);
+        if (selectedProduct && total > 0) { 
+            btn.disabled = false; 
+            btn.className = `w-full py-5 ${mode==='retail'?'bg-blue-600 shadow-blue-100':'bg-purple-600 shadow-purple-100'} text-white shadow-xl rounded-2xl font-black text-lg transition-all flex items-center justify-center gap-3 hover:-translate-y-1`;
+        }
+        else { 
+            btn.disabled = true; 
+            btn.className = "w-full py-5 bg-slate-100 text-slate-300 rounded-2xl font-black text-lg transition-all flex items-center justify-center gap-3 cursor-not-allowed";
+        }
+    }
+
+    function openSyncModal(mode) {
+        const cost = mode === 'retail' ? document.getElementById('retail-total-cost').innerText : document.getElementById('m-total-final').innerText;
+        document.getElementById('sync-modal-msg').innerHTML = `سيتم تحديث تكلفة المنتج <b>${selectedProduct.name}</b> لتصبح <b>${cost} ج.م</b> في قاعدة البيانات.`;
+        const modal = document.getElementById('sync-modal');
+        modal.classList.remove('opacity-0', 'pointer-events-none');
+        document.getElementById('sync-modal-box').classList.remove('scale-95');
+    }
+    function closeSyncModal() { 
+        document.getElementById('sync-modal').classList.add('opacity-0', 'pointer-events-none'); 
+        document.getElementById('sync-modal-box').classList.add('scale-95');
+    }
+    function confirmSync() {
+        const cost = currentMode === 'retail' ? document.getElementById('retail-total-cost').innerText : document.getElementById('m-total-final').innerText;
+        const fd = new FormData(); fd.append('product_id', selectedProduct.id); fd.append('new_cost', cost);
+        fetch('/products/api/products/update-cost/', { method: 'POST', body: fd, headers: {'X-CSRFToken': '{{ csrf_token }}'} })
+            .then(r => r.json()).then(d => { if(d.status==='success') { alert('تم تحديث سعر التكلفة بنجاح!'); closeSyncModal(); } });
+    }
+
+    function saveCosting() {
+        let name, cost, sell, conf = {}, pct;
+        if (currentMode === 'retail') {
+            name = document.getElementById('retail-name').value || (selectedProduct ? selectedProduct.name : 'حسبة شراء');
+            cost = document.getElementById('retail-total-cost').innerText;
+            sell = document.getElementById('retail-selling-price').innerText.split(' ')[0];
+            pct = document.getElementById('retail-profit-pct').value;
+            conf = { purchase_price: document.getElementById('retail-purchase-price').value, shipping: document.getElementById('retail-shipping').value, extra: document.getElementById('retail-extra').value, profit_pct: pct };
+        } else {
+            name = document.getElementById('m-name-calc').value || (selectedProduct ? selectedProduct.name : 'حسبة تصنيع');
+            cost = document.getElementById('m-total-final').innerText;
+            sell = document.getElementById('m-selling-price').innerText.split(' ')[0];
+            pct = document.getElementById('m-profit-pct').value;
+            conf = { 
+                m_final: document.getElementById('sum-m').innerText, 
+                l_total: document.getElementById('sum-l').innerText, 
+                dyeing: document.getElementById('sum-d').innerText, 
+                overhead: document.getElementById('sum-o').innerText, 
+                overhead_breakdown: {
+                    rent: document.getElementById('oh-rent').value,
+                    util: document.getElementById('oh-util').value,
+                    maint: document.getElementById('oh-maint').value,
+                    admin: document.getElementById('oh-admin').value,
+                    qty: document.getElementById('overhead-qty').value
+                },
+                logistic: document.getElementById('sum-p').innerText, 
+                profit_pct: pct 
+            };
+        }
+
+        if (cost == "0.00") { alert('يرجى إدخال قيم صالحة أولاً'); return; }
+
+        fetch('/products/api/products/save-costing/', {
+            method: 'POST',
+            body: JSON.stringify({ name, product_id: selectedProduct?.id, mode: currentMode.toUpperCase(), total_cost: cost, selling_price: sell, config: conf, notes: '' }),
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' }
+        }).then(r => r.json()).then(d => {
+            if (d.status === 'success') {
+                alert('تم الحفظ في السجل بنجاح!');
+                window.open(`${window.location.origin}/products/costing/${d.id}/print/`, 'PrintTarget', 'width=900,height=700');
+            }
+        });
+    }
+</script>
+{% endblock %}

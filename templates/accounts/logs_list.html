@@ -1,0 +1,76 @@
+{% extends 'base.html' %}
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="space-y-6 animate-fade-in-up">
+    <!-- Header -->
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+        <div>
+            <h2 class="text-2xl font-bold text-gray-800 flex items-center gap-2">
+                <span class="bg-gray-100 text-gray-600 p-2 rounded-lg"><i class="fas fa-history"></i></span>
+                {{ title }}
+            </h2>
+            <p class="text-gray-500 mt-1 text-sm">مراقبة لجميع حركات المستخدمين وتسجيل الدخول والخروج والعمليات في النظام للأمان والتدقيق (أحدث 500 عملية).</p>
+        </div>
+    </div>
+
+    <!-- Logs Table -->
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full text-right text-sm">
+                <thead class="bg-gray-50 text-gray-600 font-bold border-b border-gray-100">
+                    <tr>
+                        <th class="p-4">التاريخ والوقت</th>
+                        <th class="p-4">المستخدم</th>
+                        <th class="p-4">النشاط (Action)</th>
+                        <th class="p-4">الوحدة (Module)</th>
+                        <th class="p-4">التفاصيل</th>
+                        <th class="p-4 text-left">عنوان الماكينة (IP)</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-50">
+                    {% for log in logs %}
+                    <tr class="hover:bg-gray-50 transition group">
+                        <td class="p-4 text-gray-500 whitespace-nowrap" dir="ltr">{{ log.timestamp|date:"Y-m-d H:i:s" }}</td>
+                        <td class="p-4">
+                            {% if log.user %}
+                                <a href="{% url 'user_detail' log.user.pk %}" class="font-bold text-indigo-600 hover:underline">
+                                    {{ log.user.get_full_name|default:log.user.username }}
+                                </a>
+                            {% else %}
+                                <span class="text-gray-400 italic">نظام داخلي</span>
+                            {% endif %}
+                        </td>
+                        <td class="p-4">
+                            {% if log.action_type == 'LOGIN' %}
+                                <span class="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs font-bold rounded">الدخول</span>
+                            {% elif log.action_type == 'LOGOUT' %}
+                                <span class="px-2 py-0.5 bg-gray-100 text-gray-700 text-xs font-bold rounded">الخروج</span>
+                            {% elif log.action_type == 'CREATE' %}
+                                <span class="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-xs font-bold rounded">إضافة</span>
+                            {% elif log.action_type == 'UPDATE' %}
+                                <span class="px-2 py-0.5 bg-orange-100 text-orange-700 text-xs font-bold rounded">تعديل</span>
+                            {% elif log.action_type == 'DELETE' %}
+                                <span class="px-2 py-0.5 bg-red-100 text-red-700 text-xs font-bold rounded">حذف</span>
+                            {% else %}
+                                <span class="px-2 py-0.5 bg-indigo-100 text-indigo-700 text-xs font-bold rounded">{{ log.action_type }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="p-4 text-gray-600 font-mono text-xs">{{ log.module }}</td>
+                        <td class="p-4 text-gray-800 font-medium">{{ log.description }}</td>
+                        <td class="p-4 text-left text-gray-400 font-mono text-xs">{{ log.ip_address }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="p-12 text-center text-gray-400">
+                            <i class="fas fa-ghost text-4xl mb-4 opacity-50 block"></i>
+                            لا توجد أي سجلات محفوظة حتى الآن!
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

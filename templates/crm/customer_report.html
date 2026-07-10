@@ -1,0 +1,292 @@
+{% load humanize %}
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>تقرير عميل - {{ customer.first_name }}</title>
+    <style>
+        /* Base / Shared / Print Resets */
+        body { margin: 0; padding: 0; background: #fff; color: #000; font-family: 'Arial', sans-serif; direction: rtl; text-align: right; }
+        .no-print { text-align: center; margin: 20px 0; padding-bottom: 20px; border-bottom: 1px solid #ddd; }
+        .no-print button { cursor: pointer; padding: 10px 20px; font-size: 16px; font-weight: bold; margin: 0 5px; }
+        @media print { .no-print { display: none !important; } }
+        
+        /* Typography Ext */
+        .text-center { text-align: center; }
+        .bold { font-weight: bold; }
+        
+        {% if report_type == 'thermal' %}
+        /* Thermal 80mm specific CSS */
+        @page { size: 80mm auto; margin: 3mm; }
+        body { font-size: 11px; width: 72mm; margin: 0 auto; }
+        .print-logo { max-height: 50px; max-width: 80%; display: block; margin: 0 auto 5px; }
+        .company-name { font-size: 16px; margin: 0 0 5px 0; font-weight: bold; text-align: center; }
+        .report-title { font-size: 14px; text-align: center; margin-bottom: 3px; }
+        .report-date { font-size: 11px; text-align: center; margin-bottom: 5px; }
+        .section { border-bottom: 1px dashed #000; padding: 5px 0; margin-bottom: 5px; page-break-inside: avoid; }
+        
+        table.thermal-table { width: 100%; font-size: 10px; border-collapse: collapse; }
+        .thermal-table th, .thermal-table td { border: 1px solid #000; padding: 2px 4px; text-align: right; word-wrap: break-word; }
+        .thermal-table th { background: #eee; font-weight: bold; }
+        .thermal-table td:nth-child(1) { width: 28%; }
+        .thermal-table td:nth-child(2) { width: 30%; }
+        .thermal-table td:nth-child(3) { width: 42%; }
+        
+        .recommendations p { font-size: 10px; line-height: 1.5; word-wrap: break-word; white-space: normal; margin: 3px 0; overflow: visible; }
+        
+        .row-info { display: flex; justify-content: space-between; margin-bottom: 3px; }
+        .summary-block { margin-bottom: 3px; }
+        
+        {% else %}
+        /* A4 specific CSS */
+        @page { size: A4; margin: 15mm 12mm; }
+        body { font-size: 13px; max-width: 210mm; margin: 0 auto; }
+        
+        /* A4 Header */
+        .a4-header { display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 15px; border-bottom: 2px solid #111; margin-bottom: 20px; }
+        .header-title-box { text-align: center; }
+        .company-name { font-size: 24px; margin: 0 0 5px 0; font-weight: bold; }
+        .print-logo { max-height: 70px; max-width: 250px; display: block; margin-bottom: 8px; }
+        .report-title { font-size: 18px; font-weight: bold; border: 1px solid #333; padding: 5px 15px; border-radius: 4px; display: inline-block; margin-bottom: 8px; }
+        .report-date { font-size: 13px; color: #555; }
+        
+        .section { page-break-inside: avoid; margin-bottom: 20px; }
+        .section-title { font-size: 15px; font-weight: bold; border-bottom: 2px solid #333; padding-bottom: 4px; margin-bottom: 12px; }
+        
+        .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px 30px; }
+        .info-item { display: flex; align-items: center; }
+        .info-item .label { font-weight: bold; color: #555; width: 120px; flex-shrink: 0; }
+        
+        .financial-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+        .financial-item { background: #f9f9f9; border: 1px solid #e0e0e0; padding: 8px 12px; border-radius: 4px; display: flex; justify-content: space-between; }
+        .financial-item .label { font-weight: bold; color: #444; }
+        .financial-item .value { font-weight: bold; }
+        
+        table.a4-table { width: 100%; border-collapse: collapse; margin-top: 5px; }
+        .a4-table th, .a4-table td { border: 1px solid #ccc; padding: 8px 10px; text-align: right; }
+        .a4-table th { background: #f5f5f5; font-weight: bold; }
+        
+        .recommendations { background: #fafafa; border: 1px solid #ddd; padding: 12px; border-radius: 4px; }
+        .recommendations p { margin: 8px 0; line-height: 1.7; word-wrap: break-word; white-space: normal; overflow: visible; font-size: 13px; }
+        {% endif %}
+    </style>
+</head>
+<body>
+    <div class="no-print">
+        <button onclick="window.close(); setTimeout(function(){ if (window.history.length > 1) window.history.back(); }, 50)">إغلاق</button>
+        <button onclick="window.print()">🖨️ طباعة التقرير</button>
+    </div>
+
+    {% if report_type == 'thermal' %}
+    <!-- ================= THERMAL TEMPLATE ================= -->
+    <div class="section" style="border-bottom: none; text-align: center;">
+        {% if sys_settings.logo_base64 %}
+            <img src="{{ sys_settings.logo_base64 }}" alt="logo" class="print-logo">
+        {% else %}
+            <div class="company-name">{{ sys_settings.shop_name }}</div>
+        {% endif %}
+        <div class="report-title">تقرير بروفايل عميل</div>
+        <div class="report-date">{{ print_date|date:"d/m/Y H:i" }}</div>
+    </div>
+    
+    <div class="section">
+        <div class="row-info"><span>الاسم:</span> <span class="bold">{{ customer.first_name }} {{ customer.last_name }}</span></div>
+        <div class="row-info"><span>الهاتف:</span> <span>{{ customer.phone }}</span></div>
+        <div class="row-info"><span>الشريحة:</span> <span>{{ customer.get_tier_display }}</span></div>
+    </div>
+
+    <div class="section">
+        <div class="summary-block">
+            <span>إجمالي المشتريات:</span><br>
+            <span class="bold" style="float:left; margin-left:10px;">{{ total_spent|floatformat:2 }} ج.م</span>
+            <div style="clear:both;"></div>
+        </div>
+        <div class="summary-block">
+            <span>إجمالي المدفوعات:</span><br>
+            <span class="bold" style="float:left; margin-left:10px;">{{ total_payments|floatformat:2 }} ج.م</span>
+            <div style="clear:both;"></div>
+        </div>
+        <div class="summary-block">
+            <span>المديونية اليدوية:</span><br>
+            <span class="bold" style="float:left; margin-left:10px;">{{ total_manual_debt|floatformat:2 }} ج.م</span>
+            <div style="clear:both;"></div>
+        </div>
+        <div class="summary-block" style="border-top:1px solid #ccc; padding-top:3px; margin-top:3px;">
+            <span class="bold">الرصيد:</span> 
+            <span class="bold" style="float:left; margin-left:10px;">
+                {{ balance|floatformat:2 }} 
+                {% if balance > 0 %}(عليه){% elif balance < 0 %}(له){% else %}(خالص){% endif %}
+            </span>
+            <div style="clear:both;"></div>
+        </div>
+    </div>
+
+    <div class="section">
+        <div class="row-info">
+            <span>آخر زيارة:</span>
+            <span>{% if last_visit %}{{ last_visit|date:"d/m/Y" }}{% else %}-{% endif %}</span>
+        </div>
+        <div style="margin-top:2px;">
+            <span>المنتج المفضل:</span><br>
+            <span class="bold">{{ most_purchased }}</span>
+        </div>
+    </div>
+
+    {% if suggestions %}
+    <div class="section recommendations">
+        {% for type, title, msg in suggestions %}
+        <p>
+            {% if type == 'warning' %}⚠️{% elif type == 'success' %}✅{% elif type == 'danger' %}🚨{% elif type == 'star' %}🌟{% else %}ℹ️{% endif %}
+            <span class="bold">{{ title }}:</span><br>
+            {{ msg }}
+        </p>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <div class="section" style="border-bottom:none;">
+        <table class="thermal-table">
+            <thead>
+                <tr>
+                    <th>التاريخ</th>
+                    <th>النوع</th>
+                    <th>المبلغ</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for order in orders %}
+                <tr>
+                    <td>{{ order.created_at|date:"d/m/Y" }}</td>
+                    <td>{% if order.total_amount == 0 and order.received_amount > 0 %}سداد{% elif order.total_amount > 0 and order.received_amount == 0 and order.subtotal_amount > 0 %}مديونية{% else %}شراء{% endif %}</td>
+                    <td>
+                        {% if order.total_amount > 0 %}
+                            {{ order.total_amount|floatformat:0 }}
+                        {% else %}
+                            {{ order.received_amount|floatformat:0 }}
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="3" class="text-center">لا يوجد عمليات</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    
+    <div class="text-center bold" style="margin-top:10px; border-top:1px dashed #000; padding-top:5px;">
+        --- نهاية التقرير ---
+    </div>
+
+    {% else %}
+    <!-- ================= A4 TEMPLATE ================= -->
+    <div class="a4-header">
+        <div class="company-info">
+            {% if sys_settings.logo_base64 %}
+                <img src="{{ sys_settings.logo_base64 }}" alt="logo" class="print-logo">
+            {% else %}
+                <div class="company-name">{{ sys_settings.shop_name }}</div>
+            {% endif %}
+        </div>
+        <div class="header-title-box">
+            <div class="report-title">تقرير بروفايل عميل</div><br>
+            <div class="report-date">تاريخ التقرير: {{ print_date|date:"d/m/Y H:i" }}</div>
+        </div>
+    </div>
+
+    <div class="section">
+        <div class="section-title">👤 بيانات العميل</div>
+        <div class="info-grid">
+            <div class="info-item"><span class="label">الاسم:</span> <span>{{ customer.first_name }} {{ customer.last_name }}</span></div>
+            <div class="info-item"><span class="label">الهاتف:</span> <span>{{ customer.phone }}</span></div>
+            <div class="info-item"><span class="label">الشريحة:</span> <span class="bold">{{ customer.get_tier_display }}</span></div>
+            <div class="info-item"><span class="label">العنوان:</span> <span>{{ customer.address|default:"—" }}</span></div>
+        </div>
+    </div>
+
+    <div class="section">
+        <div class="section-title">💰 الملخص المالي</div>
+        <div class="financial-grid">
+            <div class="financial-item">
+                <span class="label">إجمالي المشتريات:</span>
+                <span class="value">{{ total_spent|floatformat:2 }} ج.م</span>
+            </div>
+            <div class="financial-item">
+                <span class="label">إجمالي المدفوعات:</span>
+                <span class="value">{{ total_payments|floatformat:2 }} ج.م</span>
+            </div>
+            <div class="financial-item">
+                <span class="label">المديونية اليدوية:</span>
+                <span class="value">{{ total_manual_debt|floatformat:2 }} ج.م</span>
+            </div>
+            <div class="financial-item" style="background:#e8f4fd;">
+                <span class="label">الرصيد الحالي:</span>
+                <span class="value">
+                    {{ balance|floatformat:2 }} ج.م 
+                    {% if balance > 0 %}(عليه){% elif balance < 0 %}(له){% else %}(خالص){% endif %}
+                </span>
+            </div>
+        </div>
+    </div>
+
+    <div class="section">
+        <div class="section-title">📊 سلوك الشراء</div>
+        <div class="info-grid">
+            <div class="info-item"><span class="label">آخر زيارة:</span> <span>{% if last_visit %}{{ last_visit|date:"d/m/Y" }}{% else %}—{% endif %}</span></div>
+            <div class="info-item"><span class="label">معدل التردد:</span> <span>{% if avg_days %}{% if avg_days == 0 %}يومي{% else %}كل {{ avg_days }} يوم{% endif %}{% else %}—{% endif %}</span></div>
+            <div class="info-item" style="grid-column: span 2;"><span class="label">المنتج المفضل:</span> <span>{{ most_purchased }}</span></div>
+        </div>
+    </div>
+
+    {% if suggestions %}
+    <div class="section">
+        <div class="section-title">💡 مقترحات وتوصيات</div>
+        <div class="recommendations">
+            {% for type, title, msg in suggestions %}
+            <p>
+                {% if type == 'warning' %}⚠️{% elif type == 'success' %}✅{% elif type == 'danger' %}🚨{% elif type == 'star' %}🌟{% else %}ℹ️{% endif %}
+                <span class="bold">{{ title }}</span><br>
+                {{ msg }}
+            </p>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="section">
+        <div class="section-title">📋 سجل آخر العمليات</div>
+        <table class="a4-table">
+            <thead>
+                <tr>
+                    <th>التاريخ</th>
+                    <th>النوع</th>
+                    <th>المبلغ</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for order in orders %}
+                <tr>
+                    <td>{{ order.created_at|date:"d/m/Y" }}</td>
+                    <td>{% if order.total_amount == 0 and order.received_amount > 0 %}سداد{% elif order.total_amount > 0 and order.received_amount == 0 and order.subtotal_amount > 0 %}مديونية{% else %}شراء{% endif %}</td>
+                    <td class="bold">
+                        {% if order.total_amount > 0 %}
+                            {{ order.total_amount|floatformat:2 }} ج.م
+                        {% else %}
+                            {{ order.received_amount|floatformat:2 }} ج.م
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="3" class="text-center">لا يوجد عمليات لعرضها</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="text-center" style="margin-top: 30px; font-weight: bold; color: #555; position: relative;">
+        <span style="background:#fff; padding: 0 15px; position: relative; z-index: 1;">--- نهاية التقرير ---</span>
+        <div style="position: absolute; top:50%; left:0; right:0; height:1px; background:#ddd; z-index:0;"></div>
+    </div>
+    {% endif %}
+
+</body>
+</html>

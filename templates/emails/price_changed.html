@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+  <meta charset="UTF-8">
+</head>
+<body style="margin:0;padding:0;background:#f5f7fa;font-family:Arial,sans-serif;color:#1f2937;">
+  <div style="max-width:900px;margin:20px auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;">
+    
+    <!-- Header -->
+    <div style="background:#059669;color:white;padding:20px;text-align:center;">
+      <h2 style="margin:0;">تنبيه: تم تعديل أسعار منتجات</h2>
+    </div>
+
+    <!-- Details -->
+    <div style="padding:20px;">
+      <p style="margin:0 0 10px 0;"><strong>بواسطة المستخدم:</strong> {{ user_name }}</p>
+      <p style="margin:0 0 10px 0;"><strong>وقت الإجراء:</strong> {{ timestamp }}</p>
+      <p style="margin:0 0 10px 0;"><strong>نوع التعديل:</strong> {{ price_type_label }}</p>
+    </div>
+
+    <!-- Items -->
+    {% if changes %}
+    <div style="padding:0 20px 20px 20px;">
+      <h3 style="margin:0 0 10px 0;">المنتجات التي تم تعديل أسعارها</h3>
+      <table style="width:100%;border-collapse:collapse;font-size:14px;">
+        <tr style="background:#f9fafb;">
+          <th style="border:1px solid #e5e7eb;padding:8px;text-align:right;">المنتج</th>
+          <th style="border:1px solid #e5e7eb;padding:8px;text-align:right;">نوع السعر</th>
+          <th style="border:1px solid #e5e7eb;padding:8px;text-align:right;">السعر القديم</th>
+          <th style="border:1px solid #e5e7eb;padding:8px;text-align:right;">السعر الجديد</th>
+        </tr>
+        {% for info in changes %}
+        <tr>
+          <td style="border:1px solid #e5e7eb;padding:8px;">{{ info.name }}</td>
+          <td style="border:1px solid #e5e7eb;padding:8px;color:#4b5563;">{{ info.type }}</td>
+          <td style="border:1px solid #e5e7eb;padding:8px;color:#dc2626;text-decoration:line-through;">{{ info.old }}</td>
+          <td style="border:1px solid #e5e7eb;padding:8px;color:#16a34a;font-weight:bold;">{{ info.new }}</td>
+        </tr>
+        {% endfor %}
+      </table>
+    </div>
+    {% endif %}
+
+  </div>
+</body>
+</html>

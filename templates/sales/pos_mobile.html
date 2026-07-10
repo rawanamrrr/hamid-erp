@@ -1,0 +1,2082 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>{{ title }} - موبايل</title>
+    
+    <!-- Fonts & Icons -->
+    <link href="/static/vendor/fonts/cairo.css" rel="stylesheet">
+    <link rel="stylesheet" href="/static/vendor/fontawesome/css/all.min.css">
+    
+    <!-- Tailwind CSS -->
+    <script src="/static/vendor/js/tailwind.js"></script>
+
+    <style>
+        body { font-family: 'Cairo', sans-serif; -webkit-tap-highlight-color: transparent; background-color: #f3f4f6; }
+        /* Step 1: Mobile UX Constraints */
+        html { scroll-behavior: smooth; }
+        * { -webkit-user-select: none; user-select: none; touch-action: manipulation; }
+        input, textarea { -webkit-user-select: text; user-select: text; }
+        
+        /* Hide Scrollbar but allow scroll */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        .product-card { transition: transform 0.1s; }
+        .product-card:active { transform: scale(0.95); }
+
+        /* Floating Cart Button Animation */
+        @keyframes bounce-small {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-3px); }
+        }
+        .animate-bounce-small { animation: bounce-small 2s infinite; }
+
+        /* --- Desktop Blocker Styles --- */
+        #desktop-blocker { display: none; }
+        
+        @media (min-width: 1024px) {
+            /* Show blocker on large screens */
+            #desktop-blocker {
+                display: flex !important;
+                position: fixed;
+                top: 0; left: 0; width: 100%; height: 100%;
+                background: rgba(243, 244, 246, 0.98);
+                z-index: 9999;
+                flex-direction: column;
+                justify-content: center;
+                align-items: center;
+                text-align: center;
+                backdrop-filter: blur(10px);
+            }
+            /* Blur the main content */
+            body > *:not(#desktop-blocker) {
+                filter: blur(8px);
+                pointer-events: none;
+                user-select: none;
+            }
+        }
+    </style>
+</head>
+<body class="pb-24">
+
+    <!-- Desktop Blocker Overlay -->
+    <div id="desktop-blocker">
+        <div class="bg-white p-10 rounded-3xl shadow-2xl border border-gray-200 max-w-md transform transition-all hover:scale-105">
+            <div class="w-24 h-24 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-6">
+                <i class="fa-solid fa-mobile-screen-button text-5xl text-blue-600 animate-pulse"></i>
+            </div>
+            <h2 class="text-2xl font-bold text-gray-800 mb-3">عفواً، هذه الواجهة للموبايل فقط</h2>
+            <p class="text-gray-500 mb-8 leading-relaxed">تم تصميم هذه الصفحة لتناسب شاشات الهواتف فقط. لاستخدام النظام من الكمبيوتر، يرجى الانتقال إلى نقطة البيع الرئيسية.</p>
+            
+            <a href="{% url 'pos_view' %}" class="block w-full py-4 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition shadow-lg hover:shadow-blue-200 flex items-center justify-center gap-2">
+                <i class="fa-solid fa-desktop"></i> الذهاب لنسخة الكمبيوتر
+            </a>
+            
+            <p class="mt-4 text-[10px] text-gray-400">نظام المبيعات الذكي</p>
+        </div>
+    </div>
+
+    <!-- 1. Header & Controls -->
+    <div class="bg-white shadow-sm sticky top-0 z-30 pb-2">
+        <!-- Top Row: Warehouse & Online Toggle -->
+        <div class="flex justify-between items-center px-4 py-3 border-b border-gray-100 bg-gray-50 relative">
+            <!-- Warehouse Selector & Menu -->
+            <div class="flex items-center gap-3">
+                <button onclick="document.getElementById('mobileMenu').classList.toggle('hidden')" class="w-8 h-8 flex items-center justify-center bg-gray-200 rounded-lg text-gray-700 active:scale-95 shadow-sm border border-gray-300"><i class="fa-solid fa-bars"></i></button>
+                <div id="mobileMenu" class="hidden absolute top-14 right-4 bg-white shadow-2xl border border-gray-100 rounded-xl w-56 z-50 overflow-hidden divide-y divide-gray-50">
+                    <button onclick="openMenuModal('drafts')" class="w-full text-right px-4 py-3 text-sm font-bold text-gray-700 flex items-center gap-3 hover:bg-gray-50"><i class="fa-solid fa-bookmark text-blue-500 text-lg w-5"></i> الفواتير المعلقة</button>
+                    <button onclick="openTransferModal()" class="w-full text-right px-4 py-3 text-sm font-bold text-gray-700 flex items-center gap-3 hover:bg-gray-50"><i class="fa-solid fa-right-left text-orange-500 text-lg w-5"></i> تحويل بين المخازن</button>
+                    <button onclick="openMenuModal('movements')" class="w-full text-right px-4 py-3 text-sm font-bold text-gray-700 flex items-center gap-3 hover:bg-gray-50"><i class="fa-solid fa-cubes-stacked text-teal-500 text-lg w-5"></i> حركة أصناف</button>
+                </div>
+                
+                <div class="flex items-center gap-1 bg-white px-2 py-1 rounded border border-gray-200">
+                    <i class="fa-solid fa-warehouse text-blue-500 text-[10px]"></i>
+                    <select id="warehouseSelect" onchange="changeWarehouse(this.value)" class="bg-transparent text-xs font-bold text-gray-700 outline-none w-24 truncate">
+                        {% for w in warehouses %}
+                        <option value="{{ w.id }}" {% if active_warehouse.id == w.id %}selected{% endif %}>{{ w.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            
+            <!-- Online Toggle -->
+            <label class="flex items-center gap-2 cursor-pointer">
+                <span class="text-xs font-bold text-gray-500">أونلاين/شحن</span>
+                <div class="relative inline-flex items-center cursor-pointer">
+                    <input type="checkbox" id="isOnlineOrder" class="sr-only peer" onchange="toggleOnlineMode()">
+                    <div class="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+                </div>
+            </label>
+        </div>
+
+        <!-- Shift Timer (Mini) -->
+        <div class="px-4 py-1 bg-green-50 flex justify-between items-center text-[10px] text-green-800 border-b border-green-100">
+            <div class="flex items-center gap-1">
+                <div class="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></div>
+                <span>شيفت نشط</span>
+            </div>
+            <span id="shiftTimer" class="font-bold font-mono">00:00:00</span>
+            <input type="hidden" id="shiftStartTime" value="{{ current_shift.start_time.isoformat }}">
+        </div>
+
+        <!-- Customer Search -->
+        <div class="px-4 py-2 mt-1">
+            <div class="relative">
+                <input type="text" id="customerSearchInput" placeholder="بحث عن عميل..." 
+                       class="w-full bg-gray-100 border-none rounded-full px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none text-gray-700"
+                       autocomplete="off">
+                <i class="fa-solid fa-search absolute left-4 top-3 text-gray-400 text-sm"></i>
+                
+                <!-- Dropdown Results -->
+                <div id="customerDropdownList" class="hidden absolute top-full right-0 w-full bg-white border border-gray-200 rounded-lg shadow-xl max-h-60 overflow-y-auto z-50 mt-1">
+                    <div class="p-3 hover:bg-gray-50 border-b border-gray-100" onclick="selectCustomer('', '{{ policies.sales.default_price_tier|default:'retail' }}', 'عميل نقدي (قطاعي)', '')">
+                        <div class="font-bold text-gray-800 text-sm">عميل نقدي (قطاعي)</div>
+                    </div>
+                    {% for customer in customers %}
+                    <div class="customer-option p-3 hover:bg-gray-50 border-b border-gray-100" 
+                         onclick="selectCustomer('{{ customer.id }}', '{{ customer.customer_type }}', '{{ customer.first_name }} {{ customer.last_name }}', '{{ customer.address|default:''|escapejs }}')"
+                         data-search="{{ customer.first_name }} {{ customer.last_name }} {{ customer.phone }}">
+                        <div class="font-bold text-gray-800 text-sm">{{ customer.first_name }} {{ customer.last_name }}</div>
+                        <div class="text-xs text-blue-500 font-mono">{{ customer.phone }}</div>
+                    </div>
+                    {% endfor %}
+                    <div id="noResultsMsg" class="hidden p-3 text-center bg-gray-50" onclick="openCustomerModal()">
+                        <span class="text-blue-600 font-bold text-sm">+ إضافة عميل جديد</span>
+                    </div>
+                </div>
+                <input type="hidden" id="customerSelect" value="">
+            </div>
+            <div class="flex justify-between items-center mt-1 px-1">
+                 <span id="selectedCustomerName" class="text-xs font-bold text-blue-800">عميل نقدي (قطاعي)</span>
+                 <span id="currentPriceType" class="text-[10px] bg-gray-200 px-2 py-0.5 rounded text-gray-600">سعر قطاعي</span>
+            </div>
+        </div>
+
+        <!-- Categories Scroller + Drawer Trigger -->
+        <div class="mt-1 px-4">
+            <div id="categoryChipsRow" class="overflow-x-auto no-scrollbar pb-1 flex items-center gap-2">
+                <button type="button" onclick="filterCategory('all', this)" data-category-id="all" data-category-name="الكل" class="cat-btn category-chip category-chip-active px-4 py-2.5 rounded-full text-xs font-bold whitespace-nowrap min-h-[36px] active:scale-95 transition-all duration-200 shadow-sm flex items-center gap-1">
+                    <span>الكل</span>
+                    <span class="bg-white/25 text-white text-[10px] px-1.5 py-0.5 rounded-full font-mono category-chip-count" data-category-count-for="all">0</span>
+                </button>
+                <button type="button" id="searchResultChip" class="hidden px-4 py-2.5 rounded-full text-xs font-bold whitespace-nowrap min-h-[36px] bg-violet-600 text-white shadow-sm flex items-center gap-1">
+                    <span>نتائج البحث</span>
+                </button>
+                {% for category in categories %}
+                <button type="button" onclick="filterCategory('{{ category.id }}', this)" data-category-id="{{ category.id }}" data-category-name="{{ category.name }}" class="cat-btn category-chip px-4 py-2.5 rounded-full text-xs font-bold whitespace-nowrap min-h-[36px] active:scale-95 transition-all duration-200 border border-gray-200 text-gray-700 bg-white flex items-center gap-1">
+                    <span class="category-chip-label">{{ category.name }}</span>
+                    <span class="text-[10px] px-1.5 py-0.5 rounded-full font-mono bg-gray-100 text-gray-500 category-chip-count" data-category-count-for="{{ category.id }}">0</span>
+                </button>
+                {% endfor %}
+                <button type="button" onclick="openCategoriesDrawer()" class="shrink-0 px-4 py-2.5 rounded-full text-xs font-bold whitespace-nowrap min-h-[36px] border border-blue-200 text-blue-700 bg-blue-50 active:scale-95 transition-transform">
+                    ☰ الكل
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. Products Grid -->
+    <div class="px-3 pt-3 grid grid-cols-2 sm:grid-cols-3 gap-3" id="productsGrid">
+        {% for product in products %}
+        <div class="product-card bg-white rounded-2xl p-4 shadow-sm border border-gray-100 flex flex-col justify-between h-44 relative overflow-hidden"
+             onclick="openProductSheet(this)"
+             data-id="{{ product.id }}"
+             data-cat="{{ product.category.id }}"
+             data-name="{{ product.name }}"
+             data-sku="{{ product.sku }}"
+             data-stock="{{ product.stock_quantity|floatformat:0 }}"
+             data-price-retail="{{ product.price_retail }}"
+             data-price-semi="{{ product.price_semi_wholesale }}"
+             data-price-wholesale="{{ product.price_wholesale }}"
+             data-has-variants="{{ product.has_variants|default:False }}">
+
+            <!-- Stock Badge -->
+            <div class="absolute top-2 left-2 bg-gray-100 text-gray-500 text-[9px] px-1.5 py-0.5 rounded-md font-bold z-10">
+                {{ product.stock_quantity|floatformat:0 }}
+            </div>
+
+            <!-- Image/Icon -->
+            <div class="flex-1 flex items-center justify-center mb-1">
+                {% if product.image %}
+                    <img src="{{ product.image.url }}" class="h-16 w-full object-contain">
+                {% else %}
+                    <i class="fa-solid fa-box-open text-3xl text-gray-200"></i>
+                {% endif %}
+            </div>
+
+            <!-- Info -->
+            <div class="text-center">
+                <h3 class="text-xs font-bold text-gray-800 line-clamp-1 mb-1">{{ product.name }}</h3>
+                <div class="text-sm font-bold text-teal-600 price-display">{{ product.price_retail }}</div>
+            </div>
+
+            <!-- Quick Wholesale Overlay (Optional for Mobile, maybe hold press?) -->
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- 3. Bottom Cart Bar -->
+    <div class="fixed bottom-0 left-0 w-full bg-white shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] border-t border-gray-200 p-3 z-40 flex items-center justify-between safe-pb">
+        <div class="flex flex-col" onclick="openCartModal()">
+            <span class="text-[10px] text-gray-500 font-bold">الإجمالي</span>
+            <span id="barTotal" class="text-xl font-bold text-teal-600 font-mono">0.00</span>
+        </div>
+        
+        <button onclick="openCartModal()" class="flex items-center gap-2 bg-gray-900 text-white px-6 py-3 rounded-xl shadow-lg active:scale-95 transition-transform">
+            <div class="relative">
+                <i class="fa-solid fa-cart-shopping"></i>
+                <span id="cartCountBadge" class="absolute -top-2 -right-2 bg-red-500 text-white text-[9px] w-4 h-4 rounded-full flex items-center justify-center hidden">0</span>
+            </div>
+            <span class="font-bold text-sm">عربة التسوق</span>
+        </button>
+    </div>
+
+    <!-- 4. Cart Modal (Full Screen Sheet) -->
+    <div id="cartModal" class="fixed inset-0 z-50 hidden bg-white flex flex-col transition-transform duration-300 transform translate-y-full">
+        <!-- Edit Mode Banner -->
+        <div id="editModeBanner" class="hidden fixed top-0 left-0 right-0 z-[100] bg-yellow-500 text-white p-3 shadow-lg flex justify-between items-center animate-pulse-slow">
+            <div class="flex items-center gap-2">
+                <div class="bg-white text-yellow-600 rounded-full w-8 h-8 flex items-center justify-center font-bold">
+                    <i class="fa-solid fa-pen-to-square"></i>
+                </div>
+                <div>
+                    <div class="font-bold text-sm">تعديل فاتورة #<span id="editOrderIdDisplay"></span></div>
+                    <div class="text-[10px] opacity-90">برجاء مراجعة الأصناف قبل الحفظ</div>
+                </div>
+            </div>
+            <button onclick="cancelEditMode()" class="bg-white bg-opacity-20 hover:bg-opacity-30 p-2 rounded-lg text-xs font-bold transition-all">
+                إلغاء التعديل
+            </button>
+        </div>
+        <!-- Edit Mode Banner -->
+    <div id="editModeBanner" class="hidden fixed top-0 left-0 right-0 z-[100] bg-yellow-500 text-white p-3 shadow-lg flex justify-between items-center animate-pulse-slow">
+        <div class="flex items-center gap-2">
+            <div class="bg-white text-yellow-600 rounded-full w-8 h-8 flex items-center justify-center font-bold">
+                <i class="fa-solid fa-pen-to-square"></i>
+            </div>
+            <div>
+                <div class="font-bold text-sm">تعديل فاتورة #<span id="editOrderIdDisplay"></span></div>
+                <div class="text-[10px] opacity-90">برجاء مراجعة الأصناف قبل الحفظ</div>
+            </div>
+        </div>
+        <button onclick="cancelEditMode()" class="bg-white bg-opacity-20 hover:bg-opacity-30 p-2 rounded-lg text-xs font-bold transition-all">
+            إلغاء التعديل
+        </button>
+    </div>
+
+    <!-- Header -->
+        <div class="bg-gray-50 p-4 border-b border-gray-200 flex justify-between items-center shadow-sm">
+            <h2 class="font-bold text-lg text-gray-800 flex items-center gap-2">
+                <i class="fa-solid fa-receipt text-gray-400"></i> مراجعة الطلب
+            </h2>
+            <button onclick="closeCartModal()" class="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-gray-600">
+                <i class="fa-solid fa-times"></i>
+            </button>
+        </div>
+
+        <!-- Scrollable Items -->
+        <div class="flex-1 overflow-y-auto p-4 space-y-3" id="cartItemsList">
+            <!-- Items injected via JS -->
+        </div>
+
+        <!-- Totals & Order Details trigger -->
+        <div class="bg-gray-50 p-4 border-t border-gray-100">
+            <div class="space-y-1 mb-3 text-sm">
+                <div class="flex justify-between text-gray-500">
+                    <span>المجموع الفرعي:</span>
+                    <span id="cartSubtotalVal" class="font-bold">0.00 ج.م</span>
+                </div>
+                <div class="flex justify-between text-gray-500">
+                    <span class="flex items-center gap-1 cursor-pointer" onclick="openOrderDetailsModal()"><i class="fa-solid fa-tags text-teal-500"></i> الخصم:</span>
+                    <span id="cartDiscountVal" class="font-bold text-red-500 cursor-pointer" onclick="openOrderDetailsModal()">0.00 ج.م</span>
+                </div>
+                <div class="flex justify-between text-gray-500">
+                    <span class="flex items-center gap-1 cursor-pointer" onclick="openOrderDetailsModal()"><i class="fa-solid fa-truck text-blue-500"></i> التوصيل:</span>
+                    <span id="cartDeliveryVal" class="font-bold text-blue-600 cursor-pointer" onclick="openOrderDetailsModal()">0.00 ج.م</span>
+                </div>
+            </div>
+            
+            <div class="flex justify-between items-center bg-white p-3 rounded-xl border border-gray-200 shadow-sm cursor-pointer" onclick="openOrderDetailsModal()">
+                <div class="flex items-center gap-2">
+                    <span class="text-sm font-bold text-gray-800">الإجمالي النهائي</span>
+                    <i class="fa-solid fa-pencil text-gray-300 text-xs edit-icon" title="تعديل تفاصيل الطلب"></i>
+                </div>
+                <span id="grandTotalDisplay" class="text-2xl font-bold text-teal-600 font-mono">0.00</span>
+            </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="p-4 bg-white border-t border-gray-200 grid grid-cols-2 gap-3 pb-8">
+            <button onclick="clearCart()" class="py-3 bg-red-50 text-red-600 rounded-xl font-bold text-sm">إفراغ السلة</button>
+            <button onclick="openPaymentModal()" class="py-3 bg-teal-600 text-white rounded-xl font-bold shadow-lg shadow-teal-200 flex justify-center items-center gap-2">
+                <span>الدفع</span> <i class="fa-solid fa-arrow-left"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- 4.1 Order Details Bottom Sheet Modal -->
+    <div id="orderDetailsBottomSheet" class="fixed inset-0 z-[80] opacity-0 hidden bg-black bg-opacity-50 flex items-end backdrop-blur-sm transition-opacity duration-300">
+        <div class="bg-white w-full rounded-t-3xl shadow-2xl transform translate-y-full transition-transform duration-300 max-h-[90vh] flex flex-col" id="orderDetailsSheetContent">
+            
+            <div class="p-6 pb-2 flex flex-col items-center sticky top-0 bg-white rounded-t-3xl border-b border-gray-100 z-10 w-full shrink-0">
+                <div class="w-12 h-1.5 bg-gray-300 rounded-full mb-4"></div>
+                <h3 class="font-bold text-xl text-gray-900 mb-2 w-full flex justify-between items-center">
+                    <span><i class="fa-solid fa-list text-gray-400"></i> تفاصيل الطلب</span>
+                    <button onclick="closeOrderDetailsModal()" class="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500"><i class="fa-solid fa-times"></i></button>
+                </h3>
+            </div>
+            
+            <div class="p-6 overflow-y-auto w-full flex-1 space-y-6">
+                <!-- Discount Pill Toggle -->
+                <div class="bg-blue-50/50 p-4 rounded-2xl border border-blue-100">
+                    <label class="block text-sm font-bold text-gray-700 mb-3">الخصم</label>
+                    <div class="relative w-full h-12 bg-gray-200 rounded-xl p-1 mb-4 flex items-center">
+                        <input type="hidden" id="discountTypeField" value="fixed">
+                        <div id="discountActiveBg" class="absolute h-10 w-[calc(50%-4px)] bg-white rounded-lg shadow-sm transition-all duration-300 right-1 z-0"></div>
+                        <button type="button" id="btnDiscountFixed" class="relative z-10 flex-1 h-full font-bold text-blue-600 transition-colors" onclick="setDiscountType('fixed')">مبلغ ثابت (ج.م)</button>
+                        <button type="button" id="btnDiscountPercent" class="relative z-10 flex-1 h-full font-bold text-gray-500 transition-colors" onclick="setDiscountType('percentage')">نسبة مئوية (%)</button>
+                    </div>
+                    
+                    <div class="relative pb-1">
+                        <input type="number" id="discountInputVal" value="0" step="1" oninput="updateRealtimeOrderPreview()" 
+                               class="w-full h-14 pl-12 pr-4 bg-white border border-gray-300 text-gray-900 rounded-xl font-bold text-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all placeholder-gray-400" 
+                               placeholder="0">
+                        <span class="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 font-bold" id="discountSymbol">ج.م</span>
+                        <div id="discountWarning" class="hidden mt-2 text-xs text-red-500 font-bold flex items-center gap-1">
+                            <i class="fa-solid fa-triangle-exclamation"></i> قيمة الخصم أكبر من المجموع الفرعي!
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Delivery -->
+                <div>
+                    <label class="block text-sm font-bold text-gray-700 mb-2">تكلفة التوصيل</label>
+                    <div class="relative pb-1">
+                        <input type="number" id="deliveryInputVal" value="0" step="1" oninput="updateRealtimeOrderPreview()"
+                               class="w-full h-14 pl-12 pr-4 bg-white border border-gray-300 text-gray-900 rounded-xl font-bold text-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all placeholder-gray-400" 
+                               placeholder="0">
+                        <i class="fa-solid fa-truck absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 text-lg"></i>
+                    </div>
+                </div>
+
+                <!-- Notes -->
+                <div>
+                    <div class="flex justify-between items-center mb-2">
+                        <label class="text-sm font-bold text-gray-700">ملاحظات الفاتورة</label>
+                        <span id="notesCharCounter" class="text-xs text-gray-400 font-mono">0/500</span>
+                    </div>
+                    <textarea id="notesInput" rows="3" oninput="updateNotesCounter()"
+                              class="w-full p-4 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none resize-none transition-all placeholder-gray-400 text-sm"
+                              placeholder="اكتب الملاحظات هنا إن وجدت..."></textarea>
+                </div>
+                
+                <!-- Live Summary -->
+                <div class="bg-gray-800 rounded-2xl p-4 shadow-inner text-white">
+                    <div class="flex justify-between items-center mb-2 text-sm text-gray-300">
+                        <span>المجموع الفرعي:</span>
+                        <span id="previewSubtotal" class="font-mono">0.00</span>
+                    </div>
+                    <div class="flex justify-between items-center mb-2 text-sm text-red-400">
+                        <span>الخصم:</span>
+                        <span class="font-mono" dir="ltr">- <span id="previewDiscount">0.00</span></span>
+                    </div>
+                    <div class="flex justify-between items-center mb-4 text-sm text-blue-300 border-b border-gray-700 pb-4">
+                        <span>التوصيل:</span>
+                        <span class="font-mono" dir="ltr">+ <span id="previewDelivery">0.00</span></span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="font-bold">الإجمالي النهائي:</span>
+                        <span id="previewTotal" class="font-mono text-2xl font-bold text-teal-400">0.00 <span class="text-sm text-gray-400">ج.م</span></span>
+                    </div>
+                </div>
+                
+            </div>
+            
+            <div class="p-6 bg-white border-t border-gray-100 flex gap-3 pb-8 shrink-0 w-full rounded-t-3xl shadow-[0_-10px_15px_-3px_rgba(0,0,0,0.05)]">
+                <button onclick="closeOrderDetailsModal()" class="w-1/3 py-4 bg-gray-100 text-gray-600 rounded-xl font-bold text-lg active:scale-95 transition-transform">إلغاء</button>
+                <button onclick="applyOrderDetails()" class="w-2/3 py-4 bg-teal-600 text-white rounded-xl font-bold text-lg shadow-lg shadow-teal-200 flex justify-center items-center gap-2 active:scale-95 transition-transform">
+                    <span>تطبيق</span> <i class="fa-solid fa-check"></i>
+                </button>
+            </div>
+            
+        </div>
+    </div>
+
+    <!-- 5. Payment Modal -->
+    <div id="paymentModal" class="fixed inset-0 z-[60] hidden bg-black bg-opacity-70 flex items-end sm:items-center justify-center backdrop-blur-sm">
+        <div class="bg-white w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl overflow-hidden shadow-2xl animate-slide-up">
+            <div class="bg-gray-900 text-white p-4 flex justify-between items-center">
+                <h3 class="font-bold">إتمام الدفع</h3>
+                <button onclick="closePaymentModal()" class="text-gray-400 hover:text-white"><i class="fa-solid fa-times"></i></button>
+            </div>
+            
+            <div class="p-5 space-y-4 max-h-[80vh] overflow-y-auto">
+                <div class="text-center bg-gray-50 rounded-lg p-3 border border-gray-200">
+                    <div class="text-xs text-gray-500 font-bold mb-1">المطلوب سداده</div>
+                    <div class="text-3xl font-bold text-gray-900 font-mono" id="modalTotalAmount">0.00</div>
+                </div>
+
+                <!-- NEW: Quick Fill Chips -->
+                <div class="flex gap-2 justify-center mt-2">
+                    <button type="button" onclick="quickFillPayment('cash')" class="flex-1 py-1.5 bg-green-50 text-green-700 rounded-lg font-bold text-xs active:scale-95 transition-transform border border-green-200 shadow-sm"><i class="fa-solid fa-money-bill block text-base mb-1"></i> كاش</button>
+                    <button type="button" onclick="quickFillPayment('wallet')" class="flex-1 py-1.5 bg-blue-50 text-blue-700 rounded-lg font-bold text-xs active:scale-95 transition-transform border border-blue-200 shadow-sm"><i class="fa-solid fa-mobile-screen block text-base mb-1"></i> محفظة</button>
+                    <button type="button" onclick="quickFillPayment('insta')" class="flex-1 py-1.5 bg-purple-50 text-purple-700 rounded-lg font-bold text-xs active:scale-95 transition-transform border border-purple-200 shadow-sm"><i class="fa-solid fa-building-columns block text-base mb-1"></i> انستا</button>
+                    <button type="button" onclick="quickFillPayment('visa')" class="flex-1 py-1.5 bg-sky-50 text-sky-700 rounded-lg font-bold text-xs active:scale-95 transition-transform border border-sky-200 shadow-sm"><i class="fa-solid fa-credit-card block text-base mb-1"></i> فيزا</button>
+                </div>
+
+                <!-- Payments -->
+                <div class="space-y-3">
+                    <div class="relative">
+                        <i class="fa-solid fa-money-bill absolute left-3 top-3 text-gray-400"></i>
+                        <input type="number" id="payCash" placeholder="نقدي (Cash)" class="w-full border border-gray-300 rounded-lg p-3 pl-10 text-sm font-bold focus:ring-2 focus:ring-green-100 outline-none" onkeyup="calculateRemaining()">
+                    </div>
+                    <div class="relative">
+                        <i class="fa-solid fa-mobile-screen absolute left-3 top-3 text-gray-400"></i>
+                        <input type="number" id="payWallet" placeholder="محفظة (Wallet)" class="w-full border border-gray-300 rounded-lg p-3 pl-10 text-sm font-bold focus:ring-2 focus:ring-blue-100 outline-none" onkeyup="calculateRemaining()">
+                    </div>
+                    <div class="relative">
+                        <i class="fa-solid fa-building-columns absolute left-3 top-3 text-gray-400"></i>
+                        <input type="number" id="payInsta" placeholder="InstaPay" class="w-full border border-gray-300 rounded-lg p-3 pl-10 text-sm font-bold focus:ring-2 focus:ring-purple-100 outline-none" onkeyup="calculateRemaining()">
+                    </div>
+                    <div class="relative">
+                        <i class="fa-solid fa-credit-card absolute left-3 top-3 text-gray-400"></i>
+                        <input type="number" id="payVisa" placeholder="فيزا (Visa)" class="w-full border border-gray-300 rounded-lg p-3 pl-10 text-sm font-bold focus:ring-2 focus:ring-sky-100 outline-none" onkeyup="calculateRemaining()">
+                    </div>
+                </div>
+
+                <!-- Remaining Status -->
+                <div class="p-3 bg-red-50 border border-red-100 rounded-lg flex justify-between items-center" id="remainingBox">
+                    <span class="font-bold text-xs text-red-700" id="remainingLabel">المتبقي:</span>
+                    <span id="payRemaining" class="font-bold text-lg text-red-700 font-mono">0.00</span>
+                </div>
+
+                <!-- Print Options -->
+                <div class="flex justify-around bg-gray-50 p-2 rounded-lg">
+                    <label class="flex items-center gap-1 text-xs font-bold cursor-pointer">
+                        <input type="radio" name="printStyle" value="thermal" checked class="text-teal-600"> Thermal
+                    </label>
+                    <label class="flex items-center gap-1 text-xs font-bold cursor-pointer">
+                        <input type="radio" name="printStyle" value="a4" class="text-blue-600"> A4
+                    </label>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3 pt-2">
+                    <button onclick="submitOrder(false)" class="py-3 bg-gray-200 text-gray-800 rounded-lg font-bold text-sm">حفظ فقط</button>
+                    <button onclick="submitOrder(true)" class="py-3 bg-teal-600 text-white rounded-lg font-bold text-sm shadow-lg">حفظ وطباعة</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 6. New Customer Modal -->
+    <div id="newCustomerModal" class="fixed inset-0 z-[70] hidden bg-black bg-opacity-50 flex items-center justify-center px-4">
+        <div class="bg-white w-full max-w-sm rounded-xl p-5 space-y-3">
+            <h3 class="font-bold text-gray-800 text-lg border-b pb-2">عميل جديد</h3>
+            
+            <input type="text" id="newFirstName" placeholder="الاسم الأول (مطلوب)" class="w-full border rounded-lg p-2 text-sm">
+            <input type="text" id="newLastName" placeholder="اسم العائلة" class="w-full border rounded-lg p-2 text-sm">
+            <input type="tel" id="newPhone" placeholder="رقم الهاتف (مطلوب)" class="w-full border rounded-lg p-2 text-sm">
+            <input type="text" id="newAddress" placeholder="العنوان (مطلوب للأونلاين)" class="w-full border rounded-lg p-2 text-sm">
+            
+            <select id="newCustomerType" class="w-full border rounded-lg p-2 text-sm bg-white">
+                <option value="retail">قطاعي</option>
+                <option value="semi_wholesale">نص جملة</option>
+                <option value="wholesale">جملة</option>
+            </select>
+
+            <div class="flex gap-2 pt-2">
+                <button onclick="closeCustomerModal()" class="flex-1 py-2 bg-gray-200 rounded-lg font-bold text-sm min-h-[48px]">إلغاء</button>
+                <button onclick="saveCustomer()" class="flex-1 py-2 bg-blue-600 text-white rounded-lg font-bold text-sm min-h-[48px]">حفظ</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Product Quantity Bottom Sheet -->
+    <div id="productBottomSheet" class="fixed inset-0 z-[80] opacity-0 hidden bg-black bg-opacity-50 flex items-end backdrop-blur-sm transition-opacity duration-300">
+        <div class="bg-white w-full rounded-t-3xl shadow-2xl transform translate-y-full transition-transform duration-300" id="productSheetContent">
+            <div class="p-6 flex flex-col items-center">
+                <div class="w-12 h-1.5 bg-gray-300 rounded-full mb-5"></div>
+                
+                <h3 class="font-bold text-xl text-gray-900 mb-1 text-center line-clamp-2" id="sheetProductName">اسم المنتج</h3>
+                <div class="text-2xl font-bold text-teal-600 font-mono mb-1" id="sheetProductPrice">0.00 ج.م</div>
+                <div class="text-sm text-gray-500 font-bold mb-8" id="sheetStockRow">الرصيد: <span id="sheetProductStock" class="bg-gray-100 px-2 py-1 rounded">0</span></div>
+
+                <!-- Size picker (clothes market, has_variants products) -->
+                <div id="sheetSizePicker" class="hidden w-full max-w-sm space-y-2 mb-6"></div>
+
+                <div id="sheetQtySection" class="flex items-center justify-between w-full max-w-sm mb-8 bg-gray-50 rounded-3xl p-3 border border-gray-100 shadow-inner">
+                    <button onclick="changeSheetQty(-1)" class="w-16 h-16 bg-white rounded-2xl shadow-sm text-red-500 font-bold text-3xl flex items-center justify-center active:scale-95 transition-transform"><i class="fa-solid fa-minus"></i></button>
+                    <input type="number" id="sheetProductQty" value="1" class="w-24 text-center font-bold text-4xl bg-transparent outline-none m-0 focus:border-b-2 focus:border-teal-500" oninput="validateSheetQty()">
+                    <button onclick="changeSheetQty(1)" class="w-16 h-16 bg-white rounded-2xl shadow-sm text-green-500 font-bold text-3xl flex items-center justify-center active:scale-95 transition-transform"><i class="fa-solid fa-plus"></i></button>
+                </div>
+
+                <button id="sheetAddBtn" onclick="confirmSheetAdd()" class="w-full max-w-sm py-5 bg-teal-600 text-white rounded-2xl font-bold text-xl shadow-lg shadow-teal-200 flex justify-center items-center gap-3 active:scale-95 transition-transform">
+                    <span>إضافة للسلة</span> <i class="fa-solid fa-check"></i>
+                </button>
+
+                <input type="hidden" id="sheetProductId">
+                <input type="hidden" id="sheetProductSku">
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed top-5 left-1/2 transform -translate-x-1/2 bg-gray-900 text-white px-6 py-3 rounded-full shadow-2xl opacity-0 transition-opacity duration-300 pointer-events-none z-[100] text-sm font-bold flex items-center gap-2">
+        <i class="fa-solid fa-check-circle text-green-400"></i> <span id="toastMsg"></span>
+    </div>
+
+    <!-- Categories Drawer -->
+    <div id="categoriesDrawer" class="fixed inset-0 z-[85] opacity-0 hidden bg-black bg-opacity-50 flex items-end backdrop-blur-sm transition-opacity duration-300">
+        <div id="categoriesDrawerSheet" class="bg-white w-full rounded-t-3xl shadow-2xl transform translate-y-full transition-transform duration-300 max-h-[88vh] flex flex-col">
+            <div id="categoriesDrawerHandle" class="p-4 pb-2 border-b border-gray-100">
+                <div class="w-12 h-1.5 bg-gray-300 rounded-full mx-auto mb-3"></div>
+                <div class="flex justify-between items-center">
+                    <h3 class="font-bold text-gray-900 text-base"><i class="fa-solid fa-tags text-blue-500"></i> اختر تصنيفا</h3>
+                    <button type="button" onclick="closeCategoriesDrawer()" class="w-8 h-8 rounded-full bg-gray-100 text-gray-500"><i class="fa-solid fa-times"></i></button>
+                </div>
+                <input id="categoryDrawerSearch" type="text" placeholder="بحث داخل التصنيفات..." class="mt-3 w-full border border-gray-300 rounded-xl p-3 text-sm outline-none focus:ring-2 focus:ring-blue-100">
+            </div>
+            <div id="categoriesDrawerList" class="p-3 overflow-y-auto flex-1 space-y-1"></div>
+        </div>
+    </div>
+
+    <!-- Drafts Bottom Sheet -->
+    <div id="draftsBottomSheet" class="fixed inset-0 z-[75] opacity-0 hidden bg-black bg-opacity-50 flex items-end backdrop-blur-sm transition-opacity duration-300">
+        <div id="draftsSheetContent" class="bg-white w-full rounded-t-3xl shadow-2xl transform translate-y-full transition-transform duration-300 max-h-[85vh] flex flex-col">
+            <div class="p-4 border-b border-gray-100 flex justify-between items-center">
+                <h3 class="font-bold text-gray-900"><i class="fa-solid fa-bookmark text-blue-500"></i> الفواتير المعلقة</h3>
+                <button onclick="closeMenuModal('drafts')" class="w-8 h-8 rounded-full bg-gray-100 text-gray-500"><i class="fa-solid fa-times"></i></button>
+            </div>
+            <div class="p-4 border-b border-gray-100">
+                <button onclick="saveDraft()" class="w-full py-3 bg-blue-600 text-white rounded-xl font-bold text-sm shadow">حفظ الفاتورة الحالية كمسودة</button>
+            </div>
+            <div id="draftsListContainer" class="p-4 space-y-3 overflow-y-auto flex-1"></div>
+        </div>
+    </div>
+
+    <div id="draftPrintBottomSheet" class="fixed inset-0 z-[80] opacity-0 hidden bg-black bg-opacity-50 flex items-end backdrop-blur-sm transition-opacity duration-300">
+        <div id="draftPrintSheetContent" class="bg-white w-full rounded-t-3xl shadow-2xl transform translate-y-full transition-transform duration-300 max-h-[50vh] flex flex-col">
+            <div class="p-4 border-b border-gray-100 flex justify-between items-center">
+                <h3 class="font-bold text-gray-900">طباعة مسودة</h3>
+                <button onclick="closeDraftPrintSheet()" class="w-8 h-8 rounded-full bg-gray-100 text-gray-500"><i class="fa-solid fa-times"></i></button>
+            </div>
+            <div class="p-4 space-y-3">
+                <button onclick="printDraftByStyleMobile('thermal')" class="w-full py-3 bg-teal-50 text-teal-700 border border-teal-100 rounded-xl font-bold text-sm">Thermal (80mm)</button>
+                <button onclick="printDraftByStyleMobile('a4')" class="w-full py-3 bg-blue-50 text-blue-700 border border-blue-100 rounded-xl font-bold text-sm">A4</button>
+                <button onclick="printDraftByStyleMobile('a5')" class="w-full py-3 bg-purple-50 text-purple-700 border border-purple-100 rounded-xl font-bold text-sm">A5</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Transfer Bottom Sheet -->
+    <div id="transferBottomSheet" class="fixed inset-0 z-[75] opacity-0 hidden bg-black bg-opacity-50 flex items-end backdrop-blur-sm transition-opacity duration-300">
+        <div id="transferSheetContent" class="bg-white w-full rounded-t-3xl shadow-2xl transform translate-y-full transition-transform duration-300 max-h-[90vh] flex flex-col">
+            <div class="p-4 border-b border-gray-100 flex justify-between items-center">
+                <h3 class="font-bold text-gray-900"><i class="fa-solid fa-right-left text-orange-500"></i> تحويل بين المخازن</h3>
+                <button onclick="closeTransferModal()" class="w-8 h-8 rounded-full bg-gray-100 text-gray-500"><i class="fa-solid fa-times"></i></button>
+            </div>
+            <div class="p-4 space-y-3 overflow-y-auto">
+                <input id="transferProductSearch" type="text" oninput="searchTransferProduct(this.value)" placeholder="ابحث باسم المنتج أو SKU" class="w-full border border-gray-300 rounded-lg p-3 text-sm">
+                <div id="transferSearchResults" class="hidden bg-white border border-gray-200 rounded-lg max-h-48 overflow-y-auto"></div>
+
+                <div id="transferSelectedItem" class="hidden bg-gray-50 border border-gray-200 rounded-lg p-3">
+                    <div id="transferProductName" class="font-bold text-sm text-gray-900"></div>
+                    <div class="text-xs text-gray-500 mt-1">SKU: <span id="transferProductSku"></span></div>
+                    <div class="text-xs text-gray-500">الرصيد: <span id="transferProductStock">0</span></div>
+                    <input id="transferProductId" type="hidden">
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs text-gray-600 mb-1">من مخزن</label>
+                        <select id="transferFromWarehouse" class="w-full border border-gray-300 rounded-lg p-2 text-sm bg-white">
+                            {% for w in warehouses %}
+                            <option value="{{ w.id }}" {% if active_warehouse.id == w.id %}selected{% endif %}>{{ w.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-600 mb-1">إلى مخزن</label>
+                        <select id="transferToWarehouse" class="w-full border border-gray-300 rounded-lg p-2 text-sm bg-white">
+                            <option value="">اختر مخزن الوجهة</option>
+                            {% for w in warehouses %}
+                            {% if active_warehouse.id != w.id %}
+                            <option value="{{ w.id }}">{{ w.name }}</option>
+                            {% endif %}
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs text-gray-600 mb-1">الكمية</label>
+                    <input id="transferQty" type="number" value="1" min="1" class="w-full border border-gray-300 rounded-lg p-3 text-sm">
+                </div>
+            </div>
+            <div class="p-4 border-t border-gray-100">
+                <button onclick="submitTransfer()" class="w-full py-3 bg-orange-500 text-white rounded-xl font-bold text-sm">إرسال التحويل</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Movements Bottom Sheet -->
+    <div id="movementsBottomSheet" class="fixed inset-0 z-[75] opacity-0 hidden bg-black bg-opacity-50 flex items-end backdrop-blur-sm transition-opacity duration-300">
+        <div id="movementsSheetContent" class="bg-white w-full rounded-t-3xl shadow-2xl transform translate-y-full transition-transform duration-300 max-h-[90vh] flex flex-col">
+            <div class="p-4 border-b border-gray-100 flex justify-between items-center">
+                <h3 class="font-bold text-gray-900"><i class="fa-solid fa-cubes-stacked text-teal-500"></i> حركة أصناف</h3>
+                <button onclick="closeMenuModal('movements')" class="w-8 h-8 rounded-full bg-gray-100 text-gray-500"><i class="fa-solid fa-times"></i></button>
+            </div>
+            <div class="p-4 space-y-3 overflow-y-auto">
+                <input id="moveSearchInput" type="text" oninput="searchMoveProduct(this.value)" placeholder="ابحث عن الصنف" class="w-full border border-gray-300 rounded-lg p-3 text-sm">
+                <div id="moveSearchResults" class="hidden bg-white border border-gray-200 rounded-lg max-h-48 overflow-y-auto"></div>
+
+                <div id="moveSelectedItem" class="hidden bg-gray-50 border border-gray-200 rounded-lg p-3">
+                    <div id="moveProductName" class="font-bold text-sm text-gray-900"></div>
+                    <div class="text-xs text-gray-500 mt-1">SKU: <span id="moveProductSku"></span></div>
+                    <div class="text-xs text-gray-500">الرصيد: <span id="moveProductStock">0</span></div>
+                    <input id="moveProductId" type="hidden">
+                </div>
+
+                <div>
+                    <label class="block text-xs text-gray-600 mb-1">المخزن</label>
+                    <select id="moveWarehouse" class="w-full border border-gray-300 rounded-lg p-2 text-sm bg-white">
+                        {% for w in warehouses %}
+                        <option value="{{ w.id }}" {% if active_warehouse.id == w.id %}selected{% endif %}>{{ w.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="bg-gray-100 rounded-xl p-1 flex gap-1">
+                    <button id="moveTypeIN" type="button" onclick="setMovementType('IN')" class="flex-1 py-2 text-sm font-bold bg-white text-teal-700 shadow border border-gray-200 rounded-lg">إضافة</button>
+                    <button id="moveTypeOUT" type="button" onclick="setMovementType('OUT')" class="flex-1 py-2 text-sm font-bold bg-transparent text-gray-500 border border-transparent rounded-lg hover:bg-gray-200">صرف</button>
+                </div>
+                <input id="moveTypeValue" type="hidden" value="IN">
+
+                <div>
+                    <label class="block text-xs text-gray-600 mb-1">الكمية</label>
+                    <input id="moveQty" type="number" value="1" min="1" class="w-full border border-gray-300 rounded-lg p-3 text-sm">
+                </div>
+
+                <div>
+                    <label class="block text-xs text-gray-600 mb-1">ملاحظة</label>
+                    <textarea id="moveNote" rows="2" class="w-full border border-gray-300 rounded-lg p-3 text-sm" placeholder="سبب الحركة"></textarea>
+                </div>
+            </div>
+            <div class="p-4 border-t border-gray-100">
+                <button onclick="submitStockMovement()" class="w-full py-3 bg-teal-600 text-white rounded-xl font-bold text-sm">تسجيل الحركة</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let cart = [];
+        let editOrderId = null; // Step 10 global
+        let linkedDraftId = null;
+        let selectedDraftForPrint = null;
+        let currentPriceType = 'retail';
+        let selectedCustomerAddress = '';
+        const activeWarehouseName = "{{ active_warehouse.name|default:'غير محدد' }}";
+
+        // --- Warehouse Logic ---
+        function changeWarehouse(id) {
+            if(cart.length > 0) {
+                if(!confirm('تغيير المخزن سيقوم بإفراغ السلة الحالية. هل أنت متأكد؟')) {
+                    document.getElementById('warehouseSelect').value = '{{ active_warehouse.id }}';
+                    return;
+                }
+            }
+            const url = new URL(window.location.href);
+            url.searchParams.set('warehouse_id', id);
+            window.location.href = url.toString();
+        }
+
+        // --- Customer Logic ---
+        const searchInput = document.getElementById('customerSearchInput');
+        const dropdownList = document.getElementById('customerDropdownList');
+        const hiddenInput = document.getElementById('customerSelect');
+
+        // Hide dropdown on tap outside
+        document.addEventListener('click', function(e) {
+            if(!dropdownList.contains(e.target) && e.target !== searchInput) {
+                dropdownList.classList.add('hidden');
+            }
+        });
+
+        searchInput.addEventListener('input', function() {
+            const filter = this.value.toLowerCase();
+            let hasResults = false;
+            document.querySelectorAll('.customer-option').forEach(opt => {
+                const txt = opt.dataset.search.toLowerCase();
+                if(txt.includes(filter)) {
+                    opt.style.display = 'block';
+                    hasResults = true;
+                } else {
+                    opt.style.display = 'none';
+                }
+            });
+            document.getElementById('noResultsMsg').style.display = hasResults ? 'none' : 'block';
+            dropdownList.classList.remove('hidden');
+        });
+
+        // Close dropdown when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!searchInput.contains(e.target) && !dropdownList.contains(e.target)) {
+                dropdownList.classList.add('hidden');
+            }
+        });
+
+        function selectCustomer(id, type, name, address) {
+            hiddenInput.value = id;
+            document.getElementById('selectedCustomerName').innerText = name;
+            searchInput.value = ''; // Clear search for clean look
+            selectedCustomerAddress = address || '';
+            dropdownList.classList.add('hidden');
+            
+            updatePriceType(type);
+        }
+
+        function updatePriceType(type) {
+            currentPriceType = type;
+            const labels = { 'retail': 'سعر قطاعي', 'semi_wholesale': 'سعر نص جملة', 'wholesale': 'سعر جملة' };
+            document.getElementById('currentPriceType').innerText = labels[type];
+            
+            // Update UI Prices
+            document.querySelectorAll('.product-card').forEach(card => {
+                const price = getPriceForProduct(card.dataset);
+                card.querySelector('.price-display').innerText = price.toFixed(2);
+            });
+            
+            // Update Cart Prices
+            cart.forEach(item => {
+                if (!item.isManualPrice) {
+                    const card = document.querySelector(`.product-card[data-sku="${item.sku}"]`);
+                    if(card) item.price = getPriceForProduct(card.dataset);
+                }
+            });
+            renderCart(); // Refresh cart totals without opening modal
+        }
+
+        function getPriceForProduct(dataset) {
+            if(currentPriceType === 'wholesale') return parseFloat(dataset.priceWholesale);
+            if(currentPriceType === 'semi_wholesale') return parseFloat(dataset.priceSemi);
+            return parseFloat(dataset.priceRetail);
+        }
+
+        // --- New Customer Modal ---
+        function openCustomerModal() {
+            document.getElementById('newCustomerModal').classList.remove('hidden');
+            document.getElementById('customerDropdownList').classList.add('hidden');
+        }
+        function closeCustomerModal() {
+            document.getElementById('newCustomerModal').classList.add('hidden');
+        }
+
+        function saveCustomer() {
+            const firstName = document.getElementById('newFirstName').value;
+            const phone = document.getElementById('newPhone').value;
+            const type = document.getElementById('newCustomerType').value;
+            const address = document.getElementById('newAddress').value;
+
+            if(!firstName || !phone) {
+                alert('الاسم ورقم الهاتف مطلوبان');
+                return;
+            }
+
+            fetch('{% url "create_customer_ajax" %}', {
+                method: 'POST',
+                body: JSON.stringify({ first_name: firstName, last_name: document.getElementById('newLastName').value, phone: phone, customer_type: type, address: address }),
+                headers: { 'X-CSRFToken': '{{ csrf_token }}', 'Content-Type': 'application/json' }
+            })
+            .then(res => res.json())
+            .then(data => {
+                if(data.status === 'success') {
+                    // Add to dropdown list DOM
+                    const list = document.getElementById('customerDropdownList');
+                    const newDiv = document.createElement('div');
+                    newDiv.className = "customer-option p-3 hover:bg-gray-50 border-b border-gray-100";
+                    newDiv.onclick = () => selectCustomer(data.customer.id, data.customer.type, data.customer.name, address);
+                    newDiv.innerHTML = `<div class="font-bold text-gray-800 text-sm">${data.customer.name}</div><div class="text-xs text-blue-500 font-mono">${data.customer.phone}</div>`;
+                    list.insertBefore(newDiv, list.children[1]);
+
+                    selectCustomer(data.customer.id, data.customer.type, data.customer.name, address);
+                    closeCustomerModal();
+                    showToast('تمت الإضافة بنجاح');
+                } else {
+                    alert(data.message);
+                }
+            });
+        }
+
+        // --- Bottom Sheet Logic ---
+        let currentSheetStock = 0;
+        let currentSheetPrice = 0;
+
+        function openProductSheet(el) {
+            const dataset = el.dataset;
+            document.getElementById('sheetProductName').innerText = dataset.name;
+            document.getElementById('sheetProductId').value = dataset.id;
+            document.getElementById('sheetProductSku').value = dataset.sku;
+
+            const sheet = document.getElementById('productBottomSheet');
+            const content = document.getElementById('productSheetContent');
+
+            // Fashion: a product with variants → pick the size first, no qty stepper.
+            if (String(dataset.hasVariants).toLowerCase() === 'true') {
+                document.getElementById('sheetProductPrice').innerText = '';
+                document.getElementById('sheetStockRow').classList.add('hidden');
+                document.getElementById('sheetQtySection').classList.add('hidden');
+                document.getElementById('sheetAddBtn').classList.add('hidden');
+                document.getElementById('sheetSizePicker').classList.remove('hidden');
+                document.getElementById('sheetSizePicker').innerHTML = '<div class="text-center text-gray-400 text-sm py-4"><i class="fa-solid fa-spinner fa-spin"></i> جاري التحميل...</div>';
+
+                fetch(`/products/api/products/${dataset.id}/variants/`)
+                    .then(r => r.json())
+                    .then(data => {
+                        const vs = data.variants || [];
+                        const picker = document.getElementById('sheetSizePicker');
+                        if (!vs.length) {
+                            picker.innerHTML = '<div class="text-center text-gray-400 text-sm py-4">لا توجد مقاسات متاحة لهذا المنتج.</div>';
+                            return;
+                        }
+                        picker.innerHTML = vs.map(v => {
+                            const out = v.stock <= 0;
+                            const safeLabel = (v.label || '').replace(/'/g, "\\'");
+                            return `<button type="button" ${out ? 'disabled' : ''}
+                                onclick="selectMobileVariant(${dataset.id}, ${v.id}, '${safeLabel}', ${v.price})"
+                                class="w-full flex items-center justify-between p-4 rounded-2xl border ${out ? 'border-gray-100 bg-gray-50 opacity-40' : 'border-gray-200 bg-white active:scale-95'} transition-transform">
+                                <b class="text-base">${v.label}</b>
+                                <span class="text-sm text-gray-500 font-bold">${v.price.toFixed(2)} ج.م &middot; متاح: ${v.stock}</span>
+                            </button>`;
+                        }).join('');
+                    })
+                    .catch(() => {
+                        document.getElementById('sheetSizePicker').innerHTML = '<div class="text-center text-red-400 text-sm py-4">تعذّر تحميل المقاسات.</div>';
+                    });
+            } else {
+                document.getElementById('sheetSizePicker').classList.add('hidden');
+                document.getElementById('sheetStockRow').classList.remove('hidden');
+                document.getElementById('sheetQtySection').classList.remove('hidden');
+                document.getElementById('sheetAddBtn').classList.remove('hidden');
+
+                currentSheetPrice = getPriceForProduct(dataset);
+                document.getElementById('sheetProductPrice').innerText = currentSheetPrice.toFixed(2) + ' ج.م';
+
+                currentSheetStock = parseFloat(dataset.stock) || 0;
+                document.getElementById('sheetProductStock').innerText = currentSheetStock;
+
+                // Prefill with 1 or whatever is currently in cart
+                let initialQty = 1;
+                const existing = cart.find(i => i.id == dataset.id);
+                if(existing) initialQty = existing.quantity;
+                document.getElementById('sheetProductQty').value = initialQty;
+            }
+
+            sheet.classList.remove('hidden');
+            // Allow display change to register
+            setTimeout(() => {
+                sheet.classList.remove('opacity-0');
+                content.classList.remove('translate-y-full');
+            }, 10);
+        }
+
+        function selectMobileVariant(productId, variantId, label, price) {
+            const existing = cart.find(i => i.variantId === variantId);
+            if (existing) {
+                existing.quantity += 1;
+            } else {
+                const card = document.querySelector(`.product-card[data-id="${productId}"]`);
+                const parentName = card ? card.dataset.name : '';
+                cart.push({
+                    id: productId, variantId: variantId,
+                    name: `${parentName} (${label})`, sku: '',
+                    price: parseFloat(price), quantity: 1, isManualPrice: true,
+                });
+            }
+            showToast('تمت الإضافة للسلة');
+            animateCartBtn();
+            updateBarTotal();
+            closeProductSheet();
+            renderCart();
+        }
+
+        function closeProductSheet() {
+            const sheet = document.getElementById('productBottomSheet');
+            const content = document.getElementById('productSheetContent');
+            content.classList.add('translate-y-full');
+            sheet.classList.add('opacity-0');
+            setTimeout(() => sheet.classList.add('hidden'), 300);
+        }
+        
+        document.getElementById('productBottomSheet').addEventListener('click', function(e) {
+            if(e.target === this) closeProductSheet();
+        });
+
+        function changeSheetQty(change) {
+            const input = document.getElementById('sheetProductQty');
+            let val = parseFloat(input.value) || 0;
+            val += change;
+            if(val < 1) val = 1;
+            if(val > currentSheetStock) {
+                showToast('تجاوز الرصيد المتاح!');
+                val = currentSheetStock;
+                animateCartBtn(); // Just to give visual feedback
+            }
+            input.value = val;
+        }
+
+        function validateSheetQty() {
+            const input = document.getElementById('sheetProductQty');
+            let val = parseFloat(input.value) || 1;
+            if(val > currentSheetStock) {
+                showToast('تجاوز الرصيد المتاح!');
+                input.value = currentSheetStock;
+            }
+            if(val < 1) input.value = 1;
+        }
+
+        function confirmSheetAdd() {
+            const id = parseInt(document.getElementById('sheetProductId').value);
+            const sku = document.getElementById('sheetProductSku').value;
+            const name = document.getElementById('sheetProductName').innerText;
+            const qty = parseFloat(document.getElementById('sheetProductQty').value) || 1;
+            
+            if(qty > currentSheetStock) return alert('الكمية تزيد عن الرصيد المتاح');
+            
+            const existing = cart.find(i => i.id === id);
+            if(existing) {
+                existing.quantity = qty; // Overwrite directly to the quantity specified
+            } else {
+                cart.push({
+                    id, name, sku, price: currentSheetPrice, quantity: qty, isManualPrice: false
+                });
+            }
+            
+            showToast('تم تحديث السلة بنجاح');
+            animateCartBtn();
+            updateBarTotal();
+            closeProductSheet();
+            renderCart(); // Optional if already open
+        }
+
+        // --- Cart Logic ---
+        // Swipe-to-delete variables
+        let touchStartX = 0;
+        let currentSwipedLayer = null;
+
+        function handleSwipeStart(e) {
+            if(currentSwipedLayer && currentSwipedLayer !== e.currentTarget) {
+                currentSwipedLayer.style.transform = 'translateX(0)';
+            }
+            touchStartX = e.touches[0].clientX;
+            e.currentTarget.style.transition = 'none';
+        }
+
+        function handleSwipeMove(e) {
+            let diff = e.touches[0].clientX - touchStartX;
+            // In RTL, negative translate X moves the object left.
+            // Right is positive. We only allow moving left (negative).
+            if(diff > 0) diff = 0;
+            if(diff < -90) diff = -90; // max swipe 90px
+            e.currentTarget.style.transform = `translateX(${diff}px)`;
+        }
+
+        function handleSwipeEnd(e) {
+            e.currentTarget.style.transition = 'transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
+            let diff = e.changedTouches[0].clientX - touchStartX;
+            if(diff < -45) { // more than half way
+                e.currentTarget.style.transform = `translateX(-90px)`;
+                currentSwipedLayer = e.currentTarget;
+            } else {
+                e.currentTarget.style.transform = `translateX(0)`;
+                if(currentSwipedLayer === e.currentTarget) currentSwipedLayer = null;
+            }
+        }
+
+        function removeFromCart(id) {
+            cart = cart.filter(i => i.id !== id);
+            currentSwipedLayer = null;
+            renderCart();
+            updateBarTotal();
+        }
+
+        function renderCart() {
+            const container = document.getElementById('cartItemsList');
+            container.innerHTML = '';
+            
+            cart.forEach(item => {
+                container.innerHTML += `
+                    <div class="relative overflow-hidden bg-red-500 rounded-2xl mb-4 shadow-sm border border-gray-100">
+                        <div class="absolute left-0 top-0 h-full w-[90px] flex items-center justify-center pointer-events-none">
+                            <button onclick="removeFromCart(${item.id})" class="text-white bg-red-500 w-full h-full flex flex-col items-center justify-center font-bold text-sm pointer-events-auto rounded-l-2xl active:bg-red-600 transition-colors">
+                                <i class="fa-solid fa-trash-can text-xl mb-1"></i> حذف
+                            </button>
+                        </div>
+                        <div class="bg-white p-4 rounded-2xl relative z-10 flex flex-col gap-2 transition-transform duration-200"
+                             ontouchstart="handleSwipeStart(event)" 
+                             ontouchmove="handleSwipeMove(event)" 
+                             ontouchend="handleSwipeEnd(event)">
+                             
+                            <div class="flex-1 w-full">
+                                <div class="font-bold text-base text-gray-900 border-b border-gray-50 pb-2">${item.name}</div>
+                                <div class="flex justify-between items-center pt-2">
+                                    <div class="flex flex-col gap-1 w-1/2">
+                                        <div class="text-[11px] text-gray-400 flex items-center gap-1"><i class="fa-solid fa-warehouse"></i> ${activeWarehouseName}</div>
+                                        <div class="flex items-center gap-2">
+                                            <span class="text-sm font-bold text-teal-600 font-mono">${item.price.toFixed(2)}</span>
+                                            <span class="text-[10px] text-gray-500">ج.م للقطعة</span>
+                                        </div>
+                                    </div>
+                                    <div class="flex items-center justify-around bg-gray-50 rounded-xl p-1 w-28 border border-gray-100">
+                                        <button onclick="updateQty(${item.id}, -1)" class="w-8 h-8 rounded-lg text-red-500 font-bold flex items-center justify-center active:bg-gray-200 transition-colors"><i class="fa-solid fa-minus"></i></button>
+                                        <span class="text-lg font-bold w-full text-center">${item.quantity}</span>
+                                        <button onclick="updateQty(${item.id}, 1)" class="w-8 h-8 rounded-lg text-green-500 font-bold flex items-center justify-center active:bg-gray-200 transition-colors"><i class="fa-solid fa-plus"></i></button>
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- Row Total Mini Badge -->
+                            <div class="absolute left-4 top-2 bg-gray-50 px-2 py-0.5 rounded-md border border-gray-100 text-xs font-bold font-mono text-gray-600 shadow-sm">
+                                ${(item.price * item.quantity).toFixed(2)} ج.م
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            if(cart.length === 0) container.innerHTML = '<div class="flex flex-col items-center justify-center py-20 text-gray-300"><i class="fa-solid fa-basket-shopping text-6xl mb-4"></i><div class="text-xl font-bold">السلة فارغة</div></div>';
+            
+            calculateTotals();
+        }
+
+        function updateQty(id, change) {
+            const item = cart.find(i => i.id === id);
+            if(item) {
+                item.quantity += change;
+                if(item.quantity <= 0) cart = cart.filter(i => i.id !== id);
+                renderCart();
+                updateBarTotal();
+            }
+        }
+
+        function updateItemPrice(id, val) {
+            const item = cart.find(i => i.id === id);
+            if(item) {
+                item.price = parseFloat(val) || 0;
+                item.isManualPrice = true;
+                renderCart();
+                updateBarTotal();
+            }
+        }
+
+        // --- Global Order Details Settings ---
+        let currentDiscount = 0;
+        let currentDiscountType = 'fixed';
+        let currentDeliveryCost = 0;
+        let currentNotes = '';
+
+        function calculateTotals() {
+            let subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+            
+            let finalDiscountAmount = 0;
+            if(currentDiscountType === 'percentage') {
+                finalDiscountAmount = subtotal * (currentDiscount / 100);
+            } else {
+                finalDiscountAmount = currentDiscount;
+            }
+            
+            let total = subtotal - finalDiscountAmount + currentDeliveryCost;
+            if(total < 0) total = 0;
+            
+            document.getElementById('grandTotalDisplay').innerText = total.toFixed(2);
+            document.getElementById('barTotal').innerText = total.toFixed(2);
+            
+            document.getElementById('cartSubtotalVal').innerText = subtotal.toFixed(2) + ' ج.م';
+            document.getElementById('cartDiscountVal').innerText = finalDiscountAmount.toFixed(2) + ' ج.م';
+            document.getElementById('cartDeliveryVal').innerText = currentDeliveryCost.toFixed(2) + ' ج.م';
+            
+            // Update Cart Badge
+            const count = cart.reduce((c, i) => c + i.quantity, 0);
+            const badge = document.getElementById('cartCountBadge');
+            badge.innerText = count;
+            badge.classList.toggle('hidden', count === 0);
+        }
+        
+        // Lightweight calc for the bottom bar without full render
+        function updateBarTotal() {
+             calculateTotals();
+        }
+
+        function clearCart() {
+            if(confirm('إفراغ السلة؟')) {
+                cart = [];
+                currentDiscount = 0;
+                currentDeliveryCost = 0;
+                currentNotes = '';
+                document.getElementById('discountInputVal').value = 0;
+                document.getElementById('deliveryInputVal').value = 0;
+                document.getElementById('notesInput').value = '';
+                renderCart();
+                updateBarTotal();
+                closeCartModal();
+            }
+        }
+        
+        // --- Order Details Modal Mobile ---
+        function setDiscountType(type) {
+            const btnFixed = document.getElementById('btnDiscountFixed');
+            const btnPercent = document.getElementById('btnDiscountPercent');
+            const activeBg = document.getElementById('discountActiveBg');
+            const hiddenField = document.getElementById('discountTypeField');
+            const symbol = document.getElementById('discountSymbol');
+            
+            hiddenField.value = type;
+            
+            if(type === 'fixed') {
+                activeBg.style.right = '4px';
+                activeBg.style.left = 'auto'; // Depending on RTL layout engine, relying on right
+                btnFixed.classList.add('text-blue-600');
+                btnFixed.classList.remove('text-gray-500');
+                btnPercent.classList.add('text-gray-500');
+                btnPercent.classList.remove('text-blue-600');
+                symbol.innerText = 'ج.م';
+            } else {
+                activeBg.style.right = 'calc(50% + 0px)'; 
+                btnPercent.classList.add('text-blue-600');
+                btnPercent.classList.remove('text-gray-500');
+                btnFixed.classList.add('text-gray-500');
+                btnFixed.classList.remove('text-blue-600');
+                symbol.innerText = '%';
+            }
+            updateRealtimeOrderPreview();
+        }
+
+        function updateRealtimeOrderPreview() {
+            let subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+            
+            let discType = document.getElementById('discountTypeField').value;
+            let discVal = parseFloat(document.getElementById('discountInputVal').value) || 0;
+            let delivVal = parseFloat(document.getElementById('deliveryInputVal').value) || 0;
+            
+            let finalDiscountAmount = 0;
+            if(discType === 'percentage') {
+                finalDiscountAmount = subtotal * (discVal / 100);
+            } else {
+                finalDiscountAmount = discVal;
+            }
+            
+            const warningEl = document.getElementById('discountWarning');
+            if(finalDiscountAmount > subtotal && subtotal > 0) {
+                warningEl.style.display = 'flex';
+                warningEl.classList.remove('hidden');
+            } else {
+                warningEl.style.display = 'none';
+                warningEl.classList.add('hidden');
+            }
+            
+            let total = subtotal - finalDiscountAmount + delivVal;
+            if(total < 0) total = 0;
+            
+            document.getElementById('previewSubtotal').innerText = subtotal.toFixed(2);
+            document.getElementById('previewDiscount').innerText = finalDiscountAmount.toFixed(2);
+            document.getElementById('previewDelivery').innerText = delivVal.toFixed(2);
+            document.getElementById('previewTotal').innerHTML = total.toFixed(2) + ' <span class="text-sm text-gray-400">ج.م</span>';
+        }
+
+        function updateNotesCounter() {
+            const t = document.getElementById('notesInput');
+            const c = document.getElementById('notesCharCounter');
+            let val = t.value;
+            if (val.length > 500) { t.value = val.substring(0, 500); val = t.value; }
+            c.innerText = val.length + '/500';
+        }
+
+        function openOrderDetailsModal() {
+            // Load current status
+            document.getElementById('discountInputVal').value = currentDiscount;
+            document.getElementById('deliveryInputVal').value = currentDeliveryCost;
+            document.getElementById('notesInput').value = currentNotes;
+            setDiscountType(currentDiscountType);
+            updateNotesCounter();
+            updateRealtimeOrderPreview();
+            
+            const sheet = document.getElementById('orderDetailsBottomSheet');
+            const content = document.getElementById('orderDetailsSheetContent');
+            sheet.classList.remove('hidden');
+            setTimeout(() => {
+                sheet.classList.remove('opacity-0');
+                content.classList.remove('translate-y-full');
+            }, 10);
+        }
+        
+        function closeOrderDetailsModal() {
+            const sheet = document.getElementById('orderDetailsBottomSheet');
+            const content = document.getElementById('orderDetailsSheetContent');
+            content.classList.add('translate-y-full');
+            sheet.classList.add('opacity-0');
+            setTimeout(() => sheet.classList.add('hidden'), 300);
+        }
+        
+        document.getElementById('orderDetailsBottomSheet').addEventListener('click', function(e) {
+            if(e.target === this) closeOrderDetailsModal();
+        });
+
+        function applyOrderDetails() {
+            currentDiscountType = document.getElementById('discountTypeField').value;
+            currentDiscount = parseFloat(document.getElementById('discountInputVal').value) || 0;
+            currentDeliveryCost = parseFloat(document.getElementById('deliveryInputVal').value) || 0;
+            currentNotes = document.getElementById('notesInput').value;
+            
+            calculateTotals();
+            closeOrderDetailsModal();
+            showToast('تم تحديث تفاصيل الطلب');
+        }
+
+        // --- Modals Control ---
+        function openCartModal() {
+            renderCart(); // Refresh UI
+            const modal = document.getElementById('cartModal');
+            modal.classList.remove('hidden');
+            // Small timeout to allow the browser to process the 'hidden' removal before animating
+            setTimeout(() => {
+                modal.classList.remove('translate-y-full');
+            }, 10);
+        }
+        
+        function closeCartModal() {
+            const modal = document.getElementById('cartModal');
+            modal.classList.add('translate-y-full');
+            // Wait for transition to finish (300ms) then hide
+            setTimeout(() => {
+                modal.classList.add('hidden');
+            }, 300);
+        }
+
+        function openPaymentModal() {
+            if(cart.length === 0) return alert('السلة فارغة');
+            document.getElementById('modalTotalAmount').innerText = document.getElementById('grandTotalDisplay').innerText;
+            
+            // Pre-fill cash if not online
+            if(!document.getElementById('isOnlineOrder').checked) {
+                document.getElementById('payCash').value = document.getElementById('grandTotalDisplay').innerText;
+            } else {
+                 document.getElementById('payCash').value = '';
+            }
+            document.getElementById('payWallet').value = '';
+            document.getElementById('payInsta').value = '';
+            
+            calculateRemaining();
+            document.getElementById('paymentModal').classList.remove('hidden');
+        }
+        function closePaymentModal() {
+            document.getElementById('paymentModal').classList.add('hidden');
+        }
+
+        function calculateRemaining() {
+            const total = parseFloat(document.getElementById('modalTotalAmount').innerText) || 0;
+            const cash = parseFloat(document.getElementById('payCash').value) || 0;
+            const wallet = parseFloat(document.getElementById('payWallet').value) || 0;
+            const insta = parseFloat(document.getElementById('payInsta').value) || 0;
+            const visa = parseFloat(document.getElementById('payVisa').value) || 0;
+
+            const remaining = total - (cash + wallet + insta + visa);
+            const el = document.getElementById('payRemaining');
+            const box = document.getElementById('remainingBox');
+            const label = document.getElementById('remainingLabel');
+            
+            el.innerText = remaining.toFixed(2);
+            
+            if (remaining > 0.01) {
+                // Debt
+                box.className = "p-3 bg-red-50 border border-red-100 rounded-lg flex justify-between items-center";
+                label.innerText = "المتبقي (آجل):";
+                label.className = "font-bold text-xs text-red-700";
+                el.className = "font-bold text-lg text-red-700 font-mono";
+            } else if (remaining < -0.01) {
+                // Change
+                el.innerText = Math.abs(remaining).toFixed(2);
+                box.className = "p-3 bg-blue-50 border border-blue-100 rounded-lg flex justify-between items-center";
+                label.innerText = "الباقي للعميل:";
+                label.className = "font-bold text-xs text-blue-700";
+                el.className = "font-bold text-lg text-blue-700 font-mono";
+            } else {
+                box.className = "p-3 bg-green-50 border border-green-100 rounded-lg flex justify-between items-center";
+                label.innerText = "خالص:";
+                label.className = "font-bold text-xs text-green-700";
+                el.className = "font-bold text-lg text-green-700 font-mono";
+            }
+        }
+
+        function openPrintWindow(url) {
+            if (window.pywebview) {
+                sessionStorage.setItem('pos_needs_reload', '1');
+                window.location.href = url;
+            } else {
+                window.open(url, '_blank');
+            }
+        }
+
+        window.addEventListener('pageshow', function (e) {
+            if (sessionStorage.getItem('pos_needs_reload')) {
+                sessionStorage.removeItem('pos_needs_reload');
+                window.location.reload();
+            }
+        });
+
+        // --- Submit Order ---
+        function submitOrder(print) {
+            if (cart.length === 0) return alert('السلة فارغة');
+            const customerId = document.getElementById('customerSelect').value;
+            const isOnline = document.getElementById('isOnlineOrder').checked;
+            const warehouseId = document.getElementById('warehouseSelect').value;
+
+            if (isOnline) {
+                if (!customerId) return alert('يجب اختيار عميل للطلبات الأونلاين');
+                if (!selectedCustomerAddress) return alert('العميل المختار لا يملك عنواناً مسجلاً');
+            }
+
+            const total = parseFloat(document.getElementById('modalTotalAmount').innerText);
+            const cash = parseFloat(document.getElementById('payCash').value) || 0;
+            const wallet = parseFloat(document.getElementById('payWallet').value) || 0;
+            const insta = parseFloat(document.getElementById('payInsta').value) || 0;
+            const visa = parseFloat(document.getElementById('payVisa').value) || 0;
+
+            if ((cash + wallet + insta + visa) < total && !customerId) {
+                return alert('لا يمكن البيع آجل لعميل غير مسجل');
+            }
+
+            const data = {
+                warehouse_id: warehouseId,
+                customer_id: customerId,
+                items: cart.map(i => ({ id: i.id, quantity: i.quantity, price: i.price, variant_id: i.variantId || null })),
+                discount: currentDiscount,
+                discount_type: currentDiscountType,
+                delivery_cost: currentDeliveryCost,
+                notes: currentNotes,
+                cash_paid: cash,
+                wallet_paid: wallet,
+                instapay_paid: insta,
+                visa_paid: visa,
+                is_online: isOnline,
+                linked_draft_id: linkedDraftId
+            };
+
+            let submitUrl = '{% url "submit_order_ajax" %}';
+            if (editOrderId) {
+                submitUrl = '{% url "edit_order_ajax" %}';
+                data.order_id = editOrderId;
+            }
+
+            fetch(submitUrl, {
+                method: 'POST',
+                body: JSON.stringify(data),
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' }
+            })
+            .then(r => r.json())
+            .then(res => {
+                if(res.status === 'success') {
+                    showToast('تم حفظ الطلب');
+                    closePaymentModal();
+                    closeCartModal();
+                    
+                    if(print) {
+                        const style = document.querySelector('input[name="printStyle"]:checked').value;
+                        openPrintWindow(`${window.location.origin}/sales/invoice/${res.order_id}/?style=${style}`);
+                    }
+
+                    if(isOnline && confirm('الانتقال للوحة الشحن؟')) {
+                        window.location.href = "{% url 'shipping_dashboard' %}";
+                    } else if (!(print && window.pywebview)) {
+                        window.location.reload();
+                    }
+                } else {
+                    alert('خطأ: ' + res.message);
+                }
+            });
+        }
+
+        // --- UI Helpers ---
+        let activeCategoryId = 'all';
+        let categoriesDrawerTouchStartY = null;
+
+        function getShortCategoryName(name) {
+            const clean = (name || '').trim();
+            if (clean.length <= 8) return clean;
+            const parts = clean.split(' ').filter(Boolean);
+            if (parts.length > 1 && parts[0].length <= 8) return parts[0];
+            return clean.slice(0, 8);
+        }
+
+        function setCategoryChipLabelShortNames() {
+            document.querySelectorAll('.category-chip[data-category-id]').forEach(chip => {
+                const id = chip.dataset.categoryId;
+                if (id === 'all') return;
+                const fullName = chip.dataset.categoryName || '';
+                const label = chip.querySelector('.category-chip-label');
+                if (label) {
+                    label.innerText = getShortCategoryName(fullName);
+                    label.title = fullName;
+                }
+            });
+        }
+
+        function updateCategoryCounts() {
+            const cards = Array.from(document.querySelectorAll('.product-card'));
+            const counts = { all: cards.length };
+            cards.forEach(card => {
+                const cat = card.dataset.cat;
+                counts[cat] = (counts[cat] || 0) + 1;
+            });
+
+            document.querySelectorAll('.category-chip-count').forEach(badge => {
+                const id = badge.dataset.categoryCountFor;
+                badge.innerText = counts[id] || 0;
+            });
+            return counts;
+        }
+
+        function setActiveCategoryChip(id) {
+            activeCategoryId = id;
+            document.getElementById('searchResultChip').classList.add('hidden');
+
+            document.querySelectorAll('.category-chip').forEach(chip => {
+                const isActive = chip.dataset.categoryId === id;
+                chip.classList.toggle('category-chip-active', isActive);
+                if (isActive) {
+                    chip.classList.remove('bg-white', 'text-gray-700', 'border', 'border-gray-200');
+                    chip.classList.add('bg-blue-600', 'text-white', 'shadow-md', 'shadow-blue-200');
+                    const badge = chip.querySelector('.category-chip-count');
+                    if (badge) {
+                        badge.classList.remove('bg-gray-100', 'text-gray-500');
+                        badge.classList.add('bg-white/25', 'text-white');
+                    }
+                } else {
+                    chip.classList.remove('bg-blue-600', 'text-white', 'shadow-md', 'shadow-blue-200');
+                    chip.classList.add('bg-white', 'text-gray-700', 'border', 'border-gray-200');
+                    const badge = chip.querySelector('.category-chip-count');
+                    if (badge) {
+                        badge.classList.add('bg-gray-100', 'text-gray-500');
+                        badge.classList.remove('bg-white/25', 'text-white');
+                    }
+                }
+            });
+
+            const selectedChip = document.querySelector(`.category-chip[data-category-id="${id}"]`);
+            if (selectedChip) {
+                selectedChip.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+            }
+        }
+
+        function setSearchChipState(isActive) {
+            const searchChip = document.getElementById('searchResultChip');
+            if (isActive) {
+                searchChip.classList.remove('hidden');
+                document.querySelectorAll('.category-chip').forEach(chip => {
+                    chip.classList.remove('bg-blue-600', 'text-white', 'shadow-md', 'shadow-blue-200');
+                    chip.classList.add('bg-white', 'text-gray-700', 'border', 'border-gray-200');
+                });
+            } else {
+                searchChip.classList.add('hidden');
+                setActiveCategoryChip(activeCategoryId || 'all');
+            }
+        }
+
+        function renderCategoriesDrawerList(searchTerm = '') {
+            const list = document.getElementById('categoriesDrawerList');
+            const counts = updateCategoryCounts();
+            const q = (searchTerm || '').trim().toLowerCase();
+            list.innerHTML = '';
+
+            const chips = Array.from(document.querySelectorAll('.category-chip[data-category-id]'));
+            chips.forEach(chip => {
+                const id = chip.dataset.categoryId;
+                const fullName = chip.dataset.categoryName || '';
+                if (q && !fullName.toLowerCase().includes(q)) return;
+
+                const isActive = id === activeCategoryId;
+                const row = document.createElement('button');
+                row.type = 'button';
+                row.className = `w-full text-right p-3 rounded-xl border text-sm flex items-center justify-between ${isActive ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-white border-gray-200 text-gray-700'}`;
+                row.innerHTML = `
+                    <div class="flex items-center gap-2">
+                        <span class="w-4 text-center ${isActive ? '' : 'invisible'}">✓</span>
+                        <span class="font-bold">${fullName}</span>
+                    </div>
+                    <span class="text-xs font-mono px-2 py-0.5 rounded-full ${isActive ? 'bg-blue-100' : 'bg-gray-100'}">${counts[id] || 0}</span>
+                `;
+                row.onclick = () => {
+                    filterCategory(id, document.querySelector(`.category-chip[data-category-id="${id}"]`));
+                    closeCategoriesDrawer();
+                };
+                list.appendChild(row);
+            });
+
+            if (!list.innerHTML.trim()) {
+                list.innerHTML = '<div class="text-center text-gray-400 py-8 text-sm font-bold">لا توجد نتائج</div>';
+            }
+        }
+
+        function openCategoriesDrawer() {
+            renderCategoriesDrawerList();
+            const drawer = document.getElementById('categoriesDrawer');
+            const sheet = document.getElementById('categoriesDrawerSheet');
+            drawer.classList.remove('hidden');
+            setTimeout(() => {
+                drawer.classList.remove('opacity-0');
+                sheet.classList.remove('translate-y-full');
+            }, 10);
+        }
+
+        function closeCategoriesDrawer() {
+            const drawer = document.getElementById('categoriesDrawer');
+            const sheet = document.getElementById('categoriesDrawerSheet');
+            sheet.classList.add('translate-y-full');
+            drawer.classList.add('opacity-0');
+            setTimeout(() => drawer.classList.add('hidden'), 300);
+        }
+
+        function filterCategory(id, triggerEl = null) {
+            setActiveCategoryChip(id);
+            document.querySelectorAll('.product-card').forEach(card => {
+                card.style.display = (id === 'all' || card.dataset.cat === id) ? 'flex' : 'none';
+            });
+
+            if (triggerEl) {
+                triggerEl.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+            }
+        }
+
+        function toggleOnlineMode() {
+            const isOnline = document.getElementById('isOnlineOrder').checked;
+            if(isOnline && currentDeliveryCost === 0) {
+                // Hint to add delivery cost by opening modal automatically
+                openOrderDetailsModal();
+                document.getElementById('deliveryInputVal').focus();
+            }
+            calculateTotals();
+        }
+
+        // --- Quick Fill Payment ---
+        function quickFillPayment(type) {
+            const total = parseFloat(document.getElementById('modalTotalAmount').innerText) || 0;
+            document.getElementById('payCash').value = '';
+            document.getElementById('payWallet').value = '';
+            document.getElementById('payInsta').value = '';
+            document.getElementById('payVisa').value = '';
+
+            if(type === 'cash') document.getElementById('payCash').value = total.toFixed(2);
+            if(type === 'wallet') document.getElementById('payWallet').value = total.toFixed(2);
+            if(type === 'insta') document.getElementById('payInsta').value = total.toFixed(2);
+            if(type === 'visa') document.getElementById('payVisa').value = total.toFixed(2);
+
+            calculateRemaining();
+        }
+
+        function closeMenuModal(type) {
+            let sheet, content;
+            if(type === 'drafts') {
+                sheet = document.getElementById('draftsBottomSheet');
+                content = document.getElementById('draftsSheetContent');
+            } else if(type === 'movements') {
+                sheet = document.getElementById('movementsBottomSheet');
+                content = document.getElementById('movementsSheetContent');
+            }
+            
+            content.classList.add('translate-y-full');
+            sheet.classList.add('opacity-0');
+            setTimeout(() => sheet.classList.add('hidden'), 300);
+        }
+
+        function openMenuModal(type) {
+            document.getElementById('mobileMenu').classList.add('hidden');
+            let sheet, content;
+            if(type === 'drafts') {
+                sheet = document.getElementById('draftsBottomSheet');
+                content = document.getElementById('draftsSheetContent');
+                loadDrafts();
+            } else if(type === 'movements') {
+                sheet = document.getElementById('movementsBottomSheet');
+                content = document.getElementById('movementsSheetContent');
+            }
+            
+            sheet.classList.remove('hidden');
+            setTimeout(() => {
+                sheet.classList.remove('opacity-0');
+                content.classList.remove('translate-y-full');
+            }, 10);
+        }
+
+        // --- Backend Drafts Logic ---
+        function buildDraftPayloadMobile() {
+            return {
+                draft_id: linkedDraftId,
+                customer_id: document.getElementById('customerSelect').value || null,
+                warehouse_id: document.getElementById('warehouseSelect').value,
+                delivery_cost: currentDeliveryCost,
+                discount: currentDiscount,
+                notes: currentNotes,
+                items: cart.map(i => ({
+                    id: i.id,
+                    name: i.name,
+                    quantity: i.quantity,
+                    price: i.price,
+                    discount: i.discount || 0
+                }))
+            };
+        }
+        
+        function saveDraft() {
+            if(cart.length === 0) return alert('خطأ: سلة المشتريات فارغة');
+            fetch('{% url "save_draft_ajax" %}', {
+                method: 'POST',
+                body: JSON.stringify(buildDraftPayloadMobile()),
+                headers: { 'X-CSRFToken': '{{ csrf_token }}', 'Content-Type': 'application/json' }
+            })
+            .then(r => r.json())
+            .then(res => {
+                if (res.status === 'success') {
+                    showToast('تم حفظ المسودة بنجاح');
+                    cart = [];
+                    linkedDraftId = null;
+                    currentDiscount = 0;
+                    currentDiscountType = 'fixed';
+                    currentDeliveryCost = 0;
+                    currentNotes = '';
+                    document.getElementById('customerSelect').value = '';
+                    document.getElementById('selectedCustomerName').innerText = 'عميل نقدي (قطاعي)';
+                    renderCart();
+                    updateBarTotal();
+                    loadDrafts();
+                } else {
+                    alert(res.message || 'تعذر حفظ المسودة');
+                }
+            });
+        }
+
+        function loadDrafts() {
+            fetch('{% url "list_drafts_ajax" %}')
+                .then(r => r.json())
+                .then(res => {
+                    const container = document.getElementById('draftsListContainer');
+                    container.innerHTML = '';
+                    if (res.status !== 'success' || !res.drafts || res.drafts.length === 0) {
+                        container.innerHTML = `<div class="text-center text-gray-400 py-10 font-bold text-sm">لا توجد مسودات محفوظة حالياً</div>`;
+                        return;
+                    }
+                    res.drafts.forEach(d => {
+                        container.innerHTML += `
+                            <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+                                <div class="font-bold text-gray-800 text-sm mb-1 line-clamp-1"><i class="fa-regular fa-clock text-blue-400 ml-1"></i>${d.name}</div>
+                                <div class="text-xs text-gray-500 mb-2">${d.items_count} أصناف | ${d.customer_name}</div>
+                                <div class="text-lg font-bold text-teal-600 font-mono mb-2">${parseFloat(d.total_amount).toFixed(2)} ج.م</div>
+                                <div class="flex gap-2">
+                                    <button onclick="restoreDraft(${d.id})" class="flex-1 bg-blue-50 text-blue-600 p-2 px-3 rounded-lg font-bold text-xs"><i class="fa-solid fa-folder-open ml-1"></i> فتح</button>
+                                    <button onclick="openDraftPrintSheet(${d.id})" class="flex-1 bg-gray-100 text-gray-700 p-2 px-3 rounded-lg font-bold text-xs"><i class="fa-solid fa-print ml-1"></i> طباعة</button>
+                                    <button onclick="deleteDraft(${d.id})" class="bg-red-50 text-red-600 p-2 px-3 rounded-lg font-bold text-xs"><i class="fa-solid fa-trash"></i></button>
+                                </div>
+                            </div>
+                        `;
+                    });
+                });
+        }
+
+        function restoreDraft(draftId) {
+            if (cart.length > 0 && !confirm('سيتم استبدال السلة الحالية. متابعة؟')) return;
+            fetch(`/sales/pos/drafts/${draftId}/`)
+                .then(r => r.json())
+                .then(res => {
+                    if (res.status !== 'success') {
+                        alert(res.message || 'تعذر استرجاع المسودة');
+                        return;
+                    }
+                    const draft = res.draft;
+                    linkedDraftId = draft.id;
+                    cart = (draft.cart_data || []).map(item => ({
+                        id: item.id,
+                        name: item.name,
+                        sku: item.sku || '',
+                        quantity: parseFloat(item.quantity) || 0,
+                        price: parseFloat(item.price) || 0,
+                        isManualPrice: true
+                    })).filter(item => item.id && item.quantity > 0);
+                    currentDiscount = parseFloat(draft.discount) || 0;
+                    currentDiscountType = 'fixed';
+                    currentDeliveryCost = parseFloat(draft.delivery_cost) || 0;
+                    currentNotes = draft.notes || '';
+
+                    if (draft.customer_id) {
+                        document.getElementById('customerSelect').value = draft.customer_id;
+                        document.getElementById('selectedCustomerName').innerText = draft.customer_name || 'عميل';
+                        selectedCustomerAddress = draft.customer_address || '';
+                        updatePriceType(draft.customer_type || 'retail');
+                    } else {
+                        document.getElementById('customerSelect').value = '';
+                        document.getElementById('selectedCustomerName').innerText = 'عميل نقدي (قطاعي)';
+                        selectedCustomerAddress = '';
+                        updatePriceType('retail');
+                    }
+
+                    const wh = document.getElementById('warehouseSelect');
+                    if (wh) wh.value = draft.warehouse_id;
+                    renderCart();
+                    updateBarTotal();
+                    closeMenuModal('drafts');
+                    showToast('تم استرجاع المسودة');
+                });
+        }
+
+        function deleteDraft(draftId) {
+            if(!confirm('هل أنت متأكد من مسح هذه المسودة؟')) return;
+            fetch(`/sales/pos/drafts/${draftId}/delete/`, {
+                method: 'DELETE',
+                headers: { 'X-CSRFToken': '{{ csrf_token }}' }
+            })
+            .then(r => r.json())
+            .then(res => {
+                if (res.status === 'success') {
+                    loadDrafts();
+                    showToast('تم الحذف بنجاح');
+                } else {
+                    alert(res.message || 'فشل حذف المسودة');
+                }
+            });
+        }
+
+        function openDraftPrintSheet(draftId) {
+            selectedDraftForPrint = draftId;
+            const sheet = document.getElementById('draftPrintBottomSheet');
+            const content = document.getElementById('draftPrintSheetContent');
+            sheet.classList.remove('hidden');
+            setTimeout(() => {
+                sheet.classList.remove('opacity-0');
+                content.classList.remove('translate-y-full');
+            }, 10);
+        }
+
+        function closeDraftPrintSheet() {
+            const sheet = document.getElementById('draftPrintBottomSheet');
+            const content = document.getElementById('draftPrintSheetContent');
+            content.classList.add('translate-y-full');
+            sheet.classList.add('opacity-0');
+            setTimeout(() => sheet.classList.add('hidden'), 300);
+            selectedDraftForPrint = null;
+        }
+
+        function printDraftByStyleMobile(style) {
+            if (!selectedDraftForPrint) return;
+            window.open(`${window.location.origin}/sales/pos/drafts/${selectedDraftForPrint}/print/?style=${style}`, '_blank');
+            closeDraftPrintSheet();
+        }
+
+        // --- Hardware Back Button or Tap Outside for Hamburger ---
+        document.addEventListener('click', function(e) {
+            const menu = document.getElementById('mobileMenu');
+            const toggleBtn = menu.previousElementSibling;
+            if(!menu.contains(e.target) && !toggleBtn.contains(e.target)) {
+                menu.classList.add('hidden');
+            }
+            
+            // Also close modals if tapping exactly on the overlay background
+            if(e.target.id === 'draftsBottomSheet') closeMenuModal('drafts');
+            if(e.target.id === 'draftPrintBottomSheet') closeDraftPrintSheet();
+            if(e.target.id === 'movementsBottomSheet') closeMenuModal('movements');
+            if(e.target.id === 'transferBottomSheet') closeTransferModal();
+        });
+
+        // --- Transfer Modal Logic ---
+        function openTransferModal() {
+            document.getElementById('mobileMenu').classList.add('hidden');
+            const sheet = document.getElementById('transferBottomSheet');
+            const content = document.getElementById('transferSheetContent');
+            
+            // clear form
+            document.getElementById('transferProductSearch').value = '';
+            document.getElementById('transferSearchResults').classList.add('hidden');
+            document.getElementById('transferSelectedItem').classList.add('hidden');
+            document.getElementById('transferQty').value = 1;
+            
+            sheet.classList.remove('hidden');
+            setTimeout(() => {
+                sheet.classList.remove('opacity-0');
+                content.classList.remove('translate-y-full');
+            }, 10);
+        }
+
+        function closeTransferModal() {
+            const sheet = document.getElementById('transferBottomSheet');
+            const content = document.getElementById('transferSheetContent');
+            content.classList.add('translate-y-full');
+            sheet.classList.add('opacity-0');
+            setTimeout(() => sheet.classList.add('hidden'), 300);
+        }
+
+        function searchTransferProduct(q) {
+            q = q.toLowerCase().trim();
+            const resBox = document.getElementById('transferSearchResults');
+            if(q.length < 2) { resBox.classList.add('hidden'); return; }
+            
+            resBox.innerHTML = '';
+            let count = 0;
+            document.querySelectorAll('.product-card').forEach(card => {
+                const name = card.dataset.name.toLowerCase();
+                const sku = card.dataset.sku.toLowerCase();
+                if(name.includes(q) || sku.includes(q)) {
+                    if(count > 5) return;
+                    count++;
+                    const div = document.createElement('div');
+                    div.className = "p-3 hover:bg-gray-50 border-b border-gray-100 cursor-pointer";
+                    div.innerHTML = `<div class="font-bold text-sm text-gray-800">${card.dataset.name}</div><div class="text-xs text-gray-500">${card.dataset.stock} رصيد</div>`;
+                    div.onclick = function() {
+                        document.getElementById('transferProductName').innerText = card.dataset.name;
+                        document.getElementById('transferProductStock').innerText = card.dataset.stock;
+                        document.getElementById('transferProductSku').innerText = card.dataset.sku;
+                        document.getElementById('transferProductId').value = card.dataset.id;
+                        document.getElementById('transferSelectedItem').classList.remove('hidden');
+                        resBox.classList.add('hidden');
+                        document.getElementById('transferProductSearch').value = '';
+                    };
+                    resBox.appendChild(div);
+                }
+            });
+            
+            if(count > 0) resBox.classList.remove('hidden');
+            else resBox.classList.add('hidden');
+        }
+
+        function submitTransfer() {
+            const prodId = document.getElementById('transferProductId').value;
+            if(!prodId) return alert('الرجاء اختيار منتج أولاً');
+            
+            const toId = document.getElementById('transferToWarehouse').value;
+            const fromId = document.getElementById('transferFromWarehouse').value;
+            const qty = parseFloat(document.getElementById('transferQty').value) || 0;
+            const maxStock = parseFloat(document.getElementById('transferProductStock').innerText);
+            
+            if(!toId || toId === fromId) return alert('خطأ في تحديد المخزن الوجهة');
+            if(qty <= 0) return alert('كمية التحويل يجب أن تكون أكبر من صفر');
+            if(qty > maxStock) return alert('كمية التحويل أكبر من الرصيد المتاح بالمخزن');
+            
+            fetch('{% url "pos_bulk_transfer_api" %}', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
+                body: JSON.stringify({ 
+                    items: [{
+                        product_id: parseInt(prodId),
+                        from_warehouse_id: parseInt(fromId),
+                        to_warehouse_id: parseInt(toId),
+                        quantity: qty,
+                        note: 'تحويل سريع من نقطة البيع موبايل'
+                    }]
+                })
+            }).then(r => r.json()).then(res => {
+                if(res.success) {
+                    showToast('تم إرسال عملية التحويل للمراجعة / التنفيذ');
+                    closeTransferModal();
+                } else {
+                    alert(res.error || 'حدث خطأ أثناء إجراء التحويل');
+                }
+            }).catch(e => {
+                alert('خطأ في الاتصال بالخادم');
+            });
+        }
+
+        // --- Stock Movement Modal Logic (Step 9) ---
+        function setMovementType(type) {
+            document.getElementById('moveTypeValue').value = type;
+            const inBtn = document.getElementById('moveTypeIN');
+            const outBtn = document.getElementById('moveTypeOUT');
+            if(type === 'IN') {
+                inBtn.className = "flex-1 py-2 text-sm font-bold bg-white text-teal-700 shadow border border-gray-200 rounded-lg";
+                outBtn.className = "flex-1 py-2 text-sm font-bold bg-transparent text-gray-500 border border-transparent rounded-lg hover:bg-gray-200";
+            } else {
+                outBtn.className = "flex-1 py-2 text-sm font-bold bg-white text-red-700 shadow border border-gray-200 rounded-lg";
+                inBtn.className = "flex-1 py-2 text-sm font-bold bg-transparent text-gray-500 border border-transparent rounded-lg hover:bg-gray-200";
+            }
+        }
+
+        function searchMoveProduct(q) {
+            q = q.toLowerCase().trim();
+            const resBox = document.getElementById('moveSearchResults');
+            if(q.length < 2) { resBox.classList.add('hidden'); return; }
+            
+            resBox.innerHTML = '';
+            let count = 0;
+            document.querySelectorAll('.product-card').forEach(card => {
+                const name = card.dataset.name.toLowerCase();
+                const sku = card.dataset.sku.toLowerCase();
+                if(name.includes(q) || sku.includes(q)) {
+                    if(count > 5) return;
+                    count++;
+                    const div = document.createElement('div');
+                    div.className = "p-3 hover:bg-gray-50 border-b border-gray-100 cursor-pointer";
+                    div.innerHTML = `<div class="font-bold text-sm text-gray-800">${card.dataset.name}</div><div class="text-xs text-gray-500">${card.dataset.stock} رصيد</div>`;
+                    div.onclick = function() {
+                        document.getElementById('moveProductName').innerText = card.dataset.name;
+                        document.getElementById('moveProductStock').innerText = card.dataset.stock;
+                        document.getElementById('moveProductSku').innerText = card.dataset.sku;
+                        document.getElementById('moveProductId').value = card.dataset.id;
+                        document.getElementById('moveSelectedItem').classList.remove('hidden');
+                        resBox.classList.add('hidden');
+                        document.getElementById('moveSearchInput').value = '';
+                    };
+                    resBox.appendChild(div);
+                }
+            });
+            
+            if(count > 0) resBox.classList.remove('hidden');
+            else resBox.classList.add('hidden');
+        }
+
+        function submitStockMovement() {
+            const prodId = document.getElementById('moveProductId').value;
+            if(!prodId) return alert('الرجاء اختيار منتج أولاً');
+            
+            const whId = document.getElementById('moveWarehouse').value;
+            const type = document.getElementById('moveTypeValue').value;
+            const qty = parseFloat(document.getElementById('moveQty').value) || 0;
+            const note = document.getElementById('moveNote').value || 'حركة سريعة من الموبايل';
+            const maxStock = parseFloat(document.getElementById('moveProductStock').innerText);
+            
+            if(qty <= 0) return alert('يجب إدخال كمية صحيحة');
+            if(type === 'OUT' && qty > maxStock) return alert('لا يمكن صرف كمية أكبر من الرصيد المتاح');
+            
+            fetch('{% url "pos_stock_movement_api" %}', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
+                body: JSON.stringify({
+                    product_id: parseInt(prodId),
+                    warehouse_id: parseInt(whId),
+                    transaction_type: type,
+                    quantity: qty,
+                    note: note
+                })
+            }).then(r => r.json()).then(res => {
+                if(res.success) {
+                    showToast('تم تسجيل الحركة بنجاح');
+                    closeMenuModal('movements');
+                } else {
+                    alert(res.error || 'حدث خطأ أثناء التسجيل');
+                }
+            }).catch(e => {
+                alert('خطأ في الاتصال بالخادم');
+            });
+        }
+
+        function showToast(msg) {
+            const t = document.getElementById('toast');
+            document.getElementById('toastMsg').innerText = msg;
+            t.classList.remove('opacity-0', 'pointer-events-none');
+            t.classList.add('opacity-100', 'translate-y-5');
+            setTimeout(() => {
+                t.classList.remove('opacity-100', 'translate-y-5');
+                t.classList.add('opacity-0');
+            }, 2500);
+        }
+
+        function animateCartBtn() {
+            const btn = document.querySelector('.fa-cart-shopping').parentElement.parentElement;
+            btn.classList.add('animate-bounce-small');
+            setTimeout(() => btn.classList.remove('animate-bounce-small'), 500);
+        }
+
+        // --- Shift Timer ---
+        function updateShiftTimer() {
+            const startVal = document.getElementById('shiftStartTime').value;
+            if(!startVal) return;
+            const start = new Date(startVal);
+            const diff = new Date() - start;
+            
+            const hrs = Math.floor((diff / (1000 * 60 * 60)) % 24);
+            const mins = Math.floor((diff / (1000 * 60)) % 60);
+            const secs = Math.floor((diff / 1000) % 60);
+            
+            document.getElementById('shiftTimer').innerText = 
+                `${hrs.toString().padStart(2,'0')}:${mins.toString().padStart(2,'0')}:${secs.toString().padStart(2,'0')}`;
+        }
+        setInterval(updateShiftTimer, 1000);
+        updateShiftTimer();
+
+        // --- Step 10: Edit Mode Logic ---
+        function checkEditMode() {
+            const params = new URLSearchParams(window.location.search);
+            const orderId = params.get('order_id');
+            if(orderId) {
+                editOrderId = orderId;
+                document.getElementById('editOrderIdDisplay').innerText = orderId;
+                document.getElementById('editModeBanner').classList.remove('hidden');
+                loadOrderForEdit(orderId);
+            }
+        }
+
+        function loadOrderForEdit(id) {
+            fetch(`/sales/get-order-details-ajax/?id=${id}`)
+                .then(r => r.json())
+                .then(res => {
+                    if(res.status === 'success') {
+                        cart = res.items.map(item => ({
+                            id: item.product_id,
+                            name: item.name,
+                            price: parseFloat(item.price),
+                            qty: parseFloat(item.qty)
+                        }));
+                        
+                        if(res.customer_id) {
+                            document.getElementById('customerSelect').value = res.customer_id;
+                            document.getElementById('selectedCustomerName').innerText = res.customer_name;
+                        }
+                        
+                        // Note: We might need more details from get_order_details_ajax 
+                        // like discount and notes if the backend provides them.
+                        // Assuming basic cart fill for now.
+                        
+                        renderCart();
+                        updateBarTotal();
+                        showToast('تم تحميل بيانات الفاتورة للتعديل');
+                    } else {
+                        alert(res.message || 'خطأ في تحميل الفاتورة');
+                        cancelEditMode();
+                    }
+                }).catch(e => {
+                    alert('خطأ في الاتصال بالخادم');
+                    cancelEditMode();
+                });
+        }
+
+        function cancelEditMode() {
+            if(!confirm('هل تريد إلغاء تعديل هذه الفاتورة وبدء فاتورة جديدة؟')) return;
+            window.location.href = window.location.pathname;
+        }
+
+        // Init
+        setCategoryChipLabelShortNames();
+        updateCategoryCounts();
+        setActiveCategoryChip('all');
+
+        const drawerSearchInput = document.getElementById('categoryDrawerSearch');
+        drawerSearchInput.addEventListener('input', function() {
+            setSearchChipState(this.value.trim().length > 0);
+            renderCategoriesDrawerList(this.value);
+        });
+
+        const categoriesDrawer = document.getElementById('categoriesDrawer');
+        categoriesDrawer.addEventListener('click', function(e) {
+            if (e.target === this) closeCategoriesDrawer();
+        });
+
+        const categoriesDrawerHandle = document.getElementById('categoriesDrawerHandle');
+        categoriesDrawerHandle.addEventListener('touchstart', function(e) {
+            categoriesDrawerTouchStartY = e.touches[0].clientY;
+        });
+        categoriesDrawerHandle.addEventListener('touchend', function(e) {
+            if (categoriesDrawerTouchStartY === null) return;
+            const endY = e.changedTouches[0].clientY;
+            if ((endY - categoriesDrawerTouchStartY) > 60) closeCategoriesDrawer();
+            categoriesDrawerTouchStartY = null;
+        });
+
+        checkEditMode();
+        updateBarTotal();
+    </script>
+</body>
+</html>

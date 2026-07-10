@@ -1,0 +1,391 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load l10n %}
+
+{% block title %} تسجيل حركات مخزنية بالجملة {% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8 max-w-6xl">
+    <!-- Header -->
+    <div class="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
+        <div>
+            <h1 class="text-3xl font-extrabold text-gray-900 tracking-tight">
+                <i class="fas fa-layer-group text-blue-600 ml-3"></i>تسجيل حركات بالجملة
+            </h1>
+            <p class="text-gray-500 mt-2">قم بتسجيل عدة حركات مخزنية في وقت واحد بسهولة</p>
+        </div>
+        <div class="flex gap-3">
+            <a href="{% url 'transaction_list' %}" class="px-6 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition font-bold shadow-sm">
+                <i class="fas fa-times ml-2"></i>إلغاء
+            </a>
+            <button onclick="saveAll()" id="saveBtn" class="px-8 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition font-bold shadow-lg shadow-blue-200 flex items-center">
+                <i class="fas fa-save ml-2"></i>حفظ الكل
+            </button>
+        </div>
+    </div>
+
+    <!-- Main Table -->
+    <div class="bg-white rounded-3xl shadow-xl shadow-gray-100 border border-gray-100">
+        <div class="overflow-x-auto min-h-[400px]">
+            <table class="w-full text-right" id="bulkTable">
+                <thead>
+                    <tr class="bg-gray-50 text-gray-600 text-sm font-bold border-b border-gray-100">
+                        <th class="px-6 py-4 w-12 text-center">#</th>
+                        <th class="px-6 py-4 min-w-[200px]">المخزن</th>
+                        <th class="px-6 py-4 min-w-[320px]">المنتج</th>
+                        <th class="px-6 py-4 w-48">النوع</th>
+                        <th class="px-6 py-4 w-32">الكمية</th>
+                        <th class="px-6 py-4">ملاحظات</th>
+                        <th class="px-6 py-4 w-16"></th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody" class="divide-y divide-gray-50">
+                    <!-- Rows will be injected here -->
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- Add Row Button -->
+        <div class="p-6 bg-gray-50 border-t border-gray-100">
+            <button onclick="addRow()" class="w-full py-4 border-2 border-dashed border-gray-300 rounded-2xl text-gray-500 hover:border-blue-400 hover:text-blue-500 hover:bg-blue-50/50 transition-all font-bold group">
+                <i class="fas fa-plus-circle ml-2 group-hover:scale-110 transition-transform"></i>إضافة سطر جديد
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Product Picker Modal -->
+<div id="productPickerModal" class="fixed inset-0 z-[1000] hidden overflow-hidden backdrop-blur-sm bg-gray-900/60 transition-all duration-300 opacity-0">
+    <div class="flex items-center justify-center min-h-screen px-4 py-6">
+        <div class="bg-white w-full max-w-2xl rounded-3xl shadow-2xl flex flex-col max-h-[85vh] transform transition-all duration-300 scale-95 opacity-0" id="modalContainer">
+            <!-- Modal Header -->
+            <div class="p-6 border-b border-gray-100 flex items-center justify-between bg-white sticky top-0 z-10 rounded-t-3xl">
+                <div>
+                    <h3 class="text-xl font-black text-gray-900">اختيار منتج</h3>
+                    <p class="text-sm text-gray-400">ابحث واختر المنتج المطلوب للسطر الحالي</p>
+                </div>
+                <button onclick="closePicker()" class="p-2 text-gray-300 hover:text-gray-600 transition">
+                    <i class="fas fa-times text-xl"></i>
+                </button>
+            </div>
+            
+            <!-- Search Area -->
+            <div class="p-6 bg-gray-50">
+                <div class="relative">
+                    <input type="text" id="modalSearchInput" oninput="modalSearch(this.value)" 
+                           placeholder="ابحث بالاسم أو الكود (SKU)..." 
+                           class="w-full px-6 py-4 pr-12 text-lg bg-white border border-gray-200 rounded-2xl focus:ring-4 focus:ring-blue-100 focus:border-blue-500 outline-none transition-all shadow-sm">
+                    <i class="fas fa-search absolute right-5 top-1/2 -translate-y-1/2 text-gray-300 text-lg"></i>
+                </div>
+            </div>
+            
+            <!-- Results List -->
+            <div class="flex-1 overflow-y-auto p-4 space-y-2" id="modalResults">
+                <!-- Results injected here -->
+            </div>
+            
+            <!-- Modal Footer -->
+            <div class="p-4 border-t border-gray-100 text-center text-xs text-gray-400 bg-gray-50 rounded-b-3xl">
+                استخدم البحث السريع للعثور على المنتج المطلوب
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    // Data from Backend
+    const productsDB = [
+        {% for product in products_data %}
+        {
+            id: "{{ product.id }}",
+            name: "{{ product.name|escapejs }}",
+            sku: "{{ product.sku|escapejs }}",
+            stock: {{ product.stock_quantity|default:0|unlocalize }},
+            display: "{{ product.name|escapejs }} ({{ product.sku|escapejs }})"
+        },
+        {% endfor %}
+    ];
+
+    const warehousesDB = [
+        {% for wh in avail_warehouses %}
+        { id: "{{ wh.id }}", name: "{{ wh.name|escapejs }}" },
+        {% endfor %}
+    ];
+
+    const transactionTypes = [
+        { id: 'IN', name: 'إضافة / شراء', color: 'green' },
+        { id: 'OUT', name: 'صرف / بيع', color: 'red' },
+        { id: 'RET', name: 'مرتجع', color: 'blue' },
+    ];
+
+    let rowCount = 0;
+    const items = []; 
+    let currentPickerRow = null;
+
+    // Initial Row
+    document.addEventListener('DOMContentLoaded', () => {
+        addRow();
+    });
+
+    function addRow() {
+        rowCount++;
+        const id = `row_${Date.now()}_${rowCount}`;
+        
+        const tr = document.createElement('tr');
+        tr.id = id;
+        tr.className = 'hover:bg-gray-50/50 transition group animation-fade-in relative';
+        tr.style.zIndex = 1000 - rowCount;
+        
+        tr.innerHTML = `
+            <td class="px-6 py-6 text-center text-gray-400 font-medium">${rowCount}</td>
+            
+            <td class="px-6 py-6 border-r border-gray-50">
+                <select onchange="updateRowData('${id}', 'warehouse_id', this.value); fetchStock('${id}')" 
+                        class="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:bg-white transition outline-none">
+                    <option value="">-- اختر --</option>
+                    ${warehousesDB.map(wh => `<option value="${wh.id}">${wh.name}</option>`).join('')}
+                </select>
+            </td>
+            
+            <td class="px-6 py-6 relative border-r border-gray-50">
+                <button type="button" onclick="openPicker('${id}')" id="${id}_picker_btn"
+                        class="w-full flex items-center justify-between px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl hover:border-blue-400 hover:bg-blue-50 transition-all outline-none text-right">
+                    <span class="product-label text-gray-400 truncate">انقر لاختيار منتج...</span>
+                    <i class="fas fa-chevron-down text-xs text-gray-300"></i>
+                </button>
+                <input type="hidden" id="${id}_product_id" value="">
+                
+                <div id="${id}_product_info" class="mt-2 text-sm font-bold text-gray-800 hidden flex items-center justify-between bg-blue-50/50 p-2 rounded-lg border border-blue-100">
+                    <span class="stock-label text-xs text-blue-500 font-medium">الرصيد: <span class="stock-val">0</span></span>
+                    <button onclick="clearRowProduct('${id}')" class="text-red-400 hover:text-red-600 p-1"><i class="fas fa-times"></i></button>
+                </div>
+            </td>
+            
+            <td class="px-6 py-6 border-r border-gray-50">
+                <select onchange="updateRowData('${id}', 'transaction_type', this.value)" 
+                        class="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:bg-white transition outline-none">
+                    <option value="">-- اختر --</option>
+                    ${transactionTypes.map(t => `<option value="${t.id}">${t.name}</option>`).join('')}
+                </select>
+            </td>
+            
+            <td class="px-6 py-6 border-r border-gray-50">
+                <input type="number" step="0.01" oninput="updateRowData('${id}', 'quantity', this.value)" placeholder="0.00"
+                       class="w-full px-4 py-2 text-center font-bold bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:bg-white transition outline-none">
+            </td>
+            
+            <td class="px-6 py-6">
+                <input type="text" oninput="updateRowData('${id}', 'note', this.value)" placeholder="ملاحظات..."
+                       class="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:bg-white transition outline-none">
+            </td>
+            
+            <td class="px-6 py-6 text-center">
+                <button onclick="removeRow('${id}')" class="p-2 text-gray-300 hover:text-red-500 transition-colors">
+                    <i class="fas fa-trash-alt"></i>
+                </button>
+            </td>
+        `;
+        
+        document.getElementById('tableBody').appendChild(tr);
+        items.push({ id: id, warehouse_id: '', product_id: '', transaction_type: '', quantity: 0, note: '' });
+    }
+
+    function removeRow(id) {
+        if (items.length <= 1) {
+            Swal.fire({ icon: 'warning', title: 'تنبيه', text: 'لا يمكن حذف جميع الأسطر' });
+            return;
+        }
+        document.getElementById(id).remove();
+        const index = items.findIndex(item => item.id === id);
+        if (index > -1) items.splice(index, 1);
+        
+        const rows = document.querySelectorAll('#tableBody tr');
+        rows.forEach((row, i) => {
+            row.cells[0].innerText = i + 1;
+        });
+        rowCount = rows.length;
+    }
+
+    function updateRowData(id, field, value) {
+        const item = items.find(i => i.id === id);
+        if (item) item[field] = value;
+    }
+
+    // Modal Picker Logic
+    function openPicker(rowId) {
+        currentPickerRow = rowId;
+        const modal = document.getElementById('productPickerModal');
+        const container = document.getElementById('modalContainer');
+        const input = document.getElementById('modalSearchInput');
+        
+        modal.classList.remove('hidden');
+        setTimeout(() => {
+            modal.classList.add('opacity-100');
+            modal.classList.remove('opacity-0');
+            container.classList.add('scale-100', 'opacity-100');
+            container.classList.remove('scale-95', 'opacity-0');
+            input.value = '';
+            input.focus();
+            modalSearch(''); // Show all or default results
+        }, 10);
+    }
+
+    function closePicker() {
+        const modal = document.getElementById('productPickerModal');
+        const container = document.getElementById('modalContainer');
+        
+        modal.classList.add('opacity-0');
+        modal.classList.remove('opacity-100');
+        container.classList.add('scale-95', 'opacity-0');
+        container.classList.remove('scale-100', 'opacity-100');
+        
+        setTimeout(() => {
+            modal.classList.add('hidden');
+            currentPickerRow = null;
+        }, 300);
+    }
+
+    function modalSearch(query) {
+        const resultsDiv = document.getElementById('modalResults');
+        
+        // If query is empty, maybe show recent or top products? 
+        // For now, let's show top 10 if empty, otherwise filter.
+        let filtered = [];
+        if (!query || query.length < 1) {
+            filtered = productsDB.slice(0, 10);
+        } else {
+            filtered = productsDB.filter(p => 
+                p.name.toLowerCase().includes(query.toLowerCase()) || 
+                p.sku.toLowerCase().includes(query.toLowerCase())
+            ).slice(0, 30);
+        }
+
+        if (filtered.length === 0) {
+            resultsDiv.innerHTML = `
+                <div class="flex flex-col items-center justify-center py-12 text-gray-400">
+                    <i class="fas fa-search-minus text-4xl mb-4 opacity-20"></i>
+                    <p>لا توجد منتجات تطابق بحثك</p>
+                </div>
+            `;
+        } else {
+            resultsDiv.innerHTML = filtered.map(p => `
+                <div onclick="selectFromModal('${p.id}', '${p.name.replace(/'/g, "\\'")}', '${p.sku}')" 
+                     class="group flex items-center justify-between p-4 bg-white border border-gray-100 rounded-2xl cursor-pointer hover:border-blue-400 hover:shadow-lg hover:shadow-blue-50 transition-all active:scale-[0.98]">
+                    <div class="flex items-center gap-4">
+                        <div class="w-10 h-10 rounded-full bg-blue-50 text-blue-500 flex items-center justify-center font-bold text-xs">
+                            ${p.sku.slice(-2)}
+                        </div>
+                        <div>
+                            <div class="font-bold text-gray-900 group-hover:text-blue-600 transition-colors">${p.name}</div>
+                            <div class="text-xs text-gray-400 tracking-wider">${p.sku}</div>
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <span class="block text-xs text-gray-400 mb-1">الرصيد الكلي</span>
+                        <span class="px-3 py-1 bg-gray-50 rounded-lg text-sm font-bold text-gray-600">${p.stock}</span>
+                    </div>
+                </div>
+            `).join('');
+        }
+    }
+
+    function selectFromModal(productId, name, sku) {
+        if (!currentPickerRow) return;
+        
+        const rowId = currentPickerRow;
+        const item = items.find(i => i.id === rowId);
+        item.product_id = productId;
+        
+        // Update UI
+        const btn = document.getElementById(`${rowId}_picker_btn`);
+        btn.querySelector('.product-label').innerText = `${name} (${sku})`;
+        btn.querySelector('.product-label').classList.remove('text-gray-400');
+        btn.querySelector('.product-label').classList.add('text-gray-900', 'font-bold');
+        
+        document.getElementById(`${rowId}_product_id`).value = productId;
+        document.getElementById(`${rowId}_product_info`).classList.remove('hidden');
+        
+        fetchStock(rowId);
+        closePicker();
+    }
+
+    function clearRowProduct(rowId) {
+        const item = items.find(i => i.id === rowId);
+        item.product_id = '';
+        
+        const btn = document.getElementById(`${rowId}_picker_btn`);
+        btn.querySelector('.product-label').innerText = 'انقر لاختيار منتج...';
+        btn.querySelector('.product-label').classList.add('text-gray-400');
+        btn.querySelector('.product-label').classList.remove('text-gray-900', 'font-bold');
+        
+        document.getElementById(`${rowId}_product_id`).value = '';
+        document.getElementById(`${rowId}_product_info`).classList.add('hidden');
+    }
+
+    async function fetchStock(rowId) {
+        const item = items.find(i => i.id === rowId);
+        if (!item.warehouse_id || !item.product_id) return;
+
+        try {
+            const url = `{% url 'get_warehouse_stocks_ajax' 0 %}`.replace('0', item.warehouse_id);
+            const res = await fetch(url);
+            const data = await res.json();
+            
+            if (data.success) {
+                const stockVal = data.stocks[item.product_id] || 0;
+                const infoDiv = document.getElementById(`${rowId}_product_info`);
+                infoDiv.querySelector('.stock-val').innerText = stockVal;
+            }
+        } catch (err) {
+            console.error('Error fetching stock:', err);
+        }
+    }
+
+    async function saveAll() {
+        const validItems = items.filter(i => i.warehouse_id && i.product_id && i.transaction_type && i.quantity > 0);
+        
+        if (validItems.length === 0) {
+            Swal.fire({ icon: 'error', title: 'خطأ', text: 'يجب تعبئة بيانات صحيحة لسطر واحد على الأقل' });
+            return;
+        }
+
+        const btn = document.getElementById('saveBtn');
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin ml-2"></i>جاري الحفظ...';
+
+        try {
+            const response = await fetch("{% url 'bulk_transaction_create' %}", {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
+                body: JSON.stringify({ items: validItems })
+            });
+            const result = await response.json();
+            if (result.success) {
+                await Swal.fire({ icon: 'success', title: 'تمت العملية', text: result.message });
+                window.location.href = "{% url 'transaction_list' %}";
+            } else {
+                Swal.fire({ icon: 'error', title: 'خطأ', text: result.error });
+            }
+        } catch (err) {
+            Swal.fire({ icon: 'error', title: 'خطأ', text: 'حدث خطأ أثناء الاتصال' });
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-save ml-2"></i>حفظ الكل';
+        }
+    }
+</script>
+
+<style>
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+.animation-fade-in {
+    animation: fadeIn 0.3s ease-out forwards;
+}
+#tableBody tr { position: relative; }
+</style>
+{% endblock %}

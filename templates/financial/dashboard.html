@@ -1,0 +1,283 @@
+{% extends 'base.html' %}
+{% load humanize %}
+
+{% block title %}الإدارة المالية{% endblock %}
+
+{% block content %}
+<div class="space-y-8 animate-fade-in-up">
+    <!-- Top Header & Actions -->
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+        <div>
+            <h2 class="text-2xl font-bold text-gray-800 flex items-center gap-2">
+                <span class="bg-teal-100 text-teal-600 p-2 rounded-lg"><i class="fas fa-wallet"></i></span>
+                الإدارة المالية
+            </h2>
+            <p class="text-gray-500 mt-1 mr-12 text-sm">نظرة عامة على السيولة، الخزائن، وحركة الأموال.</p>
+        </div>
+        <div class="flex flex-wrap gap-3">
+            <a href="{% url 'financial:all_transactions' %}" class="flex-1 md:flex-none inline-flex items-center justify-center px-5 py-2.5 bg-indigo-50 text-indigo-600 border border-indigo-100 rounded-xl hover:bg-indigo-600 hover:text-white transition-all duration-300 font-bold shadow-sm hover:shadow-md">
+                <i class="fas fa-list-ul ms-2"></i> سجل العمليات
+            </a>
+            <a href="{% url 'financial:trial_balance' %}" class="flex-1 md:flex-none inline-flex items-center justify-center px-5 py-2.5 bg-purple-50 text-purple-600 border border-purple-100 rounded-xl hover:bg-purple-600 hover:text-white transition-all duration-300 font-bold shadow-sm hover:shadow-md">
+                <i class="fas fa-scale-balanced ms-2"></i> ميزان المراجعة
+            </a>
+            {% if can_view_profit %}
+            <a href="{% url 'financial:income_statement' %}" class="flex-1 md:flex-none inline-flex items-center justify-center px-5 py-2.5 bg-teal-50 text-teal-600 border border-teal-100 rounded-xl hover:bg-teal-600 hover:text-white transition-all duration-300 font-bold shadow-sm hover:shadow-md">
+                <i class="fas fa-chart-pie ms-2"></i> قائمة الدخل
+            </a>
+            {% endif %}
+            <a href="{% url 'financial:period_lock' %}" class="flex-1 md:flex-none inline-flex items-center justify-center px-5 py-2.5 bg-rose-50 text-rose-600 border border-rose-100 rounded-xl hover:bg-rose-600 hover:text-white transition-all duration-300 font-bold shadow-sm hover:shadow-md">
+                <i class="fas fa-lock ms-2"></i> إغلاق الفترة
+            </a>
+            <a href="{% url 'financial:daily_summary' %}" class="flex-1 md:flex-none inline-flex items-center justify-center px-5 py-2.5 bg-blue-50 text-blue-600 border border-blue-100 rounded-xl hover:bg-blue-600 hover:text-white transition-all duration-300 font-bold shadow-sm hover:shadow-md">
+                <i class="fas fa-calendar-day ms-2"></i> ملخص اليوم
+            </a>
+            {% if can_view_profit %}
+            <a href="{% url 'financial:profitability' %}" class="flex-1 md:flex-none inline-flex items-center justify-center px-5 py-2.5 bg-green-50 text-green-600 border border-green-100 rounded-xl hover:bg-green-600 hover:text-white transition-all duration-300 font-bold shadow-sm hover:shadow-md">
+                <i class="fas fa-sack-dollar ms-2"></i> الربحية
+            </a>
+            {% endif %}
+            <a href="{% url 'financial:system_health' %}" class="flex-1 md:flex-none inline-flex items-center justify-center px-5 py-2.5 bg-slate-50 text-slate-600 border border-slate-100 rounded-xl hover:bg-slate-700 hover:text-white transition-all duration-300 font-bold shadow-sm hover:shadow-md">
+                <i class="fas fa-heart-pulse ms-2"></i> صحة النظام
+            </a>
+            <a href="{% url 'financial:vat_report' %}" class="flex-1 md:flex-none inline-flex items-center justify-center px-5 py-2.5 bg-cyan-50 text-cyan-700 border border-cyan-100 rounded-xl hover:bg-cyan-600 hover:text-white transition-all duration-300 font-bold shadow-sm hover:shadow-md">
+                <i class="fas fa-receipt ms-2"></i> ضريبة القيمة المضافة
+            </a>
+            {% if can_view_profit %}
+            <a href="{% url 'financial:sales_analytics' %}" class="flex-1 md:flex-none inline-flex items-center justify-center px-5 py-2.5 bg-fuchsia-50 text-fuchsia-700 border border-fuchsia-100 rounded-xl hover:bg-fuchsia-600 hover:text-white transition-all duration-300 font-bold shadow-sm hover:shadow-md">
+                <i class="fas fa-chart-line ms-2"></i> تحليلات المبيعات
+            </a>
+            {% endif %}
+            <a href="{% url 'financial:financial_position' %}" class="flex-1 md:flex-none inline-flex items-center justify-center px-5 py-2.5 bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-xl hover:bg-emerald-600 hover:text-white transition-all duration-300 font-bold shadow-sm hover:shadow-md">
+                <i class="fas fa-scale-unbalanced ms-2"></i> المركز المالي
+            </a>
+            <a href="{% url 'financial:shift_history' %}" class="flex-1 md:flex-none inline-flex items-center justify-center px-5 py-2.5 bg-white text-gray-700 border border-gray-200 rounded-xl hover:bg-gray-50 transition-all duration-300 font-bold shadow-sm">
+                <i class="fas fa-history text-gray-500 ms-2"></i> سجل الشيفتات
+            </a>
+            <a href="{% url 'financial:withdrawal' %}" class="flex-1 md:flex-none inline-flex items-center justify-center px-5 py-2.5 bg-orange-50 text-orange-600 border border-orange-100 rounded-xl hover:bg-orange-600 hover:text-white transition-all duration-300 font-bold shadow-sm hover:shadow-md">
+                <i class="fas fa-hand-holding-usd ms-2"></i> سحب
+            </a>
+            <a href="{% url 'financial:add_transaction' %}?type=EXPENSE" class="flex-1 md:flex-none inline-flex items-center justify-center px-5 py-2.5 bg-red-50 text-red-600 border border-red-100 rounded-xl hover:bg-red-600 hover:text-white transition-all duration-300 font-bold shadow-sm hover:shadow-md">
+                <i class="fas fa-arrow-up transform rotate-45 ms-2"></i> تسجيل مصروف
+            </a>
+            <a href="{% url 'financial:add_transaction' %}?type=INCOME" class="flex-1 md:flex-none inline-flex items-center justify-center px-5 py-2.5 bg-emerald-50 text-emerald-600 border border-emerald-100 rounded-xl hover:bg-emerald-600 hover:text-white transition-all duration-300 font-bold shadow-sm hover:shadow-md">
+                <i class="fas fa-arrow-down transform rotate-45 ms-2"></i> تسجيل إيراد
+            </a>
+        </div>
+    </div>
+
+    <!-- Stats Cards Grid -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 md:gap-6">
+        <!-- Total Liquidity Card -->
+        <div class="relative bg-gradient-to-br from-blue-600 to-blue-700 text-white rounded-2xl p-5 md:p-6 shadow-lg shadow-blue-200 overflow-hidden group">
+            <div class="relative z-10 flex flex-col h-full justify-between min-h-[140px]">
+                <div>
+                    <h6 class="text-blue-100 font-semibold mb-1 text-sm md:text-base">إجمالي السيولة النقدية</h6>
+                    <p class="text-xs md:text-sm text-blue-200">كاش بالدرج + الخزنة الرئيسية</p>
+                </div>
+                <h3 class="text-2xl md:text-3xl font-bold mt-3 md:mt-4 font-mono tracking-tight" dir="ltr">{{ total_cash|intcomma }} <span class="text-base md:text-lg font-normal opacity-70">ج.م</span></h3>
+            </div>
+            <!-- Decorative Icon -->
+            <div class="absolute -right-6 -bottom-6 text-white opacity-10 transform rotate-12 group-hover:scale-110 transition-transform duration-500">
+                <i class="fas fa-coins text-7xl md:text-9xl"></i>
+            </div>
+        </div>
+
+        <!-- Vodafone Cash Card -->
+        <div class="relative bg-white border border-gray-100 rounded-2xl p-5 md:p-6 shadow-sm hover:shadow-md transition-shadow group min-h-[140px]">
+            <div class="flex items-center justify-between mb-3 md:mb-4">
+                <div class="w-10 h-10 md:w-12 md:h-12 bg-red-50 rounded-xl flex items-center justify-center text-red-600 group-hover:bg-red-600 group-hover:text-white transition-colors">
+                    <i class="fas fa-mobile-alt text-lg md:text-xl"></i>
+                </div>
+                <span class="text-[10px] md:text-xs font-bold text-gray-500 uppercase tracking-wider">محفظة إلكترونية</span>
+            </div>
+            <h6 class="text-gray-600 font-semibold text-xs md:text-sm mb-1">رصيد فودافون كاش</h6>
+            <h3 class="text-xl md:text-2xl font-bold text-gray-800 font-mono" dir="ltr">{{ total_vodafone|intcomma }} <span class="text-xs md:text-sm text-gray-500 font-sans">ج.م</span></h3>
+        </div>
+
+        <!-- InstaPay Card -->
+        <div class="relative bg-white border border-gray-100 rounded-2xl p-5 md:p-6 shadow-sm hover:shadow-md transition-shadow group min-h-[140px]">
+            <div class="flex items-center justify-between mb-3 md:mb-4">
+                <div class="w-10 h-10 md:w-12 md:h-12 bg-purple-50 rounded-xl flex items-center justify-center text-purple-600 group-hover:bg-purple-600 group-hover:text-white transition-colors">
+                    <i class="fas fa-university text-lg md:text-xl"></i>
+                </div>
+                <span class="text-[10px] md:text-xs font-bold text-gray-500 uppercase tracking-wider">بنوك</span>
+            </div>
+            <h6 class="text-gray-600 font-semibold text-xs md:text-sm mb-1">رصيد إنستا باي</h6>
+            <h3 class="text-xl md:text-2xl font-bold text-gray-800 font-mono" dir="ltr">{{ total_instapay|intcomma }} <span class="text-xs md:text-sm text-gray-500 font-sans">ج.م</span></h3>
+        </div>
+
+        <!-- Visa / Bank Card -->
+        <div class="relative bg-white border border-gray-100 rounded-2xl p-5 md:p-6 shadow-sm hover:shadow-md transition-shadow group min-h-[140px]">
+            <div class="flex items-center justify-between mb-3 md:mb-4">
+                <div class="w-10 h-10 md:w-12 md:h-12 bg-blue-50 rounded-xl flex items-center justify-center text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                    <i class="fas fa-credit-card text-lg md:text-xl"></i>
+                </div>
+                <span class="text-[10px] md:text-xs font-bold text-gray-500 uppercase tracking-wider">بنك</span>
+            </div>
+            <h6 class="text-gray-600 font-semibold text-xs md:text-sm mb-1">رصيد فيزا</h6>
+            <h3 class="text-xl md:text-2xl font-bold text-gray-800 font-mono" dir="ltr">{{ total_bank|intcomma }} <span class="text-xs md:text-sm text-gray-500 font-sans">ج.م</span></h3>
+        </div>
+
+        <!-- Shift Status Card -->
+        <div class="relative bg-gray-900 text-white rounded-2xl p-5 md:p-6 shadow-lg overflow-hidden min-h-[140px]">
+            <div class="relative z-10 flex flex-col h-full items-center justify-center text-center">
+                {% if current_shift %}
+                    <div class="inline-flex items-center px-3 py-1.5 rounded-full bg-green-500/20 text-green-400 text-xs md:text-sm font-bold mb-2 md:mb-3 border border-green-500/30">
+                        <span class="w-2 h-2 rounded-full bg-green-500 me-2 animate-pulse"></span>
+                        شيفت مفتوح
+                    </div>
+                    <p class="text-gray-400 text-xs md:text-sm mb-3 md:mb-4">منذ {{ current_shift.start_time|timesince }}</p>
+                    <a href="{% url 'financial:close_shift' current_shift.id %}" class="w-full py-2 md:py-2.5 bg-white text-gray-900 rounded-xl font-bold text-sm md:text-base hover:bg-gray-100 transition shadow-lg transform hover:-translate-y-0.5">
+                        إغلاق الشيفت
+                    </a>
+                    <a href="{% url 'financial:shift_x_report' %}" class="w-full mt-2 py-2 bg-white/10 text-white rounded-xl font-bold text-xs md:text-sm hover:bg-white/20 transition border border-white/20">
+                        تقرير X (جرد بدون إغلاق)
+                    </a>
+                {% else %}
+                    <div class="inline-flex items-center px-3 py-1.5 rounded-full bg-gray-700 text-gray-400 text-xs md:text-sm font-bold mb-2 md:mb-3">
+                        <span class="w-2 h-2 rounded-full bg-gray-500 me-2"></span>
+                        مغلق
+                    </div>
+                    <p class="text-gray-400 text-xs md:text-sm mb-3 md:mb-4">لا يوجد شيفت نشط حالياً</p>
+                    <a href="{% url 'financial:start_shift' %}" class="w-full py-2 md:py-2.5 bg-teal-500 text-white rounded-xl font-bold text-sm md:text-base hover:bg-teal-400 transition shadow-lg transform hover:-translate-y-0.5">
+                        بدء شيفت جديد
+                    </a>
+                {% endif %}
+            </div>
+            <!-- Background Pattern -->
+            <div class="absolute inset-0 opacity-10" style="background-image: radial-gradient(#ffffff 1px, transparent 1px); background-size: 20px 20px;"></div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 xl:grid-cols-3 gap-8">
+        <!-- Accounts List Section (Takes 2 columns on large screens) -->
+        <div class="xl:col-span-2 bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col h-full">
+            <div class="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
+                <div>
+                    <h5 class="font-bold text-gray-800 text-lg">الحسابات والمحافظ</h5>
+                    <p class="text-gray-400 text-sm">أرصدة جميع الحسابات المسجلة بالنظام</p>
+                </div>
+                <!-- Add Account Button — FIX #15: use proper URL not admin -->
+                <a href="{% url 'financial:account_list' %}" class="inline-flex items-center px-4 py-2 bg-gray-50 text-gray-700 rounded-lg hover:bg-gray-100 border border-gray-200 transition text-sm font-bold group">
+                    <i class="fas fa-cog text-teal-500 group-hover:text-teal-600 ms-2 transition-colors"></i> إدارة الحسابات
+                </a>
+            </div>
+            
+            <div class="p-4 md:p-6 grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
+                {% for account in accounts %}
+                <div class="flex items-center justify-between p-3 md:p-4 rounded-xl border border-gray-100 hover:border-teal-100 hover:shadow-md hover:bg-teal-50/10 transition-all duration-300 group">
+                    <div class="flex items-center gap-3 md:gap-4 min-w-0 flex-1">
+                        <div class="w-10 h-10 md:w-12 md:h-12 rounded-xl flex items-center justify-center text-lg md:text-xl shadow-sm shrink-0
+                            {% if account.account_type == 'CASH_DRAWER' %} bg-green-100 text-green-600
+                            {% elif account.account_type == 'SAFE' %} bg-blue-100 text-blue-600
+                            {% elif account.account_type == 'VODAFONE_CASH' %} bg-red-100 text-red-600
+                            {% elif account.account_type == 'INSTAPAY' %} bg-purple-100 text-purple-600
+                            {% else %} bg-gray-100 text-gray-600 {% endif %}">
+                            
+                            {% if account.account_type == 'CASH_DRAWER' %} <i class="fas fa-cash-register"></i>
+                            {% elif account.account_type == 'SAFE' %} <i class="fas fa-shield-alt"></i>
+                            {% elif account.account_type == 'VODAFONE_CASH' %} <i class="fas fa-mobile-alt"></i>
+                            {% elif account.account_type == 'INSTAPAY' %} <i class="fas fa-university"></i>
+                            {% else %} <i class="fas fa-wallet"></i> {% endif %}
+                        </div>
+                        <div class="min-w-0 flex-1">
+                            <h6 class="font-bold text-sm md:text-base text-gray-800 group-hover:text-teal-700 transition truncate">{{ account.name }}</h6>
+                            <span class="text-[10px] md:text-xs text-gray-600 bg-gray-100 px-2 py-0.5 rounded inline-block mt-0.5">{{ account.get_account_type_display }}</span>
+                        </div>
+                    </div>
+                    <div class="text-left shrink-0 mr-2">
+                        <span class="block font-bold text-base md:text-lg font-mono {% if account.balance < 0 %}text-red-600{% else %}text-gray-800{% endif %}" dir="ltr">
+                            {{ account.balance|intcomma }}
+                        </span>
+                        <span class="text-[10px] md:text-xs text-gray-500">ج.م</span>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Recent Activity Feed -->
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col h-full">
+            <div class="px-6 py-5 border-b border-gray-100">
+                <h5 class="font-bold text-gray-800 text-lg">أحدث العمليات</h5>
+            </div>
+            <div class="flex-1 overflow-y-auto max-h-[500px] p-2 custom-scrollbar">
+                {% if recent_transactions %}
+                    <div class="space-y-2">
+                        {% for trans in recent_transactions %}
+                        <div class="flex items-start gap-2 md:gap-3 p-2.5 md:p-3 rounded-xl hover:bg-gray-50 transition border border-transparent hover:border-gray-100">
+                            <!-- Icon -->
+                            <div class="mt-0.5 flex-shrink-0">
+                                {% if trans.transaction_type == 'INCOME' or trans.transaction_type == 'DEPOSIT' or trans.transaction_type == 'SALE' %}
+                                    <div class="w-7 h-7 md:w-8 md:h-8 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center">
+                                        <i class="fas fa-arrow-down text-xs"></i>
+                                    </div>
+                                {% elif trans.transaction_type == 'TRANSFER' %}
+                                    <div class="w-7 h-7 md:w-8 md:h-8 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center">
+                                        <i class="fas fa-exchange-alt text-xs"></i>
+                                    </div>
+                                {% else %}
+                                    <div class="w-7 h-7 md:w-8 md:h-8 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center">
+                                        <i class="fas fa-arrow-up text-xs"></i>
+                                    </div>
+                                {% endif %}
+                            </div>
+                            
+                            <!-- Content -->
+                            <div class="flex-1 min-w-0">
+                                <div class="flex justify-between items-start gap-2">
+                                    <p class="text-xs md:text-sm font-bold text-gray-800 truncate">{{ trans.get_transaction_type_display }}</p>
+                                    <span class="text-xs md:text-sm font-bold font-mono shrink-0 {% if trans.transaction_type == 'INCOME' or trans.transaction_type == 'DEPOSIT' or trans.transaction_type == 'SALE' %}text-emerald-600{% else %}text-rose-600{% endif %}" dir="ltr">
+                                        {% if trans.transaction_type == 'INCOME' or trans.transaction_type == 'DEPOSIT' or trans.transaction_type == 'SALE' %}+{% else %}-{% endif %}{{ trans.amount|intcomma }}
+                                    </span>
+                                </div>
+                                <p class="text-[11px] md:text-xs text-gray-600 line-clamp-1 mt-0.5">{{ trans.description }}</p>
+                                <div class="flex items-center justify-between mt-1.5 md:mt-2 gap-2">
+                                    <span class="text-[10px] md:text-xs text-gray-600 bg-gray-100 px-1.5 py-0.5 rounded truncate max-w-[120px]">{{ trans.account.name }}</span>
+                                    <span class="text-[10px] md:text-xs text-gray-500 shrink-0">{{ trans.created_at|timesince }}</span>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="flex flex-col items-center justify-center h-48 text-gray-400">
+                        <i class="fas fa-inbox text-4xl mb-3 opacity-20"></i>
+                        <p class="text-sm">لا توجد عمليات حديثة</p>
+                    </div>
+                {% endif %}
+            </div>
+            <div class="p-4 border-t border-gray-100 bg-gray-50 rounded-b-2xl">
+                <a href="{% url 'financial:all_transactions' %}" class="block text-center text-sm font-bold text-teal-600 hover:text-teal-700">
+                    عرض كل العمليات <i class="fas fa-arrow-left text-xs ms-1"></i>
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .custom-scrollbar::-webkit-scrollbar {
+        width: 4px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+        background: #f1f1f1;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+        background: #d1d5db; 
+        border-radius: 4px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+        background: #9ca3af; 
+    }
+    
+    @keyframes fadeInUp {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    .animate-fade-in-up {
+        animation: fadeInUp 0.4s ease-out;
+    }
+</style>
+{% endblock %}

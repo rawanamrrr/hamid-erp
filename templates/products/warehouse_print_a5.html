@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }}</title>
+    <link href="/static/vendor/css/tailwind2.min.css" rel="stylesheet">
+    <style>
+        body { font-family: 'Arial', sans-serif; background: #fff; font-size: 11px; }
+        .page-container { max-width: 148mm; margin: 0 auto; padding: 10mm; background: white; }
+        .top-section, .table-container { margin-bottom: 15px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 5px; }
+        th, td { border: 1px solid #ddd; padding: 4px; text-align: right; }
+        th { background-color: #f3f4f6; font-weight: bold; }
+        .text-center { text-align: center; }
+        .bg-yellow-50 { background-color: #fefce8 !important; }
+        h1 { font-size: 1.5rem !important; }
+        h2 { font-size: 1.1rem !important; margin-bottom: 0.5rem !important; }
+        
+        @page { size: A5 portrait; margin: 5mm; }
+        @media print {
+            body { margin: 0; padding: 0; background: none; }
+            .page-container { width: 100%; margin: 0; padding: 0; box-shadow: none; max-width: none; }
+            .no-print { display: none !important; }
+            * { -webkit-print-color-adjust: exact !important; color-adjust: exact !important; }
+        }
+    </style>
+</head>
+<body>
+    <div class="no-print" style="position: fixed; top: 10px; right: 10px; z-index: 100;">
+        <button onclick="window.print()" class="bg-blue-600 text-white px-4 py-1.5 text-sm rounded shadow hover:bg-blue-700 font-bold">طباعة A5</button>
+        <button onclick="window.close(); setTimeout(function(){ if (window.history.length > 1) window.history.back(); }, 50)" class="bg-gray-300 text-gray-800 px-4 py-1.5 text-sm rounded shadow hover:bg-gray-400 font-bold mr-2">إغلاق</button>
+    </div>
+
+    <div class="page-container">
+        <!-- Header -->
+        <div class="border-b-2 border-gray-800 pb-2 mb-4 flex justify-between items-center">
+            <div>
+                <h1 class="font-black text-gray-900">{{ sys_settings.shop_name|default:"النظام" }}</h1>
+            </div>
+            <div class="text-left">
+                <p class="font-bold text-gray-900 border border-gray-300 px-2 py-1 rounded bg-gray-50">{{ warehouse.name }}</p>
+                <p class="text-xs text-gray-500 mt-1">{{ print_date|date:"Y-m-d H:i" }}</p>
+            </div>
+        </div>
+
+        {% if top_sold_items %}
+        <div class="top-section">
+            <h2 class="font-bold border-r-4 border-yellow-500 pr-2">أكثر 5 أصناف مبيعاً</h2>
+            <table>
+                <thead class="bg-yellow-50">
+                    <tr>
+                        <th style="width: 30px;" class="text-center">م</th>
+                        <th>اسم الصنف</th>
+                        <th style="width: 80px;" class="text-center">الكمية المباعة</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in top_sold_items %}
+                    <tr>
+                        <td class="text-center font-bold">{{ forloop.counter }}</td>
+                        <td class="font-bold">{{ item.name }}</td>
+                        <td class="text-center font-bold text-green-700">{{ item.sold_qty|floatformat:2 }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+
+        <div class="table-container">
+            <h2 class="font-bold border-r-4 border-blue-500 pr-2">الرصيد الحالي بالمخزن</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 30px;" class="text-center">م</th>
+                        <th style="width: 100px;">كود</th>
+                        <th>اسم الصنف</th>
+                        <th style="width: 80px;" class="text-center">الرصيد</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for stock in stocks %}
+                    <tr>
+                        <td class="text-center">{{ forloop.counter }}</td>
+                        <td>{{ stock.product.sku }}</td>
+                        <td class="font-bold">{{ stock.product.name }}</td>
+                        <td class="text-center font-bold">{{ stock.quantity|floatformat:2 }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="4" class="text-center py-2">لا يوجد أصناف في المخزن</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    
+    <script>
+        window.onload = function() {
+            setTimeout(() => {
+                window.print();
+            }, 500);
+        }
+    </script>
+</body>
+</html>

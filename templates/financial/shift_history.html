@@ -1,0 +1,181 @@
+﻿{% extends 'base.html' %}
+{% load humanize %}
+
+{% block title %}سجل الشيفتات{% endblock %}
+
+{% block content %}
+<div class="space-y-6 animate-fade-in">
+    <!-- Header -->
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+        <div>
+            <h2 class="text-2xl font-bold text-gray-800 flex items-center gap-2">
+                <span class="bg-blue-100 text-blue-600 p-2 rounded-lg"><i class="fas fa-history"></i></span>
+                سجل الشيفتات
+            </h2>
+            <p class="text-gray-500 mt-1 mr-12 text-sm">عرض تاريخي لجميع جلسات العمل (الشيفتات) السابقة والحالية.</p>
+        </div>
+        <div>
+            <a href="{% url 'financial:dashboard' %}" class="inline-flex items-center px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition font-medium text-sm">
+                <i class="fas fa-arrow-right ms-2"></i> العودة للرئيسية
+            </a>
+        </div>
+    </div>
+
+    <!-- Search & Filters -->
+    <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
+        <form method="get" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 md:gap-4 items-end">
+            <!-- Search Input -->
+            <div class="sm:col-span-2 lg:col-span-1">
+                <label class="block text-xs font-bold text-gray-600 mb-1.5">بحث (اسم الموظف / رقم الشيفت)</label>
+                <div class="relative">
+                    <input type="text" name="q" value="{{ search_query|default:'' }}" placeholder="ابحث هنا..." 
+                           class="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all">
+                    <i class="fas fa-search absolute left-3 top-3 text-gray-400 text-sm"></i>
+                </div>
+            </div>
+
+            <!-- Date From -->
+            <div>
+                <label class="block text-xs font-bold text-gray-600 mb-1.5">من تاريخ</label>
+                <input type="date" name="date_from" value="{{ date_from|default:'' }}" 
+                       class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500">
+            </div>
+
+            <!-- Date To -->
+            <div>
+                <label class="block text-xs font-bold text-gray-600 mb-1.5">إلى تاريخ</label>
+                <input type="date" name="date_to" value="{{ date_to|default:'' }}" 
+                       class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500">
+            </div>
+
+            <!-- Status & Submit -->
+            <div class="flex gap-2 sm:col-span-2 lg:col-span-2">
+                <div class="flex-1">
+                    <label class="block text-xs font-bold text-gray-600 mb-1.5">الحالة</label>
+                    <select name="status" class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500">
+                        <option value="">الكل</option>
+                        <option value="open" {% if status == 'open' %}selected{% endif %}>مفتوح</option>
+                        <option value="closed" {% if status == 'closed' %}selected{% endif %}>مغلق</option>
+                    </select>
+                </div>
+                <button type="submit" class="px-5 py-2.5 bg-teal-600 text-white rounded-xl hover:bg-teal-700 transition shadow-sm h-[42px] self-end font-bold">
+                    <i class="fas fa-filter"></i>
+                </button>
+                <a href="{% url 'financial:shift_history' %}" class="px-4 py-2.5 bg-gray-200 text-gray-600 rounded-xl hover:bg-gray-300 transition h-[42px] self-end flex items-center" title="إلغاء الفلتر">
+                    <i class="fas fa-times"></i>
+                </a>
+            </div>
+        </form>
+    </div>
+
+    <!-- Shifts Table -->
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full text-right">
+                <thead class="bg-gray-50 text-gray-600 text-xs uppercase tracking-wider border-b border-gray-100">
+                    <tr>
+                        <th class="px-4 py-3.5 font-semibold">#</th>
+                        <th class="px-4 py-3.5 font-semibold">الموظف</th>
+                        <th class="px-4 py-3.5 font-semibold">وقت البدء</th>
+                        <th class="px-4 py-3.5 font-semibold">وقت الإغلاق</th>
+                        <th class="px-4 py-3.5 font-semibold">رصيد البداية</th>
+                        <th class="px-4 py-3.5 font-semibold">العد الفعلي</th>
+                        <th class="px-4 py-3.5 font-semibold">الفرق</th>
+                        <th class="px-4 py-3.5 font-semibold">الحالة</th>
+                        <th class="px-4 py-3.5 font-semibold text-center">إجراءات</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100 text-sm">
+                    {% for shift in page_obj %}
+                    <tr class="hover:bg-gray-50 transition group">
+                        <td class="px-4 py-3.5 font-mono text-gray-500">#{{ shift.id }}</td>
+                        <td class="px-4 py-3.5 font-bold text-gray-800">
+                            <div class="flex items-center gap-2">
+                                <div class="w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center text-gray-600">
+                                    <i class="fas fa-user text-xs"></i>
+                                </div>
+                                {{ shift.employee.username }}
+                            </div>
+                        </td>
+                        <td class="px-4 py-3.5 text-gray-700" dir="ltr">{{ shift.start_time|date:"Y-m-d H:i" }}</td>
+                        <td class="px-4 py-3.5 text-gray-700" dir="ltr">
+                            {% if shift.end_time %}
+                                {{ shift.end_time|date:"Y-m-d H:i" }}
+                            {% else %}
+                                <span class="text-green-600 italic">-- جاري --</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-3.5 font-mono text-gray-800" dir="ltr">{{ shift.start_balance|intcomma }}</td>
+                        <td class="px-4 py-3.5 font-mono text-gray-800" dir="ltr">
+                            {% if shift.is_closed %}
+                                {{ shift.actual_closing_balance|intcomma }}
+                            {% else %}
+                                --
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-3.5 font-mono font-bold" dir="ltr">
+                            {% if shift.is_closed %}
+                                <span class="{% if shift.difference < 0 %}text-red-600{% elif shift.difference > 0 %}text-green-600{% else %}text-gray-500{% endif %}">
+                                    {% if shift.difference > 0 %}+{% endif %}{{ shift.difference|intcomma }}
+                                </span>
+                            {% else %}
+                                --
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-3.5">
+                            {% if shift.is_closed %}
+                                <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700 border border-gray-200">
+                                    مغلق
+                                </span>
+                            {% else %}
+                                <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700 border border-green-200 animate-pulse">
+                                    مفتوح
+                                </span>
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-3.5 text-center">
+                            <div class="flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <a href="{% url 'financial:close_shift' shift.id %}" class="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 hover:text-blue-700 transition" title="عرض التفاصيل">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                                {% if shift.is_closed %}
+                                <a href="{% url 'financial:print_shift_summary' shift.id %}?style=thermal" class="p-2 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-800 hover:text-white transition" title="طباعة إيصال">
+                                    <i class="fas fa-print"></i>
+                                </a>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="9" class="px-6 py-12 text-center text-gray-400">
+                            <div class="flex flex-col items-center">
+                                <i class="fas fa-history text-4xl mb-3 opacity-20"></i>
+                                <p class="font-semibold text-gray-600">لا يوجد سجل شيفتات مطابق للبحث</p>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- Pagination -->
+        {% if page_obj.has_other_pages %}
+        <div class="px-6 py-4 border-t border-gray-100 bg-gray-50 flex justify-center">
+            <div class="flex gap-2">
+                {% if page_obj.has_previous %}
+                    <a href="?page={{ page_obj.previous_page_number }}&q={{ search_query|default:'' }}&date_from={{ date_from|default:'' }}&date_to={{ date_to|default:'' }}&status={{ status|default:'' }}" class="px-3 py-1 rounded bg-white border border-gray-300 text-gray-600 hover:bg-gray-100">السابق</a>
+                {% endif %}
+                
+                <span class="px-3 py-1 rounded bg-teal-600 text-white font-bold">{{ page_obj.number }}</span>
+                
+                {% if page_obj.has_next %}
+                    <a href="?page={{ page_obj.next_page_number }}&q={{ search_query|default:'' }}&date_from={{ date_from|default:'' }}&date_to={{ date_to|default:'' }}&status={{ status|default:'' }}" class="px-3 py-1 rounded bg-white border border-gray-300 text-gray-600 hover:bg-gray-100">التالي</a>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

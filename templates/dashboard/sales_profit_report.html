@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ title }} - {{ generated_at|date:"Y-m-d" }}</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700&display=swap');
+        body { font-family: 'Tajawal', sans-serif; background-color: white; color: black; margin: 0; padding: 20px; }
+        .header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 15px; margin-bottom: 20px; }
+        .header h1 { margin: 0; font-size: 22px; }
+        .header p { margin: 5px 0 0; color: #666; font-size: 14px; }
+        .filter-info { text-align: center; margin-bottom: 20px; font-size: 14px; color: #444; background: #f9f9f9; padding: 10px; border-radius: 5px; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 30px; font-size: 13px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: right; }
+        th { background-color: #f2f2f2; font-weight: bold; }
+        .winner { color: #2e7d32; font-weight: bold; }
+        .loser { color: #c62828; font-weight: bold; }
+        .footer { margin-top: 50px; font-size: 11px; text-align: center; color: #999; border-top: 1px solid #eee; padding-top: 10px; }
+        @media print { .no-print { display: none; } body { padding: 0; } table { page-break-inside: auto; } tr { page-break-inside: avoid; page-break-after: auto; } }
+        .print-btn { position: fixed; bottom: 20px; left: 20px; background: #2563eb; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.2); font-family: inherit; }
+    </style>
+</head>
+<body>
+    <button class="no-print print-btn" onclick="window.print()">طباعة التقرير</button>
+
+    <div class="header">
+        <h1>تقرير تحليل الأرباح وتوصيات الشراء</h1>
+        <p>تاريخ الاستخراج: {{ generated_at|date:"Y-m-d h:i A" }}</p>
+    </div>
+
+    <div class="filter-info">
+        الفترة: 
+        {% if date_from %} من {{ date_from }}{% endif %}
+        {% if date_to %} إلى {{ date_to }}{% endif %}
+        {% if not date_from and not date_to %} (كل البيانات المسجلة) {% endif %}
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>كود (SKU)</th>
+                <th>اسم المنتج</th>
+                <th>الكمية المباعة</th>
+                <th>إجمالي المبيعات</th>
+                <th>إجمالي التكلفة</th>
+                <th>صافي الربح المُحقق</th>
+                <th>الحالة</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for p in results %}
+            <tr>
+                <td>{{ p.sku }}</td>
+                <td>{{ p.name }}</td>
+                <td>{{ p.total_sold|floatformat:1 }}</td>
+                <td>{{ p.total_revenue_val|floatformat:2 }}</td>
+                <td>{{ p.total_cost_of_sales|floatformat:2 }}</td>
+                <td class="{% if p.real_profit > 0 %}winner{% else %}loser{% endif %}">
+                    {{ p.real_profit|floatformat:2 }}
+                </td>
+                <td style="font-size: 11px;">
+                    {% if p.real_profit > 0 %}
+                        توصية: إعادة شراء (رابح)
+                    {% else %}
+                        تنبيه: مراجعة السعر (خسارة)
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <div class="footer">
+        تم استخراج هذا التقرير آلياً - نظام POS لإدارة المنسوجات
+    </div>
+</body>
+</html>

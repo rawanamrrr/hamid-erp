@@ -1,0 +1,55 @@
+{% extends 'base.html' %}
+{% load humanize %}
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto space-y-5">
+    <div class="flex items-center justify-between">
+        <h1 class="text-2xl font-black text-gray-800">سجل الفواتير الملغاة</h1>
+        <a href="{% url 'order_list' %}" class="px-4 py-2 bg-gray-100 rounded-lg font-bold text-sm">كل الفواتير</a>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="bg-white p-4 rounded-xl border"><p class="text-xs text-gray-500 font-bold">عدد الملغاة</p><p class="text-2xl font-black text-red-600">{{ voided_count }}</p></div>
+        <div class="bg-white p-4 rounded-xl border"><p class="text-xs text-gray-500 font-bold">قيمتها الإجمالية</p><p class="text-2xl font-black text-red-500 dir-ltr">{{ total_voided|floatformat:2|intcomma }}</p></div>
+        <div class="bg-white p-4 rounded-xl border"><p class="text-xs text-gray-500 font-bold">فواتير معدّلة</p><p class="text-2xl font-black text-amber-600">{{ edited_count }}</p></div>
+    </div>
+
+    <form method="get" class="flex flex-wrap items-end gap-3 bg-white p-4 rounded-xl border">
+        <div><label class="block text-xs font-bold text-gray-500 mb-1">بحث</label><input name="q" value="{{ q }}" placeholder="رقم/سبب/عميل" class="p-2 border rounded-lg"></div>
+        <div><label class="block text-xs font-bold text-gray-500 mb-1">من</label><input type="date" name="date_from" value="{{ date_from }}" class="p-2 border rounded-lg"></div>
+        <div><label class="block text-xs font-bold text-gray-500 mb-1">إلى</label><input type="date" name="date_to" value="{{ date_to }}" class="p-2 border rounded-lg"></div>
+        <button class="px-4 py-2 bg-indigo-600 text-white rounded-lg font-bold">تصفية</button>
+        {% if q or date_from or date_to %}<a href="{% url 'voided_register' %}" class="px-4 py-2 bg-gray-100 rounded-lg font-bold">مسح</a>{% endif %}
+    </form>
+
+    <div class="bg-white rounded-xl border overflow-hidden">
+        <table class="w-full text-sm">
+            <thead class="bg-gray-50 text-gray-500 text-xs">
+                <tr>
+                    <th class="py-3 px-4 text-right">رقم الفاتورة</th>
+                    <th class="py-3 px-4 text-right">العميل</th>
+                    <th class="py-3 px-4 text-left">القيمة</th>
+                    <th class="py-3 px-4 text-right">ألغاها</th>
+                    <th class="py-3 px-4 text-right">وقت الإلغاء</th>
+                    <th class="py-3 px-4 text-right">السبب</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y">
+                {% for o in orders %}
+                <tr class="hover:bg-red-50/40">
+                    <td class="py-2 px-4 font-mono font-bold text-indigo-600">{{ o.display_number }}</td>
+                    <td class="py-2 px-4">{{ o.customer.first_name|default:'عميل نقدي' }} {{ o.customer.last_name|default:'' }}</td>
+                    <td class="py-2 px-4 text-left dir-ltr font-bold">{{ o.total_amount|floatformat:2|intcomma }}</td>
+                    <td class="py-2 px-4">{{ o.voided_by.username|default:'—' }}</td>
+                    <td class="py-2 px-4 text-gray-500 whitespace-nowrap">{{ o.voided_at|date:"Y-m-d H:i"|default:'—' }}</td>
+                    <td class="py-2 px-4 text-gray-600">{{ o.void_reason|default:'—'|truncatechars:60 }}</td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="6" class="py-8 text-center text-gray-400">لا توجد فواتير ملغاة</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

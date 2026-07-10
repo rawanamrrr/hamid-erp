@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<title>أمر شراء — {{ po.po_number }}</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Arial', sans-serif; font-size: 12px; color: #333; direction: rtl; }
+  .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #0d9488; padding-bottom: 12px; margin-bottom: 16px; }
+  .company-name { font-size: 20px; font-weight: bold; color: #0d9488; }
+  .po-title { font-size: 16px; font-weight: bold; color: #374151; }
+  .meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 16px; }
+  .meta-box { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; padding: 8px 12px; }
+  .meta-label { font-size: 10px; color: #9ca3af; }
+  .meta-value { font-weight: bold; color: #111827; font-size: 13px; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
+  thead { background: #0d9488; color: white; }
+  th { padding: 8px 10px; text-align: center; font-size: 11px; }
+  th:first-child { text-align: right; }
+  td { padding: 7px 10px; border-bottom: 1px solid #f3f4f6; font-size: 11px; text-align: center; }
+  td:first-child { text-align: right; }
+  tfoot td { font-weight: bold; background: #f0fdfa; color: #0d9488; font-size: 13px; }
+  .status-badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 10px; font-weight: bold; }
+  .sig-row { display: flex; justify-content: space-around; margin-top: 40px; }
+  .sig-box { text-align: center; }
+  .sig-line { border-top: 1px solid #374151; width: 120px; margin: 40px auto 4px; }
+  .print-date { text-align: center; color: #9ca3af; font-size: 10px; margin-top: 20px; }
+  @media print { @page { margin: 1.5cm; } }
+  .btn-bar { display: flex; gap: 8px; margin-bottom: 16px; }
+  .btn { padding: 8px 16px; border-radius: 6px; border: none; cursor: pointer; font-size: 12px; font-weight: bold; }
+  .btn-print { background: #0d9488; color: white; }
+  .btn-close { background: #e5e7eb; color: #374151; }
+  @media print { .btn-bar { display: none; } }
+</style>
+</head>
+<body>
+<div class="btn-bar">
+  <button class="btn btn-print" onclick="window.print()">🖨️ طباعة</button>
+  <button class="btn btn-close" onclick="window.close(); setTimeout(function(){ if (window.history.length > 1) window.history.back(); }, 50)">إغلاق</button>
+</div>
+
+<div class="header">
+  <div>
+    <div class="company-name">{% if sys_settings %}{{ sys_settings.shop_name }}{% else %}نظام ERP{% endif %}</div>
+    <div style="color:#6b7280;font-size:11px;">أمر شراء</div>
+  </div>
+  <div style="text-align:left">
+    <div class="po-title">{{ po.po_number }}</div>
+    <div style="color:#6b7280;font-size:11px;">تاريخ الطلب: {{ po.order_date }}</div>
+  </div>
+</div>
+
+<div class="meta-grid">
+  <div class="meta-box"><div class="meta-label">المورد</div><div class="meta-value">{{ po.supplier.name }}</div></div>
+  <div class="meta-box"><div class="meta-label">مخزن الاستلام</div><div class="meta-value">{{ po.destination_warehouse.name }}</div></div>
+  <div class="meta-box"><div class="meta-label">الاستلام المتوقع</div><div class="meta-value">{{ po.expected_date|default:"—" }}</div></div>
+  <div class="meta-box"><div class="meta-label">الحالة</div><div class="meta-value">{{ po.get_status_display }}</div></div>
+</div>
+
+{% if po.notes %}<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:8px 12px;margin-bottom:16px;font-size:11px;color:#1d4ed8;">ملاحظات: {{ po.notes }}</div>{% endif %}
+
+<table>
+  <thead>
+    <tr>
+      <th>المنتج</th><th>المقاس</th><th>الكمية</th><th>سعر الوحدة</th><th>الخصم</th><th>الإجمالي</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for item in items %}
+    <tr>
+      <td><strong>{{ item.product.name }}</strong><br><span style="color:#9ca3af;font-size:10px">{{ item.product.sku }}</span></td>
+      <td>{{ item.size.name|default:"—" }}</td>
+      <td>{{ item.ordered_quantity }}</td>
+      <td>{{ item.unit_price|floatformat:2 }}</td>
+      <td>{{ item.discount|floatformat:2 }}</td>
+      <td><strong>{{ item.line_total|floatformat:2 }}</strong></td>
+    </tr>
+    {% endfor %}
+  </tbody>
+  <tfoot>
+    <tr><td colspan="5" style="text-align:right">الإجمالي الصافي</td><td>{{ po.total_amount|floatformat:2 }}</td></tr>
+  </tfoot>
+</table>
+
+<div class="sig-row">
+  <div class="sig-box"><div class="sig-line"></div><div>توقيع المورد</div></div>
+  <div class="sig-box"><div class="sig-line"></div><div>توقيع المستلم</div></div>
+  <div class="sig-box"><div class="sig-line"></div><div>توقيع الإدارة</div></div>
+</div>
+<div class="print-date">طُبع بتاريخ: {{ print_date|date:"Y-m-d H:i" }}</div>
+</body>
+</html>

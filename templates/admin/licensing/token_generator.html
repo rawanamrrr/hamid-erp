@@ -1,0 +1,243 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <h1 class="mb-4">🔑 Activation Token Generator</h1>
+                    
+                    <div class="row">
+                        <div class="col-lg-8">
+                            <div class="mb-3">
+                                <label for="storeSelect" class="form-label fw-bold">Select Store</label>
+                                <select class="form-select" id="storeSelect">
+                                    <option value="">-- Choose a Store --</option>
+                                    {% for store in stores %}
+                                        <option value="{{ store.store_id }}">{{ store.store_name }} ({{ store.store_id }})</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="actionSelect" class="form-label fw-bold">Action Type</label>
+                                <select class="form-select" id="actionSelect">
+                                    <option value="CHANGE_STORE_TYPE">Change Store Type</option>
+                                    <option value="DEVICE_AUTHORIZATION">Device Authorization</option>
+                                    <option value="EXTEND_SUBSCRIPTION">Extend Subscription</option>
+                                    <option value="TOGGLE_DARK_MODE">Toggle Dark Mode</option>
+                                    <option value="ENABLE_MODULE">Enable Module</option>
+                                    <option value="DISABLE_MODULE">Disable Module</option>
+                                    <option value="GENERAL_SYSTEM_OVERRIDE">General System Override</option>
+                                </select>
+                            </div>
+
+                            <div class="mb-3" id="valueField">
+                                <label for="valueInput" class="form-label fw-bold">Action Value</label>
+                                <div id="valueContainer">
+                                    <input type="text" class="form-control" id="valueInput" placeholder="Enter value for the action">
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="expiresInput" class="form-label fw-bold">Expires In (Minutes)</label>
+                                <input type="number" class="form-control" id="expiresInput" value="60" min="1">
+                            </div>
+
+                            <button class="btn btn-primary btn-lg w-100" id="generateBtn">
+                                <i class="fas fa-magic"></i> Generate Token
+                            </button>
+                        </div>
+
+                        <div class="col-lg-4 mt-4 mt-lg-0">
+                            <div class="bg-light p-4 rounded-3 border">
+                                <h4 class="mb-3">Result</h4>
+                                <div id="resultDiv" class="text-muted">
+                                    Generated token will appear here
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const actionSelect = document.getElementById('actionSelect');
+    const valueContainer = document.getElementById('valueContainer');
+    const generateBtn = document.getElementById('generateBtn');
+    const resultDiv = document.getElementById('resultDiv');
+
+    function updateValuePlaceholder() {
+        const action = actionSelect.value;
+        valueContainer.innerHTML = ''; // Clear existing
+        
+        if (action === 'EXTEND_SUBSCRIPTION') {
+            // Add number + unit for Extend Subscription!
+            valueContainer.innerHTML = `
+                <div class="input-group">
+                    <input type="number" class="form-control" id="valueInput" placeholder="Number of units (e.g., 12)" value="12">
+                    <select class="form-select" id="subUnitSelect" style="max-width: 150px;">
+                        <option value="Hours">Hours</option>
+                        <option value="Days">Days</option>
+                        <option value="Weeks">Weeks</option>
+                        <option value="Months" selected>Months</option>
+                        <option value="Years">Years</option>
+                    </select>
+                </div>
+            `;
+        } else {
+            // Normal input for other actions
+            let placeholder = 'Enter value for the action';
+            if (action === 'CHANGE_STORE_TYPE') {
+                placeholder = 'e.g., grocery, pharmacy, clothes, electronics, general';
+            } else if (action === 'DEVICE_AUTHORIZATION') {
+                placeholder = 'Device ID or info';
+            } else if (action === 'TOGGLE_DARK_MODE') {
+                placeholder = 'true/false (enable/disable dark mode)';
+            } else if (action === 'ENABLE_MODULE') {
+                placeholder = 'Module name to enable';
+            } else if (action === 'DISABLE_MODULE') {
+                placeholder = 'Module name to disable';
+            } else if (action === 'GENERAL_SYSTEM_OVERRIDE') {
+                placeholder = 'JSON or plain text override';
+            }
+            
+            valueContainer.innerHTML = `<input type="text" class="form-control" id="valueInput" placeholder="${placeholder}">`;
+        }
+    }
+
+    actionSelect.addEventListener('change', updateValuePlaceholder);
+    updateValuePlaceholder();
+
+    // Helper function to get current value
+    function getCurrentValue() {
+        const action = actionSelect.value;
+        if (action === 'EXTEND_SUBSCRIPTION') {
+            const num = parseInt(document.getElementById('valueInput').value);
+            const unit = document.getElementById('subUnitSelect').value;
+            
+            // Convert to days
+            let days = 0;
+            if (unit === 'Hours') {
+                days = num / 24;
+            } else if (unit === 'Days') {
+                days = num;
+            } else if (unit === 'Weeks') {
+                days = num * 7;
+            } else if (unit === 'Months') {
+                days = num * 30;
+            } else if (unit === 'Years') {
+                days = num * 365;
+            }
+            return days.toString();
+        } else {
+            return document.getElementById('valueInput').value;
+        }
+    }
+
+    generateBtn.addEventListener('click', async function() {
+        const storeId = document.getElementById('storeSelect').value;
+        const action = actionSelect.value;
+        const value = getCurrentValue();
+        const expiresIn = document.getElementById('expiresInput').value;
+
+        if (!storeId) {
+            alert('Please select a store');
+            return;
+        }
+
+        if (!value) {
+            alert('Please enter a value');
+            return;
+        }
+
+        generateBtn.disabled = true;
+        generateBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
+
+        try {
+            const response = await fetch('/admin/licensing/api/generate-token/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken'),
+                },
+                body: JSON.stringify({
+                    store_id: storeId,
+                    action: action,
+                    value: value,
+                    expires_in: expiresIn
+                })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                resultDiv.innerHTML = `
+                    <div class="alert alert-success">
+                        <h6 class="alert-heading">✅ Token Generated!</h6>
+                        <p class="text-muted small mb-2">Expires: ${new Date(data.expires_at).toLocaleString()}</p>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Copy Token:</label>
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="tokenDisplay" value="${data.token}" readonly>
+                            <button class="btn btn-outline-primary" id="copyBtn">
+                                <i class="fas fa-copy"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+
+                document.getElementById('copyBtn').addEventListener('click', function() {
+                    const tokenInput = document.getElementById('tokenDisplay');
+                    tokenInput.select();
+                    document.execCommand('copy');
+                    this.innerHTML = '<i class="fas fa-check"></i>';
+                    setTimeout(() => {
+                        this.innerHTML = '<i class="fas fa-copy"></i>';
+                    }, 2000);
+                });
+            } else {
+                resultDiv.innerHTML = `
+                    <div class="alert alert-danger">
+                        <h6 class="alert-heading">❌ Error</h6>
+                        <p>${data.error}</p>
+                    </div>
+                `;
+            }
+        } catch (error) {
+            resultDiv.innerHTML = `
+                <div class="alert alert-danger">
+                    <h6 class="alert-heading">❌ Error</h6>
+                    <p>${error.message}</p>
+                </div>
+            `;
+        } finally {
+            generateBtn.disabled = false;
+            generateBtn.innerHTML = '<i class="fas fa-magic"></i> Generate Token';
+        }
+    });
+
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+});
+</script>
+{% endblock %}

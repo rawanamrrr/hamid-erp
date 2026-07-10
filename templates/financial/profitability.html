@@ -1,0 +1,50 @@
+﻿{% extends 'base.html' %}
+{% load humanize %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+<div class="max-w-6xl mx-auto space-y-5">
+    <div class="flex items-center justify-between print:hidden">
+        <h1 class="text-2xl font-black text-gray-800">تقرير الربحية</h1>
+        <a href="?group={{ group }}&date_from={{ date_from }}&date_to={{ date_to }}&export=csv" class="px-4 py-2 bg-green-700 text-white rounded-lg font-bold text-sm">Excel</a>
+        <a href="?group={{ group }}&date_from={{ date_from }}&date_to={{ date_to }}&print=1" class="px-4 py-2 bg-gray-700 text-white rounded-lg font-bold text-sm">طباعة</a>
+    </div>
+    <form method="get" class="flex flex-wrap items-end gap-3 bg-white p-4 rounded-xl border print:hidden">
+        <div><label class="block text-xs font-bold text-gray-500 mb-1">التجميع</label>
+            <select name="group" class="p-2 border rounded-lg">
+                <option value="product" {% if group == 'product' %}selected{% endif %}>حسب الصنف</option>
+                <option value="category" {% if group == 'category' %}selected{% endif %}>حسب القسم</option>
+            </select></div>
+        <div><label class="block text-xs font-bold text-gray-500 mb-1">من</label><input type="date" name="date_from" value="{{ date_from }}" class="p-2 border rounded-lg"></div>
+        <div><label class="block text-xs font-bold text-gray-500 mb-1">إلى</label><input type="date" name="date_to" value="{{ date_to }}" class="p-2 border rounded-lg"></div>
+        <button class="px-4 py-2 bg-indigo-600 text-white rounded-lg font-bold">عرض</button>
+    </form>
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div class="bg-white p-3 rounded-xl border text-center"><p class="text-[11px] text-gray-500 font-bold">المبيعات</p><p class="text-lg font-black text-teal-600 dir-ltr">{{ totals.revenue|floatformat:2|intcomma }}</p></div>
+        <div class="bg-white p-3 rounded-xl border text-center"><p class="text-[11px] text-gray-500 font-bold">التكلفة</p><p class="text-lg font-black text-orange-600 dir-ltr">{{ totals.cogs|floatformat:2|intcomma }}</p></div>
+        <div class="bg-white p-3 rounded-xl border text-center"><p class="text-[11px] text-gray-500 font-bold">الربح</p><p class="text-lg font-black text-green-600 dir-ltr">{{ totals.profit|floatformat:2|intcomma }}</p></div>
+        <div class="bg-gray-800 text-white p-3 rounded-xl text-center"><p class="text-[11px] text-gray-300 font-bold">هامش %</p><p class="text-lg font-black dir-ltr">{{ totals.margin|floatformat:1 }}%</p></div>
+    </div>
+    <div class="bg-white rounded-xl border overflow-hidden">
+        <table class="w-full text-sm">
+            <thead class="bg-gray-50 text-gray-500 text-xs"><tr>
+                <th class="py-3 px-4 text-right">{% if group == 'category' %}القسم{% else %}الصنف{% endif %}</th>
+                <th class="py-3 px-4 text-left">الكمية</th><th class="py-3 px-4 text-left">المبيعات</th>
+                <th class="py-3 px-4 text-left">التكلفة</th><th class="py-3 px-4 text-left">الربح</th><th class="py-3 px-4 text-left">هامش %</th>
+            </tr></thead>
+            <tbody class="divide-y">
+                {% for r in rows %}
+                <tr class="hover:bg-gray-50 {% if r.profit < 0 %}bg-red-50/40{% endif %}">
+                    <td class="py-2 px-4 font-bold text-gray-700">{{ r.name }}</td>
+                    <td class="py-2 px-4 text-left dir-ltr">{{ r.qty|floatformat:2 }}</td>
+                    <td class="py-2 px-4 text-left dir-ltr">{{ r.revenue|floatformat:2|intcomma }}</td>
+                    <td class="py-2 px-4 text-left dir-ltr text-orange-600">{{ r.cogs|floatformat:2|intcomma }}</td>
+                    <td class="py-2 px-4 text-left dir-ltr font-bold {% if r.profit < 0 %}text-red-600{% else %}text-green-600{% endif %}">{{ r.profit|floatformat:2|intcomma }}</td>
+                    <td class="py-2 px-4 text-left dir-ltr">{{ r.margin|floatformat:1 }}%</td>
+                </tr>
+                {% empty %}<tr><td colspan="6" class="py-8 text-center text-gray-400">لا توجد مبيعات في هذه الفترة</td></tr>{% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% if print_mode %}<script>window.onload=function(){window.print();};</script>{% endif %}
+{% endblock %}

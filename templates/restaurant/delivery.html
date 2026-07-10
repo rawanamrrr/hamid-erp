@@ -1,0 +1,68 @@
+{% extends 'base.html' %}
+{% block title %}شاشة الدليفري{% endblock %}
+{% block content %}
+<div class="p-4" x-data="{ branchId: {{ branch.id }} }" x-init="
+    let ws = new WebSocket((location.protocol==='https:'?'wss://':'ws://') + location.host + '/ws/delivery/' + branchId + '/');
+    ws.onmessage = (e) => { location.reload(); };
+">
+    <h1 class="text-2xl font-bold mb-4">شاشة الدليفري — {{ branch.name }}</h1>
+
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        {% for d in drivers %}
+        <div class="rounded-xl border p-4 bg-white shadow-sm">
+            <div class="font-bold">{{ d.name }}</div>
+            <div class="text-sm text-gray-500">{{ d.phone }}</div>
+            <div class="text-sm mt-2">معاه اليوم: <span class="font-bold">{{ d.owed }}</span> ج.م</div>
+        </div>
+        {% empty %}
+        <p class="text-gray-500 col-span-full">لا يوجد طيارين مُعرّفين لهذا الفرع.</p>
+        {% endfor %}
+    </div>
+
+    <table class="w-full bg-white rounded-xl border overflow-hidden">
+        <thead class="bg-gray-50 text-sm text-gray-600">
+            <tr>
+                <th class="p-3 text-right">الفاتورة</th>
+                <th class="p-3 text-right">العميل</th>
+                <th class="p-3 text-right">الإجمالي</th>
+                <th class="p-3 text-right">الطيار</th>
+                <th class="p-3 text-right">إجراء</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for order in orders %}
+            <tr class="border-t text-sm">
+                <td class="p-3">{{ order.display_number }}</td>
+                <td class="p-3">{{ order.customer|default:"—" }}</td>
+                <td class="p-3">{{ order.total_amount }}</td>
+                <td class="p-3">
+                    {% if order.driver %}{{ order.driver.name }}
+                    {% else %}
+                    <form method="post" action="{% url 'restaurant:assign_driver' order.id %}" class="flex gap-1">
+                        {% csrf_token %}
+                        <select name="driver_id" class="border rounded px-2 py-1 text-xs">
+                            {% for d in drivers %}<option value="{{ d.id }}">{{ d.name }}</option>{% endfor %}
+                        </select>
+                        <button class="px-2 py-1 bg-indigo-600 text-white rounded text-xs">تعيين</button>
+                    </form>
+                    {% endif %}
+                </td>
+                <td class="p-3">
+                    {% if order.driver and not order.is_completed %}
+                    <form method="post" action="{% url 'restaurant:driver_return_settle' order.id %}" class="flex items-center gap-1">
+                        {% csrf_token %}
+                        <input type="number" step="0.01" name="collected_amount" placeholder="المبلغ المحصّل"
+                               value="{{ order.total_amount|add:'0' }}"
+                               class="w-24 border rounded px-2 py-1 text-xs" title="المبلغ الذي حصّله الطيار من العميل">
+                        <button class="px-2 py-1 bg-emerald-600 text-white rounded text-xs">رجع الطيار / تسليم</button>
+                    </form>
+                    {% elif order.is_completed %}
+                    <span class="text-emerald-600 text-xs font-semibold">تم</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

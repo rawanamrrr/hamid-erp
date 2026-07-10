@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>طباعة بكر باركود المشتريات</title>
+    <!-- Tailwind CSS for rich modern layout -->
+    <script src="/static/vendor/js/tailwind.js"></script>
+    <!-- JsBarcode Library for generating SVG barcodes -->
+    <script src="/static/vendor/js/jsbarcode.all.min.js"></script>
+    <!-- Modern Arabic Font -->
+    <link href="/static/vendor/fonts/cairo.css" rel="stylesheet">
+    <!-- Font Awesome icons -->
+    <link rel="stylesheet" href="/static/vendor/fontawesome/css/all.min.css">
+    
+    <style>
+        body {
+            font-family: 'Cairo', 'Arial', sans-serif;
+        }
+
+        /* --- CRITICAL PRINT HARDWARE SETTINGS --- */
+        @media print {
+            @page {
+                margin: 0; 
+                size: 72mm 40mm portrait; /* Explicitly forces Portrait on 72mm printers */
+            }
+            body {
+                background: white !important;
+                margin: 0 !important;
+                padding: 0 !important;
+            }
+            .no-print {
+                display: none !important;
+            }
+            .print-area {
+                display: block !important;
+                width: 72mm !important;
+                margin: 0 !important;
+                padding: 0 !important;
+            }
+            .barcode-label {
+                margin: 0 !important;
+                box-shadow: none !important;
+                border: none !important;
+                border-radius: 0 !important;
+                page-break-after: always; /* Triggers the POS Cutter */
+                page-break-inside: avoid;
+                width: 72mm !important;
+                height: 40mm !important;
+                display: flex !important;
+                flex-direction: column !important;
+                justify-content: space-between !important;
+                align-items: center !important;
+                box-sizing: border-box !important;
+                padding: 2mm 3mm !important;
+                background: white !important;
+                overflow: hidden !important;
+            }
+        }
+    </style>
+</head>
+<body class="bg-slate-100 min-h-screen flex flex-col md:flex-row antialiased">
+
+    <!-- Left Option Panel (Dashboard controls) -->
+    <div class="w-full md:w-96 bg-white border-l border-slate-200 p-6 flex flex-col justify-between shrink-0 shadow-xl z-50 no-print">
+        <div class="space-y-6">
+            <!-- Logo/Header -->
+            <div class="flex items-center gap-3 border-b border-slate-100 pb-5">
+                <div class="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-lg shadow-indigo-100">
+                    <i class="fa-solid fa-barcode text-lg"></i>
+                </div>
+                <div>
+                    <h2 class="font-black text-slate-800 text-base leading-tight">خيارات طباعة الباركود</h2>
+                    <p class="text-[10px] text-slate-400 font-bold mt-0.5">خصص وعاين الملصقات قبل طباعتها</p>
+                </div>
+            </div>
+
+            <!-- Custom Controls Grid -->
+            <div class="space-y-5 text-right">
+                
+                <!-- Market Name Toggle & Input -->
+                <div class="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-3">
+                    <label class="flex items-center justify-between cursor-pointer select-none">
+                        <span class="text-xs font-black text-slate-700"><i class="fa-solid fa-shop text-indigo-500 ml-1.5"></i> عرض اسم المحل</span>
+                        <input type="checkbox" id="toggleMarket" onchange="updateLabels()" class="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500">
+                    </label>
+                    <input type="text" id="marketName" value="{{ shop_name|default:'' }}"
+                           oninput="updateLabels()" 
+                           placeholder="أدخل اسم المتجر..."
+                           class="w-full bg-white border border-slate-200 rounded-xl py-2 px-3.5 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all">
+                </div>
+
+                <!-- Expiry Date Toggle -->
+                <div class="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex items-center justify-between cursor-pointer select-none">
+                    <span class="text-xs font-black text-slate-700"><i class="fa-solid fa-calendar-day text-amber-500 ml-1.5"></i> عرض الصلاحية / الباتش</span>
+                    <input type="checkbox" id="toggleExpiry" onchange="updateLabels()" checked class="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500">
+                </div>
+
+                <!-- Price Toggle -->
+                <div class="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex items-center justify-between cursor-pointer select-none">
+                    <span class="text-xs font-black text-slate-700"><i class="fa-solid fa-tags text-emerald-500 ml-1.5"></i> عرض سعر البيع</span>
+                    <input type="checkbox" id="togglePrice" onchange="updateLabels()" checked class="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500">
+                </div>
+
+                <!-- Category Toggle -->
+                <div class="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex items-center justify-between cursor-pointer select-none">
+                    <span class="text-xs font-black text-slate-700"><i class="fa-solid fa-layer-group text-blue-500 ml-1.5"></i> عرض القسم</span>
+                    <input type="checkbox" id="toggleCategory" onchange="updateLabels()" checked class="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500">
+                </div>
+
+                <!-- Size Toggle -->
+                <div class="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex items-center justify-between cursor-pointer select-none">
+                    <span class="text-xs font-black text-slate-700"><i class="fa-solid fa-ruler-combined text-rose-500 ml-1.5"></i> عرض المقاس</span>
+                    <input type="checkbox" id="toggleSize" onchange="updateLabels()" checked class="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500">
+                </div>
+
+                <!-- Material Toggle -->
+                <div class="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex items-center justify-between cursor-pointer select-none">
+                    <span class="text-xs font-black text-slate-700"><i class="fa-solid fa-scroll text-amber-600 ml-1.5"></i> عرض الخامة</span>
+                    <input type="checkbox" id="toggleMaterial" onchange="updateLabels()" class="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500">
+                </div>
+
+                <!-- Pattern Toggle -->
+                <div class="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex items-center justify-between cursor-pointer select-none">
+                    <span class="text-xs font-black text-slate-700"><i class="fa-solid fa-shapes text-violet-500 ml-1.5"></i> عرض النقشة / التصميم</span>
+                    <input type="checkbox" id="togglePattern" onchange="updateLabels()" class="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500">
+                </div>
+
+                <!-- Color Toggle -->
+                <div class="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex items-center justify-between cursor-pointer select-none">
+                    <span class="text-xs font-black text-slate-700"><i class="fa-solid fa-palette text-pink-500 ml-1.5"></i> عرض اللون</span>
+                    <input type="checkbox" id="toggleColor" onchange="updateLabels()" class="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500">
+                </div>
+
+                <!-- Season Toggle -->
+                <div class="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex items-center justify-between cursor-pointer select-none">
+                    <span class="text-xs font-black text-slate-700"><i class="fa-solid fa-cloud-sun text-orange-500 ml-1.5"></i> عرض الموسم</span>
+                    <input type="checkbox" id="toggleSeason" onchange="updateLabels()" class="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500">
+                </div>
+
+                <!-- Unit of Measure Toggle -->
+                <div class="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex items-center justify-between cursor-pointer select-none">
+                    <span class="text-xs font-black text-slate-700"><i class="fa-solid fa-ruler text-cyan-500 ml-1.5"></i> عرض وحدة القياس</span>
+                    <input type="checkbox" id="toggleUnit" onchange="updateLabels()" checked class="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500">
+                </div>
+
+                <!-- Barcode SKU Text Under -->
+                <div class="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex items-center justify-between cursor-pointer select-none">
+                    <span class="text-xs font-black text-slate-700"><i class="fa-solid fa-font text-purple-500 ml-1.5"></i> عرض رقم الكود (SKU)</span>
+                    <input type="checkbox" id="toggleSkuText" onchange="updateBarcodesText()" checked class="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500">
+                </div>
+
+            </div>
+        </div>
+
+        <!-- Sticky Footer Buttons -->
+        <div class="pt-6 border-t border-slate-100 space-y-2 mt-6">
+            <button onclick="window.print()" class="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-sm shadow-lg shadow-indigo-100 hover:shadow-indigo-200 transition flex items-center justify-center gap-2 active:scale-95">
+                <i class="fa-solid fa-print"></i> <span>بدء الطباعة</span>
+            </button>
+            <button onclick="window.close(); setTimeout(function(){ if (window.history.length > 1) window.history.back(); }, 50)" class="w-full py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl font-bold text-xs transition active:scale-95">
+                إغلاق
+            </button>
+        </div>
+    </div>
+
+    <!-- Right Printable area (Live interactive preview) -->
+    <div class="flex-1 flex flex-col items-center justify-start p-8 overflow-y-auto h-screen relative">
+        
+        <!-- Live Preview Header -->
+        <div class="w-full max-w-xl bg-indigo-50 border border-indigo-100/50 rounded-2xl px-5 py-3 mb-6 no-print text-right" dir="rtl">
+            <div class="flex items-center gap-3">
+                <span class="text-lg">👁️</span>
+                <div>
+                    <h4 class="font-bold text-indigo-900 text-xs">معاينة مباشرة للملصق (72mm x 40mm)</h4>
+                    <p class="text-[10px] text-indigo-600 font-medium mt-0.5">القالب متجاوب ويتكيف تلقائياً مع خياراتك. انقر فوق "بدء الطباعة" بعد التعديل.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- The actual printable labels sheet -->
+        <div class="print-area flex flex-col items-center gap-4">
+            {% for p in products %}
+            <div class="barcode-label w-[72mm] h-[40mm] bg-white rounded-lg p-[2mm] px-[3mm] flex flex-col justify-between items-center shadow-lg border border-slate-200 select-none overflow-hidden transition-all duration-300">
+                
+                <!-- 1. Custom Shop/Market Name -->
+                <div class="label-market font-black text-[9px] text-slate-700 border-b border-slate-200 w-full text-center pb-0.5 mb-0.5 hidden leading-tight"></div>
+                
+                <!-- 2. Product Name -->
+                <div class="label-name text-[11px] font-black text-black text-center line-clamp-2 w-full leading-tight">
+                    {{ p.name }}
+                </div>
+                
+                <!-- 3. SVG Barcode container -->
+                <div class="barcode-container flex-1 w-full flex items-center justify-center overflow-hidden py-0.5">
+                    <svg class="label-barcode max-h-[16mm] w-full" jsbarcode-value="{{ p.barcode|default:p.sku }}"></svg>
+                </div>
+
+                <!-- 4. Expiry and Batch Info (from invoice copy) -->
+                <div class="label-expiry text-[9px] font-bold text-slate-600 w-full text-center hidden leading-none mb-0.5">
+                    {% if p.expiry_date_str %}صلاحية: {{ p.expiry_date_str }}{% endif %}
+                    {% if p.batch_number_str %} (دفعة: {{ p.batch_number_str }}){% endif %}
+                </div>
+
+                <!-- 5. Footer details (Category, Unit & Price) -->
+                <div class="label-footer w-full flex justify-between items-end border-t border-dashed border-slate-300 pt-0.5 mt-0.5">
+                    <div class="flex flex-col items-start gap-0.5 max-w-[55%]">
+                        <div class="label-category text-[8px] font-black text-slate-700 truncate">
+                            {{ p.category.name|default:"عام" }}
+                        </div>
+                        <div class="label-size text-[8px] font-bold text-rose-600 truncate">
+                            {% if p.forced_size %}{{ p.forced_size }}{% else %}{% for s in p.sizes.all %}{{ s.name }}{% if not forloop.last %}، {% endif %}{% endfor %}{% endif %}
+                        </div>
+                        <div class="label-unit text-[8px] font-bold text-slate-500 truncate">
+                            {{ p.get_unit_measure_display }}
+                        </div>
+                        <div class="label-material text-[8px] font-bold text-amber-700 truncate">{{ p.material }}</div>
+                        <div class="label-pattern text-[8px] font-bold text-violet-600 truncate">{{ p.pattern }}</div>
+                        <div class="label-color text-[8px] font-bold text-pink-600 truncate">{{ p.color }}</div>
+                        <div class="label-season text-[8px] font-bold text-orange-600 truncate">{% if p.season %}{{ p.get_season_display }}{% endif %}</div>
+                    </div>
+                    <div class="label-price text-[13px] font-black text-black leading-none">
+                        {{ p.price_retail }} <span class="text-[8px] font-bold">ج.م</span>
+                    </div>
+                </div>
+                
+            </div>
+            {% empty %}
+            <div class="bg-white p-12 rounded-3xl border border-slate-200 text-center font-bold text-slate-400 no-print flex flex-col items-center gap-4">
+                <i class="fa-solid fa-box-open text-4xl text-slate-300"></i>
+                <p>لا يوجد منتجات لطباعتها في التصفية الحالية.</p>
+            </div>
+            {% endfor %}
+        </div>
+
+    </div>
+
+    <!-- Scripts for dynamic interaction -->
+    <script>
+        let showSkuText = true;
+
+        const LABEL_OPTIONS_KEY = 'printBarcodesLabelOptions';
+        function loadLabelOptions() {
+            try {
+                const saved = JSON.parse(localStorage.getItem(LABEL_OPTIONS_KEY));
+                if (!saved) return;
+                if (typeof saved.toggleMarket === 'boolean') document.getElementById('toggleMarket').checked = saved.toggleMarket;
+                if (typeof saved.toggleExpiry === 'boolean') document.getElementById('toggleExpiry').checked = saved.toggleExpiry;
+                if (typeof saved.togglePrice === 'boolean') document.getElementById('togglePrice').checked = saved.togglePrice;
+                if (typeof saved.toggleCategory === 'boolean') document.getElementById('toggleCategory').checked = saved.toggleCategory;
+                if (typeof saved.toggleSize === 'boolean') document.getElementById('toggleSize').checked = saved.toggleSize;
+                if (typeof saved.toggleMaterial === 'boolean') document.getElementById('toggleMaterial').checked = saved.toggleMaterial;
+                if (typeof saved.togglePattern === 'boolean') document.getElementById('togglePattern').checked = saved.togglePattern;
+                if (typeof saved.toggleColor === 'boolean') document.getElementById('toggleColor').checked = saved.toggleColor;
+                if (typeof saved.toggleSeason === 'boolean') document.getElementById('toggleSeason').checked = saved.toggleSeason;
+                if (typeof saved.toggleUnit === 'boolean') document.getElementById('toggleUnit').checked = saved.toggleUnit;
+                if (typeof saved.toggleSkuText === 'boolean') document.getElementById('toggleSkuText').checked = saved.toggleSkuText;
+                // Ignore a saved name matching the old hardcoded placeholder ("سوبرماركت
+                // المدينة") — that's a stale leftover from before the store-name default
+                // was fixed to read the real shop name, not a deliberate customization.
+                if (typeof saved.marketName === 'string' && saved.marketName.trim() !== 'سوبرماركت المدينة') {
+                    document.getElementById('marketName').value = saved.marketName;
+                }
+            } catch (e) {}
+        }
+        function saveLabelOptions() {
+            try {
+                localStorage.setItem(LABEL_OPTIONS_KEY, JSON.stringify({
+                    toggleMarket: document.getElementById('toggleMarket').checked,
+                    toggleExpiry: document.getElementById('toggleExpiry').checked,
+                    togglePrice: document.getElementById('togglePrice').checked,
+                    toggleCategory: document.getElementById('toggleCategory').checked,
+                    toggleSize: document.getElementById('toggleSize').checked,
+                    toggleMaterial: document.getElementById('toggleMaterial').checked,
+                    togglePattern: document.getElementById('togglePattern').checked,
+                    toggleColor: document.getElementById('toggleColor').checked,
+                    toggleSeason: document.getElementById('toggleSeason').checked,
+                    toggleUnit: document.getElementById('toggleUnit').checked,
+                    toggleSkuText: document.getElementById('toggleSkuText').checked,
+                    marketName: document.getElementById('marketName').value
+                }));
+            } catch (e) {}
+        }
+
+        window.onload = function() {
+            loadLabelOptions();
+            initBarcodes();
+            updateLabels();
+        }
+
+        // Initialize barcode SVGs
+        function initBarcodes() {
+            // Clear any previous render first — re-running JsBarcode(...).init() on SVGs that
+            // already have content can leave the old displayValue text behind instead of
+            // replacing it, so the "عرض رقم الكود" checkbox looked like it did nothing.
+            document.querySelectorAll('.label-barcode').forEach(el => { el.innerHTML = ''; });
+            JsBarcode(".label-barcode").init({
+                format: "CODE128",
+                displayValue: showSkuText,
+                fontSize: 13,
+                font: "Arial",
+                fontOptions: "bold",
+                height: 40,
+                margin: 0,
+                textMargin: 2
+            });
+        }
+
+        // Toggle SKU text display on bars
+        function updateBarcodesText() {
+            showSkuText = document.getElementById('toggleSkuText').checked;
+            initBarcodes();
+            saveLabelOptions();
+        }
+
+        // Update labels visibility and text values dynamically from inputs
+        function updateLabels() {
+            // Market Name
+            const showMarket = document.getElementById('toggleMarket').checked;
+            const marketName = document.getElementById('marketName').value.trim();
+            const marketEls  = document.querySelectorAll('.label-market');
+            marketEls.forEach(el => {
+                el.textContent = marketName;
+                if (showMarket) el.classList.remove('hidden');
+                else el.classList.add('hidden');
+            });
+
+            // Expiry Info
+            const showExpiry = document.getElementById('toggleExpiry').checked;
+            const expiryEls  = document.querySelectorAll('.label-expiry');
+            expiryEls.forEach(el => {
+                // If there's text inside
+                if (el.textContent.trim().length > 0) {
+                    if (showExpiry) el.classList.remove('hidden');
+                    else el.classList.add('hidden');
+                } else {
+                    el.classList.add('hidden');
+                }
+            });
+
+            // Price Details
+            const showPrice = document.getElementById('togglePrice').checked;
+            const priceEls  = document.querySelectorAll('.label-price');
+            priceEls.forEach(el => {
+                if (showPrice) el.classList.remove('hidden');
+                else el.classList.add('hidden');
+            });
+
+            // Category Details
+            const showCategory = document.getElementById('toggleCategory').checked;
+            const categoryEls  = document.querySelectorAll('.label-category');
+            categoryEls.forEach(el => {
+                if (showCategory) el.classList.remove('hidden');
+                else el.classList.add('hidden');
+            });
+
+            // Unit of Measure
+            const showUnit = document.getElementById('toggleUnit').checked;
+            const unitEls  = document.querySelectorAll('.label-unit');
+            unitEls.forEach(el => {
+                if (showUnit) el.classList.remove('hidden');
+                else el.classList.add('hidden');
+            });
+
+            // Size (only meaningful if the product actually has size(s) set)
+            const showSize = document.getElementById('toggleSize').checked;
+            const sizeEls  = document.querySelectorAll('.label-size');
+            sizeEls.forEach(el => {
+                if (showSize && el.textContent.trim().length > 0) el.classList.remove('hidden');
+                else el.classList.add('hidden');
+            });
+
+            // Clothes fields: material / pattern / color / season — each only shown
+            // if its toggle is on AND the product actually has that field set.
+            const clothesFieldToggles = [
+                ['toggleMaterial', '.label-material'],
+                ['togglePattern', '.label-pattern'],
+                ['toggleColor', '.label-color'],
+                ['toggleSeason', '.label-season'],
+            ];
+            clothesFieldToggles.forEach(([toggleId, selector]) => {
+                const show = document.getElementById(toggleId).checked;
+                document.querySelectorAll(selector).forEach(el => {
+                    if (show && el.textContent.trim().length > 0) el.classList.remove('hidden');
+                    else el.classList.add('hidden');
+                });
+            });
+
+            saveLabelOptions();
+        }
+    </script>
+</body>
+</html>

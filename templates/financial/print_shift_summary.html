@@ -1,0 +1,429 @@
+{% load humanize %}
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>ملخص الشيفت #{{ shift.id }}</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', 'Tahoma', 'Geneva', Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            background: #f9f9f9;
+            color: #333;
+        }
+        
+        /* Thermal Layout (Adjusted for 72mm printer) */
+        .thermal-container {
+            width: 70mm; /* Slightly less than 72mm to ensure margins fit */
+            margin: 0 auto;
+            padding: 5px;
+            background: #fff;
+        }
+        
+        /* A4 Layout - Professional Report Style */
+        .a4-container {
+            width: 210mm;
+            min-height: 297mm;
+            margin: 20px auto;
+            padding: 40px;
+            background: #fff;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            box-sizing: border-box;
+        }
+
+        /* Common Utility Classes */
+        .text-center { text-align: center; }
+        .text-right { text-align: right; }
+        .text-left { text-align: left; }
+        .font-bold { font-weight: bold; }
+        .mb-4 { margin-bottom: 1rem; }
+        .mt-4 { margin-top: 1rem; }
+        
+        /* Header Styling */
+        .header {
+            border-bottom: 2px solid #333;
+            padding-bottom: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .a4-container .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 3px double #444;
+        }
+
+        .a4-container .header-title h2 {
+            margin: 0;
+            font-size: 24px;
+            color: #2c3e50;
+        }
+
+        .a4-container .header-info p {
+            margin: 2px 0;
+            font-size: 14px;
+        }
+
+        /* Thermal Header */
+        .thermal-container .header {
+            text-align: center;
+            border-bottom: 1px dashed #000;
+        }
+        .thermal-container h3 { margin: 5px 0; font-size: 16px; }
+        .thermal-container p { margin: 2px 0; font-size: 12px; }
+
+        /* Section Titles */
+        h4 {
+            background-color: #f2f2f2;
+            padding: 8px;
+            border-right: 4px solid #2c3e50;
+            margin-top: 20px;
+            margin-bottom: 10px;
+            font-size: 16px;
+        }
+        .thermal-container h4 {
+            background: none;
+            border: none;
+            border-bottom: 1px solid #000;
+            padding: 2px 0;
+            font-size: 14px;
+            margin-top: 10px;
+        }
+
+        /* Tables */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 15px;
+        }
+        
+        /* A4 Table Styling */
+        .a4-container table th {
+            background-color: #f8f9fa;
+            color: #495057;
+            font-weight: 600;
+            padding: 10px;
+            border-bottom: 2px solid #dee2e6;
+            text-align: right;
+            font-size: 14px;
+        }
+        .a4-container table td {
+            padding: 10px;
+            border-bottom: 1px solid #dee2e6;
+            font-size: 14px;
+        }
+        .a4-container table tr:last-child td {
+            border-bottom: none;
+        }
+
+        /* Thermal Table Styling */
+        .thermal-container table { font-size: 11px; }
+        .thermal-container th {
+            border-bottom: 1px solid #000;
+            padding: 2px 0;
+            text-align: right;
+        }
+        .thermal-container td {
+            border-bottom: 1px dotted #ccc;
+            padding: 2px 0;
+            text-align: right;
+        }
+
+        /* Totals Section */
+        .totals-box {
+            background-color: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 5px;
+            padding: 15px;
+            margin-top: 10px;
+        }
+        .thermal-container .totals-box {
+            background: none;
+            border: none;
+            padding: 5px 0;
+            border-top: 1px dashed #000;
+        }
+
+        .total-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+            font-size: 14px;
+        }
+        .thermal-container .total-row {
+            font-size: 12px;
+            margin-bottom: 2px;
+            font-weight: bold;
+        }
+        
+        .a4-container .grand-total {
+            font-size: 18px;
+            font-weight: bold;
+            border-top: 2px solid #333;
+            padding-top: 10px;
+            margin-top: 10px;
+        }
+
+        /* Footer / Signatures */
+        .signatures {
+            margin-top: 50px;
+            display: flex;
+            justify-content: space-around;
+        }
+        .signature-box {
+            text-align: center;
+            width: 40%;
+            border-top: 1px solid #333;
+            padding-top: 10px;
+            font-size: 14px;
+        }
+        
+        .thermal-container .signatures {
+            margin-top: 20px;
+            display: block;
+        }
+        .thermal-container .signature-box {
+            width: 100%;
+            border: none;
+            margin-bottom: 15px;
+            font-size: 11px;
+        }
+
+        /* Print Media Queries */
+        @media print {
+            .no-print { display: none !important; }
+            body { background: none; }
+            .a4-container {
+                width: 100%;
+                max-width: none;
+                margin: 0;
+                padding: 10mm; /* Standard print margin */
+                box-shadow: none;
+                min-height: auto;
+            }
+            .thermal-container {
+                width: 100%;
+                margin: 0;
+                padding: 0;
+            }
+            @page {
+                size: auto;
+                margin: 5mm; /* Small margin for printers */
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="no-print" style="text-align: center; padding: 15px; background: #2c3e50; color: white; margin-bottom: 20px;">
+        <div style="margin-bottom: 10px; font-size: 18px;">معاينة الطباعة: {% if style == 'a4' %}تقرير A4{% else %}إيصال حراري (72mm){% endif %}</div>
+        <button onclick="window.print()" style="padding: 10px 25px; font-size: 16px; cursor: pointer; background: #27ae60; color: white; border: none; border-radius: 4px; margin: 0 5px;">
+            <i class="fas fa-print"></i> طباعة
+        </button>
+        <button onclick="window.close(); setTimeout(function(){ if (window.history.length > 1) window.history.back(); }, 50)" style="padding: 10px 25px; font-size: 16px; cursor: pointer; background: #e74c3c; color: white; border: none; border-radius: 4px; margin: 0 5px;">
+            إغلاق
+        </button>
+    </div>
+
+    <div class="{% if style == 'a4' %}a4-container{% else %}thermal-container{% endif %}">
+        
+        <div class="header">
+            {% if style == 'a4' %}
+                <div class="header-title">
+                    <h2>تقرير إغلاق الشيفت اليومي</h2>
+                    <p style="color: #7f8c8d;">نظام إدارة المبيعات</p>
+                </div>
+                <div class="header-info text-left">
+                    <p><strong>رقم الشيفت:</strong> #{{ shift.id }}</p>
+                    <p><strong>التاريخ:</strong> {{ shift.start_time|date:"Y-m-d" }}</p>
+                    <p><strong>الموظف:</strong> {{ shift.employee.username }}</p>
+                </div>
+            {% else %}
+                <h3>ملخص شيفت يومي</h3>
+                <p>شيفت رقم: <strong>{{ shift.id }}</strong></p>
+                <p>الموظف: {{ shift.employee.username }}</p>
+                <p>التاريخ: {{ shift.start_time|date:"Y-m-d" }}</p>
+                <p>من: {{ shift.start_time|date:"H:i" }} إلى: {% if shift.end_time %}{{ shift.end_time|date:"H:i" }}{% else %}الآن{% endif %}</p>
+            {% endif %}
+        </div>
+
+        <h4>1. ملخص المبيعات (الفواتير)</h4>
+        <table class="items-table">
+            <thead>
+                <tr>
+                    <th style="width: 15%;">رقم الفاتورة</th>
+                    {% if style == 'a4' %}<th>العميل</th>{% endif %}
+                    <th style="width: 25%;">طريقة الدفع</th>
+                    <th style="width: 20%;">الإجمالي</th>
+                    <th style="width: 20%;">المدفوع</th>
+                    <th style="width: 20%;">المتبقي</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for order in orders %}
+                <tr>
+                    <td>#{{ order.id }}</td>
+                    {% if style == 'a4' %}<td>{{ order.customer.first_name }} {{ order.customer.last_name }}</td>{% endif %}
+                    <td style="font-size: 0.9em; color: #555;">{{ order.payment_details_display }}</td>
+                    <td>{{ order.total_amount|intcomma }}</td>
+                    <td>{{ order.received_amount|intcomma }}</td>
+                    <td>{{ order.remaining_amount|intcomma }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        
+        <div class="totals-box">
+            <div class="total-row">
+                <span>إجمالي المبيعات:</span>
+                <span>{{ total_sales_amount|intcomma }}</span>
+            </div>
+            <div class="total-row">
+                <span>إجمالي التحصيل:</span>
+                <span>{{ total_collected|intcomma }}</span>
+            </div>
+            <div class="total-row" style="font-size: 0.9em; padding-right: 20px; color: #555;">
+                <span>↳ نقدي (كاش):</span>
+                <span>{{ total_collected_cash|intcomma }}</span>
+            </div>
+            {% if total_collected_wallet > 0 %}
+            <div class="total-row" style="font-size: 0.9em; padding-right: 20px; color: #555;">
+                <span>↳ فودافون كاش/محفظة:</span>
+                <span>{{ total_collected_wallet|intcomma }}</span>
+            </div>
+            {% endif %}
+            {% if total_collected_instapay > 0 %}
+            <div class="total-row" style="font-size: 0.9em; padding-right: 20px; color: #555;">
+                <span>↳ إنستا باي (InstaPay):</span>
+                <span>{{ total_collected_instapay|intcomma }}</span>
+            </div>
+            {% endif %}
+            {% if total_collected_visa > 0 %}
+            <div class="total-row" style="font-size: 0.9em; padding-right: 20px; color: #555;">
+                <span>↳ فيزا (Visa):</span>
+                <span>{{ total_collected_visa|intcomma }}</span>
+            </div>
+            {% endif %}
+            <div class="total-row" style="color: {% if style == 'a4' %}#c0392b{% else %}#000{% endif %};">
+                <span>مبيعات آجلة (لم تحصل):</span>
+                <span>{{ total_deferred|intcomma }}</span>
+            </div>
+        </div>
+
+        {% if style == 'a4' %}<div style="margin-bottom: 30px;"></div>{% else %}<hr style="border-style: dashed; margin: 10px 0;">{% endif %}
+
+        <h4>2. تفاصيل المصروفات</h4>
+        <table class="items-table">
+            <thead>
+                <tr>
+                    <th style="width: 70%;">بيان المصروف</th>
+                    <th style="width: 30%;">القيمة</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for expense in expenses %}
+                <tr>
+                    <td>{{ expense.description }}</td>
+                    <td>{{ expense.amount|intcomma }}</td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="2" class="text-center">لا يوجد مصروفات مسجلة في هذا الشيفت</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <div class="total-row font-bold text-right" style="padding: 5px;">
+            <span>إجمالي المصروفات: {{ total_expenses|intcomma }}</span>
+        </div>
+
+        {% if style == 'a4' %}<div style="margin-bottom: 30px;"></div>{% else %}<hr style="border-style: dashed; margin: 10px 0;">{% endif %}
+
+        <h4>3. المسحوبات والمرتجعات</h4>
+        <table class="items-table">
+            <thead>
+                <tr>
+                    <th style="width: 70%;">البيان</th>
+                    <th style="width: 30%;">القيمة</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for w in withdrawals %}
+                <tr>
+                    <td>{{ w.description }}</td>
+                    <td>{{ w.amount|intcomma }}</td>
+                </tr>
+                {% endfor %}
+                {% for r in refunds %}
+                <tr>
+                    <td>مرتجع: {{ r.description }}</td>
+                    <td>{{ r.amount|intcomma }}</td>
+                </tr>
+                {% endfor %}
+                {% if not withdrawals and not refunds %}
+                <tr><td colspan="2" class="text-center">لا توجد مسحوبات أو مرتجعات</td></tr>
+                {% endif %}
+            </tbody>
+        </table>
+        <div class="total-row font-bold text-right" style="padding: 5px;">
+            <span>مسحوبات: {{ total_withdrawals|intcomma }} | مرتجعات: {{ total_refunds|intcomma }}</span>
+        </div>
+
+        {% if style == 'a4' %}<div style="margin-bottom: 30px;"></div>{% else %}<hr style="border-style: dashed; margin: 10px 0;">{% endif %}
+
+        <h4>4. تصفية الخزينة (الدرج)</h4>
+        <div class="totals-box">
+            <div class="total-row">
+                <span>رصيد بداية الشيفت:</span>
+                <span>{{ shift.start_balance|intcomma }}</span>
+            </div>
+            <div class="total-row">
+                <span>(+) تحصيل نقدي (كاش):</span>
+                <span>{{ total_collected_cash|intcomma }}</span>
+            </div>
+            <div class="total-row">
+                <span>(-) إجمالي المصروفات:</span>
+                <span>{{ total_expenses|intcomma }}</span>
+            </div>
+            <div class="total-row">
+                <span>(-) المسحوبات:</span>
+                <span>{{ total_withdrawals|intcomma }}</span>
+            </div>
+            <div class="total-row">
+                <span>(-) المرتجعات:</span>
+                <span>{{ total_refunds|intcomma }}</span>
+            </div>
+            
+            {% if style == 'a4' %}<hr style="margin: 15px 0; border-color: #ddd;">{% else %}<hr style="border-style: solid; border-width: 1px;">{% endif %}
+            
+            <div class="total-row grand-total">
+                <span>الرصيد المتوقع في الدرج:</span>
+                <span>{{ shift.expected_closing_balance|intcomma }} ج.م</span>
+            </div>
+            
+            {% if shift.is_closed %}
+            <div class="total-row" style="margin-top: 10px; color: #2c3e50;">
+                <span>العد الفعلي (عند الإغلاق):</span>
+                <span>{{ shift.actual_closing_balance|intcomma }} ج.م</span>
+            </div>
+            <div class="total-row" style="font-weight: bold; color: {% if shift.difference < 0 %}#c0392b{% else %}#27ae60{% endif %};">
+                <span>الفرق (عجز / زيادة):</span>
+                <span>{{ shift.difference|intcomma }} ج.م</span>
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="signatures">
+            <div class="signature-box">
+                <p>توقيع المستلم (الكاشير)</p>
+                {% if style == 'thermal' %}<br>..........................{% else %}<br><br>...........................................{% endif %}
+            </div>
+            <div class="signature-box">
+                <p>توقيع المدير / المحاسب</p>
+                {% if style == 'thermal' %}<br>..........................{% else %}<br><br>...........................................{% endif %}
+            </div>
+        </div>
+
+    </div>
+
+</body>
+</html>

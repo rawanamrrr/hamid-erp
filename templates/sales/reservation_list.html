@@ -1,0 +1,63 @@
+{% extends 'base.html' %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+<div class="max-w-6xl mx-auto py-6 px-4 font-arabic" dir="rtl">
+
+    <div class="flex flex-wrap items-center justify-between gap-3 mb-6">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-2xl bg-sky-50 flex items-center justify-center">
+                <i class="fas fa-calendar-check text-sky-500"></i>
+            </div>
+            <div>
+                <h1 class="text-xl font-black text-gray-900 leading-none">الحجوزات</h1>
+                <p class="text-xs text-gray-400 mt-0.5">حجز بضاعة للعملاء مع عربون — تُحوَّل لفاتورة لاحقاً</p>
+            </div>
+        </div>
+        <div class="flex items-center gap-1.5 text-xs font-bold">
+            <a href="{% url 'reservation_list' %}" class="px-3 py-1.5 rounded-lg {% if not status %}bg-slate-800 text-white{% else %}bg-gray-100 text-gray-600 hover:bg-gray-200{% endif %}">الكل</a>
+            <a href="?status=OPEN" class="px-3 py-1.5 rounded-lg {% if status == 'OPEN' %}bg-sky-600 text-white{% else %}bg-gray-100 text-gray-600 hover:bg-gray-200{% endif %}">محجوز</a>
+            <a href="?status=CONVERTED" class="px-3 py-1.5 rounded-lg {% if status == 'CONVERTED' %}bg-green-600 text-white{% else %}bg-gray-100 text-gray-600 hover:bg-gray-200{% endif %}">محوّل</a>
+            <a href="?status=CANCELLED" class="px-3 py-1.5 rounded-lg {% if status == 'CANCELLED' %}bg-red-500 text-white{% else %}bg-gray-100 text-gray-600 hover:bg-gray-200{% endif %}">ملغي</a>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full text-right text-sm">
+                <thead class="bg-gray-50 text-gray-500 text-[11px] uppercase">
+                    <tr>
+                        <th class="px-3 py-3">رقم الحجز</th>
+                        <th class="px-3 py-3">العميل</th>
+                        <th class="px-3 py-3 hidden sm:table-cell">المخزن</th>
+                        <th class="px-3 py-3">الإجمالي</th>
+                        <th class="px-3 py-3">العربون</th>
+                        <th class="px-3 py-3">الحالة</th>
+                        <th class="px-3 py-3 hidden md:table-cell">التاريخ</th>
+                        <th class="px-3 py-3">الإجراء</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                    {% for r in reservations %}
+                    <tr class="hover:bg-gray-50 transition">
+                        <td class="px-3 py-3 font-mono font-bold whitespace-nowrap">{{ r.display_number }}</td>
+                        <td class="px-3 py-3 font-bold text-gray-800">{{ r.customer.first_name }} {{ r.customer.last_name }}</td>
+                        <td class="px-3 py-3 text-gray-600 hidden sm:table-cell">{{ r.warehouse.name }}</td>
+                        <td class="px-3 py-3 font-bold dir-ltr text-right">{{ r.total_amount|floatformat:2 }}</td>
+                        <td class="px-3 py-3 text-sky-600 font-bold dir-ltr text-right">{{ r.deposit_amount|floatformat:2 }}</td>
+                        <td class="px-3 py-3">
+                            {% if r.status == 'OPEN' %}<span class="bg-sky-50 text-sky-700 px-2 py-1 rounded text-[11px] font-bold">محجوز</span>
+                            {% elif r.status == 'CONVERTED' %}<span class="bg-green-50 text-green-700 px-2 py-1 rounded text-[11px] font-bold">محوّل</span>
+                            {% else %}<span class="bg-red-50 text-red-600 px-2 py-1 rounded text-[11px] font-bold">ملغي</span>{% endif %}
+                        </td>
+                        <td class="px-3 py-3 text-gray-500 whitespace-nowrap hidden md:table-cell">{{ r.created_at|date:"Y-m-d" }}</td>
+                        <td class="px-3 py-3"><a href="{% url 'reservation_detail' r.pk %}" class="text-teal-600 hover:text-teal-800 hover:underline font-bold">عرض</a></td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="8" class="px-6 py-10 text-center text-gray-400">لا توجد حجوزات.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

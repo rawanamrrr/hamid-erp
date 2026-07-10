@@ -1,0 +1,24 @@
+{% load humanize %}
+<div class="bg-white rounded-xl border overflow-hidden">
+    <div class="px-5 py-3 font-black flex justify-between
+        {% if color == 'red' %}bg-red-600 text-white{% elif color == 'orange' %}bg-orange-500 text-white{% elif color == 'yellow' %}bg-yellow-400 text-gray-800{% else %}bg-blue-500 text-white{% endif %}">
+        <span>{{ title }}</span><span class="text-sm">{{ rows|length }} دفعة</span>
+    </div>
+    {% if rows %}
+    <table class="w-full text-sm">
+        <thead class="bg-gray-50 text-gray-500 text-xs"><tr>
+            <th class="py-2 px-4 text-right">الصنف</th><th class="py-2 px-4 text-right">المخزن</th>
+            <th class="py-2 px-4 text-left">الكمية</th><th class="py-2 px-4 text-left">تاريخ الانتهاء</th><th class="py-2 px-4 text-left">المتبقي</th>
+        </tr></thead>
+        <tbody class="divide-y">
+            {% for r in rows %}
+            <tr class="hover:bg-gray-50"><td class="py-2 px-4 font-bold text-gray-700">{{ r.b.product.name }}</td>
+                <td class="py-2 px-4 text-xs text-gray-500">{{ r.b.warehouse.name|default:'—' }}</td>
+                <td class="py-2 px-4 text-left dir-ltr">{{ r.b.current_quantity|floatformat:2 }}</td>
+                <td class="py-2 px-4 text-left dir-ltr">{{ r.b.expiry_date|date:"Y-m-d" }}</td>
+                <td class="py-2 px-4 text-left dir-ltr font-bold {% if r.days < 0 %}text-red-600{% endif %}">{% if r.days < 0 %}منتهٍ{% else %}{{ r.days }} يوم{% endif %}</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}<div class="py-4 text-center text-gray-400 text-sm">لا يوجد</div>{% endif %}
+</div>

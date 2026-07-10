@@ -1,0 +1,37 @@
+{% extends 'base.html' %}
+{% block title %}ريبورت مبيعات الأصناف{% endblock %}
+{% block content %}
+<div class="p-4">
+    <div class="flex items-center justify-between mb-4">
+        <h1 class="text-2xl font-bold">أفضل الأصناف مبيعاً{% if branch %} — {{ branch.name }}{% endif %}</h1>
+        <div class="flex gap-2 text-sm">
+            <a href="?period=today" class="px-3 py-2 rounded-lg border {% if period == 'today' %}bg-emerald-600 text-white{% endif %}">اليوم</a>
+            <a href="?period=week" class="px-3 py-2 rounded-lg border {% if period == 'week' %}bg-emerald-600 text-white{% endif %}">آخر أسبوع</a>
+            <a href="?period=month" class="px-3 py-2 rounded-lg border {% if period == 'month' %}bg-emerald-600 text-white{% endif %}">آخر شهر</a>
+            <a href="?period=all" class="px-3 py-2 rounded-lg border {% if period == 'all' %}bg-emerald-600 text-white{% endif %}">كل الفترة</a>
+        </div>
+    </div>
+    <table class="w-full bg-white rounded-xl border overflow-hidden">
+        <thead class="bg-gray-50 text-sm text-gray-600">
+            <tr>
+                <th class="p-3 text-right">#</th>
+                <th class="p-3 text-right">الصنف</th>
+                <th class="p-3 text-right">الكمية المباعة</th>
+                <th class="p-3 text-right">إجمالي المبيعات</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for r in rows %}
+            <tr class="border-t text-sm">
+                <td class="p-3 text-gray-400">{{ forloop.counter }}</td>
+                <td class="p-3">{{ r.product.name }}</td>
+                <td class="p-3">{{ r.quantity }}</td>
+                <td class="p-3 font-bold">{{ r.revenue }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="4" class="p-4 text-center text-gray-500">لا توجد بيانات مبيعات في هذه الفترة.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

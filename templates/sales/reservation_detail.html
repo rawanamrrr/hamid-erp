@@ -1,0 +1,73 @@
+{% extends 'base.html' %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+<div class="max-w-3xl mx-auto py-6 px-4 font-arabic" dir="rtl">
+
+    <!-- Header -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-5 mb-5 flex flex-wrap gap-4 justify-between items-start">
+        <div>
+            <div class="flex items-center gap-2">
+                <h1 class="text-2xl font-black text-gray-900">حجز {{ res.display_number }}</h1>
+                {% if res.status == 'OPEN' %}<span class="bg-sky-50 text-sky-700 px-2.5 py-1 rounded-full text-xs font-black">محجوز</span>
+                {% elif res.status == 'CONVERTED' %}<span class="bg-green-50 text-green-700 px-2.5 py-1 rounded-full text-xs font-black">تم التحويل</span>
+                {% else %}<span class="bg-red-50 text-red-600 px-2.5 py-1 rounded-full text-xs font-black">ملغي</span>{% endif %}
+            </div>
+            <div class="text-sm text-gray-500 mt-1">
+                العميل: <b class="text-gray-800">{{ res.customer.first_name }} {{ res.customer.last_name }}</b>
+                · المخزن: {{ res.warehouse.name }} · {{ res.created_at|date:"Y-m-d H:i" }}
+            </div>
+            {% if res.converted_order %}
+            <div class="text-xs text-green-600 mt-1">→ الفاتورة الناتجة:
+                <a href="{% url 'order_invoice' res.converted_order.id %}" class="underline font-bold">{{ res.converted_order.display_number }}</a>
+            </div>
+            {% endif %}
+        </div>
+        <div class="text-left">
+            <div class="text-xs text-gray-400">الإجمالي</div>
+            <div class="text-2xl font-black text-gray-900 dir-ltr">{{ res.total_amount|floatformat:2 }} <span class="text-sm text-gray-400">ج.م</span></div>
+            <div class="text-xs text-sky-600 font-bold mt-0.5">العربون: {{ res.deposit_amount|floatformat:2 }}</div>
+        </div>
+    </div>
+
+    <!-- Items -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mb-5">
+        <div class="p-4 border-b border-gray-100 bg-gray-50"><h3 class="font-bold text-gray-800">الأصناف المحجوزة</h3></div>
+        <table class="w-full text-right text-sm">
+            <thead class="bg-gray-50 text-gray-500 text-[11px] uppercase">
+                <tr><th class="px-4 py-2.5">الصنف</th><th class="px-4 py-2.5">الكمية</th><th class="px-4 py-2.5">سعر الوحدة</th><th class="px-4 py-2.5">الإجمالي</th></tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+                {% for it in items %}
+                <tr>
+                    <td class="px-4 py-3 font-bold text-gray-800">{{ it.product.name }}</td>
+                    <td class="px-4 py-3 dir-ltr text-right">{{ it.quantity|floatformat:2 }}</td>
+                    <td class="px-4 py-3 dir-ltr text-right">{{ it.unit_price|floatformat:2 }}</td>
+                    <td class="px-4 py-3 font-bold dir-ltr text-right">{{ it.line_total|floatformat:2 }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Actions -->
+    <div class="flex flex-wrap gap-2 justify-end">
+        <a href="{% url 'reservation_list' %}" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 text-sm font-bold">القائمة</a>
+        {% if res.status == 'OPEN' %}
+        <a href="{% url 'pos_view' %}?customer_id={{ res.customer.id }}&reservation={{ res.id }}"
+           class="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-sm font-black flex items-center gap-1.5">
+            <i class="fas fa-cash-register text-xs"></i> تحويل إلى فاتورة
+        </a>
+        <button onclick="cancelReservation()" class="px-4 py-2 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg text-sm font-black">إلغاء الحجز</button>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+function cancelReservation() {
+    if (!confirm('إلغاء هذا الحجز؟ سيتم تحرير البضاعة المحجوزة.')) return;
+    fetch('{% url "cancel_reservation" res.pk %}', {
+        method: 'POST', headers: { 'X-CSRFToken': '{{ csrf_token }}' }
+    }).then(r => r.json()).then(() => location.reload());
+}
+</script>
+{% endblock %}

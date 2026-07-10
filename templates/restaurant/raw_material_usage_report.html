@@ -1,0 +1,58 @@
+{% extends 'base.html' %}
+{% block title %}تقرير استهلاك المواد الخام{% endblock %}
+{% block content %}
+<div class="p-4">
+    <div class="flex items-center justify-between mb-4">
+        <h1 class="text-2xl font-bold">استهلاك المواد الخام</h1>
+        <div class="flex gap-2 text-sm">
+            <a href="?period=today" class="px-3 py-2 rounded-lg border {% if period == 'today' %}bg-emerald-600 text-white{% endif %}">اليوم</a>
+            <a href="?period=week" class="px-3 py-2 rounded-lg border {% if period == 'week' %}bg-emerald-600 text-white{% endif %}">آخر أسبوع</a>
+            <a href="?period=month" class="px-3 py-2 rounded-lg border {% if period == 'month' %}bg-emerald-600 text-white{% endif %}">آخر شهر</a>
+            <a href="?period=all" class="px-3 py-2 rounded-lg border {% if period == 'all' %}bg-emerald-600 text-white{% endif %}">كل الفترة</a>
+        </div>
+    </div>
+
+    <div class="bg-gray-50 border rounded-xl p-4 mb-4 text-sm text-gray-600">
+        "المستهلك عبر الوصفات" = الكمية اللي اتخصمت من المادة الخام دي لأنها دخلت في تحضير
+        أصناف منيو ليها وصفة (Recipe) مفعّلة — مش شامل الشراء أو التسويات اليدوية.
+        "المتبقي بالمخزون" = الرصيد الحالي الفعلي.
+    </div>
+
+    <table class="w-full bg-white rounded-xl border overflow-hidden">
+        <thead class="bg-gray-50 text-sm text-gray-600">
+            <tr>
+                <th class="p-3 text-right">المادة الخام</th>
+                <th class="p-3 text-right">الوحدة</th>
+                <th class="p-3 text-right">المستهلك عبر الوصفات</th>
+                <th class="p-3 text-right">المتبقي بالمخزون</th>
+                <th class="p-3 text-right">تُستخدم في</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for r in rows %}
+            <tr class="border-t text-sm align-top">
+                <td class="p-3 font-semibold">{{ r.material.name }}</td>
+                <td class="p-3 text-gray-500">{{ r.material.get_unit_measure_display }}</td>
+                <td class="p-3">{{ r.consumed|floatformat:3 }}</td>
+                <td class="p-3 {% if r.remaining <= 0 %}text-red-600 font-bold{% elif r.material.is_low_stock %}text-amber-600 font-bold{% endif %}">
+                    {{ r.remaining|floatformat:3 }}
+                </td>
+                <td class="p-3">
+                    {% if r.used_in %}
+                    <ul class="space-y-0.5">
+                        {% for u in r.used_in %}
+                        <li class="text-xs text-gray-600">{{ u.product_name }} — {{ u.quantity|floatformat:3 }} {{ u.unit }}</li>
+                        {% endfor %}
+                    </ul>
+                    {% else %}
+                    <span class="text-xs text-gray-400">لا تُستخدم في أي وصفة مفعّلة حالياً</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="5" class="p-4 text-center text-gray-500">لا توجد مواد خام مضافة بعد.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

@@ -1,0 +1,60 @@
+{% extends 'base.html' %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+<div class="max-w-6xl mx-auto space-y-5">
+    <div class="flex items-center justify-between">
+        <h1 class="text-2xl font-black text-gray-800">سجل النشاط (التدقيق)</h1>
+        <span class="text-sm text-gray-400">{{ total }} عملية</span>
+    </div>
+
+    <form method="get" class="flex flex-wrap items-end gap-3 bg-white p-4 rounded-xl border">
+        <div><label class="block text-xs font-bold text-gray-500 mb-1">بحث</label><input name="q" value="{{ q }}" placeholder="وصف / مستخدم" class="p-2 border rounded-lg"></div>
+        <div><label class="block text-xs font-bold text-gray-500 mb-1">النوع</label>
+            <select name="action" class="p-2 border rounded-lg"><option value="">الكل</option>
+                {% for val,label in action_choices %}<option value="{{ val }}" {% if action == val %}selected{% endif %}>{{ label }}</option>{% endfor %}
+            </select></div>
+        <div><label class="block text-xs font-bold text-gray-500 mb-1">الموديول</label>
+            <select name="module" class="p-2 border rounded-lg"><option value="">الكل</option>
+                {% for m in modules %}<option value="{{ m }}" {% if module == m %}selected{% endif %}>{{ m }}</option>{% endfor %}
+            </select></div>
+        <div><label class="block text-xs font-bold text-gray-500 mb-1">المستخدم</label>
+            <select name="user" class="p-2 border rounded-lg"><option value="">الكل</option>
+                {% for u in users %}<option value="{{ u.id }}" {% if user_id == u.id|stringformat:'s' %}selected{% endif %}>{{ u.username }}</option>{% endfor %}
+            </select></div>
+        <div><label class="block text-xs font-bold text-gray-500 mb-1">من</label><input type="date" name="date_from" value="{{ date_from }}" class="p-2 border rounded-lg"></div>
+        <div><label class="block text-xs font-bold text-gray-500 mb-1">إلى</label><input type="date" name="date_to" value="{{ date_to }}" class="p-2 border rounded-lg"></div>
+        <button class="px-4 py-2 bg-indigo-600 text-white rounded-lg font-bold">تصفية</button>
+        {% if q or action or module or user_id or date_from or date_to %}<a href="{% url 'audit_log' %}" class="px-4 py-2 bg-gray-100 rounded-lg font-bold">مسح</a>{% endif %}
+    </form>
+
+    <div class="bg-white rounded-xl border overflow-hidden">
+        <table class="w-full text-sm">
+            <thead class="bg-gray-50 text-gray-500 text-xs"><tr>
+                <th class="py-3 px-4 text-right">الوقت</th><th class="py-3 px-4 text-right">المستخدم</th>
+                <th class="py-3 px-4 text-right">النوع</th><th class="py-3 px-4 text-right">الموديول</th>
+                <th class="py-3 px-4 text-right">الوصف</th><th class="py-3 px-4 text-right">IP</th>
+            </tr></thead>
+            <tbody class="divide-y">
+                {% for log in page_obj %}
+                <tr class="hover:bg-gray-50">
+                    <td class="py-2 px-4 text-gray-500 whitespace-nowrap">{{ log.timestamp|date:"Y-m-d H:i" }}</td>
+                    <td class="py-2 px-4 font-bold">{{ log.user.username|default:'—' }}</td>
+                    <td class="py-2 px-4"><span class="px-2 py-0.5 rounded text-xs font-bold {% if log.action_type == 'DELETE' %}bg-red-100 text-red-700{% elif log.action_type == 'CREATE' %}bg-green-100 text-green-700{% elif log.action_type == 'UPDATE' %}bg-amber-100 text-amber-700{% else %}bg-gray-100 text-gray-600{% endif %}">{{ log.get_action_type_display }}</span></td>
+                    <td class="py-2 px-4 text-xs text-gray-500">{{ log.module }}</td>
+                    <td class="py-2 px-4 text-gray-700">{{ log.description|truncatechars:80 }}</td>
+                    <td class="py-2 px-4 text-xs text-gray-400 dir-ltr">{{ log.ip_address|default:'' }}</td>
+                </tr>
+                {% empty %}<tr><td colspan="6" class="py-8 text-center text-gray-400">لا توجد عمليات مطابقة</td></tr>{% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if page_obj.has_other_pages %}
+    <div class="flex items-center justify-center gap-2 text-sm">
+        {% if page_obj.has_previous %}<a href="?{% if q %}q={{ q }}&{% endif %}{% if action %}action={{ action }}&{% endif %}page={{ page_obj.previous_page_number }}" class="px-3 py-1.5 bg-white border rounded-lg font-bold">السابق</a>{% endif %}
+        <span class="text-gray-500">صفحة {{ page_obj.number }} من {{ page_obj.paginator.num_pages }}</span>
+        {% if page_obj.has_next %}<a href="?{% if q %}q={{ q }}&{% endif %}{% if action %}action={{ action }}&{% endif %}page={{ page_obj.next_page_number }}" class="px-3 py-1.5 bg-white border rounded-lg font-bold">التالي</a>{% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,635 @@
+﻿{% extends 'base.html' %}
+
+{% block content %}
+<style>
+    .st-wrap {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        cursor: pointer;
+        user-select: none;
+        font-size: 12px;
+        font-weight: 700;
+    }
+
+    .st-track {
+        position: relative;
+        width: 36px;
+        height: 20px;
+        background: #d1d5db;
+        border-radius: 999px;
+        transition: background .25s;
+        flex-shrink: 0;
+    }
+
+    .st-track.active {
+        background: #f59e0b;
+    }
+
+    .st-thumb {
+        position: absolute;
+        top: 2px;
+        left: 2px;
+        width: 16px;
+        height: 16px;
+        background: #fff;
+        border-radius: 50%;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, .2);
+        transition: transform .25s;
+    }
+
+    .st-track.active .st-thumb {
+        transform: translateX(16px);
+    }
+</style>
+<div class="max-w-5xl mx-auto">
+
+    <!-- Header with Back Button -->
+    <div class="flex items-center justify-between mb-6">
+        <div class="flex items-center gap-3">
+            <a href="{% url 'product_list' %}"
+                class="p-2 text-gray-500 bg-white rounded-lg hover:bg-gray-100 border border-gray-200 shadow-sm transition">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3">
+                    </path>
+                </svg>
+            </a>
+            <h2 class="text-2xl font-bold text-gray-800">تفاصيل المنتج</h2>
+        </div>
+
+        <div class="flex gap-2 flex-wrap">
+            <!-- Download Report Dropdown -->
+            <div class="relative" id="report-dropdown">
+                <button onclick="document.getElementById('report-menu').classList.toggle('hidden')" type="button"
+                    class="flex items-center px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition shadow-sm">
+                    <svg class="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                    </svg>
+                    تقرير المنتج
+                    <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                </button>
+                <div id="report-menu" class="hidden absolute left-0 mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-50 overflow-hidden">
+                    <a href="{% url 'product_report_pdf' product.pk %}"
+
+                        class="flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition">
+                        <svg class="w-4 h-4 text-red-500" fill="currentColor" viewBox="0 0 20 20"><path d="M4 18h12a2 2 0 002-2V6l-4-4H4a2 2 0 00-2 2v12a2 2 0 002 2zm1-6h2v3H5v-3zm4 0h2v3H9v-3zm4 0h2v3h-2v-3z"/></svg>
+                        تقرير PDF
+                    </a>
+                    <a href="{% url 'product_report_excel' product.pk %}"
+                        class="flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition border-t border-gray-100">
+                        <svg class="w-4 h-4 text-green-600" fill="currentColor" viewBox="0 0 20 20"><path d="M4 18h12a2 2 0 002-2V6l-4-4H4a2 2 0 00-2 2v12a2 2 0 002 2zm2-7h8v1H6v-1zm0 2h8v1H6v-1zm0 2h5v1H6v-1z"/></svg>
+                        تقرير Excel
+                    </a>
+                </div>
+            </div>
+            <a href="{% url 'item_movement_card' product.pk %}"
+                class="flex items-center px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition shadow-sm">
+                <i class="fas fa-right-left ml-2"></i>
+                حركة الصنف
+            </a>
+            <a href="{% url 'restaurant:recipe_edit' product.pk %}"
+                class="flex items-center px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition shadow-sm">
+                <i class="fas fa-flask ml-2"></i>
+                الوصفة (اختياري)
+            </a>
+            <a href="{% url 'product_update' product.pk %}"
+                class="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition shadow-sm">
+                <svg class="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z">
+                    </path>
+                </svg>
+                تعديل
+            </a>
+            <a href="{% url 'product_delete' product.pk %}"
+                class="flex items-center px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition shadow-sm">
+                <svg class="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16">
+                    </path>
+                </svg>
+                حذف
+            </a>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+        <!-- Main Info Card -->
+        <div class="lg:col-span-2 space-y-6">
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                <div class="flex justify-between items-start mb-4">
+                    <div>
+                        <span class="text-sm text-gray-500 block mb-1">الاسم</span>
+                        <h1 class="text-2xl font-bold text-gray-800">{{ product.name }}</h1>
+                    </div>
+                    <div class="bg-gray-100 px-3 py-1 rounded text-sm font-mono text-gray-600 border border-gray-200">
+                        {{ product.sku }}
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-6 mt-6 pt-6 border-t border-gray-100">
+                    <div>
+                        <span class="text-sm text-gray-500 block">القسم</span>
+                        <span class="font-medium text-gray-800">{{ product.category.name|default:"-" }}</span>
+                    </div>
+                    <div>
+                        <span class="text-sm text-gray-500 block">المورد</span>
+                        <span class="font-medium text-gray-800">{{ product.supplier.name|default:"-" }}</span>
+                    </div>
+                    <div>
+                        <span class="text-sm text-gray-500 block">الحالة</span>
+                        {% if product.is_active %}
+                        <span
+                            class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                            نشط ومتاح للبيع
+                        </span>
+                        {% else %}
+                        <span
+                            class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                            غير نشط
+                        </span>
+                        {% endif %}
+                    </div>
+                    <div>
+                        <span class="text-sm text-gray-500 block">تاريخ الإضافة</span>
+                        <span class="font-medium text-gray-800">{{ product.created_at|date:"Y-m-d" }}</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Specifications Card -->
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                <h3 class="text-lg font-semibold text-gray-800 mb-4 pb-2 border-b">
+                    {% if sys_settings.market_type == 'pharmacy' %}
+                        المواصفات الطبية
+                    {% elif sys_settings.market_type == 'grocery' %}
+                        مواصفات البقالة
+                    {% elif sys_settings.market_type == 'electronics' %}
+                        مواصفات الإلكترونيات
+                    {% else %}
+                        مواصفات المنتج
+                    {% endif %}
+                </h3>
+                <div class="grid grid-cols-3 gap-4">
+                    {% if sys_settings.market_type == 'pharmacy' %}
+                    <div class="bg-gray-50 p-3 rounded-lg col-span-2">
+                        <span class="text-xs text-gray-500 block mb-1">الاسم العلمي</span>
+                        <span class="font-semibold text-gray-700">{{ product.scientific_name|default:"-" }}</span>
+                    </div>
+                    <div class="bg-gray-50 p-3 rounded-lg">
+                        <span class="text-xs text-gray-500 block mb-1">أشرطة / علبة</span>
+                        <span class="font-semibold text-gray-700">{{ product.strips_per_box }}</span>
+                    </div>
+                    {% elif sys_settings.market_type == 'grocery' %}
+                    <div class="bg-gray-50 p-3 rounded-lg">
+                        <span class="text-xs text-gray-500 block mb-1">منتج موزون</span>
+                        <span class="font-semibold text-gray-700">
+                            {% if product.is_weighted %}
+                                <span class="text-green-600">نعم</span>
+                            {% else %}
+                                <span class="text-gray-500">لا</span>
+                            {% endif %}
+                        </span>
+                    </div>
+                    <div class="bg-gray-50 p-3 rounded-lg">
+                        <span class="text-xs text-gray-500 block mb-1">له أنواع/خيارات</span>
+                        <span class="font-semibold text-gray-700">
+                            {% if product.has_variants %}
+                                <span class="text-blue-600">نعم</span>
+                            {% else %}
+                                <span class="text-gray-500">لا</span>
+                            {% endif %}
+                        </span>
+                    </div>
+                    <div class="bg-gray-50 p-3 rounded-lg">
+                        <span class="text-xs text-gray-500 block mb-1">يحتاج تبريد</span>
+                        <span class="font-semibold text-gray-700">
+                            {% if product.requires_refrigeration %}
+                                <span class="text-cyan-600">نعم</span>
+                            {% else %}
+                                <span class="text-gray-500">لا</span>
+                            {% endif %}
+                        </span>
+                    </div>
+                    {% if product.variant_name %}
+                    <div class="bg-gray-50 p-3 rounded-lg">
+                        <span class="text-xs text-gray-500 block mb-1">اسم الخيار</span>
+                        <span class="font-semibold text-gray-700">{{ product.variant_name }}</span>
+                    </div>
+                    {% endif %}
+                    {% if product.net_weight and product.weight_unit %}
+                    <div class="bg-gray-50 p-3 rounded-lg col-span-2">
+                        <span class="text-xs text-gray-500 block mb-1">الوزن/الحجم الصافي</span>
+                        <span class="font-semibold text-gray-700">{{ product.net_weight }} {{ product.get_weight_unit_display }}</span>
+                    </div>
+                    {% endif %}
+                    {% if product.shelf_life_days %}
+                    <div class="bg-gray-50 p-3 rounded-lg">
+                        <span class="text-xs text-gray-500 block mb-1">مدة الصلاحية</span>
+                        <span class="font-semibold text-gray-700">{{ product.shelf_life_days }} يوم</span>
+                    </div>
+                    {% endif %}
+                    {% elif sys_settings.market_type == 'electronics' %}
+                    {% if product.brand %}
+                    <div class="bg-gray-50 p-3 rounded-lg">
+                        <span class="text-xs text-gray-500 block mb-1">الماركة</span>
+                        <span class="font-semibold text-gray-700">{{ product.brand }}</span>
+                    </div>
+                    {% endif %}
+                    {% if product.model_number %}
+                    <div class="bg-gray-50 p-3 rounded-lg">
+                        <span class="text-xs text-gray-500 block mb-1">رقم الموديل</span>
+                        <span class="font-semibold text-gray-700">{{ product.model_number }}</span>
+                    </div>
+                    {% endif %}
+                    {% if product.serial_number %}
+                    <div class="bg-gray-50 p-3 rounded-lg">
+                        <span class="text-xs text-gray-500 block mb-1">الرقم التسلسلي</span>
+                        <span class="font-semibold text-gray-700">{{ product.serial_number }}</span>
+                    </div>
+                    {% endif %}
+                    {% if product.warranty_months %}
+                    <div class="bg-gray-50 p-3 rounded-lg">
+                        <span class="text-xs text-gray-500 block mb-1">مدة الضمان</span>
+                        <span class="font-semibold text-gray-700">{{ product.warranty_months }} شهر</span>
+                    </div>
+                    {% endif %}
+                    {% if product.is_refurbished %}
+                    <div class="bg-yellow-50 p-3 rounded-lg border border-yellow-200">
+                        <span class="text-xs text-yellow-700 block mb-1">الحالة</span>
+                        <span class="font-semibold text-yellow-800">مستخدم أو مُجدد</span>
+                    </div>
+                    {% endif %}
+                    {% if product.specifications %}
+                    <div class="bg-gray-50 p-3 rounded-lg col-span-3">
+                        <span class="text-xs text-gray-500 block mb-1">المواصفات الفنية</span>
+                        <span class="font-semibold text-gray-700 whitespace-pre-line">{{ product.specifications }}</span>
+                    </div>
+                    {% endif %}
+                    {% else %}
+                    <div class="bg-gray-50 p-3 rounded-lg">
+                        <span class="text-xs text-gray-500 block mb-1">الخامة</span>
+                        <span class="font-semibold text-gray-700">{{ product.material|default:"-" }}</span>
+                    </div>
+                    <div class="bg-gray-50 p-3 rounded-lg">
+                        <span class="text-xs text-gray-500 block mb-1">النقشة</span>
+                        <span class="font-semibold text-gray-700">{{ product.pattern|default:"-" }}</span>
+                    </div>
+                    <div class="bg-gray-50 p-3 rounded-lg">
+                        <span class="text-xs text-gray-500 block mb-1">اللون</span>
+                        <span class="font-semibold text-gray-700">{{ product.color|default:"-" }}</span>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Additional Data Card -->
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                <h3 class="text-lg font-semibold text-gray-800 mb-4 pb-2 border-b">بيانات إضافية</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="bg-gray-50 p-3 rounded-lg">
+                        <span class="text-xs text-gray-500 block mb-1">الباركود</span>
+                        <span class="font-semibold text-gray-700 font-mono">{{ product.barcode|default:"-" }}</span>
+                    </div>
+                    <div class="bg-gray-50 p-3 rounded-lg">
+                        <span class="text-xs text-gray-500 block mb-1">النوع</span>
+                        <span class="font-semibold text-gray-700">{{ product.kind.name|default:"-" }}</span>
+                    </div>
+                    <div class="bg-gray-50 p-3 rounded-lg md:col-span-2">
+                        <span class="text-xs text-gray-500 block mb-1">المقاسات</span>
+                        {% with size_list=product.sizes.all %}
+                            {% if size_list %}
+                                <div class="flex flex-wrap gap-2">
+                                    {% for s in size_list %}
+                                        <span class="px-2 py-1 rounded-md bg-amber-50 border border-amber-100 text-amber-700 text-xs font-semibold">{{ s.name }}</span>
+                                    {% endfor %}
+                                </div>
+                            {% else %}
+                                <span class="font-semibold text-gray-700">-</span>
+                            {% endif %}
+                        {% endwith %}
+                    </div>
+                    <div class="bg-gray-50 p-3 rounded-lg">
+                        <span class="text-xs text-gray-500 block mb-1">وحدة القياس</span>
+                        <span class="font-semibold text-gray-700">{{ product.get_unit_measure_display }}</span>
+                    </div>
+                    <div class="bg-gray-50 p-3 rounded-lg">
+                        <span class="text-xs text-gray-500 block mb-1">قطع في الشيكارة</span>
+                        <span class="font-semibold text-gray-700">{{ product.pieces_per_package }}</span>
+                    </div>
+                    <div class="bg-gray-50 p-3 rounded-lg">
+                        <span class="text-xs text-gray-500 block mb-1">حد التنبيه للنواقص</span>
+                        <span class="font-semibold text-gray-700">{{ product.low_stock_threshold }}</span>
+                    </div>
+                    <div class="bg-gray-50 p-3 rounded-lg">
+                        <span class="text-xs text-gray-500 block mb-1">آخر تحديث</span>
+                        <span class="font-semibold text-gray-700">{{ product.updated_at|date:"Y-m-d H:i" }}</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Product Photos Card -->
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                <h3 class="text-lg font-semibold text-gray-800 mb-4 pb-2 border-b">صور المنتج</h3>
+                {% with imgs=product.images.all %}
+                    {% if imgs %}
+                        <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
+                            {% for img in imgs %}
+                                <a href="{{ img.image_data }}" class="block group">
+                                    <img src="{{ img.image_data }}" alt="Product image {{ forloop.counter }}" class="w-full h-40 object-cover rounded-lg border border-gray-100 shadow-sm group-hover:opacity-90 transition">
+                                </a>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="text-sm text-gray-400 bg-gray-50 border border-gray-100 rounded-lg p-4">
+                            لا توجد صور مرفوعة لهذا المنتج.
+                        </div>
+                    {% endif %}
+                {% endwith %}
+            </div>
+        </div>
+
+        <!-- Sidebar Info (Stock & Price) -->
+        <div class="space-y-6">
+
+            <!-- Stock Card -->
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 relative overflow-hidden">
+                <div class="relative z-10">
+                    <!-- Card header with toggle -->
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-semibold text-gray-800">إجمالي المخزون</h3>
+                        <!-- Toggle: قطعة / شيكارة -->
+                        <div class="st-wrap" onclick="toggleStockUnit()">
+                            <span id="lbl-pcs" style="color:#0d9488">قطعة</span>
+                            <div class="st-track" id="st-track">
+                                <div class="st-thumb"></div>
+                            </div>
+                            <span id="lbl-pkg" style="color:#9ca3af">📦 شيكارة</span>
+                        </div>
+                    </div>
+
+                    <!-- Big Stock Number -->
+                    <div class="flex items-baseline gap-2">
+                        <span id="total-qty"
+                            class="text-4xl font-bold {% if product.is_low_stock and policies.inventory.warn_low_stock %}text-red-600{% else %}text-teal-600{% endif %}"
+                            data-qty="{{ product.stock_quantity }}" data-ppp="{{ product.pieces_per_package }}">
+                            {% if sys_settings.market_type == 'pharmacy' and product.strips_per_box > 1 %}
+                                {{ product.box_count }} <small class="text-xs">علبة</small> و {{ product.remaining_strips }} <small class="text-xs">شريط</small>
+                            {% else %}
+                                {{ product.stock_quantity }}
+                            {% endif %}
+                        </span>
+                        <span id="unit-label" class="text-gray-500 font-medium" data-unit="{{ product.get_unit_measure_display }}">
+                            {% if sys_settings.market_type == 'pharmacy' and product.strips_per_box > 1 %}
+                                <!-- No unit label needed when displaying both -->
+                            {% else %}
+                                {{ product.get_unit_measure_display }}
+                            {% endif %}
+                        </span>
+                    </div>
+
+                    {% if product.is_low_stock and policies.inventory.warn_low_stock %}
+                    <div class="mt-4 p-3 bg-red-50 text-red-700 text-sm rounded-lg flex items-center">
+                        <svg class="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z">
+                            </path>
+                        </svg>
+                        تنبيه: الكمية أقل من الحد الأدنى ({{ product.low_stock_threshold }})
+                    </div>
+                    {% endif %}
+
+                    <!-- Stock Breakdown per Warehouse -->
+                    <div class="mt-6 border-t border-gray-100 pt-4">
+                        <h4 class="text-sm font-semibold text-gray-600 mb-2">توزيع المخزون:</h4>
+                        <div class="space-y-2">
+                            {% for stock in stocks %}
+                            <div class="flex justify-between items-center text-sm p-2 bg-gray-50 rounded stock-wh-row"
+                                data-qty="{{ stock.quantity }}" data-ppp="{{ product.pieces_per_package }}">
+                                <span class="text-gray-700 flex items-center">
+                                    <i class="fas fa-warehouse ml-2 text-gray-400"></i>
+                                    {{ stock.warehouse.name }}
+                                </span>
+                                <span class="wh-qty font-bold text-gray-900">{{ stock.quantity }}</span>
+                            </div>
+                            {% empty %}
+                            <p class="text-sm text-gray-400 text-center py-2">لا يوجد رصيد في أي مخزن</p>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Pricing Card -->
+            <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                <div class="p-4 bg-gray-50 border-b border-gray-100">
+                    <h3 class="text-lg font-semibold text-gray-800">قائمة الأسعار</h3>
+                </div>
+                <div class="divide-y divide-gray-100">
+                    <div class="p-4 flex justify-between items-center">
+                        <span class="text-gray-600 text-sm">سعر التكلفة</span>
+                        <span class="font-mono font-medium text-gray-500">{{ product.cost_price|floatformat:2 }}</span>
+                    </div>
+                    <div class="p-4 flex justify-between items-center bg-green-50">
+                        <span class="text-green-800 font-medium">سعر الجملة</span>
+                        <span class="font-mono font-bold text-green-700 text-lg">{{ product.price_wholesale|floatformat:2 }}</span>
+                    </div>
+                    <div class="p-4 flex justify-between items-center">
+                        <span class="text-gray-600">نص جملة</span>
+                        <span class="font-mono font-bold text-gray-800">{{ product.price_semi_wholesale|floatformat:2 }}</span>
+                    </div>
+                    <div class="p-4 flex justify-between items-center">
+                        <span class="text-gray-600">سعر قطاعي</span>
+                        <span class="font-mono font-bold text-gray-800">{{ product.price_retail|floatformat:2 }}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ====================================== -->
+    <!-- Quantity-break pricing (Phase 6.6)     -->
+    <!-- ====================================== -->
+    <div class="mt-8 bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+        <div class="p-5 border-b border-gray-100">
+            <h3 class="text-lg font-semibold text-gray-800">أسعار الكميات (شرائح الجملة)</h3>
+            <p class="text-xs text-gray-400">يُطبَّق سعر الشريحة عند بلوغ الكمية المحددة.</p>
+        </div>
+        <div class="p-5">
+            <table class="w-full text-sm mb-4">
+                <thead class="text-gray-400 text-xs"><tr><th class="text-right py-1">الفئة</th><th class="text-left">من كمية</th><th class="text-left">سعر الوحدة</th><th></th></tr></thead>
+                <tbody class="divide-y">
+                    {% for br in product.price_breaks.all %}
+                    <tr>
+                        <td class="py-2">{{ br.get_customer_type_display }}</td>
+                        <td class="py-2 text-left dir-ltr font-bold">{{ br.min_quantity|floatformat:2 }}+</td>
+                        <td class="py-2 text-left dir-ltr font-bold text-green-700">{{ br.unit_price|floatformat:2 }}</td>
+                        <td class="py-2 text-left">
+                            <form method="post" action="{% url 'price_break_delete' br.id %}" onsubmit="return confirm('حذف الشريحة؟');" class="inline">{% csrf_token %}<button class="text-red-500 text-xs hover:underline">حذف</button></form>
+                        </td>
+                    </tr>
+                    {% empty %}<tr><td colspan="4" class="py-3 text-center text-gray-400">لا توجد شرائح أسعار</td></tr>{% endfor %}
+                </tbody>
+            </table>
+            <form method="post" action="{% url 'price_break_add' product.id %}" class="flex flex-wrap items-end gap-2">
+                {% csrf_token %}
+                <select name="customer_type" class="p-2 border rounded-lg text-sm">
+                    <option value="">كل الفئات</option><option value="retail">قطاعي</option>
+                    <option value="semi_wholesale">نص جملة</option><option value="wholesale">جملة</option>
+                </select>
+                <input type="number" name="min_quantity" step="0.01" min="0" placeholder="من كمية" class="w-28 p-2 border rounded-lg text-sm" required>
+                <input type="number" name="unit_price" step="0.01" min="0" placeholder="سعر الوحدة" class="w-28 p-2 border rounded-lg text-sm" required>
+                <button class="px-4 py-2 bg-teal-600 text-white rounded-lg font-bold text-sm">+ إضافة شريحة</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- ====================================== -->
+    <!-- Product Sales History Table            -->
+    <!-- ====================================== -->
+    <div class="mt-8 bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+        <div class="p-5 border-b border-gray-100 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-indigo-50 rounded-lg flex items-center justify-center">
+                    <svg class="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path>
+                    </svg>
+                </div>
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-800">سجل مبيعات المنتج</h3>
+                    <p class="text-xs text-gray-400 mt-0.5">آخر {{ sale_items|length }} عملية بيع لهذا الصنف</p>
+                </div>
+            </div>
+            {% if sale_items %}
+            <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-indigo-100 text-indigo-700">
+                {{ sale_items|length }} فاتورة
+            </span>
+            {% endif %}
+        </div>
+
+        {% if sale_items %}
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm" dir="rtl">
+                <thead>
+                    <tr class="bg-gray-50 text-gray-600">
+                        <th class="px-5 py-3 text-right font-semibold text-xs uppercase tracking-wider">رقم الفاتورة</th>
+                        <th class="px-5 py-3 text-right font-semibold text-xs uppercase tracking-wider">التاريخ</th>
+                        <th class="px-5 py-3 text-right font-semibold text-xs uppercase tracking-wider">العميل</th>
+                        <th class="px-5 py-3 text-center font-semibold text-xs uppercase tracking-wider">الكمية</th>
+                        <th class="px-5 py-3 text-left font-semibold text-xs uppercase tracking-wider">سعر الوحدة</th>
+                        <th class="px-5 py-3 text-left font-semibold text-xs uppercase tracking-wider">الإجمالي</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                    {% for item in sale_items %}
+                    <tr class="hover:bg-gray-50 transition-colors duration-150">
+                        <td class="px-5 py-3 text-right">
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-mono font-medium bg-gray-100 text-gray-700">
+                                #{{ item.order.id }}
+                            </span>
+                        </td>
+                        <td class="px-5 py-3 text-right text-gray-600">
+                            {{ item.order.created_at|date:"Y-m-d" }}
+                            <span class="text-gray-400 text-xs mr-1">{{ item.order.created_at|date:"h:i A" }}</span>
+                        </td>
+                        <td class="px-5 py-3 text-right">
+                            {% if item.order.customer %}
+                                <span class="font-medium text-gray-800">{{ item.order.customer.first_name }} {{ item.order.customer.last_name }}</span>
+                            {% else %}
+                                <span class="text-gray-400 text-xs">عميل نقدي</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-5 py-3 text-center">
+                            <span class="inline-flex items-center gap-1 font-bold text-gray-800">
+                                {{ item.quantity|floatformat:"-2" }}
+                                <span class="text-[10px] text-gray-400 font-normal">{{ product.get_unit_measure_display }}</span>
+                            </span>
+                        </td>
+                        <td class="px-5 py-3 text-left font-mono text-gray-700">{{ item.price|floatformat:2 }}</td>
+                        <td class="px-5 py-3 text-left font-mono font-bold text-gray-900">{{ item.subtotal|floatformat:2 }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <!-- Totals Footer -->
+                <tfoot>
+                    <tr class="bg-gray-50 border-t-2 border-gray-200">
+                        <td colspan="3" class="px-5 py-3 text-right font-bold text-gray-700">الإجمالي</td>
+                        <td class="px-5 py-3 text-center font-bold text-indigo-700">{{ total_sold_qty|floatformat:"-2" }}</td>
+                        <td class="px-5 py-3"></td>
+                        <td class="px-5 py-3 text-left font-mono font-bold text-indigo-700 text-base">{{ total_sold_revenue|floatformat:2 }}</td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+        {% else %}
+        <div class="py-12 text-center">
+            <svg class="w-12 h-12 mx-auto text-gray-300 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                    d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"></path>
+            </svg>
+            <p class="text-gray-400 font-medium">لا توجد مبيعات مسجلة لهذا المنتج بعد</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+    const PPP = {{ product.pieces_per_package }};
+    let stPkgMode = false;
+
+    function fmtPkg(qty) {
+        const pkgs = Math.floor(qty / PPP);
+        const rem = Math.round((qty % PPP) * 100) / 100;
+        return rem > 0 ? `${pkgs} شيكارة +${rem}ق` : `${pkgs} شيكارة`;
+    }
+    function fmtPcs(qty) {
+        return (qty % 1 === 0) ? String(qty) : qty.toFixed(2);
+    }
+
+    function toggleStockUnit() {
+        stPkgMode = !stPkgMode;
+        const track = document.getElementById('st-track');
+        const lblP = document.getElementById('lbl-pcs');
+        const lblK = document.getElementById('lbl-pkg');
+        const uLbl = document.getElementById('unit-label');
+        const total = document.getElementById('total-qty');
+
+        if (stPkgMode) {
+            track.classList.add('active');
+            lblP.style.color = '#9ca3af';
+            lblK.style.color = '#d97706';
+            total.textContent = fmtPkg(parseFloat(total.dataset.qty));
+            uLbl.textContent = '';
+            document.querySelectorAll('.stock-wh-row').forEach(r => {
+                r.querySelector('.wh-qty').textContent = fmtPkg(parseFloat(r.dataset.qty));
+            });
+        } else {
+            track.classList.remove('active');
+            lblP.style.color = '#0d9488';
+            lblK.style.color = '#9ca3af';
+            total.textContent = fmtPcs(parseFloat(total.dataset.qty));
+            uLbl.textContent = uLbl.dataset.unit;
+            document.querySelectorAll('.stock-wh-row').forEach(r => {
+                r.querySelector('.wh-qty').textContent = fmtPcs(parseFloat(r.dataset.qty));
+            });
+        }
+        try { localStorage.setItem('stockUnitDisplayMode', stPkgMode ? 'pkg' : 'pcs'); } catch (e) {}
+    }
+
+    try {
+        if (localStorage.getItem('stockUnitDisplayMode') === 'pkg') toggleStockUnit();
+    } catch (e) {}
+
+    // Close report dropdown on click outside
+    document.addEventListener('click', function(e) {
+        const dd = document.getElementById('report-dropdown');
+        const menu = document.getElementById('report-menu');
+        if (dd && menu && !dd.contains(e.target)) {
+            menu.classList.add('hidden');
+        }
+    });
+</script>
+{% endblock %}

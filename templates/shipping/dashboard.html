@@ -1,0 +1,269 @@
+﻿{% extends 'base.html' %}
+{% load humanize %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="flex flex-col md:flex-row justify-between items-center bg-white p-4 rounded-lg shadow">
+        <h1 class="text-2xl font-bold text-gray-800 flex items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-teal-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+            </svg>
+            {{ title }}
+        </h1>
+        <div class="flex gap-2 mt-4 md:mt-0">
+            <a href="{% url 'company_list' %}" class="bg-gray-800 text-white px-4 py-2 rounded hover:bg-gray-700 transition">
+                إدارة شركات الشحن
+            </a>
+            <a href="{% url 'order_list' %}" class="bg-teal-600 text-white px-4 py-2 rounded hover:bg-teal-700 transition">
+                اختيار فاتورة للشحن
+            </a>
+        </div>
+    </div>
+
+    <!-- Stats & Filters -->
+    <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
+        <!-- Summary Cards -->
+        <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-center">
+            <p class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">إجمالي الشحنات</p>
+            <p class="text-2xl font-black text-gray-800">{{ summary_stats.total }}</p>
+        </div>
+        <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-center border-r-4 border-r-yellow-400">
+            <p class="text-[10px] font-bold text-yellow-600 uppercase tracking-wider mb-1">طلبات جديدة</p>
+            <p class="text-2xl font-black text-gray-800">{{ summary_stats.new }}</p>
+        </div>
+        <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-center border-r-4 border-r-blue-400">
+            <p class="text-[10px] font-bold text-blue-600 uppercase tracking-wider mb-1">قيد الشحن</p>
+            <p class="text-2xl font-black text-gray-800">{{ summary_stats.shipped }}</p>
+        </div>
+        <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-center border-r-4 border-r-green-400">
+            <p class="text-[10px] font-bold text-green-600 uppercase tracking-wider mb-1">تم التوصيل</p>
+            <p class="text-2xl font-black text-gray-800">{{ summary_stats.arrived }}</p>
+        </div>
+        <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-center border-r-4 border-r-red-400">
+            <p class="text-[10px] font-bold text-red-600 uppercase tracking-wider mb-1">مرتجع</p>
+            <p class="text-2xl font-black text-gray-800">{{ summary_stats.returned }}</p>
+        </div>
+
+        <!-- Search -->
+        <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 col-span-2 md:col-span-5">
+            <form method="get" class="flex flex-col md:flex-row gap-4">
+                <div class="flex-1 relative group">
+                    <input type="text" name="q" value="{{ request.GET.q }}" 
+                           placeholder="بحث برقم الفاتورة، اسم العميل، الهاتف، البوليصة..." 
+                           class="w-full pr-12 pl-4 py-3.5 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-teal-500 focus:bg-white outline-none transition-all font-bold">
+                    <div class="absolute inset-y-0 right-0 pr-4 flex items-center pointer-events-none text-gray-400 group-focus-within:text-teal-500 transition-colors">
+                        <i class="fas fa-search text-lg"></i>
+                    </div>
+                </div>
+                
+                <div class="flex gap-2">
+                    <select name="status" class="px-6 py-3.5 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-teal-500 focus:bg-white outline-none transition-all font-bold appearance-none cursor-pointer" onchange="this.form.submit()">
+                        <option value="">كل الحالات</option>
+                        {% for key, val in status_choices %}
+                        <option value="{{ key }}" {% if request.GET.status == key %}selected{% endif %}>{{ val }}</option>
+                        {% endfor %}
+                    </select>
+
+                    <button type="submit" class="bg-teal-600 text-white px-8 py-3.5 rounded-xl font-bold hover:bg-teal-700 transition shadow-lg shadow-teal-100 active:scale-95">
+                        تحديث النتائج
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Orders Table -->
+    <div class="bg-white rounded-lg shadow overflow-x-auto">
+        <table class="w-full text-right border-collapse">
+            <thead class="bg-gray-100 text-gray-700 uppercase text-sm">
+                <tr>
+                    <th class="p-4 border-b">الفاتورة</th>
+                    <th class="p-4 border-b">العميل</th>
+                    <th class="p-4 border-b">العنوان / الشركة</th>
+                    <th class="p-4 border-b">الماليات (المدفوع / المتبقي)</th>
+                    <th class="p-4 border-b">حالة الشحن</th>
+                    <th class="p-4 border-b">إجراءات</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200">
+                {% for shipment in shipments %}
+                <tr class="hover:bg-gray-50 transition">
+                    <td class="p-4 font-bold text-teal-700">
+                        #{{ shipment.order.id }}
+                        <div class="text-xs text-gray-500 font-normal">{{ shipment.created_at|date:"Y-m-d h:i A" }}</div>
+                        <div class="text-xs text-gray-400">{{ shipment.get_delivery_type_display }}</div>
+                    </td>
+                    
+                    <td class="p-4">
+                        {% if shipment.order.customer %}
+                            <div class="font-bold">{{ shipment.order.customer.first_name }} {{ shipment.order.customer.last_name }}</div>
+                            <div class="text-sm text-gray-600">{{ shipment.order.customer.phone }}</div>
+                            {% if not shipment.order.customer.address %}
+                            <button onclick="openAddressModal('{{ shipment.order.customer.id }}')" class="text-xs text-red-500 underline hover:text-red-700">
+                                إضافة عنوان للعميل
+                            </button>
+                            {% endif %}
+                        {% else %}
+                            <span class="text-gray-400">عميل غير مسجل</span>
+                        {% endif %}
+                    </td>
+
+                    <td class="p-4">
+                        <div class="text-sm">{{ shipment.shipping_address|truncatechars:30 }}</div>
+                        {% if shipment.shipping_company %}
+                        <div class="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded inline-block mt-1">
+                            {{ shipment.shipping_company.name }}
+                        </div>
+                        {% endif %}
+                        {% if shipment.tracking_number %}
+                        <div class="text-xs text-gray-500 mt-1">بوليصة: {{ shipment.tracking_number }}</div>
+                        {% endif %}
+                    </td>
+
+                    <td class="p-4">
+                        <div class="flex flex-col gap-1">
+                            <span class="text-xs">إجمالي: {{ shipment.order.total_amount }}</span>
+                            <input type="number" 
+                                   value="{{ shipment.order.received_amount }}" 
+                                   class="w-24 text-sm border rounded px-1"
+                                   onchange="updatePayment('{{ shipment.order.id }}', this.value, '{{ shipment.order.payment_method }}')">
+                            
+                            <select onchange="updatePayment('{{ shipment.order.id }}', '{{ shipment.order.received_amount }}', this.value)" class="w-24 text-xs border rounded px-1 mt-1">
+                                {% for code, label in shipment.order.PAYMENT_METHODS %}
+                                <option value="{{ code }}" {% if shipment.order.payment_method == code %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+
+                            {% if shipment.order.remaining_amount > 0 %}
+                            <span class="text-xs font-bold text-red-600 mt-1">
+                                تحصيل: {{ shipment.order.remaining_amount }}
+                            </span>
+                            {% else %}
+                            <span class="text-xs font-bold text-green-600 mt-1">خالص</span>
+                            {% endif %}
+                        </div>
+                    </td>
+
+                    <td class="p-4">
+                        <select onchange="updateStatus('{{ shipment.id }}', this.value)" 
+                                class="px-2 py-1 rounded text-sm border 
+                                {% if shipment.status == 'new' %}bg-yellow-100 text-yellow-800
+                                {% elif shipment.status == 'shipped' %}bg-blue-100 text-blue-800
+                                {% elif shipment.status == 'arrived' %}bg-green-100 text-green-800
+                                {% elif shipment.status == 'returned' %}bg-red-100 text-red-800{% endif %}">
+                            {% for key, val in status_choices %}
+                            <option value="{{ key }}" {% if shipment.status == key %}selected{% endif %}>{{ val }}</option>
+                            {% endfor %}
+                        </select>
+                        <button onclick="addComment('{{ shipment.id }}')" class="block mt-1 text-xs text-gray-500 underline">إضافة ملاحظة</button>
+                        {% if shipment.comment %}
+                        <div class="mt-1 text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded px-2 py-1 max-w-[180px]" title="{{ shipment.comment }}">
+                            <i class="fa-solid fa-note-sticky text-amber-500"></i> {{ shipment.comment|truncatechars:40 }}
+                        </div>
+                        {% endif %}
+                    </td>
+
+                    <td class="p-4">
+                        <div class="flex gap-2">
+                            <a href="{% url 'print_shipping_label' shipment.id %}?style=thermal" class="text-gray-600 hover:text-gray-900" title="طباعة حراري">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                                </svg>
+                            </a>
+                            <a href="{% url 'print_shipping_label' shipment.id %}?style=a4" class="text-gray-600 hover:text-gray-900" title="طباعة A4">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
+                            </a>
+                        </div>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6" class="p-8 text-center text-gray-500">لا توجد طلبات شحن حالياً. قم بتحويل فاتورة إلى شحن من قائمة الفواتير.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Address Modal -->
+<div id="addressModal" class="fixed inset-0 z-50 hidden bg-black bg-opacity-50 flex items-center justify-center">
+    <div class="bg-white rounded-lg p-6 w-full max-w-md">
+        <h3 class="text-lg font-bold mb-4">تحديث عنوان العميل</h3>
+        <form id="addressForm" method="POST" action="">
+            {% csrf_token %}
+            <textarea name="address" class="w-full p-2 border rounded mb-3" rows="3" placeholder="العنوان الجديد..."></textarea>
+            <input name="phone" type="text" class="w-full p-2 border rounded mb-4" placeholder="رقم الهاتف">
+            <div class="flex justify-end gap-2">
+                <button type="button" onclick="document.getElementById('addressModal').classList.add('hidden')" class="px-4 py-2 bg-gray-200 rounded">إلغاء</button>
+                <button type="submit" class="px-4 py-2 bg-teal-600 text-white rounded">حفظ</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    function updateStatus(id, status, comment = '') {
+        let refundBalance = false;
+        if (status === 'returned') {
+            if (!comment) {
+                comment = prompt("الرجاء إدخال سبب الارتجاع:");
+                if (comment === null) return; // Cancelled
+            }
+            // Staff must decide: does the customer's balance get credited for this order,
+            // or does it stay as-is (e.g. they never actually paid)?
+            refundBalance = confirm('هل تريد رد مبلغ الفاتورة إلى رصيد العميل؟\n\nاضغط "موافق" لرد المبلغ للرصيد، أو "إلغاء" للإبقاء على الرصيد كما هو.');
+        }
+
+        fetch("{% url 'api_update_shipping_status' %}", {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            body: JSON.stringify({shipment_id: id, status: status, comment: comment, refund_balance: refundBalance}),
+        }).then(res => res.json()).then(data => {
+            if(data.status === 'success') location.reload();
+            else alert('حدث خطأ: ' + data.message);
+        });
+    }
+
+    function updatePayment(orderId, amount, method) {
+        fetch("{% url 'api_update_payment_info' %}", {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            body: JSON.stringify({order_id: orderId, received_amount: amount, payment_method: method}),
+        }).then(res => res.json()).then(data => {
+            if(data.status === 'success') location.reload();
+            else alert('حدث خطأ: ' + data.message);
+        });
+    }
+
+    function addComment(id) {
+        const comment = prompt("أدخل ملاحظة:");
+        if (comment) {
+            // Get current status from the select element in the table row
+            const row = event.target.closest('tr');
+            const statusSelect = row.querySelector('select');
+            const currentStatus = statusSelect.value;
+            
+            updateStatus(id, currentStatus, comment);
+        }
+    }
+
+    function openAddressModal(customerId) {
+        const modal = document.getElementById('addressModal');
+        const form = document.getElementById('addressForm');
+        form.action = `/shipping/update-address/${customerId}/`;
+        modal.classList.remove('hidden');
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,532 @@
+{% load static %}<!DOCTYPE html>
+<html lang="ar" dir="rtl"{% if system_license.dark_mode_enabled %} class="dark-theme"{% endif %}>
+<head>
+    <script>if(localStorage.getItem('favOnlyActive')==='1'){document.documentElement.classList.add('fav-only-mode');}</script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}نظام إدارة الكافيه{% endblock %}</title>
+    
+    <!-- Dynamic Favicon from System Settings -->
+    <link rel="icon" type="image/png" href="/favicon.ico">
+    <link rel="shortcut icon" href="/favicon.ico">
+    
+    <!-- Self-hosted assets (Phase 2.6b) — the POS UI works fully offline; no runtime
+         dependency on external CDNs (a CDN outage used to leave every page unstyled). -->
+
+    <!-- Cairo font (local) -->
+    <link rel="stylesheet" href="{% static 'vendor/fonts/cairo.css' %}">
+
+    <!-- Font Awesome (local) -->
+    <link rel="stylesheet" href="{% static 'vendor/fontawesome/css/all.min.css' %}">
+
+    <!-- Charts / interactivity (local) -->
+    <script src="{% static 'vendor/js/apexcharts.min.js' %}"></script>
+    <script src="{% static 'vendor/js/alpine.min.js' %}" defer></script>
+
+    <!-- Tailwind CSS (local Play build) -->
+    <script src="{% static 'vendor/js/tailwind.js' %}"></script>
+
+    <!-- SweetAlert2 (local) -->
+    <script src="{% static 'vendor/js/sweetalert2.min.js' %}"></script>
+
+    <!-- Chart.js (local) -->
+    <script src="{% static 'vendor/js/chart.min.js' %}"></script>
+
+    <style>
+        body { font-family: 'Cairo', sans-serif; }
+
+        /* Alpine's x-cloak only works with this rule defined — without it, any element
+           using x-show hidden behind x-cloak flashes visible for a moment on every page
+           load/refresh before Alpine finishes initializing and evaluates the x-show. */
+        [x-cloak] { display: none !important; }
+
+        /* ───── Dark theme (Phase UX) — applied when license dark mode is enabled ───── */
+        html.dark-theme body { background:#0f172a !important; color:#e2e8f0 !important; }
+        html.dark-theme .bg-white,
+        html.dark-theme .bg-gray-50,
+        html.dark-theme .bg-gray-50\/50,
+        html.dark-theme .bg-gray-50\/60,
+        html.dark-theme .bg-slate-50,
+        html.dark-theme .bg-gray-100 { background-color:#1e293b !important; }
+        html.dark-theme .bg-gray-50\/40,
+        html.dark-theme .bg-indigo-50\/40,
+        html.dark-theme .bg-amber-50\/40 { background-color:#243049 !important; }
+        html.dark-theme aside,
+        html.dark-theme nav.sidebar,
+        html.dark-theme #sidebar { background-color:#111827 !important; border-color:#1f2937 !important; }
+        html.dark-theme .text-gray-800,
+        html.dark-theme .text-gray-700,
+        html.dark-theme .text-gray-900,
+        html.dark-theme .text-slate-800,
+        html.dark-theme .text-slate-900 { color:#e2e8f0 !important; }
+        html.dark-theme .text-gray-600,
+        html.dark-theme .text-gray-500 { color:#94a3b8 !important; }
+        html.dark-theme .text-gray-400 { color:#64748b !important; }
+        html.dark-theme .border,
+        html.dark-theme .border-gray-100,
+        html.dark-theme .border-gray-200,
+        html.dark-theme .border-gray-300,
+        html.dark-theme .divide-y > * { border-color:#334155 !important; }
+        html.dark-theme input,
+        html.dark-theme select,
+        html.dark-theme textarea { background-color:#0f172a !important; color:#e2e8f0 !important; border-color:#334155 !important; }
+        html.dark-theme thead.bg-gray-50,
+        html.dark-theme .bg-gray-50 th { background-color:#1e293b !important; }
+        html.dark-theme .shadow-sm,
+        html.dark-theme .shadow,
+        html.dark-theme .shadow-md,
+        html.dark-theme .shadow-lg { box-shadow:0 1px 3px rgba(0,0,0,.5) !important; }
+        /* keep strong-colored badges/buttons readable (don't override their bg) */
+        html.dark-theme .hover\:bg-gray-50:hover { background-color:#243049 !important; }
+        
+        /* Glassmorphism Utilities */
+        .glass {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+        .glass-dark {
+            background: rgba(17, 24, 39, 0.7);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        /* === Toast System === */
+        #toast-container {
+            position: fixed;
+            top: 1.5rem;
+            left: 1.5rem;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            pointer-events: none;
+        }
+        .toast-item {
+            pointer-events: auto;
+            min-width: 300px;
+            max-width: 400px;
+            animation: toast-in 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards;
+        }
+        @keyframes toast-in {
+            from { opacity: 0; transform: translateX(-100%) scale(0.9); }
+            to { opacity: 1; transform: translateX(0) scale(1); }
+        }
+        .toast-out {
+            animation: toast-out 0.3s ease-in forwards;
+        }
+        @keyframes toast-out {
+            from { opacity: 1; transform: translateX(0); }
+            to { opacity: 0; transform: translateX(-100%); }
+        }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        
+        @keyframes fadeInLeft {
+            from { opacity: 0; transform: translateX(-20px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+        .animate-fade-in-left { animation: fadeInLeft 0.4s ease-out; }
+
+        @keyframes fadeInDown {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-in-down { animation: fadeInDown 0.3s ease-out; }
+
+        @keyframes pulse-subtle {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.02); }
+        }
+        .hover-pulse:hover { animation: pulse-subtle 1s infinite ease-in-out; }
+
+        /* Smooth transition for all interactive elements */
+        .smooth-transition { transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); }
+        
+        /* Button press effect */
+        .btn-press:active { transform: scale(0.95); }
+
+        /* Custom focus ring */
+        .focus-ring-subtle:focus {
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.1);
+            border-color: #0d9488;
+        }
+
+        /* === Page Progress Bar === */
+        #page-progress {
+            position: fixed; top: 0; left: 0; right: 0;
+            height: 3px; background: #0d9488;
+            z-index: 99999;
+            transform-origin: left;
+            transform: scaleX(0);
+            transition: transform 0.2s ease;
+            box-shadow: 0 0 8px rgba(13,148,136,0.6);
+        }
+
+        /* === Back to Top === */
+        #back-to-top {
+            position: fixed; bottom: 1.5rem; left: 1.5rem;
+            width: 42px; height: 42px;
+            background: #0d9488; color: white;
+            border-radius: 50%; display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 4px 14px rgba(13,148,136,0.4);
+            cursor: pointer; z-index: 9998;
+            opacity: 0; pointer-events: none;
+            transition: opacity 0.3s ease, transform 0.3s ease;
+            transform: translateY(10px);
+        }
+        #back-to-top.visible {
+            opacity: 1; pointer-events: auto; transform: translateY(0);
+        }
+        #back-to-top:hover { background: #0f766e; transform: translateY(-2px); }
+
+        /* === Loading Spinner === */
+        .loading {
+            position: relative !important;
+            color: transparent !important;
+            pointer-events: none !important;
+            opacity: 0.8 !important;
+        }
+        .loading::after {
+            content: "";
+            position: absolute;
+            width: 1.25rem;
+            height: 1.25rem;
+            top: 50%;
+            left: 50%;
+            margin-top: -0.625rem;
+            margin-left: -0.625rem;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 0.6s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+    <script>
+        // Global Date Range Selector
+        function setRange(range, formId = 'filterForm', fromId = 'date_from', toId = 'date_to') {
+            const fromInput = document.getElementById(fromId);
+            const toInput = document.getElementById(toId);
+            const form = document.getElementById(formId);
+            
+            if (!fromInput || !toInput || !form) return;
+
+            const today = new Date();
+            let fromDate = new Date();
+            let toDate = new Date();
+
+            // Adjust for local timezone to get correct YYYY-MM-DD
+            const offset = today.getTimezoneOffset() * 60000;
+            const getLocalDate = (date) => new Date(date.getTime() - offset);
+
+            switch(range) {
+                case 'today':
+                    fromDate = today;
+                    toDate = today;
+                    break;
+                case 'yesterday':
+                    fromDate.setDate(today.getDate() - 1);
+                    toDate.setDate(today.getDate() - 1);
+                    break;
+                case '7days':
+                    fromDate.setDate(today.getDate() - 6);
+                    toDate = today;
+                    break;
+                case 'thisMonth':
+                    fromDate = new Date(today.getFullYear(), today.getMonth(), 1);
+                    toDate = today;
+                    break;
+                case 'lastMonth':
+                    fromDate = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+                    toDate = new Date(today.getFullYear(), today.getMonth(), 0);
+                    break;
+            }
+
+            const formatDate = (date) => date.toISOString().split('T')[0];
+            fromInput.value = formatDate(fromDate);
+            toInput.value = formatDate(toDate);
+            form.submit();
+        }
+
+        // Global Loading State Toggle
+        function toggleBtnLoading(btn, isLoading = true) {
+            if (!btn) return;
+            if (isLoading) {
+                btn.classList.add('loading');
+                btn.disabled = true;
+            } else {
+                btn.classList.remove('loading');
+                btn.disabled = false;
+            }
+        }
+
+        // --- Modern Toast System ---
+        function showToast(message, type = 'success', duration = 4000) {
+            let container = document.getElementById('toast-container');
+            if (!container) {
+                container = document.createElement('div');
+                container.id = 'toast-container';
+                document.body.appendChild(container);
+            }
+
+            const toast = document.createElement('div');
+            toast.className = `toast-item glass rounded-2xl shadow-2xl p-4 flex items-center gap-4 border-l-4 ${
+                type === 'success' ? 'border-emerald-500' : 
+                type === 'error' ? 'border-red-500' : 
+                type === 'warning' ? 'border-amber-500' : 'border-blue-500'
+            }`;
+
+            const icon = {
+                success: 'fa-check-circle text-emerald-500',
+                error: 'fa-times-circle text-red-500',
+                warning: 'fa-exclamation-triangle text-amber-500',
+                info: 'fa-info-circle text-blue-500'
+            }[type];
+
+            toast.innerHTML = `
+                <div class="flex-shrink-0 w-10 h-10 rounded-xl bg-white flex items-center justify-center shadow-sm">
+                    <i class="fas ${icon} text-lg"></i>
+                </div>
+                <div class="flex-1">
+                    <p class="text-sm font-black text-gray-800">${message}</p>
+                </div>
+                <button onclick="this.parentElement.remove()" class="text-gray-300 hover:text-gray-500 smooth-transition">
+                    <i class="fas fa-times"></i>
+                </button>
+            `;
+
+            container.appendChild(toast);
+
+            setTimeout(() => {
+                toast.classList.add('toast-out');
+                setTimeout(() => toast.remove(), 300);
+            }, duration);
+        }
+
+        // Override default alert
+        window.alert = (msg) => showToast(msg, 'info');
+
+        // Initialize tooltips/popovers if any
+        document.addEventListener('DOMContentLoaded', function() {
+            // Check for stock alerts
+            fetch('/products/api/inventory/alerts-count/')
+                .then(r => r.json())
+                .then(data => {
+                    const dot = document.getElementById('sidebar-stock-alert');
+                    if (dot && data.count > 0) {
+                        dot.classList.remove('hidden');
+                        dot.title = `${data.count} أصناف منتهية أو قاربت على الانتهاء`;
+                    }
+                })
+                .catch(e => console.warn('Stock alerts check failed'));
+
+            // Improve Date Input UX: Open picker when clicking anywhere in the input
+            document.querySelectorAll('input[type="date"]').forEach(input => {
+                input.classList.add('cursor-pointer');
+                input.addEventListener('click', function() {
+                    if (typeof this.showPicker === 'function') {
+                        try {
+                            this.showPicker();
+                        } catch (e) {
+                            console.error('showPicker failed:', e);
+                        }
+                    }
+                });
+            });
+        });
+    </script>
+    {% block extra_head %}{% endblock %}
+</head>
+<body class="bg-gray-50 text-gray-800 antialiased selection:bg-teal-500 selection:text-white">
+
+    <!-- Page Progress Bar -->
+    <div id="page-progress"></div>
+
+    <!-- Back to Top -->
+    <button id="back-to-top" onclick="window.scrollTo({top:0,behavior:'smooth'})" title="العودة للأعلى">
+        <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 15l7-7 7 7"/></svg>
+    </button>
+
+
+    <div class="flex flex-col h-screen overflow-hidden">
+
+        <!-- Toasts Container -->
+        <div id="toast-container" class="fixed top-6 left-6 z-[9999] flex flex-col gap-3 max-w-sm w-full pointer-events-none">
+            {% if messages %}
+                {% for message in messages %}
+                    <div class="toast-item pointer-events-auto p-4 rounded-2xl border flex items-center gap-3 shadow-2xl animate-fade-in-left
+                        {% if message.tags == 'success' %} bg-white/90 backdrop-blur border-green-200 text-green-700
+                        {% elif message.tags == 'error' %} bg-white/90 backdrop-blur border-red-200 text-red-700
+                        {% elif message.tags == 'warning' %} bg-white/90 backdrop-blur border-orange-200 text-orange-700
+                        {% else %} bg-white/90 backdrop-blur border-blue-200 text-blue-700 {% endif %}">
+                        
+                        <div class="w-8 h-8 rounded-full flex items-center justify-center
+                            {% if message.tags == 'success' %} bg-green-100 text-green-600
+                            {% elif message.tags == 'error' %} bg-red-100 text-red-600
+                            {% elif message.tags == 'warning' %} bg-orange-100 text-orange-600
+                            {% else %} bg-blue-100 text-blue-600 {% endif %}">
+                            {% if message.tags == 'success' %} <i class="fas fa-check"></i>
+                            {% elif message.tags == 'error' %} <i class="fas fa-times"></i>
+                            {% elif message.tags == 'warning' %} <i class="fas fa-exclamation"></i>
+                            {% else %} <i class="fas fa-info"></i> {% endif %}
+                        </div>
+                        
+                        <div class="flex-1">
+                            <h4 class="font-bold text-sm">{% if message.tags == 'success' %}تم بنجاح{% elif message.tags == 'error' %}خطأ في النظام{% else %}تنبيه{% endif %}</h4>
+                            <p class="text-xs opacity-80">{{ message }}</p>
+                        </div>
+
+                        <button onclick="this.parentElement.remove()" class="text-gray-400 hover:text-gray-600 transition">
+                            <i class="fas fa-times text-xs"></i>
+                        </button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        </div>
+        
+        <!-- Top Navigation -->
+        {% include 'includes/sidebar.html' %}
+
+        <!-- Content Area -->
+        <div class="relative flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
+
+            <!-- Header -->
+            {% include 'includes/header.html' %}
+
+            <!-- Main Content -->
+            <main class="w-full grow p-6">
+                {% block content %}{% endblock %}
+            </main>
+        </div>
+    </div>
+
+    <script>
+        // --- Global JS Error Tracking ---
+        window.onerror = function(message, source, lineno, colno, error) {
+            // Ignore common Audio/Interaction errors to reduce noise
+            if (message.includes("Audio activation failed") || 
+                message.includes("interaction needed") || 
+                message.includes("no supported sources")) {
+                return;
+            }
+
+            console.log("Capturing error for History...");
+            const errorData = {
+                message: message,
+                url: window.location.href,
+                type: 'Uncaught Error',
+                stack: error ? error.stack : `at ${source}:${lineno}:${colno}`
+            };
+            
+            fetch('/accounts/api/log-js-error/', {
+                method: 'POST',
+                body: JSON.stringify(errorData),
+                headers: { 'Content-Type': 'application/json' }
+            }).catch(e => console.error("Failed to log error to server:", e));
+        };
+
+        // Also capture unhandled promise rejections
+        window.onunhandledrejection = function(event) {
+            const message = event.reason ? event.reason.message : 'Unhandled Rejection';
+            if (message && (message.includes("Audio activation failed") || message.includes("interaction needed"))) return;
+
+            const errorData = {
+                message: message,
+                url: window.location.href,
+                type: 'Unhandled Rejection',
+                stack: event.reason ? event.reason.stack : ''
+            };
+            fetch('/accounts/api/log-js-error/', {
+                method: 'POST',
+                body: JSON.stringify(errorData),
+                headers: { 'Content-Type': 'application/json' }
+            }).catch(e => console.error("Failed to log promise rejection:", e));
+        };
+
+        // Capture console.error
+        const originalConsoleError = console.error;
+        console.error = function() {
+            const args = Array.from(arguments);
+            originalConsoleError.apply(console, args);
+            
+            const message = args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : arg).join(' ');
+            if (message.includes("Audio activation failed") || message.includes("interaction needed") || message.includes("no supported sources")) {
+                return;
+            }
+
+            const errorData = {
+                message: message,
+                url: window.location.href,
+                type: 'Console Error',
+                stack: new Error().stack
+            };
+            
+            // Avoid infinite loop if fetch fails
+            if (errorData.message.includes("Failed to log error to server")) return;
+
+            fetch('/accounts/api/log-js-error/', {
+                method: 'POST',
+                body: JSON.stringify(errorData),
+                headers: { 'Content-Type': 'application/json' }
+            }).catch(e => originalConsoleError("Failed to log console error:", e));
+        };
+
+        // Auto-dismiss toasts
+        document.addEventListener('DOMContentLoaded', () => {
+            const toasts = document.querySelectorAll('.toast-item');
+            toasts.forEach((toast, index) => {
+                setTimeout(() => {
+                    toast.style.opacity = '0';
+                    toast.style.transform = 'translateX(30px)';
+                    toast.style.transition = 'opacity 0.4s ease, transform 0.4s ease';
+                    setTimeout(() => toast.remove(), 400);
+                }, 5000 + (index * 500));
+            });
+        });
+
+        // === Page Progress Bar ===
+        (function() {
+            const bar = document.getElementById('page-progress');
+            if (!bar) return;
+            let progress = 0;
+            bar.style.transform = 'scaleX(0.05)';
+            const interval = setInterval(() => {
+                progress = Math.min(progress + Math.random() * 0.12, 0.85);
+                bar.style.transform = `scaleX(${progress})`;
+            }, 100);
+            window.addEventListener('load', () => {
+                clearInterval(interval);
+                bar.style.transform = 'scaleX(1)';
+                setTimeout(() => { bar.style.opacity = '0'; bar.style.transition = 'opacity 0.3s'; }, 300);
+            });
+        })();
+
+        // === Back to Top ===
+        (function() {
+            const btn = document.getElementById('back-to-top');
+            const scrollable = document.querySelector('.overflow-y-auto') || window;
+            const getScroll = () => scrollable === window ? window.scrollY : scrollable.scrollTop;
+            const check = () => btn && (getScroll() > 300 ? btn.classList.add('visible') : btn.classList.remove('visible'));
+            scrollable.addEventListener('scroll', check, { passive: true });
+        })();
+
+        // === '/' Keyboard Shortcut → Focus Search ===
+        document.addEventListener('keydown', function(e) {
+            if (e.key === '/' && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {
+                e.preventDefault();
+                const searchInput = document.querySelector('input[name="q"]');
+                if (searchInput) { searchInput.focus(); searchInput.select(); }
+            }
+        });
+    </script>
+    
+    {% block extra_scripts %}{% endblock %}
+</body>
+</html>

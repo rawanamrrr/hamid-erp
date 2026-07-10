@@ -1,0 +1,259 @@
+{% extends 'base.html' %}
+{% block title %}إكمال بيانات الحساب | نظام مكاوي{% endblock %}
+
+{% block content %}
+<div class="min-h-screen bg-[#f8fafc] flex items-center justify-center p-4 py-12 font-['Cairo']">
+    <div class="w-full max-w-2xl bg-white rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.05)] overflow-hidden border border-slate-100 relative">
+        
+        <!-- Premium Header Area (Light Mode) -->
+        <div class="bg-slate-50 p-8 text-center relative overflow-hidden border-b border-slate-100">
+            <!-- decorative circles -->
+            <div class="absolute top-0 right-0 -mr-16 -mt-16 w-48 h-48 rounded-full bg-amber-500/5 blur-3xl"></div>
+            <div class="absolute bottom-0 left-0 -ml-16 -mb-16 w-48 h-48 rounded-full bg-teal-500/5 blur-3xl"></div>
+            
+            <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-amber-50 text-amber-600 border border-amber-100 text-[10px] font-black uppercase tracking-widest mb-6 relative z-10">
+                <i class="fas fa-crown"></i> رتبة المالك - Master Role
+            </div>
+
+            <h1 class="text-3xl font-black text-slate-900 mb-3 tracking-tight relative z-10">إعداد نظام المالك الجديد 👋</h1>
+            <p class="text-slate-500 text-sm max-w-md mx-auto relative z-10">مرحباً بك في لوحة تحكم المالك. سنقوم الآن بتهيئة المحرك الأساسي لنظامك.</p>
+            
+            <!-- Progress Line -->
+            <div class="mt-10 flex items-center justify-between relative px-4 max-w-xl mx-auto z-10">
+                <div class="absolute inset-0 top-1/2 h-[2px] bg-slate-200 -z-0 transform -translate-y-1/2 rounded-full"></div>
+                <div class="absolute left-0 top-1/2 h-[2px] bg-amber-500 -z-0 transform -translate-y-1/2 rounded-full transition-all duration-700" 
+                     style="width: calc(({{ step }} / 4) * 100%);"></div>
+                
+                {% for i in "01234" %}
+                <div class="z-10 flex flex-col items-center gap-2">
+                    <div class="w-10 h-10 rounded-2xl flex items-center justify-center font-bold text-sm transition-all duration-500
+                        {% if step|add:0 >= forloop.counter0 %} bg-amber-500 text-white shadow-lg shadow-amber-200 scale-110 {% else %} bg-white text-slate-300 border border-slate-200 {% endif %}">
+                        {% if step|add:0 > forloop.counter0 and forloop.counter0 != 4 %}<i class="fas fa-check"></i>{% else %}{{ forloop.counter0 }}{% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            <div class="flex justify-between px-2 text-slate-400 text-[10px] font-black mt-4 max-w-xl mx-auto">
+                <span class="{% if step >= 0 %}text-amber-600{% endif %}">تخصيص النشاط</span>
+                <span class="{% if step >= 1 %}text-amber-600{% endif %}">بيانات المالك</span>
+                <span class="{% if step >= 2 %}text-amber-600{% endif %}">مقر العمل</span>
+                <span class="{% if step >= 3 %}text-amber-600{% endif %}">الأمان</span>
+                <span class="{% if step >= 4 %}text-amber-600{% endif %}">تم</span>
+            </div>
+        </div>
+
+        <div class="p-10 bg-white">
+            <!-- Messages / Errors -->
+            {% if messages %}
+                <div class="mb-8 space-y-3">
+                    {% for message in messages %}
+                        <div class="p-4 rounded-2xl {% if message.tags == 'error' %}bg-red-50 border border-red-100 text-red-600{% else %}bg-emerald-50 border border-emerald-100 text-emerald-600{% endif %} flex items-center gap-3 animate-fade-in-up">
+                            <i class="fas {% if message.tags == 'error' %}fa-circle-xmark{% else %}fa-circle-check{% endif %}"></i>
+                            <span class="text-sm font-bold">{{ message }}</span>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+
+            <form id="onboardingForm" method="post" action="{% url 'onboarding' %}" class="relative z-10">
+                {% csrf_token %}
+                <input type="hidden" name="step" value="{{ step }}">
+                <input type="hidden" id="formAction" name="action" value="next">
+
+                <!-- Step 0: Market Selection -->
+                {% if step == 0 %}
+                <div class="animate-fade-in-up">
+                    <div class="mb-8">
+                        <h2 class="text-2xl font-black text-slate-800 mb-2">تحديد هوية المتجر</h2>
+                        <p class="text-slate-500 text-sm">اختر نوع نشاطك التجاري لضبط أدوات النظام.</p>
+                        <div class="mt-4 p-4 bg-red-50 border border-red-100 rounded-2xl text-red-600 text-xs leading-relaxed text-right">
+                            <i class="fas fa-triangle-exclamation ml-1"></i> 
+                            <strong>تنبيه مهم جداً:</strong> سيتم قفل إعدادات المحرك بناءً على هذا الاختيار. لا يمكن تغيير نوع المتجر لاحقاً <strong>إلا بعد الدفع للمطور أو الاتصال به مباشرة لطلب رمز تفعيل.</strong>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {% for val, label in market_choices %}
+                        <label class="relative cursor-pointer group">
+                            <input type="radio" name="market_type" value="{{ val }}" class="peer opacity-0 absolute" {% if val == 'general' %}checked{% endif %}>
+                            <div class="p-5 bg-white border-2 border-slate-100 rounded-3xl transition-all peer-checked:border-amber-500 peer-checked:bg-amber-50/30 group-hover:bg-slate-50 h-full shadow-sm group-hover:shadow-md relative z-10">
+                                <div class="flex flex-col gap-3">
+                                    <div class="w-12 h-12 rounded-2xl bg-white border border-slate-200 flex items-center justify-center text-slate-400 peer-checked:text-amber-500 peer-checked:border-amber-200 transition-colors shadow-sm">
+                                        {% if val == 'clothes' %}<i class="fas fa-shirt text-xl"></i>
+                                        {% elif val == 'pharmacy' %}<i class="fas fa-prescription-bottle-medical text-xl"></i>
+                                        {% elif val == 'electronics' %}<i class="fas fa-laptop text-xl"></i>
+                                        {% elif val == 'grocery' %}<i class="fas fa-basket-shopping text-xl"></i>
+                                        {% else %}<i class="fas fa-store text-xl"></i>{% endif %}
+                                    </div>
+                                    <div>
+                                        <h4 class="font-black text-slate-800 text-sm">{{ label }}</h4>
+                                        <p class="text-[10px] text-slate-400 mt-1">تفعيل نظام الـ {{ label }}</p>
+                                    </div>
+                                </div>
+                                <div class="absolute top-4 left-4 opacity-0 peer-checked:opacity-100 transition-opacity">
+                                    <div class="w-6 h-6 bg-amber-500 rounded-full flex items-center justify-center text-white text-[10px] shadow-lg shadow-amber-200">
+                                        <i class="fas fa-check"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </label>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Step 1: Identity -->
+                {% if step == 1 %}
+                <div class="animate-fade-in-up">
+                    <h2 class="text-2xl font-black text-slate-800 mb-6">البيانات الشخصية للمالك</h2>
+                    <div class="space-y-6">
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="space-y-2 text-right">
+                                <label class="text-xs font-black text-slate-400 uppercase">الاسم الأول <span class="text-red-500">*</span></label>
+                                <input type="text" name="first_name" value="{{ user.first_name }}" required
+                                       class="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-800 focus:border-amber-500 focus:bg-white outline-none transition shadow-inner">
+                            </div>
+                            <div class="space-y-2 text-right">
+                                <label class="text-xs font-black text-slate-400 uppercase">اسم العائلة</label>
+                                <input type="text" name="last_name" value="{{ user.last_name }}"
+                                       class="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-800 focus:border-amber-500 focus:bg-white outline-none transition shadow-inner">
+                            </div>
+                        </div>
+                        <div class="space-y-2 text-right">
+                            <label class="text-xs font-black text-slate-400 uppercase">رقم الهاتف <span class="text-red-500">*</span></label>
+                            <input type="text" name="phone" value="{{ profile.phone }}" required
+                                   class="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-800 focus:border-amber-500 focus:bg-white outline-none transition shadow-inner"
+                                   placeholder="01xxxxxxxxx">
+                            <p class="text-[10px] text-slate-400 mt-1 pr-1 italic">سيتم استخدامه في طباعة الفواتير وفي حالات استرجاع الحساب</p>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Step 2: Work -->
+                {% if step == 2 %}
+                <div class="animate-fade-in-up">
+                    <h2 class="text-2xl font-black text-slate-800 mb-6">بيئة العمل والتعيين</h2>
+                    <div class="space-y-6">
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="space-y-2 text-right">
+                                <label class="text-xs font-black text-slate-400 uppercase">القسم الإداري</label>
+                                <input type="text" name="department" value="{{ profile.department }}"
+                                       class="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-800 focus:border-amber-500 focus:bg-white outline-none transition shadow-inner">
+                            </div>
+                            <div class="space-y-2 text-right">
+                                <label class="text-xs font-black text-slate-400 uppercase">المسمى الوظيفي</label>
+                                <input type="text" name="job_title" value="{{ profile.job_title }}"
+                                       class="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-800 focus:border-amber-500 focus:bg-white outline-none transition shadow-inner">
+                            </div>
+                        </div>
+                        <div class="space-y-2 text-right">
+                            <label class="text-xs font-black text-slate-400 uppercase">اسم الفرع / المخزن الرئيسي</label>
+                            <input type="text" name="branch" value="{{ profile.branch }}"
+                                   class="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-800 focus:border-amber-500 focus:bg-white outline-none transition shadow-inner">
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Step 3: Security Summary -->
+                {% if step == 3 %}
+                <div class="animate-fade-in-up text-center">
+                    <div class="w-16 h-16 bg-blue-50 text-blue-500 rounded-2xl flex items-center justify-center mx-auto mb-6 text-2xl border border-blue-100 shadow-sm">
+                        <i class="fas fa-user-shield"></i>
+                    </div>
+                    <h2 class="text-2xl font-black text-slate-800 mb-3">نظرة عامة على الأمان</h2>
+                    <p class="text-slate-500 text-sm mb-8 px-6">
+                        بصفتك المالك، لديك الصلاحية لإدارة كافة موظفي النظام. تذكر دائماً أداء مراجعات دورية لسجلات الأنشطة.
+                    </p>
+                    
+                    <div class="bg-slate-50 border border-slate-100 rounded-3xl p-6 text-right space-y-4">
+                        <div class="flex items-start gap-4">
+                            <div class="text-emerald-500 mt-1"><i class="fas fa-check-circle"></i></div>
+                            <div>
+                                <h4 class="text-sm font-bold text-slate-700">صلاحيات مطلقة</h4>
+                                <p class="text-xs text-slate-500">حسابك يتخطى نظام الصلاحيات التقليدي للمراقبة الشاملة.</p>
+                            </div>
+                        </div>
+                        <div class="flex items-start gap-4">
+                            <div class="text-blue-500 mt-1"><i class="fas fa-info-circle"></i></div>
+                            <div>
+                                <h4 class="text-sm font-bold text-slate-700">تشفير كلمة المرور</h4>
+                                <p class="text-xs text-slate-500">كلمات المرور مشفرة بأحدث خوارزميات الهاش (PBKDF2).</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Step 4: Finish -->
+                {% if step == 4 %}
+                <div class="animate-fade-in-up text-center py-6">
+                    <div class="relative inline-block mb-10">
+                        <div class="w-32 h-32 bg-amber-50 text-amber-500 rounded-full flex items-center justify-center text-5xl relative border border-amber-100 shadow-xl shadow-amber-100/50">
+                            <i class="fas fa-check-double drop-shadow-sm"></i>
+                        </div>
+                    </div>
+                    <h2 class="text-3xl font-black text-slate-800 mb-4">تمت المهمة بنجاح!</h2>
+                    <p class="text-slate-500 mb-10">أصبح النظام الآن جاهزاً لاستقبال أول عملية بيع لك.</p>
+                    
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="p-5 bg-white rounded-3xl border border-slate-100 shadow-sm">
+                            <div class="text-amber-500 mb-2"><i class="fas fa-boxes-stacked"></i></div>
+                            <span class="text-[10px] text-slate-400 font-bold block mb-1">المحرك الحالي</span>
+                            <span class="text-sm font-black text-slate-800">{{ sys_settings.get_market_type_display }}</span>
+                        </div>
+                        <div class="p-5 bg-white rounded-3xl border border-slate-100 shadow-sm">
+                            <div class="text-teal-500 mb-2"><i class="fas fa-user-check"></i></div>
+                            <span class="text-[10px] text-slate-400 font-bold block mb-1">حالة الحساب</span>
+                            <span class="text-sm font-black text-slate-800">ملك نظام نشط</span>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Action Buttons -->
+                <div class="mt-12 pt-8 border-t border-slate-100 flex items-center justify-between gap-4">
+                    {% if step > 0 %}
+                    <button type="button" onclick="goBack()" 
+                            class="px-8 py-4 bg-slate-100 text-slate-600 rounded-2xl font-black hover:bg-slate-200 transition flex items-center gap-3">
+                        <i class="fas fa-arrow-right"></i> عودة
+                    </button>
+                    {% else %}
+                    <div></div>
+                    {% endif %}
+
+                    <button type="submit" 
+                            class="px-10 py-4 {% if step == 4 %}bg-emerald-600 hover:bg-emerald-700 shadow-emerald-200{% else %}bg-amber-500 hover:bg-amber-600 shadow-amber-201{% endif %} text-white rounded-2xl font-black shadow-xl transition-all transform hover:-translate-y-1 active:scale-95 flex items-center gap-3">
+                        <span>{% if step == 4 %}الدخول للمنصة{% else %}متابعة الخطوات{% endif %}</span>
+                        <i class="fas {% if step == 4 %}fa-rocket{% else %}fa-arrow-left{% endif %}"></i>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    function goBack() {
+        const form = document.getElementById('onboardingForm');
+        document.getElementById('formAction').value = 'back';
+        form.submit();
+    }
+</script>
+
+<style>
+    @keyframes fadeInUp {
+        from { opacity: 0; transform: translateY(30px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    .animate-fade-in-up {
+        animation: fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+    
+    /* Strict layout control for onboarding */
+    nav, aside { display: none !important; }
+    main { margin: 0 !important; width: 100% !important; padding: 0 !important; background: #f8fafc !important; }
+    body { background: #f8fafc !important; overflow-x: hidden; }
+</style>
+{% endblock %}

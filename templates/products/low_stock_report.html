@@ -1,0 +1,69 @@
+﻿{% extends 'base.html' %}
+{% load humanize %}
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto space-y-5">
+    <div class="flex items-center justify-between print:hidden">
+        <h1 class="text-2xl font-black text-gray-800">تقرير النواقص وإعادة الطلب</h1>
+        <div class="flex gap-2">
+            <a href="?{% if supplier_id %}supplier={{ supplier_id }}&{% endif %}{% if only_out %}out=1&{% endif %}print=1" class="px-4 py-2 bg-gray-700 text-white rounded-lg font-bold text-sm">طباعة</a>
+            <a href="{% url 'product_list' %}" class="px-4 py-2 bg-gray-100 rounded-lg font-bold text-sm">المنتجات</a>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="bg-white p-4 rounded-xl border"><p class="text-xs text-gray-500 font-bold">عدد الأصناف الناقصة</p><p class="text-2xl font-black text-amber-600">{{ total_items }}</p></div>
+        <div class="bg-white p-4 rounded-xl border"><p class="text-xs text-gray-500 font-bold">التكلفة التقديرية للشراء</p><p class="text-2xl font-black text-indigo-600 dir-ltr">{{ grand_cost|floatformat:2|intcomma }}</p></div>
+    </div>
+
+    <form method="get" class="flex flex-wrap items-end gap-3 bg-white p-4 rounded-xl border print:hidden">
+        <div>
+            <label class="block text-xs font-bold text-gray-500 mb-1">المورد</label>
+            <select name="supplier" class="p-2 border rounded-lg">
+                <option value="">كل الموردين</option>
+                {% for s in suppliers %}<option value="{{ s.id }}" {% if supplier_id == s.id|stringformat:'s' %}selected{% endif %}>{{ s.name }}</option>{% endfor %}
+            </select>
+        </div>
+        <label class="flex items-center gap-2 text-sm font-bold text-gray-600"><input type="checkbox" name="out" value="1" {% if only_out %}checked{% endif %}> نفد تماماً فقط</label>
+        <button class="px-4 py-2 bg-indigo-600 text-white rounded-lg font-bold">عرض</button>
+    </form>
+
+    {% for g in groups %}
+    <div class="bg-white rounded-xl border overflow-hidden">
+        <div class="px-5 py-3 bg-gray-800 text-white font-black flex justify-between">
+            <span>{{ g.supplier.name|default:'بدون مورد محدد' }}</span>
+            <span class="dir-ltr text-sm">تقديري: {{ g.subtotal|floatformat:2|intcomma }}</span>
+        </div>
+        <table class="w-full text-sm">
+            <thead class="bg-gray-50 text-gray-500 text-xs">
+                <tr>
+                    <th class="py-2 px-4 text-right">الصنف</th>
+                    <th class="py-2 px-4 text-right">الكود</th>
+                    <th class="py-2 px-4 text-left">المتوفر</th>
+                    <th class="py-2 px-4 text-left">حد التنبيه</th>
+                    <th class="py-2 px-4 text-left">الكمية المقترحة</th>
+                    <th class="py-2 px-4 text-left">تكلفة تقديرية</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y">
+                {% for r in g.rows %}
+                <tr class="hover:bg-amber-50/40 {% if r.current <= 0 %}bg-red-50/40{% endif %}">
+                    <td class="py-2 px-4 font-bold text-gray-700">{{ r.product.name }}</td>
+                    <td class="py-2 px-4 font-mono text-gray-400 text-xs">{{ r.product.sku }}</td>
+                    <td class="py-2 px-4 text-left dir-ltr {% if r.current <= 0 %}text-red-600 font-bold{% endif %}">{{ r.current|floatformat:2 }}</td>
+                    <td class="py-2 px-4 text-left dir-ltr text-gray-500">{{ r.threshold|floatformat:2 }}</td>
+                    <td class="py-2 px-4 text-left dir-ltr font-black text-indigo-600">{{ r.suggested|floatformat:0 }}</td>
+                    <td class="py-2 px-4 text-left dir-ltr">{{ r.line_cost|floatformat:2|intcomma }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% empty %}
+    <div class="bg-white rounded-xl border py-10 text-center text-gray-400">لا توجد أصناف ناقصة 🎉</div>
+    {% endfor %}
+</div>
+
+{% if print_mode %}<script>window.onload=function(){window.print();};</script>{% endif %}
+{% endblock %}

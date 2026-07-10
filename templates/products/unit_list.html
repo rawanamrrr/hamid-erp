@@ -1,0 +1,55 @@
+{% extends 'base.html' %}
+{% block title %}وحدات القياس{% endblock %}
+{% block content %}
+<div class="max-w-3xl mx-auto space-y-6">
+  <div class="flex items-center justify-between">
+    <h1 class="text-2xl font-bold text-gray-800">وحدات القياس</h1>
+  </div>
+
+  <!-- Add Form -->
+  <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+    <h2 class="font-semibold text-gray-700 mb-4">إضافة وحدة</h2>
+    <form method="post" action="{% url 'unit_create' %}" class="flex gap-3 flex-wrap">
+      {% csrf_token %}
+      <input name="name" type="text" placeholder="اسم الوحدة (مثال: متر)" class="flex-1 min-w-36 px-4 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-200" required>
+      <input name="abbreviation" type="text" placeholder="الاختصار (مثال: MTR)" class="w-32 px-4 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-200" required>
+      <button type="submit" class="bg-teal-600 hover:bg-teal-700 text-white px-5 py-2 rounded-xl text-sm font-semibold transition">إضافة</button>
+    </form>
+  </div>
+
+  <!-- Units Table -->
+  <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+    <table class="w-full text-sm">
+      <thead class="bg-gray-50 border-b border-gray-100">
+        <tr>
+          <th class="px-4 py-3 text-right font-semibold text-gray-600">اسم الوحدة</th>
+          <th class="px-4 py-3 text-center font-semibold text-gray-600">الاختصار</th>
+          <th class="px-4 py-3 text-center font-semibold text-gray-600">الحالة</th>
+          <th class="px-4 py-3 text-center font-semibold text-gray-600">حذف</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for unit in units %}
+        <tr class="border-b border-gray-50 hover:bg-gray-50 transition">
+          <td class="px-4 py-3 font-medium text-gray-800">{{ unit.name }}</td>
+          <td class="px-4 py-3 text-center">
+            <code class="bg-gray-100 text-gray-600 px-2 py-0.5 rounded text-xs">{{ unit.abbreviation }}</code>
+          </td>
+          <td class="px-4 py-3 text-center">
+            {% if unit.is_active %}<span class="bg-green-100 text-green-700 px-2 py-0.5 rounded-full text-xs">نشط</span>
+            {% else %}<span class="bg-red-100 text-red-700 px-2 py-0.5 rounded-full text-xs">غير نشط</span>{% endif %}
+          </td>
+          <td class="px-4 py-3 text-center">
+            <form method="post" action="{% url 'unit_delete' unit.pk %}" class="inline" onsubmit="return confirm('حذف هذه الوحدة؟')">
+              {% csrf_token %}<button class="text-red-500 hover:text-red-700 p-1.5 rounded-lg hover:bg-red-50 transition"><i class="fas fa-trash text-xs"></i></button>
+            </form>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="4" class="px-4 py-8 text-center text-gray-400">لا توجد وحدات بعد</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
