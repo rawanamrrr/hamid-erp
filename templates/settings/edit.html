@@ -115,40 +115,11 @@
                     {{ form.thank_you_text }}
                 </div>
 
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-cyan-50 rounded-lg border border-cyan-100">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">نسبة ضريبة القيمة المضافة %</label>
-                        {{ form.vat_rate }}
-                        <p class="text-xs text-gray-500 mt-1">0 = غير مفعّلة. تُستخدم في تقرير الضريبة فقط (لا تغيّر أسعار البيع).</p>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">الرقم الضريبي</label>
-                        {{ form.vat_number }}
-                    </div>
-                    <div class="md:col-span-2 flex items-center gap-3 pt-1">
-                        {{ form.vat_included_in_price }}
-                        <label class="text-sm font-medium text-gray-700">الضريبة مضمنة في الأسعار</label>
-                    </div>
-                    <p class="md:col-span-2 text-xs text-gray-500 -mt-2">
-                        مفعّلة (الوضع الحالي): الأسعار شاملة الضريبة بالفعل — الفاتورة تعرض الضريبة كجزء من نفس الإجمالي دون أي تغيير.
-                        لو ألغيتها: الأسعار المُدخلة تُعتبر بدون ضريبة، وتُضاف الضريبة فوق الإجمالي في الفاتورة المطبوعة.
-                    </p>
-                </div>
-
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-amber-50 rounded-lg border border-amber-100 mt-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">نسبة رسوم الخدمة %</label>
-                        {{ form.service_charge_percent }}
-                        <p class="text-xs text-gray-500 mt-1">0 = غير مفعّلة. تُطبّق على طلبات الصالة (Dine-in) فقط — لا تُحسب أبداً على تيك أواي أو دليفري.</p>
-                    </div>
-                    <div class="flex items-center gap-3 md:pt-7">
-                        {{ form.service_charge_included_in_price }}
-                        <label class="text-sm font-medium text-gray-700">رسوم الخدمة مضمنة في الأسعار</label>
-                    </div>
-                    <p class="md:col-span-2 text-xs text-gray-500 -mt-2">
-                        مفعّلة: الأسعار شاملة رسوم الخدمة بالفعل — الفاتورة تعرض الرسوم كجزء من نفس الإجمالي دون أي تغيير.
-                        غير مفعّلة (الوضع الافتراضي): تُضاف رسوم الخدمة فوق إجمالي الأصناف في فاتورة الصالة فقط.
-                    </p>
+                <div class="p-3 bg-slate-50 border border-slate-100 rounded-lg text-xs text-slate-500 flex items-center justify-between">
+                    <span>إعدادات الضريبة ورسوم الخدمة انتقلت إلى صفحة "ثوابت النظام".</span>
+                    <a href="{% url 'policies_view' %}" class="text-teal-600 hover:text-teal-700 font-bold flex items-center gap-1 shrink-0">
+                        <i class="fa-solid fa-sliders"></i> الانتقال إليها
+                    </a>
                 </div>
 
                 <div class="p-4 bg-gray-50 rounded-lg border border-gray-200 mt-4 space-y-4">

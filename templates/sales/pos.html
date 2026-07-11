@@ -1,6 +1,7 @@
 ﻿{% extends 'base.html' %}
 {% load static %}
 {% load rbac_tags %}
+{% load l10n %}
 
 {% block title %}{{ title }}{% endblock %}
 
@@ -226,19 +227,37 @@
                     class="hidden xl:inline text-[9px] opacity-50 bg-gray-50 border border-gray-200 rounded px-1 ml-0.5">F7</kbd>
             </button>
 
-            <!-- Stock Transfer -->
-            <button onclick="openTransferModal()" title="تحويل مخزون"
-                class="h-11 px-3 flex items-center gap-1.5 bg-white text-gray-700 border-2 border-gray-200 hover:bg-gray-50 hover:border-gray-300 rounded-xl transition text-xs font-bold whitespace-nowrap shadow-sm active:scale-95">
-                <i class="fa-solid fa-right-left text-violet-500"></i>
-                <span>تحويل</span>
-            </button>
+            <!-- Divider -->
+            <div class="h-6 w-px bg-gray-200 mx-0.5"></div>
 
-            <!-- Stock Movements -->
-            <button onclick="openBulkMovementModal()" id="bulkMovBtn" title="تعديل كمية"
-                class="h-11 px-3 flex items-center gap-1.5 bg-white text-gray-700 border-2 border-gray-200 hover:bg-gray-50 hover:border-gray-300 rounded-xl transition text-xs font-bold whitespace-nowrap shadow-sm active:scale-95">
-                <i class="fa-solid fa-layer-group text-emerald-500"></i>
-                <span>تعديل كمية</span>
-            </button>
+            <!-- Order mode: صالة / تيك أواي / أونلاين — was buried in the "المزيد" dropdown,
+                 now a direct segmented control since this is picked on almost every order. -->
+            <div class="h-11 flex items-center bg-gray-50 border-2 border-gray-200 rounded-xl p-1 gap-1" id="orderModeGroup">
+                <button type="button" id="orderModeDineInBtn" onclick="setOrderMode('dine_in')"
+                        class="h-full px-2.5 flex items-center gap-1 rounded-lg text-xs font-bold whitespace-nowrap transition-colors">
+                    <i class="fa-solid fa-utensils text-[11px]"></i> صالة
+                </button>
+                <button type="button" id="orderModeTakeawayBtn" onclick="setOrderMode('takeaway')"
+                        class="h-full px-2.5 flex items-center gap-1 rounded-lg text-xs font-bold whitespace-nowrap transition-colors">
+                    <i class="fa-solid fa-bag-shopping text-[11px]"></i> تيك أواي
+                </button>
+                <button type="button" id="orderModeOnlineBtn" onclick="setOrderMode('online')"
+                        class="h-full px-2.5 flex items-center gap-1 rounded-lg text-xs font-bold whitespace-nowrap transition-colors">
+                    <i class="fa-solid fa-globe text-[11px]"></i> أونلاين
+                </button>
+            </div>
+
+            <!-- Driver/delivery-name picker — shown inline the moment أونلاين is chosen,
+                 right next to the mode buttons, instead of needing المزيد. -->
+            <div id="driverPickerWrap" class="h-11 flex items-center" style="display:none;">
+                <select id="driverSelect" onchange="calculateTotals()" title="السائق / الطيار"
+                        class="h-11 px-2.5 text-xs font-bold text-slate-800 border-2 border-gray-200 rounded-xl outline-none bg-white focus:border-blue-400 max-w-[9rem]">
+                    <option value="">-- بدون تعيين طيار --</option>
+                    {% for d in drivers %}
+                    <option value="{{ d.id }}">{{ d.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
 
             <!-- Divider -->
             <div class="h-6 w-px bg-gray-200 mx-0.5"></div>
@@ -254,6 +273,18 @@
                 </button>
                 <div id="posMoreMenu"
                     class="hidden absolute left-0 top-full mt-1.5 z-50 w-60 bg-white border border-gray-200 rounded-xl shadow-2xl p-2.5 space-y-2">
+                    <!-- Inventory shortcuts — moved in here to keep the main toolbar clean
+                         now that it also carries the order-mode buttons + driver picker. -->
+                    <div class="grid grid-cols-2 gap-1.5 px-1">
+                        <button type="button" onclick="openTransferModal()"
+                            class="h-9 flex items-center justify-center gap-1.5 bg-gray-50 text-gray-700 border border-gray-200 hover:bg-gray-100 rounded-lg text-xs font-bold whitespace-nowrap">
+                            <i class="fa-solid fa-right-left text-violet-500"></i> تحويل
+                        </button>
+                        <button type="button" onclick="openBulkMovementModal()" id="bulkMovBtn"
+                            class="h-9 flex items-center justify-center gap-1.5 bg-gray-50 text-gray-700 border border-gray-200 hover:bg-gray-100 rounded-lg text-xs font-bold whitespace-nowrap">
+                            <i class="fa-solid fa-layer-group text-emerald-500"></i> تعديل كمية
+                        </button>
+                    </div>
                     <!-- Salesman / rep (Phase 6.8) -->
                     <div class="px-1">
                         <label class="text-[10px] font-bold text-gray-500 flex items-center gap-1.5 mb-1">
@@ -262,50 +293,17 @@
                         <input type="text" id="salesmanInput" placeholder="اسم البائع (اختياري)"
                             class="w-full h-9 px-2.5 text-[12px] font-bold text-slate-800 border border-gray-200 focus:border-amber-500 rounded-lg outline-none">
                     </div>
-                    <!-- Order type: صالة/تيك أواي — irrelevant once the order is online/delivery,
-                         so it's hidden by toggleOnlineMode() the same way the driver picker shows. -->
-                    <div id="orderTypeWrap" class="px-1">
-                        <label class="text-[10px] font-bold text-gray-500 flex items-center gap-1.5 mb-1">
-                            <i class="fa-solid fa-utensils text-emerald-500"></i> نوع الطلب
-                        </label>
-                        <div class="grid grid-cols-2 gap-1.5">
-                            <button type="button" id="orderTypeDineInBtn" onclick="setOrderType('dine_in')"
-                                    class="h-9 rounded-lg text-[12px] font-bold border transition-colors">صالة</button>
-                            <button type="button" id="orderTypeTakeawayBtn" onclick="setOrderType('takeaway')"
-                                    class="h-9 rounded-lg text-[12px] font-bold border transition-colors">تيك أواي</button>
-                        </div>
-                    </div>
-                    <!-- Online Toggle -->
-                    <div class="flex items-center justify-between gap-2 bg-gray-50 px-3 py-2 rounded-lg border border-gray-200">
-                        <span class="text-[11px] font-bold text-gray-600 flex items-center gap-1.5">
-                            <i class="fa-solid fa-globe text-blue-400"></i> طلب أونلاين
-                        </span>
-                        <label class="relative inline-flex items-center cursor-pointer m-0">
-                            <input type="checkbox" id="isOnlineOrder" class="sr-only peer" onchange="toggleOnlineMode()">
-                            <div
-                                class="w-9 h-5 bg-gray-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600">
-                            </div>
-                        </label>
-                    </div>
-                    <!-- Delivery driver picker — shown once online/delivery is relevant
-                         (online toggle checked, or a delivery cost is entered). Assigning a
-                         driver here at creation time sends the order straight to /restaurant/delivery/
-                         instead of the old 2-step "create order, then assign a driver separately" flow. -->
-                    <div id="driverPickerWrap" class="px-1" style="display:none;">
-                        <label class="text-[10px] font-bold text-gray-500 flex items-center gap-1.5 mb-1">
-                            <i class="fa-solid fa-motorcycle text-blue-500"></i> السائق / الطيار
-                        </label>
-                        <select id="driverSelect" onchange="calculateTotals()"
-                                class="w-full h-9 px-2.5 text-[12px] font-bold text-slate-800 border border-gray-200 focus:border-blue-500 rounded-lg outline-none bg-white">
-                            <option value="">-- بدون تعيين طيار الآن --</option>
-                            {% for d in drivers %}
-                            <option value="{{ d.id }}">{{ d.name }}</option>
-                            {% endfor %}
-                        </select>
-                        {% if not drivers %}
-                        <p class="text-[10px] text-gray-400 mt-1">لا يوجد طيارين مُضافين لهذا الفرع — أضفهم من شاشة الدليفري.</p>
-                        {% endif %}
-                    </div>
+                    <!-- نوع الطلب (صالة/تيك أواي/أونلاين) now lives directly in the toolbar
+                         (#orderModeGroup) instead of here — this checkbox just keeps every
+                         existing onchange/toggleOnlineMode()/updateDriverPickerVisibility()
+                         hookup working unchanged; setOrderMode() drives it programmatically. -->
+                    <input type="checkbox" id="isOnlineOrder" class="hidden" onchange="toggleOnlineMode()">
+                    <!-- السائق/الطيار select now lives inline in the toolbar (#driverPickerWrap,
+                         shown next to the order-mode buttons the moment أونلاين is picked)
+                         instead of here — this is just the "no drivers configured" hint. -->
+                    {% if not drivers %}
+                    <p class="text-[10px] text-gray-400 px-1">لا يوجد طيارين مُضافين لهذا الفرع — أضفهم من شاشة الدليفري.</p>
+                    {% endif %}
                     <!-- Price Type -->
                     <div class="flex items-center justify-between gap-2 px-3 py-2 rounded-lg border
                         {% if sys_settings.market_type == 'pharmacy' %}bg-teal-50 border-teal-200
@@ -1490,10 +1488,10 @@
         // the "إجمالي الفاتورة" shown while building the cart already matches what the
         // printed receipt will show, instead of only the pre-tax/pre-service subtotal.
         const TAX_SETTINGS = {
-            vatRate: {{ sys_settings.vat_rate|default:0 }},
-            vatIncluded: {% if sys_settings.vat_included_in_price %}true{% else %}false{% endif %},
-            servicePct: {{ sys_settings.service_charge_percent|default:0 }},
-            serviceIncluded: {% if sys_settings.service_charge_included_in_price %}true{% else %}false{% endif %},
+            vatRate: {{ policies.tax.vat_rate|default:0|unlocalize }},
+            vatIncluded: {% if policies.tax.vat_included_in_price %}true{% else %}false{% endif %},
+            servicePct: {{ policies.tax.service_charge_percent|default:0|unlocalize }},
+            serviceIncluded: {% if policies.tax.service_charge_included_in_price %}true{% else %}false{% endif %},
         };
         // Per-user operational limits (حدود التشغيل للكاشير — accounts/models.py UserProfile).
         // The backend already silently recalculates the price server-side when canEditPrice
@@ -1764,6 +1762,7 @@
         function applyInlineDelivery() {
             deliveryCost = parseFloat(document.getElementById('inlineDeliveryInput').value) || 0;
             updateDriverPickerVisibility();
+            if (typeof renderOrderModeButtons === 'function') renderOrderModeButtons();
             calculateTotals();
         }
 
@@ -3311,16 +3310,41 @@
             if (cart[cartIdx]) cart[cartIdx].note = value;
         }
 
-        // --- Dine-in / takeaway toggle (irrelevant for online/delivery orders) ---
+        // --- Order mode: صالة / تيك أواي / أونلاين — one segmented control in the
+        // toolbar drives both currentOrderType and the isOnlineOrder checkbox that the
+        // rest of the app (driver picker, submit payload, requiresShipping) already reads. ---
         let currentOrderType = 'dine_in';
+        function setOrderMode(mode) {
+            const onlineCb = document.getElementById('isOnlineOrder');
+            if (mode === 'online') {
+                onlineCb.checked = true;
+            } else {
+                onlineCb.checked = false;
+                currentOrderType = mode;
+            }
+            renderOrderModeButtons();
+            toggleOnlineMode();
+        }
+
+        function renderOrderModeButtons() {
+            const isOnlineCb = document.getElementById('isOnlineOrder').checked;
+            const deliveryCost = parseFloat(document.getElementById('inlineDeliveryInput')?.value) || 0;
+            const isOnline = isOnlineCb || deliveryCost > 0;
+            const active = 'bg-emerald-600 text-white';
+            const inactive = 'bg-transparent text-gray-500 hover:bg-gray-100';
+            const dineBtn = document.getElementById('orderModeDineInBtn');
+            const takeBtn = document.getElementById('orderModeTakeawayBtn');
+            const onlineBtn = document.getElementById('orderModeOnlineBtn');
+            const base = 'h-full px-2.5 flex items-center gap-1 rounded-lg text-xs font-bold whitespace-nowrap transition-colors';
+            if (dineBtn) dineBtn.className = `${base} ${(!isOnline && currentOrderType === 'dine_in') ? active : inactive}`;
+            if (takeBtn) takeBtn.className = `${base} ${(!isOnline && currentOrderType === 'takeaway') ? active : inactive}`;
+            if (onlineBtn) onlineBtn.className = `${base} ${isOnline ? active : inactive}`;
+        }
+
+        // Kept for the few remaining direct callers (initEditMode, resetForm) — funnels
+        // through setOrderMode so the toolbar buttons stay in sync either way.
         function setOrderType(type) {
-            currentOrderType = type;
-            const dineBtn = document.getElementById('orderTypeDineInBtn');
-            const takeBtn = document.getElementById('orderTypeTakeawayBtn');
-            const active = 'bg-emerald-600 text-white border-emerald-600';
-            const inactive = 'bg-white text-gray-600 border-gray-200';
-            if (dineBtn) dineBtn.className = `h-9 rounded-lg text-[12px] font-bold border transition-colors ${type === 'dine_in' ? active : inactive}`;
-            if (takeBtn) takeBtn.className = `h-9 rounded-lg text-[12px] font-bold border transition-colors ${type === 'takeaway' ? active : inactive}`;
+            setOrderMode(type === 'takeaway' ? 'takeaway' : 'dine_in');
         }
 
         // --- Online Toggle Logic ---
@@ -3328,22 +3352,19 @@
             // deliveryInput was removed — delivery cost is now managed via the Details Modal
             const dot = document.getElementById('posMoreOnlineDot');
             if (dot) dot.classList.toggle('hidden', !document.getElementById('isOnlineOrder').checked);
+            renderOrderModeButtons();
             updateDriverPickerVisibility();
             calculateTotals();
         }
 
         // Shows the driver picker whenever the order is online or has a delivery cost —
         // the same condition submit uses to decide requiresShipping (see requiresShipping).
-        // The dine-in/takeaway toggle is the mirror image — it only makes sense when the
-        // order is NOT online/delivery, so it hides exactly when the driver picker shows.
         function updateDriverPickerVisibility() {
             const wrap = document.getElementById('driverPickerWrap');
-            const typeWrap = document.getElementById('orderTypeWrap');
             const isOnline = document.getElementById('isOnlineOrder').checked;
             const deliveryCost = parseFloat(document.getElementById('inlineDeliveryInput')?.value) || 0;
             const isDelivery = isOnline || deliveryCost > 0;
             if (wrap) wrap.style.display = isDelivery ? '' : 'none';
-            if (typeWrap) typeWrap.style.display = isDelivery ? 'none' : '';
         }
 
         // --- Top-bar "More" overflow menu (online toggle + price type) ---
@@ -3663,8 +3684,29 @@
                 appliedDiscount = manualDiscountAmount;
             }
 
-            let total = subtotal - appliedDiscount + deliveryCost;
-            if (total < 0) total = 0;
+            // Service charge — dine-in only, mirrors sales.services.compute_dine_in_service_charge()
+            // exactly. Online/delivery always resolves to order_type='delivery' at submit
+            // time regardless of the dine-in/takeaway toggle (see submitOrder()'s
+            // order_type payload), so it must never get a service charge here either.
+            const isOnlineForTotals = document.getElementById('isOnlineOrder')?.checked || deliveryCost > 0;
+            let serviceChargeAmt = 0;
+            if (!isOnlineForTotals && typeof currentOrderType !== 'undefined' && currentOrderType === 'dine_in'
+                && TAX_SETTINGS.servicePct > 0 && !TAX_SETTINGS.serviceIncluded) {
+                serviceChargeAmt = subtotal * TAX_SETTINGS.servicePct / 100;
+            }
+
+            let preExtrasTotal = subtotal - appliedDiscount + deliveryCost;
+            if (preExtrasTotal < 0) preExtrasTotal = 0;
+
+            // VAT and the service charge are each an independent percentage of the SAME
+            // pre-extras total, added side by side — not compounded on each other (VAT
+            // must not also apply to the service charge amount). Mirrors
+            // sales.services.compute_discount_and_total() exactly.
+            let vatAmt = 0;
+            if (TAX_SETTINGS.vatRate > 0 && !TAX_SETTINGS.vatIncluded) {
+                vatAmt = preExtrasTotal * TAX_SETTINGS.vatRate / 100;
+            }
+            let total = preExtrasTotal + serviceChargeAmt + vatAmt;
 
             const discountDisplayEl = document.getElementById('discountDisplaySummary');
             if (discountDisplayEl) discountDisplayEl.innerText = appliedDiscount.toFixed(2);

@@ -4,11 +4,18 @@ from decimal import Decimal
 from django.test import TestCase
 from django.contrib.auth.models import User
 
-from settings.models import SystemSetting
+from settings.models import SystemPolicy
 from crm.models import Customer
 from sales.models import Order, OrderItem
 from products.models import Supplier, PurchaseInvoice, PurchaseInvoiceItem, Product
 from financial.reports import vat_report
+
+
+def _set_vat_rate(rate):
+    """VAT rate now lives in the ثوابت النظام policy engine, not SystemSetting."""
+    p, _ = SystemPolicy.objects.get_or_create(pk=1)
+    p.values = {**(p.values or {}), 'tax.vat_rate': str(rate)}
+    p.save()
 
 
 class VatReportTests(TestCase):
@@ -23,21 +30,21 @@ class VatReportTests(TestCase):
         return o
 
     def test_rate_zero_no_tax(self):
-        SystemSetting.objects.create(shop_name='S', vat_rate=Decimal('0'))
+        _set_vat_rate('0')
         self._sale('100')
         v = vat_report()
         self.assertEqual(v['output_vat'], Decimal('0.00'))
         self.assertEqual(v['net_payable'], Decimal('0.00'))
 
     def test_inclusive_output_vat(self):
-        SystemSetting.objects.create(shop_name='S', vat_rate=Decimal('14'))
+        _set_vat_rate('14')
         self._sale('114')  # 100 + 14 VAT inclusive
         v = vat_report()
         self.assertEqual(v['output_vat'], Decimal('14.00'))
         self.assertEqual(v['net_sales_ex'], Decimal('100.00'))
 
     def test_net_payable_subtracts_input_vat(self):
-        SystemSetting.objects.create(shop_name='S', vat_rate=Decimal('14'))
+        _set_vat_rate('14')
         self._sale('114')
         s = Supplier.objects.create(name='Sup')
         inv = PurchaseInvoice.objects.create(supplier=s, status='CONFIRMED',

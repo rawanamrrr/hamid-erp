@@ -22,21 +22,10 @@ class SystemSetting(models.Model):
         verbose_name="قفل نوع المتجر؟ (لا يمكن تغييره)"
     )
 
-    # VAT / tax (Phase 4.8). Rate 0 = disabled (no behavior change). When enabled, retail
-    # prices are treated as VAT-inclusive and the report extracts the tax portion.
-    vat_rate = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal('0.00'), verbose_name="نسبة ضريبة القيمة المضافة %")
-    vat_number = models.CharField(max_length=50, blank=True, default='', verbose_name="الرقم الضريبي للمنشأة")
-    # True (default) = current behavior unchanged — retail prices already include VAT, so
-    # the receipt just extracts the tax portion out of the existing total. False = retail
-    # prices are tax-exclusive, so VAT is added ON TOP of the total on the receipt.
-    vat_included_in_price = models.BooleanField(default=True, verbose_name="الضريبة مضمنة في الأسعار")
-
-    # Service charge — dine-in only (never applied to takeaway/delivery orders). Works the
-    # same way as VAT above: included = already baked into the subtotal (receipt just
-    # shows the extracted portion, no change to what's charged); not included = added on
-    # top of the subtotal, same as VAT's excluded mode.
-    service_charge_percent = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal('0.00'), verbose_name="نسبة رسوم الخدمة % (صالة فقط)")
-    service_charge_included_in_price = models.BooleanField(default=False, verbose_name="رسوم الخدمة مضمنة في الأسعار")
+    # VAT / service-charge rate + included-vs-added toggles moved to the ثوابت النظام
+    # policy engine (settings/policies.py, group 'tax') — a single global, DB-backed
+    # setting like everything else here, just organized alongside the other store-wide
+    # behavior toggles instead of the company-profile fields on this model.
 
     # Logo stored as Base64 string
     logo_base64 = models.TextField(blank=True, null=True, verbose_name="كود اللوجو (Base64)")

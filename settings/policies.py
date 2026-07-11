@@ -21,6 +21,7 @@ until something reads it — defaults are chosen to preserve current behavior.
 POLICY_GROUPS = {
     'sales':     'المبيعات',
     'cashier':   'نقطة البيع (الكاشير)',
+    'tax':       'الضريبة ورسوم الخدمة',
     'inventory': 'المخزون',
     'purchases': 'المشتريات',
     'customers': 'العملاء',
@@ -56,14 +57,34 @@ POLICY_REGISTRY = {
         group='cashier', type='bool', default=True,
         label='السماح بالخصم في الكاشير',
         help='إيقافه يمنع أي خصم على مستوى المتجر (تحدّه أيضاً صلاحية المستخدم).'),
-    'cashier.dine_in_service_charge_percent': dict(
-        group='cashier', type='decimal', default='0.00',
-        label='نسبة الخدمة على طلبات الصالة (Dine-in) %',
-        help='تُضاف تلقائياً كنسبة من إجمالي الأصناف عند فتح شيك صالة جديد. لا تُطبّق على تيك أواي أو دليفري.'),
     'cashier.confirm_before_checkout': dict(
         group='cashier', type='bool', default=True,
         label='تأكيد قبل إتمام عملية البيع',
         help='يعرض نافذة مراجعة قبل حفظ الفاتورة.'),
+
+    # ── Tax & service charge ─────────────────────────────────────────────────
+    'tax.vat_rate': dict(
+        group='tax', type='decimal', default='0.00',
+        label='نسبة ضريبة القيمة المضافة %',
+        help='0 = غير مفعّلة. تُستخدم في تقرير الضريبة والفاتورة (لا تغيّر أسعار البيع نفسها).'),
+    'tax.vat_number': dict(
+        group='tax', type='text', default='',
+        label='الرقم الضريبي للمنشأة',
+        help='يُطبع أسفل الفاتورة عند تفعيل الضريبة (اختياري).'),
+    'tax.vat_included_in_price': dict(
+        group='tax', type='bool', default=True,
+        label='الضريبة مضمنة في الأسعار',
+        help='مفعّلة (الافتراضي): الأسعار شاملة الضريبة بالفعل — الفاتورة تعرض جزء الضريبة دون تغيير الإجمالي. '
+             'غير مفعّلة: الأسعار بدون ضريبة، وتُضاف الضريبة فوق الإجمالي في الفاتورة.'),
+    'tax.service_charge_percent': dict(
+        group='tax', type='decimal', default='0.00',
+        label='نسبة رسوم الخدمة % (صالة فقط)',
+        help='0 = غير مفعّلة. تُطبّق على طلبات الصالة (Dine-in) فقط — لا تُحسب أبداً على تيك أواي أو دليفري.'),
+    'tax.service_charge_included_in_price': dict(
+        group='tax', type='bool', default=False,
+        label='رسوم الخدمة مضمنة في الأسعار',
+        help='مفعّلة: الأسعار شاملة رسوم الخدمة بالفعل. غير مفعّلة (الافتراضي): تُضاف الرسوم فوق إجمالي '
+             'الأصناف في فاتورة الصالة فقط.'),
 
     # ── Inventory ──────────────────────────────────────────────────────────
     'inventory.warn_low_stock': dict(

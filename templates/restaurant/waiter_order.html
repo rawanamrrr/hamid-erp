@@ -174,8 +174,8 @@
                 <template x-if="order">
                     <div class="text-xs text-gray-500 space-y-1">
                         <div class="flex justify-between"><span>المجموع الفرعي</span><span x-text="order.subtotal_amount.toFixed(2)"></span></div>
-                        <div class="flex justify-between" x-show="order.service_charge > 0"><span>الخدمة</span><span x-text="order.service_charge.toFixed(2)"></span></div>
-                        <div class="flex justify-between" x-show="order.vat_amount > 0"><span>ضريبة القيمة المضافة (شاملة)</span><span x-text="order.vat_amount.toFixed(2)"></span></div>
+                        <div class="flex justify-between" x-show="order.service_charge > 0"><span x-text="'رسوم الخدمة (' + (order.service_charge_included ? 'مضمنة' : 'مضافة') + ')'"></span><span x-text="order.service_charge.toFixed(2)"></span></div>
+                        <div class="flex justify-between" x-show="order.vat_amount > 0"><span x-text="'ضريبة القيمة المضافة (' + (order.vat_included ? 'شاملة' : 'مضافة') + ')'"></span><span x-text="order.vat_amount.toFixed(2)"></span></div>
                     </div>
                 </template>
                 <div class="flex justify-between items-center font-black text-lg text-gray-900 border-t border-gray-100 pt-2">

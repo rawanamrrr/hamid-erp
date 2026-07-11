@@ -251,12 +251,11 @@ def compute_vat_amount(base_amount):
     already-inclusive total (see Order.vat_breakdown(), which reads the *result* of this —
     total_amount — rather than recomputing independently).
     """
-    from settings.models import SystemSetting
+    from settings.policies import get_policy
 
-    s = SystemSetting.objects.first()
-    if not s or s.vat_included_in_price:
+    if get_policy('tax.vat_included_in_price'):
         return Decimal('0')
-    rate = Decimal(str(s.vat_rate or 0))
+    rate = Decimal(str(get_policy('tax.vat_rate') or 0))
     if rate <= 0:
         return Decimal('0')
     return (_to_decimal(base_amount) * rate / Decimal('100')).quantize(Decimal('0.01'))
@@ -272,14 +271,13 @@ def compute_dine_in_service_charge(subtotal, order_type):
     order gets exactly the same treatment the waiter flow already applies.
     """
     from .models import Order
-    from settings.models import SystemSetting
+    from settings.policies import get_policy
 
     if order_type != Order.ORDER_TYPE_DINE_IN:
         return Decimal('0')
-    s = SystemSetting.objects.first()
-    if not s or s.service_charge_included_in_price:
+    if get_policy('tax.service_charge_included_in_price'):
         return Decimal('0')
-    pct = Decimal(str(s.service_charge_percent or 0))
+    pct = Decimal(str(get_policy('tax.service_charge_percent') or 0))
     if pct <= 0:
         return Decimal('0')
     return (_to_decimal(subtotal) * pct / Decimal('100')).quantize(Decimal('0.01'))
@@ -329,17 +327,16 @@ def compute_discount_and_total(subtotal, qualified_subtotal, *, discount, discou
 
     # Never let the discount drive the line subtotal below zero.
     applied_discount = min(applied_discount, subtotal)
-    total = subtotal - applied_discount + delivery_cost + tailoring_cost + service_charge
-    if total < 0:
-        total = Decimal('0')
+    pre_extras_total = subtotal - applied_discount + delivery_cost + tailoring_cost
+    if pre_extras_total < 0:
+        pre_extras_total = Decimal('0')
 
-    # VAT (when configured as "not included in price") is added on top last, after
-    # discount/delivery/service-charge — same order the POS's live total display and
-    # Order.vat_breakdown() both use. When included in price, this is 0 and total_amount
-    # stays exactly what it already was (vat_breakdown() then only extracts an
-    # informational split for the receipt instead of adding anything here).
-    vat_amount = compute_vat_amount(total)
-    total += vat_amount
+    # VAT and the service charge are each an independent percentage of the same
+    # pre-extras total, added side by side — NOT compounded (VAT must not also apply to
+    # the service charge amount, or vice versa). E.g. 100 + 12% service + 14% VAT = 126,
+    # not 100 * 1.12 * 1.14. Both are 0 when configured as "included in price".
+    vat_amount = compute_vat_amount(pre_extras_total)
+    total = pre_extras_total + service_charge + vat_amount
 
     return {
         'applied_discount': applied_discount,

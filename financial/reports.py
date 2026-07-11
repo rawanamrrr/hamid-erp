@@ -215,12 +215,11 @@ def vat_report(date_from=None, date_to=None):
 
     Touches no checkout logic; if the configured rate is 0 the report simply shows zeros.
     """
-    from settings.models import SystemSetting
+    from settings.policies import get_policy
     from sales.models import Order, ReturnInvoice
     from products.models import PurchaseInvoiceItem
 
-    s = SystemSetting.objects.first()
-    rate = Decimal(str(s.vat_rate)) if (s and s.vat_rate) else ZERO
+    rate = Decimal(str(get_policy('tax.vat_rate') or 0))
 
     orders = Order.objects.active()
     returns = ReturnInvoice.objects.all()
@@ -247,7 +246,7 @@ def vat_report(date_from=None, date_to=None):
 
     return {
         'rate': rate,
-        'vat_number': s.vat_number if s else '',
+        'vat_number': get_policy('tax.vat_number') or '',
         'sales_gross': sales_gross,
         'returns_gross': returns_gross,
         'net_sales': net_sales,

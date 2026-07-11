@@ -90,6 +90,13 @@ class Order(models.Model):
     is_open = models.BooleanField(default=False, db_index=True, verbose_name="شيك مفتوح")
     service_charge = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'),
                                          verbose_name="نسبة/قيمة الخدمة")
+    # The real VAT amount added at checkout (0 when settings.vat_included_in_price=True,
+    # since nothing was added in that case) — stored rather than re-derived from
+    # total_amount because VAT and service_charge are independent percentages of the same
+    # pre-extras subtotal, not compounded, so total_amount alone can't be reverse-engineered
+    # back into a tax portion once a service charge is also present.
+    vat_amount = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'),
+                                     verbose_name="قيمة ضريبة القيمة المضافة")
 
     CLOSE_TYPE_CASH = 'cash'
     CLOSE_TYPE_VISA = 'visa'
@@ -194,36 +201,37 @@ class Order(models.Model):
         return order_outstanding(self)
 
     def vat_breakdown(self):
-        """VAT split of this invoice's total.
+        """VAT split of this invoice's total — for display only, doesn't change what's
+        charged.
 
-        By default (settings.vat_included_in_price=True, unchanged historical behavior)
-        prices are VAT-inclusive at the store rate, so the tax portion is extracted out of
-        the existing total — mirrors financial.reports.vat_report: tax = total * rate /
-        (100 + rate); `total` stays exactly what was charged.
+        VAT and the service charge are each an independent percentage of the same
+        pre-extras subtotal (never compounded on each other — see
+        sales.services.compute_discount_and_total), so the tax portion can't be safely
+        reverse-engineered from total_amount alone once a service charge is also present.
 
-        When vat_included_in_price=False, the configured retail prices are tax-exclusive —
-        the subtotal is what the customer sees as line prices, and VAT is added ON TOP,
-        so `total` here becomes bigger than order.total_amount (the receipt must print
-        this breakdown's `total`, not order.total_amount, in that case).
+        - Not included in price (default): the real amount added at checkout, stored on
+          `vat_amount` (sales.services.compute_vat_amount()).
+        - Included in price: nothing was added: the amount is a purely informational split
+          extracted from (total_amount - service_charge) — the service charge is excluded
+          from that base since it's never part of the taxable subtotal either way.
 
         Returns None when no rate is configured, so receipts only show a tax line when
         VAT actually applies.
         """
-        from settings.models import SystemSetting
-        s = SystemSetting.objects.first()
-        rate = Decimal(str(s.vat_rate)) if (s and s.vat_rate) else Decimal('0')
+        from settings.policies import get_policy
+        rate = Decimal(str(get_policy('tax.vat_rate') or 0))
         if rate <= 0:
             return None
-        included = s.vat_included_in_price if s else True
-        base = self.total_amount or Decimal('0')
+        included = get_policy('tax.vat_included_in_price')
+        total = self.total_amount or Decimal('0')
         if included:
+            base = total - (self.service_charge or Decimal('0'))
             tax = (base * rate / (Decimal('100') + rate)).quantize(Decimal('0.01'))
-            net, total = base - tax, base
         else:
-            tax = (base * rate / Decimal('100')).quantize(Decimal('0.01'))
-            net, total = base, base + tax
+            tax = self.vat_amount or Decimal('0')
+        net = total - tax
         return {'rate': rate, 'net': net, 'tax': tax, 'total': total, 'included': included,
-                'vat_number': (s.vat_number if s else '')}
+                'vat_number': get_policy('tax.vat_number') or ''}
 
     def service_charge_breakdown(self):
         """Service-charge line for the receipt — dine-in only (None for takeaway/delivery,
@@ -238,12 +246,11 @@ class Order(models.Model):
         """
         if self.order_type != self.ORDER_TYPE_DINE_IN:
             return None
-        from settings.models import SystemSetting
-        s = SystemSetting.objects.first()
-        pct = Decimal(str(s.service_charge_percent)) if (s and s.service_charge_percent) else Decimal('0')
+        from settings.policies import get_policy
+        pct = Decimal(str(get_policy('tax.service_charge_percent') or 0))
         if pct <= 0:
             return None
-        included = s.service_charge_included_in_price if s else False
+        included = get_policy('tax.service_charge_included_in_price')
         if included:
             base = self.total_amount or Decimal('0')
             amount = (base * pct / (Decimal('100') + pct)).quantize(Decimal('0.01'))

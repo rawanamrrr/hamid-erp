@@ -468,13 +468,8 @@
                 {% endif %}
 
                 {% with vat=order.vat_breakdown %}
-                <div class="flex justify-between items-center text-xl font-bold bg-gray-100 p-1 rounded">
-                    <span>الإجمالي:</span>
-                    <span class="num">{{ vat.total|default:order.total_amount|floatformat:2 }}</span>
-                </div>
-
                 {% if vat %}
-                <div class="flex justify-between items-center text-xs text-gray-600 pt-1">
+                <div class="flex justify-between items-center text-xs text-gray-600">
                     <span>ض.ق.م ({{ vat.rate|floatformat:"-2" }}%) {% if vat.included %}شاملة{% else %}مضافة{% endif %}:</span>
                     <span class="num">{{ vat.tax|floatformat:2 }}</span>
                 </div>
@@ -492,6 +487,11 @@
                 </div>
                 {% endif %}
                 {% endwith %}
+
+                <div class="flex justify-between items-center text-xl font-bold bg-gray-100 p-1 rounded">
+                    <span>الإجمالي:</span>
+                    <span class="num">{{ order.total_amount|floatformat:2 }}</span>
+                </div>
 
                 {% if can_view_profit and policies.sales.show_profit_on_invoice %}
                 <div class="flex justify-between items-center text-xs text-green-700 font-bold pt-1">

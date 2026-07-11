@@ -1108,6 +1108,7 @@ def submit_order_ajax(request):
                 order.applied_deal = result['applied_deal']
                 order.total_amount = result['total']
                 order.service_charge = result['service_charge']
+                order.vat_amount = result['vat_amount']
 
                 # Completion Status
                 if order.remaining_amount <= 0:
@@ -2451,6 +2452,7 @@ def edit_order_ajax(request):
             order.applied_deal = result['applied_deal']
             order.total_amount = result['total']
             order.service_charge = result['service_charge']
+            order.vat_amount = result['vat_amount']
 
             # received_amount should only be NEW money
             order.received_amount = order.cash_paid + order.wallet_paid + order.instapay_paid + order.visa_paid

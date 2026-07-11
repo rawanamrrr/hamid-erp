@@ -36,16 +36,9 @@ class SystemSettingForm(forms.ModelForm):
         fields = [
             'shop_name', 'address', 'phone', 'market_type', 'return_policy', 'thank_you_text',
             'show_qr', 'qr_link', 'printer_name', 'notification_sound',
-            'vat_rate', 'vat_number', 'vat_included_in_price',
-            'service_charge_percent', 'service_charge_included_in_price',
             'gmail_sender_email', 'gmail_app_password', 'email_recipients'
         ]
         widgets = {
-            'vat_rate': forms.NumberInput(attrs={'class': TAILWIND_INPUT, 'step': '0.01', 'min': '0', 'max': '100'}),
-            'vat_number': forms.TextInput(attrs={'class': TAILWIND_INPUT, 'placeholder': 'الرقم الضريبي (اختياري)'}),
-            'vat_included_in_price': forms.CheckboxInput(attrs={'class': TAILWIND_CHECKBOX}),
-            'service_charge_percent': forms.NumberInput(attrs={'class': TAILWIND_INPUT, 'step': '0.01', 'min': '0', 'max': '100'}),
-            'service_charge_included_in_price': forms.CheckboxInput(attrs={'class': TAILWIND_CHECKBOX}),
             'shop_name': forms.TextInput(attrs={'class': TAILWIND_INPUT}),
             'address': forms.Textarea(attrs={'class': TAILWIND_INPUT, 'rows': 2}),
             'phone': forms.TextInput(attrs={'class': TAILWIND_INPUT}),

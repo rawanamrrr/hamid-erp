@@ -110,6 +110,19 @@ def dashboard(request):
         total=Sum('received_amount'))['total'] or 0
     revenue = float(revenue) + float(tailoring_revenue)
 
+    # Dine-in service charge is real earned income (unlike VAT, which is only ever
+    # collected on the government's behalf) but never creates a StockTransaction line,
+    # so it never showed up in `revenue` above either — add it in separately, same as
+    # tailoring. This is what a cashier-created dine-in order was missing entirely.
+    service_charge_filter = Q(service_charge__gt=0)
+    if date_from:
+        service_charge_filter &= Q(created_at__date__gte=date_from)
+    if date_to:
+        service_charge_filter &= Q(created_at__date__lte=date_to)
+    service_charge_revenue = Order.objects.filter(service_charge_filter).exclude(status='void').aggregate(
+        total=Sum('service_charge'))['total'] or 0
+    revenue = revenue + float(service_charge_revenue)
+
     # Net out sales returns — otherwise this KPI only ever grows, even for goods that
     # came back (the income-statement report already nets this via post_refund's
     # 'Sales Returns' contra-revenue journal line; this ad-hoc widget didn't).

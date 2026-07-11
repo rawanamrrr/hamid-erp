@@ -15,8 +15,9 @@ def _money(v):
 
 def build_invoice_json(order):
     from settings.models import SystemSetting
+    from settings.policies import get_policy
     s = SystemSetting.objects.first()
-    vat_rate = Decimal(str(s.vat_rate)) if (s and s.vat_rate) else Decimal('0')
+    vat_rate = Decimal(str(get_policy('tax.vat_rate') or 0))
     factor = (vat_rate / (Decimal('100') + vat_rate)) if vat_rate > 0 else Decimal('0')
 
     lines = []
@@ -56,7 +57,7 @@ def build_invoice_json(order):
         'dateTimeIssued': order.created_at.isoformat() if order.created_at else None,
         'issuer': {
             'name': s.shop_name if s else '',
-            'taxId': (s.vat_number if s else '') or '',
+            'taxId': get_policy('tax.vat_number') or '',
             'address': (s.address if s else '') or '',
         },
         'receiver': {

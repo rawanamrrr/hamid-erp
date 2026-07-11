@@ -3,7 +3,15 @@
 <head>
 <meta charset="UTF-8">
 <style>
-    body { font-family: 'Courier New', monospace; width: 280px; margin: 0; padding: 8px; }
+    /* Preview-only backdrop so the ticket reads as a small slip instead of a blank
+       full-width page — @media print below strips it back out for actual printing. */
+    html { background: #e5e7eb; }
+    body { font-family: 'Courier New', monospace; width: 280px; margin: 16px auto; padding: 8px;
+           background: #fff; box-shadow: 0 1px 6px rgba(0,0,0,0.15); }
+    @media print {
+        html { background: none; }
+        body { margin: 0 auto; box-shadow: none; }
+    }
     h2 { text-align: center; margin: 0 0 4px; font-size: 16px; }
     .meta { text-align: center; font-size: 12px; margin-bottom: 8px; border-bottom: 1px dashed #000; padding-bottom: 6px; }
     .item { font-size: 15px; font-weight: bold; margin: 4px 0; }

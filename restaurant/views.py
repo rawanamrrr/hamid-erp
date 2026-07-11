@@ -28,12 +28,16 @@ def _recompute_order_totals(order):
     from the surviving subtotal instead of leaving a stale (too-high) charge behind.
     Caller is responsible for order.save(update_fields=[...]).
     """
-    from sales.services import compute_dine_in_service_charge
+    from sales.services import compute_dine_in_service_charge, compute_vat_amount
 
     order.subtotal_amount = sum((i.subtotal for i in order.items.filter(is_void=False)), Decimal('0'))
     order.service_charge = compute_dine_in_service_charge(order.subtotal_amount, order.order_type)
-    order.total_amount = (order.subtotal_amount - Decimal(str(order.discount))
-                          + Decimal(str(order.delivery_cost)) + order.service_charge)
+    # VAT and the service charge are each an independent percentage of the same
+    # pre-extras total, added side by side — not compounded on top of each other.
+    pre_extras_total = (order.subtotal_amount - Decimal(str(order.discount))
+                        + Decimal(str(order.delivery_cost)))
+    order.vat_amount = compute_vat_amount(pre_extras_total)
+    order.total_amount = pre_extras_total + order.service_charge + order.vat_amount
 
 
 def _active_branch(request):
@@ -205,11 +209,14 @@ def _waiter_menu_context(order):
     order_json = None
     if order:
         vat = order.vat_breakdown()
+        svc = order.service_charge_breakdown()
         order_json = json.dumps({
             'id': order.id,
             'subtotal_amount': float(order.subtotal_amount),
-            'service_charge': float(order.service_charge),
+            'service_charge': float(svc['amount']) if svc else 0,
+            'service_charge_included': svc['included'] if svc else False,
             'vat_amount': float(vat['tax']) if vat else 0,
+            'vat_included': vat['included'] if vat else False,
             'total_amount': float(order.total_amount),
             'items': [{
                 'id': it.id,
@@ -258,9 +265,34 @@ def _add_items_to_order(request, order, items, branch):
                 price += Decimal(str(m.get('price_delta', 0)))
             except (TypeError, ValueError):
                 pass
+
+        # Menu-category items (cafe drinks/food, prepared on demand) never carry a real
+        # stock count — mirrors sales.services.issue_cart_items's exact same exemption so
+        # a waiter-rung sale doesn't print a false "exceeded available stock" warning.
+        if product.category_id and product.category.is_menu_category:
+            shortfall = Decimal('0')
+        else:
+            from products.inventory_services import available_quantity
+            available = available_quantity(product, branch)
+            shortfall = max(Decimal('0'), qty - available)
+
+        # A waiter-added item previously only deducted its recipe's ingredients (below)
+        # and never issued stock for the sold product itself — meaning it never created
+        # a StockTransaction row at all, silently undercounting every stock/revenue report
+        # built from StockTransaction (dashboard revenue, sold-items report, stock levels)
+        # for every table/takeaway order ever rung up through the waiter screen.
+        item_cost_price = issue_stock(
+            product, branch, qty,
+            user=request.user, reference=str(order.id),
+            note=f"طلب ويتر {'(مقاس: ' + variant.label + ') ' if variant else ''}#{order.id}",
+            transaction_type='OUT',
+            unit_price=price,
+            allow_negative=True,
+        )
+
         new_item = OrderItem.objects.create(
             order=order, product=product, variant=variant, quantity=qty, price=price,
-            cost_price=product.cost_price or Decimal('0'),
+            cost_price=item_cost_price, shortfall_qty=shortfall,
             modifiers=modifiers, note=(it.get('note') or '').strip(),
         )
         new_items.append(new_item)
@@ -285,7 +317,7 @@ def _add_items_to_order(request, order, items, branch):
                     pass
 
     _recompute_order_totals(order)
-    update_fields = ['subtotal_amount', 'service_charge', 'total_amount']
+    update_fields = ['subtotal_amount', 'service_charge', 'vat_amount', 'total_amount']
     # New items just went in — the ticket needs (re-)preparing even if the cashier had
     # already marked it ready/delivered for the items sent earlier.
     if new_items and order.kitchen_status in (Order.PREP_READY, Order.PREP_DELIVERED):
@@ -376,9 +408,14 @@ def waiter_open_or_append(request, table_id):
 @require_permission('pos', 'create')
 @require_POST
 def waiter_new_order_no_table(request):
-    """Start a table-less order (takeaway/counter order taken by a waiter) — each click
-    creates its own brand-new, independent Order; it's never shared/merged with any
-    other table-less order the way a table's open tab is shared across repeat visits.
+    """Start a table-less order taken by a waiter — each click creates its own
+    brand-new, independent Order; it's never shared/merged with any other table-less
+    order the way a table's open tab is shared across repeat visits.
+
+    Defaults to dine-in (not takeaway) — a waiter serving a customer without an assigned
+    table number (bar seating, standing customers, overflow) is still a Dine-in guest and
+    should get the same service charge a seated table does; the cashier/waiter can still
+    switch it to تيك أواي afterward if it's actually a takeaway/collection order.
     """
     branch, _ = _active_branch(request)
     if not branch:
@@ -389,7 +426,7 @@ def waiter_new_order_no_table(request):
         user=request.user,
         shift=shift,
         warehouse=branch,
-        order_type=Order.ORDER_TYPE_TAKEAWAY,
+        order_type=Order.ORDER_TYPE_DINE_IN,
         table=None,
         waiter=request.user,
         is_open=True,
@@ -494,7 +531,7 @@ def void_order_item(request, item_id):
         item.save(update_fields=['is_void', 'void_reason', 'voided_by', 'voided_at'])
 
         _recompute_order_totals(order)
-        order.save(update_fields=['subtotal_amount', 'service_charge', 'total_amount'])
+        order.save(update_fields=['subtotal_amount', 'service_charge', 'vat_amount', 'total_amount'])
 
     if order.warehouse_id:
         push_event('kds', order.warehouse_id, {

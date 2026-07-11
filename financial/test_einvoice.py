@@ -4,7 +4,7 @@ from decimal import Decimal
 from django.test import TestCase
 from django.contrib.auth.models import User
 
-from settings.models import SystemSetting
+from settings.models import SystemSetting, SystemPolicy
 from crm.models import Customer
 from sales.models import Order, OrderItem
 from products.models import Product
@@ -14,7 +14,8 @@ from financial.einvoice import build_invoice_json
 class EInvoiceTests(TestCase):
     def setUp(self):
         self.u = User.objects.create_user('ei', password='x')
-        SystemSetting.objects.create(shop_name='My Shop', vat_number='ETA-100', vat_rate=Decimal('14'))
+        SystemSetting.objects.create(shop_name='My Shop')
+        SystemPolicy.objects.create(values={'tax.vat_number': 'ETA-100', 'tax.vat_rate': '14'})
         self.c = Customer.objects.create(first_name='ACME', last_name='Co', phone='EI1', tax_number='CUST-55')
 
     def test_document_structure(self):
