@@ -109,10 +109,14 @@ class Order(models.Model):
 
     CLOSE_TYPE_CASH = 'cash'
     CLOSE_TYPE_VISA = 'visa'
+    CLOSE_TYPE_WALLET = 'wallet'
+    CLOSE_TYPE_INSTAPAY = 'instapay'
     CLOSE_TYPE_CL = 'cl'
     CLOSE_TYPE_CHOICES = [
         (CLOSE_TYPE_CASH, 'كاش'),
         (CLOSE_TYPE_VISA, 'فيزا'),
+        (CLOSE_TYPE_WALLET, 'محفظة'),
+        (CLOSE_TYPE_INSTAPAY, 'إنستا باي'),
         (CLOSE_TYPE_CL, 'آجل (CL)'),
     ]
     close_type = models.CharField(max_length=10, choices=CLOSE_TYPE_CHOICES, blank=True, default='',

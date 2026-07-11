@@ -310,10 +310,18 @@ def financial_dashboard(request):
     # show the same coded-duplicate clutter that /financial/accounts/ had.
     accounts = _exclude_dead_coded_accounts(Account.objects.filter(is_active=True))
 
-    total_cash = accounts.filter(account_type__in=['CASH_DRAWER', 'SAFE']).aggregate(Sum('balance'))['balance__sum'] or 0
-    total_vodafone = accounts.filter(account_type='VODAFONE_CASH').aggregate(Sum('balance'))['balance__sum'] or 0
-    total_instapay = accounts.filter(account_type='INSTAPAY').aggregate(Sum('balance'))['balance__sum'] or 0
-    total_bank = accounts.filter(account_type='BANK').aggregate(Sum('balance'))['balance__sum'] or 0
+    # SQLite's SUM() aggregate does its arithmetic in floating point internally, so summing
+    # 2+ DecimalField rows can come back as e.g. Decimal('34565.8600000000') instead of
+    # Decimal('34565.86') — quantize immediately so that noise never reaches a template
+    # (a naive |intcomma or |floatformat can print those extra digits verbatim).
+    def _cash_sum(account_type_in):
+        raw = accounts.filter(account_type__in=account_type_in).aggregate(Sum('balance'))['balance__sum'] or Decimal('0')
+        return Decimal(str(raw)).quantize(Decimal('0.01'))
+
+    total_cash = _cash_sum(['CASH_DRAWER', 'SAFE'])
+    total_vodafone = _cash_sum(['VODAFONE_CASH'])
+    total_instapay = _cash_sum(['INSTAPAY'])
+    total_bank = _cash_sum(['BANK'])
 
     # GLOBAL shift (not per-user)
     current_shift = DailyShift.objects.filter(is_closed=False).last()

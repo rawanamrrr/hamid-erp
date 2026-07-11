@@ -971,11 +971,18 @@ def close_check(request, order_id):
         elif close_type == Order.CLOSE_TYPE_VISA:
             order.visa_paid = order.total_amount
             order.received_amount = order.total_amount
+        elif close_type == Order.CLOSE_TYPE_WALLET:
+            order.wallet_paid = order.total_amount
+            order.received_amount = order.total_amount
+        elif close_type == Order.CLOSE_TYPE_INSTAPAY:
+            order.instapay_paid = order.total_amount
+            order.received_amount = order.total_amount
         elif close_type == Order.CLOSE_TYPE_CL:
             # آجل: not collected as cash — tracked as credit, excluded from cash reconciliation.
             order.credit_paid = order.total_amount
         order.save(update_fields=['close_type', 'is_open', 'is_completed', 'cash_paid',
-                                  'visa_paid', 'received_amount', 'credit_paid'])
+                                  'visa_paid', 'wallet_paid', 'instapay_paid', 'received_amount',
+                                  'credit_paid'])
         if order.table_id:
             Table.objects.filter(pk=order.table_id).update(status=Table.STATUS_FREE)
 
