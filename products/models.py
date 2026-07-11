@@ -554,6 +554,19 @@ class Product(models.Model):
     def __str__(self):
         return f"{self.name} ({self.sku})"
 
+    def save(self, *args, **kwargs):
+        # A product saved without picking a قسم would otherwise sit invisible: the
+        # waiter menu only ever loops through Category.products, and the POS grid
+        # treats an uncategorized item as stock-tracked, hiding it at 0 stock behind
+        # a "منتهي" badge. Falling back to a dedicated, non-stock-tracked category
+        # makes it appear immediately everywhere, exactly like a menu item does.
+        if not self.category_id:
+            fallback, _ = Category.objects.get_or_create(
+                name='بدون قسم', defaults={'is_menu_category': True, 'is_active': True}
+            )
+            self.category_id = fallback.id
+        super().save(*args, **kwargs)
+
     @property
     def is_low_stock(self):
         return self.stock_quantity <= self.low_stock_threshold

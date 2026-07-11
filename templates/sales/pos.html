@@ -412,19 +412,6 @@
                         {% if product.stock_quantity <= 0 and not product.category.is_menu_category %} <span
                             class="inline-flex items-center text-[9px] font-black px-1.5 py-0.5 rounded-full bg-red-100 text-red-600 leading-none">
                             نفد</span>
-                            {% elif product.is_low_stock and policies.inventory.warn_low_stock %}
-                            <span
-                                class="inline-flex items-center text-[9px] font-black px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 leading-none">
-                                {% if product.strips_per_box > 1 %}
-                                {% if product.box_count > 0 or product.remaining_strips > 0 %}
-                                {{ product.box_count }} ع - {{ product.remaining_strips }} ش
-                                {% else %}
-                                ⚠ 0
-                                {% endif %}
-                                {% else %}
-                                ⚠ {{ stock_val }}
-                                {% endif %}
-                            </span>
                             {% else %}
                             <span
                                 class="inline-flex items-center text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-600 leading-none">
