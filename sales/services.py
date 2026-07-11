@@ -242,7 +242,19 @@ def compute_deal_discount(applied_deal, cart_items, qualified_subtotal):
     return min(applied_deal.value, qualified_subtotal)
 
 
-def compute_vat_amount(base_amount):
+def current_vat_snapshot():
+    """(rate, included) as currently configured — call ONCE at order creation time and
+    store on Order.vat_rate_snapshot/vat_included_snapshot, so a later change to the
+    store's VAT settings never silently rewrites the VAT on a past invoice, a refund of
+    it, or a historical report (see Order.vat_breakdown()).
+    """
+    from settings.policies import get_policy
+    rate = Decimal(str(get_policy('tax.vat_rate') or 0))
+    included = bool(get_policy('tax.vat_included_in_price'))
+    return rate, included
+
+
+def compute_vat_amount(base_amount, rate=None, included=None):
     """VAT amount to add on top of `base_amount` — 0 when unset or configured as "included
     in price" (already baked into the entered prices, nothing more to add).
 
@@ -250,12 +262,22 @@ def compute_vat_amount(base_amount):
     a real amount added to what's collected, or purely an informational split of an
     already-inclusive total (see Order.vat_breakdown(), which reads the *result* of this —
     total_amount — rather than recomputing independently).
+
+    Pass `rate`/`included` explicitly (an existing order's own vat_rate_snapshot/
+    vat_included_snapshot) when recomputing totals for an ALREADY-CREATED order (editing
+    items, voiding one) — otherwise a VAT rate change between checkout and a later edit
+    would silently re-price that invoice's VAT at the new rate instead of the one it was
+    actually opened under. Omit both to fall back to the live policy (a brand-new order,
+    which hasn't been snapshotted yet at the point this is first called).
     """
     from settings.policies import get_policy
 
-    if get_policy('tax.vat_included_in_price'):
+    if included is None:
+        included = bool(get_policy('tax.vat_included_in_price'))
+    if included:
         return Decimal('0')
-    rate = Decimal(str(get_policy('tax.vat_rate') or 0))
+    if rate is None:
+        rate = Decimal(str(get_policy('tax.vat_rate') or 0))
     if rate <= 0:
         return Decimal('0')
     return (_to_decimal(base_amount) * rate / Decimal('100')).quantize(Decimal('0.01'))
@@ -285,7 +307,8 @@ def compute_dine_in_service_charge(subtotal, order_type):
 
 def compute_discount_and_total(subtotal, qualified_subtotal, *, discount, discount_type,
                                applied_deal, delivery_cost, tailoring_cost=Decimal('0'),
-                               service_charge=Decimal('0'), cart_items=None):
+                               service_charge=Decimal('0'), vat_rate=None, vat_included=None,
+                               cart_items=None):
     """Resolve the discount amount and final total for an order.
 
     Returns a dict:
@@ -335,7 +358,7 @@ def compute_discount_and_total(subtotal, qualified_subtotal, *, discount, discou
     # pre-extras total, added side by side — NOT compounded (VAT must not also apply to
     # the service charge amount, or vice versa). E.g. 100 + 12% service + 14% VAT = 126,
     # not 100 * 1.12 * 1.14. Both are 0 when configured as "included in price".
-    vat_amount = compute_vat_amount(pre_extras_total)
+    vat_amount = compute_vat_amount(pre_extras_total, vat_rate, vat_included)
     total = pre_extras_total + service_charge + vat_amount
 
     return {

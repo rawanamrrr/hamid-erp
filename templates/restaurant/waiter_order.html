@@ -8,10 +8,10 @@
     <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
         <div class="flex items-center gap-2">
             <div class="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0">
-                <i class="fa-solid {% if table %}fa-chair{% else %}fa-bag-shopping{% endif %}"></i>
+                <i class="fa-solid {% if table %}fa-chair{% elif order.order_type == 'takeaway' %}fa-bag-shopping{% elif order.order_type == 'delivery' %}fa-motorcycle{% else %}fa-utensils{% endif %}"></i>
             </div>
             <div>
-                <h1 class="text-xl font-black text-gray-900 leading-tight">{% if table %}ترابيزة {{ table.number }}{% else %}طلب تيك أواي #{{ order.id }}{% endif %}</h1>
+                <h1 class="text-xl font-black text-gray-900 leading-tight">{% if table %}ترابيزة {{ table.number }}{% else %}طلب {{ order.get_order_type_display }} #{{ order.id }}{% endif %}</h1>
                 <p class="text-xs text-gray-400" x-show="orderId">طلب #<span x-text="orderId"></span></p>
             </div>
         </div>
@@ -187,7 +187,12 @@
                     <i class="fa-solid fa-kitchen-set"></i> إرسال للمطبخ
                 </button>
 
-                <template x-if="order">
+                <!-- Payment only makes sense once at least one item has actually been sent
+                     to the kitchen (order.items.length) — a brand-new table-less order
+                     already has a real Order row (created up front, unlike a table's tab
+                     which is only created on its first send), so gating on just "order"
+                     showed كاش/فيزا/آجل before there was anything to pay for. -->
+                <template x-if="order && order.items.length">
                     <div class="grid grid-cols-3 gap-2">
                         <button @click="closeCheck('cash')" class="py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-black transition-colors">كاش</button>
                         <button @click="closeCheck('visa')" class="py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black transition-colors">فيزا</button>

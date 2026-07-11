@@ -1032,9 +1032,16 @@ def submit_order_ajax(request):
                     from restaurant.models import Driver
                     driver = Driver.objects.filter(id=driver_id, branch=warehouse, is_active=True).first()
 
+                # Snapshot the store's VAT rate/mode NOW — vat_breakdown() locks onto this
+                # forever, so a later rate change never rewrites this invoice's own VAT.
+                from .services import current_vat_snapshot
+                _vat_rate_snap, _vat_included_snap = current_vat_snapshot()
+
                 # Create Order
                 order = Order(
                     user=request.user,
+                    vat_rate_snapshot=_vat_rate_snap,
+                    vat_included_snapshot=_vat_included_snap,
                     shift=active_shift,
                     customer=customer,
                     warehouse=warehouse,  # FIX #1.7: persist the sale's warehouse
@@ -1101,6 +1108,7 @@ def submit_order_ajax(request):
                     applied_deal=applied_deal, delivery_cost=delivery_cost,
                     tailoring_cost=order.tailoring_cost,
                     service_charge=compute_dine_in_service_charge(subtotal, order.order_type),
+                    vat_rate=order.vat_rate_snapshot, vat_included=order.vat_included_snapshot,
                     cart_items=cart_items,
                 )
                 order.discount = result['discount']
@@ -1792,7 +1800,23 @@ def refund_view(request):
                         )
 
                         total_refund += qty * price
-                
+
+                # VAT top-up — total_refund so far is built from OrderItem.price (the
+                # pre-VAT line price, since VAT is applied once at order level, not per
+                # line), i.e. it's a NET figure. A customer returning goods is entitled to
+                # the VAT they actually paid on them back too, not just the net product
+                # price — so it's added here, proportional to the original invoice's own
+                # tax/net ratio (scaled off vat_breakdown()'s `net`, not `total`, since
+                # `total` may also contain the non-taxed dine-in service charge).
+                if original_order and total_refund > 0:
+                    original_vat = original_order.vat_breakdown()
+                    if original_vat and original_vat['net'] > 0:
+                        return_vat = (
+                            total_refund * original_vat['tax'] / original_vat['net']
+                        ).quantize(Decimal('0.01'))
+                        return_invoice.vat_amount = return_vat
+                        total_refund += return_vat
+
                 return_invoice.total_refund_amount = total_refund
                 return_invoice.save()
 
@@ -2445,6 +2469,7 @@ def edit_order_ajax(request):
                 applied_deal=applied_deal, delivery_cost=order.delivery_cost,
                 tailoring_cost=order.tailoring_cost,
                 service_charge=compute_dine_in_service_charge(total_amount, new_order_type),
+                vat_rate=order.vat_rate_snapshot, vat_included=order.vat_included_snapshot,
                 cart_items=new_items,
             )
             order.discount = result['discount']

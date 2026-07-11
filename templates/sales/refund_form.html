@@ -186,6 +186,17 @@
         }, 3000);
     }
 
+    // Deep-link from order_list.html's "ارجاع" action: /sales/refund/?invoice_id=123
+    // auto-fills the invoice number and runs the search immediately.
+    document.addEventListener('DOMContentLoaded', function () {
+        const params = new URLSearchParams(window.location.search);
+        const invoiceId = params.get('invoice_id');
+        if (invoiceId) {
+            document.getElementById('invoiceIdInput').value = invoiceId;
+            searchInvoice();
+        }
+    });
+
     // --- Search Invoice ---
     function searchInvoice() {
         const invoiceId = document.getElementById('invoiceIdInput').value;

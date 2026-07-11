@@ -97,6 +97,15 @@ class Order(models.Model):
     # back into a tax portion once a service charge is also present.
     vat_amount = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'),
                                      verbose_name="قيمة ضريبة القيمة المضافة")
+    # Snapshot of the store's VAT rate/pricing-mode AT CHECKOUT TIME (settings.policies
+    # 'tax.vat_rate' / 'tax.vat_included_in_price') — vat_breakdown() reads these instead
+    # of the live policy so a rate change later never silently rewrites the VAT on past
+    # invoices, refunds of them, or historical reports. null = pre-migration order with no
+    # snapshot; vat_breakdown() falls back to the live policy for those (old behavior).
+    vat_rate_snapshot = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True,
+                                            verbose_name="نسبة الضريبة وقت البيع")
+    vat_included_snapshot = models.BooleanField(null=True, blank=True,
+                                                 verbose_name="هل كانت الضريبة مضمنة وقت البيع")
 
     CLOSE_TYPE_CASH = 'cash'
     CLOSE_TYPE_VISA = 'visa'
@@ -217,12 +226,21 @@ class Order(models.Model):
 
         Returns None when no rate is configured, so receipts only show a tax line when
         VAT actually applies.
+
+        Uses the rate/mode SNAPSHOTTED at checkout (vat_rate_snapshot/vat_included_snapshot)
+        when present, so a later change to the store's VAT settings never silently rewrites
+        the VAT on a past invoice, a refund of it, or a historical report. Falls back to the
+        live policy only for orders created before this snapshot existed (both null).
         """
         from settings.policies import get_policy
-        rate = Decimal(str(get_policy('tax.vat_rate') or 0))
+        if self.vat_rate_snapshot is not None:
+            rate = self.vat_rate_snapshot
+            included = bool(self.vat_included_snapshot)
+        else:
+            rate = Decimal(str(get_policy('tax.vat_rate') or 0))
+            included = get_policy('tax.vat_included_in_price')
         if rate <= 0:
             return None
-        included = get_policy('tax.vat_included_in_price')
         total = self.total_amount or Decimal('0')
         if included:
             base = total - (self.service_charge or Decimal('0'))
@@ -548,6 +566,12 @@ class ReturnInvoice(models.Model):
     customer = models.ForeignKey('crm.Customer', on_delete=models.SET_NULL, null=True, blank=True, verbose_name="العميل")
     user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, verbose_name="الموظف")
     total_refund_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, verbose_name="إجمالي المبلغ المسترد")
+    # VAT portion of total_refund_amount — the same proportion the original order's own
+    # total was VAT (see refund_view: total_refund * original.vat_breakdown()['tax'] /
+    # original.vat_breakdown()['total']). Lets post_refund() reverse Sales Returns and
+    # VAT Payable separately instead of debiting the whole VAT-inclusive amount to
+    # Sales Returns, which would understate net revenue by the VAT portion of every return.
+    vat_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, verbose_name="قيمة الضريبة في المرتجع")
     refund_method = models.CharField(max_length=20, choices=REFUND_METHOD_CHOICES, default='cash', verbose_name="طريقة الاسترداد")
     reason_category = models.CharField(max_length=20, choices=REASON_CHOICES, blank=True, verbose_name="تصنيف السبب")
     reason = models.TextField(blank=True, verbose_name="سبب الإرجاع")

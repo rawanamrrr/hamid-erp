@@ -36,7 +36,10 @@ def _recompute_order_totals(order):
     # pre-extras total, added side by side — not compounded on top of each other.
     pre_extras_total = (order.subtotal_amount - Decimal(str(order.discount))
                         + Decimal(str(order.delivery_cost)))
-    order.vat_amount = compute_vat_amount(pre_extras_total)
+    # Pinned to the rate this order was actually opened under (vat_rate_snapshot), not
+    # whatever the store's live VAT setting happens to be right now — otherwise a rate
+    # change would silently re-price an already-open table's VAT on every add-item/void.
+    order.vat_amount = compute_vat_amount(pre_extras_total, order.vat_rate_snapshot, order.vat_included_snapshot)
     order.total_amount = pre_extras_total + order.service_charge + order.vat_amount
 
 
@@ -384,6 +387,8 @@ def waiter_open_or_append(request, table_id):
         order = table.open_order
         created = False
         if order is None:
+            from sales.services import current_vat_snapshot
+            _vat_rate_snap, _vat_included_snap = current_vat_snapshot()
             order = Order.objects.create(
                 user=request.user,
                 shift=shift,
@@ -393,6 +398,8 @@ def waiter_open_or_append(request, table_id):
                 waiter=request.user,
                 is_open=True,
                 is_completed=False,
+                vat_rate_snapshot=_vat_rate_snap,
+                vat_included_snapshot=_vat_included_snap,
             )
             table.status = Table.STATUS_BUSY
             table.save(update_fields=['status'])
@@ -422,6 +429,8 @@ def waiter_new_order_no_table(request):
         return JsonResponse({'status': 'error', 'message': 'لا يوجد فرع نشط'}, status=400)
 
     shift = get_active_shift()
+    from sales.services import current_vat_snapshot
+    _vat_rate_snap, _vat_included_snap = current_vat_snapshot()
     order = Order.objects.create(
         user=request.user,
         shift=shift,
@@ -431,6 +440,8 @@ def waiter_new_order_no_table(request):
         waiter=request.user,
         is_open=True,
         is_completed=False,
+        vat_rate_snapshot=_vat_rate_snap,
+        vat_included_snapshot=_vat_included_snap,
     )
     return JsonResponse({'status': 'ok', 'order_id': order.id})
 

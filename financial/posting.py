@@ -36,6 +36,7 @@ NOMINAL = {
     'AR':            ('1200', 'العملاء / ذمم مدينة', 'ASSET'),
     'AP':            ('2100', 'الموردين / ذمم دائنة', 'LIABILITY'),
     'OWNER_DRAWINGS':('3100', 'مسحوبات المالك', 'EQUITY'),
+    'VAT_PAYABLE':   ('2200', 'ضريبة القيمة المضافة مستحقة الدفع (Output VAT)', 'LIABILITY'),
 }
 
 # Operational cash/bank accounts by payment method.
@@ -120,8 +121,17 @@ def post_sale(order):
         Dr Cash/Wallet/Instapay   (amounts actually received)
         Dr Accounts Receivable    (total − received  → credit/debt portion)
         Dr COGS                   (Σ line cost)
-            Cr Sales Revenue      (invoice total)
+            Cr Sales Revenue      (invoice total − VAT)
+            Cr VAT Payable        (VAT portion, Output VAT — never counted as revenue)
             Cr Inventory          (Σ line cost)
+
+    VAT is money collected on the tax authority's behalf, not company income — it must
+    never land in Sales Revenue regardless of whether the store's prices are configured
+    as VAT-inclusive or -exclusive (settings.policies 'tax.vat_included_in_price'):
+    Order.vat_breakdown()'s `tax` figure is the real VAT portion of total_amount either
+    way (an "included" price still contains a VAT portion, just not added on top), so
+    that's what's split out here — not the raw `vat_amount` field, which is only ever
+    the amount actually ADDED on top and is 0 in "included" mode.
     """
     try:
         total = Decimal(str(order.total_amount or 0))
@@ -158,8 +168,13 @@ def post_sale(order):
         elif ar_amount < 0:
             lines.append((nominal('AR'), ZERO, -ar_amount))
 
-        # Revenue (credit) = full invoice total
-        lines.append((nominal('SALES_REVENUE'), ZERO, total))
+        # Revenue (credit) = invoice total minus the VAT portion — VAT is collected on
+        # the tax authority's behalf and posted to its own liability account instead.
+        vat = order.vat_breakdown()
+        vat_amount = Decimal(str(vat['tax'])) if vat else ZERO
+        lines.append((nominal('SALES_REVENUE'), ZERO, total - vat_amount))
+        if vat_amount > 0:
+            lines.append((nominal('VAT_PAYABLE'), ZERO, vat_amount))
 
         # COGS / Inventory legs
         cogs_total = sum((it.cogs for it in order.items.all()), ZERO)
@@ -184,7 +199,10 @@ def post_sale(order):
 def post_refund(return_invoice):
     """Post a sales return:
 
-        Dr Sales Returns          (refund total)
+        Dr Sales Returns          (refund total − VAT portion)
+        Dr VAT Payable            (VAT portion — reverses the liability the original sale
+                                    posted; the refunded VAT was never company revenue, so
+                                    it must not land in Sales Returns either)
             Cr Cash  (if cash refund)  OR  Cr AR (if credited to customer)
         Dr Inventory              (Σ returned cost)
             Cr COGS               (Σ returned cost)
@@ -193,7 +211,10 @@ def post_refund(return_invoice):
         total = Decimal(str(return_invoice.total_refund_amount or 0))
         lines = []
         if total > 0:
-            lines.append((nominal('SALES_RETURNS'), total, ZERO))
+            vat_amount = Decimal(str(return_invoice.vat_amount or 0))
+            lines.append((nominal('SALES_RETURNS'), total - vat_amount, ZERO))
+            if vat_amount > 0:
+                lines.append((nominal('VAT_PAYABLE'), vat_amount, ZERO))
             if return_invoice.refund_method == 'customer_credit':
                 lines.append((nominal('AR'), ZERO, total))
             else:
