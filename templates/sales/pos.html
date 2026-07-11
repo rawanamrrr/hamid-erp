@@ -231,32 +231,35 @@
             <div class="h-6 w-px bg-gray-200 mx-0.5"></div>
 
             <!-- Order mode: صالة / تيك أواي / أونلاين — was buried in the "المزيد" dropdown,
-                 now a direct segmented control since this is picked on almost every order. -->
-            <div class="h-11 flex items-center bg-gray-50 border-2 border-gray-200 rounded-xl p-1 gap-1" id="orderModeGroup">
-                <button type="button" id="orderModeDineInBtn" onclick="setOrderMode('dine_in')"
-                        class="h-full px-2.5 flex items-center gap-1 rounded-lg text-xs font-bold whitespace-nowrap transition-colors">
-                    <i class="fa-solid fa-utensils text-[11px]"></i> صالة
-                </button>
-                <button type="button" id="orderModeTakeawayBtn" onclick="setOrderMode('takeaway')"
-                        class="h-full px-2.5 flex items-center gap-1 rounded-lg text-xs font-bold whitespace-nowrap transition-colors">
-                    <i class="fa-solid fa-bag-shopping text-[11px]"></i> تيك أواي
-                </button>
-                <button type="button" id="orderModeOnlineBtn" onclick="setOrderMode('online')"
-                        class="h-full px-2.5 flex items-center gap-1 rounded-lg text-xs font-bold whitespace-nowrap transition-colors">
-                    <i class="fa-solid fa-globe text-[11px]"></i> أونلاين
-                </button>
-            </div>
+                 now a direct segmented control since this is picked on almost every order.
+                 relative wrapper lets driverPickerWrap drop down directly below it. -->
+            <div class="relative" id="orderModeOuter">
+                <div class="h-11 flex items-center bg-gray-50 border-2 border-gray-200 rounded-xl p-1 gap-1" id="orderModeGroup">
+                    <button type="button" id="orderModeDineInBtn" onclick="setOrderMode('dine_in')"
+                            class="h-full px-2.5 flex items-center gap-1 rounded-lg text-xs font-bold whitespace-nowrap transition-colors">
+                        <i class="fa-solid fa-utensils text-[11px]"></i> صالة
+                    </button>
+                    <button type="button" id="orderModeTakeawayBtn" onclick="setOrderMode('takeaway')"
+                            class="h-full px-2.5 flex items-center gap-1 rounded-lg text-xs font-bold whitespace-nowrap transition-colors">
+                        <i class="fa-solid fa-bag-shopping text-[11px]"></i> تيك أواي
+                    </button>
+                    <button type="button" id="orderModeOnlineBtn" onclick="setOrderMode('online')"
+                            class="h-full px-2.5 flex items-center gap-1 rounded-lg text-xs font-bold whitespace-nowrap transition-colors">
+                        <i class="fa-solid fa-globe text-[11px]"></i> أونلاين
+                    </button>
+                </div>
 
-            <!-- Driver/delivery-name picker — shown inline the moment أونلاين is chosen,
-                 right next to the mode buttons, instead of needing المزيد. -->
-            <div id="driverPickerWrap" class="h-11 flex items-center" style="display:none;">
-                <select id="driverSelect" onchange="calculateTotals()" title="السائق / الطيار"
-                        class="h-11 px-2.5 text-xs font-bold text-slate-800 border-2 border-gray-200 rounded-xl outline-none bg-white focus:border-blue-400 max-w-[9rem]">
-                    <option value="">-- بدون تعيين طيار --</option>
-                    {% for d in drivers %}
-                    <option value="{{ d.id }}">{{ d.name }}</option>
-                    {% endfor %}
-                </select>
+                <!-- Driver/delivery-name picker — drops down directly under the أونلاين
+                     group the moment it's chosen, instead of needing المزيد. -->
+                <div id="driverPickerWrap" class="absolute top-full right-0 mt-1.5 z-40 w-48 bg-white border-2 border-gray-200 rounded-xl shadow-lg p-1.5" style="display:none;">
+                    <select id="driverSelect" onchange="calculateTotals()" title="السائق / الطيار"
+                            class="w-full h-9 px-2.5 text-xs font-bold text-slate-800 border border-gray-200 rounded-lg outline-none bg-white focus:border-blue-400">
+                        <option value="">-- بدون تعيين طيار --</option>
+                        {% for d in drivers %}
+                        <option value="{{ d.id }}">{{ d.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
             </div>
 
             <!-- Divider -->
