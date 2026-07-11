@@ -312,6 +312,7 @@
                         <th class="py-3 px-4">رقم الفاتورة</th>
                         <th class="py-3 px-4">التاريخ</th>
                         <th class="py-3 px-4">العميل</th>
+                        <th class="py-3 px-4">الموظف</th>
                         <th class="py-3 px-4">المطلوب</th>
                         <th class="py-3 px-4">المدفوع</th>
                         <th class="py-3 px-4 text-center">الإجراءات والطباعة</th>
@@ -325,12 +326,20 @@
                             {% if order.status == 'void' %}<span class="ml-1 inline-block px-1.5 py-0.5 text-[9px] font-black text-white bg-red-600 rounded">ملغاة</span>{% endif %}
                             {% if order.revision_no %}<span class="ml-1 inline-block px-1.5 py-0.5 text-[9px] font-bold text-amber-700 bg-amber-100 rounded" title="عدد التعديلات">معدّلة ×{{ order.revision_no }}</span>{% endif %}
                             {% if order.has_oversold and can_view_profit %}<a href="{% url 'oversold_register' %}?q={{ order.display_number }}" class="ml-1 inline-block px-1.5 py-0.5 text-[9px] font-black text-white bg-orange-500 rounded" title="تحتوي على صنف بيع بكمية أكبر من المتاح">⚠ تجاوز مخزون</a>{% endif %}
+                            {% if order.has_return %}
+                                {% if order.returned_amount >= order.total_amount %}
+                                <span class="ml-1 inline-block px-1.5 py-0.5 text-[9px] font-black text-white bg-purple-600 rounded" title="تم استرجاع الفاتورة بالكامل">مرتجع كلي</span>
+                                {% else %}
+                                <span class="ml-1 inline-block px-1.5 py-0.5 text-[9px] font-black text-white bg-purple-400 rounded" title="تم استرجاع جزء من الفاتورة">مرتجع جزئي</span>
+                                {% endif %}
+                            {% endif %}
                         </td>
                         <td class="py-3 px-4 text-gray-500 text-xs">{{ order.created_at|date:"Y-m-d H:i" }}</td>
                         <td class="py-3 px-4">
                             <span class="font-bold text-gray-800">{{ order.customer.first_name|default:"عميل نقدي" }}</span>
                             {% if order.customer %}<div class="text-[10px] text-gray-400">{{ order.customer.phone }}</div>{% endif %}
                         </td>
+                        <td class="py-3 px-4 text-gray-600">{{ order.user.get_full_name|default:order.user.username|default:"—" }}</td>
                         <td class="py-3 px-4 font-bold">{{ order.total_amount|floatformat:2 }}</td>
                         <td class="py-3 px-4 font-bold text-green-600">{{ order.received_amount|floatformat:2 }}
                             {% if order.outstanding > 0 %}<div class="text-[10px] font-bold text-red-500">متبقٍ: {{ order.outstanding|floatformat:2 }}</div>{% endif %}
@@ -377,7 +386,7 @@
                         </td>
                     </tr>
                     {% empty %}
-                    <tr><td colspan="6" class="py-10 text-center text-gray-500">لا توجد مبيعات حالياً</td></tr>
+                    <tr><td colspan="7" class="py-10 text-center text-gray-500">لا توجد مبيعات حالياً</td></tr>
                     {% endfor %}
                 </tbody>
             </table>

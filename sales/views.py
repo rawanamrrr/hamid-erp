@@ -1323,9 +1323,18 @@ def update_tailoring_status_ajax(request):
 @login_required
 @require_granular_action_open('sales', 'orders')
 def order_list(request):
-    from django.db.models import Exists, OuterRef
+    from django.db.models import Exists, OuterRef, Subquery, Sum, Value, DecimalField
+    from django.db.models.functions import Coalesce
+    _returned_amount_sq = ReturnInvoice.objects.filter(
+        original_order=OuterRef('pk')
+    ).values('original_order').annotate(total=Sum('total_refund_amount')).values('total')
     orders = Order.objects.annotate(
-        has_oversold=Exists(OrderItem.objects.filter(order=OuterRef('pk'), shortfall_qty__gt=0))
+        has_oversold=Exists(OrderItem.objects.filter(order=OuterRef('pk'), shortfall_qty__gt=0)),
+        has_return=Exists(ReturnInvoice.objects.filter(original_order=OuterRef('pk'))),
+        returned_amount=Coalesce(
+            Subquery(_returned_amount_sq, output_field=DecimalField(max_digits=10, decimal_places=2)),
+            Value(0), output_field=DecimalField(max_digits=10, decimal_places=2)
+        ),
     ).order_by('-created_at')
 
     # Phase 3.5: invoice visibility scoping. Cashiers see only their own invoices unless
@@ -1801,21 +1810,33 @@ def refund_view(request):
 
                         total_refund += qty * price
 
-                # VAT top-up — total_refund so far is built from OrderItem.price (the
-                # pre-VAT line price, since VAT is applied once at order level, not per
-                # line), i.e. it's a NET figure. A customer returning goods is entitled to
-                # the VAT they actually paid on them back too, not just the net product
-                # price — so it's added here, proportional to the original invoice's own
-                # tax/net ratio (scaled off vat_breakdown()'s `net`, not `total`, since
-                # `total` may also contain the non-taxed dine-in service charge).
+                # VAT split — total_refund so far is built from OrderItem.price, which
+                # means something DIFFERENT depending on the store's VAT pricing mode at
+                # the time of the original sale:
+                # - Not included (added on top): OrderItem.price is the NET pre-VAT line
+                #   price (VAT is an order-level addition, never baked into the line
+                #   itself) — so the customer is entitled to the VAT they paid on top of
+                #   it back too; it's added here, proportional to the original invoice's
+                #   own tax/net ratio.
+                # - Included in price: OrderItem.price is already the GROSS, VAT-inclusive
+                #   amount the customer paid — total_refund is already the correct amount
+                #   to hand back (e.g. 100), and adding VAT on top again would refund more
+                #   than they actually paid (e.g. 112). Only the VAT portion is EXTRACTED
+                #   out of it here for the ledger split, nothing is added to the total.
                 if original_order and total_refund > 0:
                     original_vat = original_order.vat_breakdown()
-                    if original_vat and original_vat['net'] > 0:
-                        return_vat = (
-                            total_refund * original_vat['tax'] / original_vat['net']
-                        ).quantize(Decimal('0.01'))
-                        return_invoice.vat_amount = return_vat
-                        total_refund += return_vat
+                    if original_vat and original_vat['rate'] > 0:
+                        if original_vat['included']:
+                            rate = original_vat['rate']
+                            return_invoice.vat_amount = (
+                                total_refund * rate / (Decimal('100') + rate)
+                            ).quantize(Decimal('0.01'))
+                        elif original_vat['net'] > 0:
+                            return_vat = (
+                                total_refund * original_vat['tax'] / original_vat['net']
+                            ).quantize(Decimal('0.01'))
+                            return_invoice.vat_amount = return_vat
+                            total_refund += return_vat
 
                 return_invoice.total_refund_amount = total_refund
                 return_invoice.save()

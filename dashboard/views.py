@@ -8,6 +8,7 @@ from django.contrib.auth.models import User
 from products.models import Product, Supplier, StockTransaction
 from django.utils import timezone
 from datetime import datetime, timedelta
+from decimal import Decimal
 import json
 
 # --- Helper Function for Permissions ---
@@ -123,18 +124,52 @@ def dashboard(request):
         total=Sum('service_charge'))['total'] or 0
     revenue = revenue + float(service_charge_revenue)
 
+    # When VAT is configured as "included in price" (settings.policies
+    # 'tax.vat_included_in_price'), the line prices summed into `revenue` above still have
+    # that VAT baked into them — e.g. a 100 EGP item with 12 EGP of included VAT should
+    # only count 88 as real revenue, the other 12 belongs in the VAT report/payable, not
+    # here. This never affected the "not included" (added-on-top) mode, since that VAT is
+    # a separate order-level addition that never touches a line's own price to begin with.
+    orders_for_vat = Order.objects.active()
+    if date_from:
+        orders_for_vat = orders_for_vat.filter(created_at__date__gte=date_from)
+    if date_to:
+        orders_for_vat = orders_for_vat.filter(created_at__date__lte=date_to)
+    included_vat_total = sum(
+        (vb['tax'] for vb in (o.vat_breakdown() for o in orders_for_vat) if vb and vb['included']),
+        Decimal('0'),
+    )
+    revenue = revenue - float(included_vat_total)
+
     # Net out sales returns — otherwise this KPI only ever grows, even for goods that
     # came back (the income-statement report already nets this via post_refund's
     # 'Sales Returns' contra-revenue journal line; this ad-hoc widget didn't).
+    #
+    # total_refund_amount is the GROSS amount actually handed back to the customer (VAT
+    # included when the original sale's price was), but `revenue` above is already NET
+    # (VAT stripped out) — so only (total_refund_amount − vat_amount) of each return
+    # should come back out of it, or a return would subtract more than that sale ever
+    # added to revenue in the first place.
     from sales.models import ReturnInvoice
     returns_filter = Q()
     if date_from:
         returns_filter &= Q(created_at__date__gte=date_from)
     if date_to:
         returns_filter &= Q(created_at__date__lte=date_to)
-    total_returns = ReturnInvoice.objects.filter(returns_filter).aggregate(
-        total=Sum('total_refund_amount'))['total'] or 0
+    returns_agg = ReturnInvoice.objects.filter(returns_filter).aggregate(
+        total=Sum('total_refund_amount'), vat=Sum('vat_amount'))
+    total_returns = (returns_agg['total'] or 0) - (returns_agg['vat'] or 0)
     revenue = revenue - float(total_returns)
+
+    # Same problem hits "عمليات البيع" and "القطع المباعة" — both are built purely from
+    # StockTransaction 'OUT' rows above, so a returned item still counts as sold forever.
+    # Net out the returned lines/quantities the same way `revenue` was netted out.
+    from sales.models import ReturnItem
+    return_items_qs = ReturnItem.objects.filter(return_invoice__in=ReturnInvoice.objects.filter(returns_filter))
+    returned_ops = return_items_qs.count()
+    returned_qty = return_items_qs.aggregate(total=Sum('quantity'))['total'] or 0
+    total_sales_ops = total_sales_ops - returned_ops
+    total_items_sold = total_items_sold - returned_qty
 
     # Recent Transactions
     recent_qs = StockTransaction.objects.select_related('product').order_by('-created_at')
@@ -219,7 +254,6 @@ def dashboard(request):
 
     # --- 6. Financial Overview Metrics ---
     from financial.models import Account, Transaction
-    from decimal import Decimal
 
     # Sum of balances in real cash/bank/wallet accounts only — NOT every active
     # account. Account.balance is also used by non-cash nominal accounts (AR,
