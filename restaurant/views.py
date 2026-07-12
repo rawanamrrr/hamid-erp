@@ -115,7 +115,7 @@ def restaurant_setup(request):
 # ─────────────────────────────────────────────
 
 @login_required
-@require_permission('pos', 'view')
+@require_permission('waiter', 'view')
 def waiter_table_map(request):
     branch, warehouses = _active_branch(request)
     if not branch:
@@ -346,7 +346,7 @@ def _add_items_to_order(request, order, items, branch):
 
 
 @login_required
-@require_permission('pos', 'view')
+@require_permission('waiter', 'view')
 def waiter_order_screen(request, table_id):
     """Build/edit the open check for a table: category grid + running cart."""
     branch, _ = _active_branch(request)
@@ -359,7 +359,7 @@ def waiter_order_screen(request, table_id):
 
 
 @login_required
-@require_permission('pos', 'create')
+@require_permission('waiter', 'create')
 @require_POST
 def waiter_open_or_append(request, table_id):
     """Create the table's open tab if none exists, then append submitted items to it.
@@ -413,7 +413,7 @@ def waiter_open_or_append(request, table_id):
 
 
 @login_required
-@require_permission('pos', 'create')
+@require_permission('waiter', 'create')
 @require_POST
 def waiter_new_order_no_table(request):
     """Start a table-less order taken by a waiter — each click creates its own
@@ -448,7 +448,7 @@ def waiter_new_order_no_table(request):
 
 
 @login_required
-@require_permission('pos', 'view')
+@require_permission('waiter', 'view')
 def waiter_order_screen_no_table(request, order_id):
     """Same building UI as waiter_order_screen, for an order with no table (takeaway
     order started via waiter_new_order_no_table)."""
@@ -461,7 +461,7 @@ def waiter_order_screen_no_table(request, order_id):
 
 
 @login_required
-@require_permission('pos', 'create')
+@require_permission('waiter', 'create')
 @require_POST
 def waiter_add_items_no_table(request, order_id):
     """Append cart lines to an existing table-less order — same mechanics as
@@ -519,7 +519,7 @@ def _print_kitchen_tickets(request, order, items):
 
 
 @login_required
-@require_permission('pos', 'void')
+@require_permission('waiter', 'void')
 @require_POST
 def void_order_item(request, item_id):
     """Cancel one line of an open/active check (void item)."""
@@ -554,7 +554,7 @@ def void_order_item(request, item_id):
 
 
 @login_required
-@require_permission('pos', 'void')
+@require_permission('waiter', 'void')
 @require_POST
 def void_order(request, order_id):
     """Void the whole check (existing Order.STATUS_VOID lifecycle) and free its table."""
@@ -668,7 +668,7 @@ def cashier_set_order_status(request, order_id):
 # ─────────────────────────────────────────────
 
 @login_required
-@require_permission('pos', 'view')
+@require_permission('kitchen', 'view')
 def kds_view(request):
     """One ticket card per ORDER (table), not per item — a table with 2 coffees is a
     single ticket the kitchen preps together, not two separate cards.
@@ -714,7 +714,7 @@ def kds_view(request):
 
 
 @login_required
-@require_permission('pos', 'view')
+@require_permission('kitchen', 'view')
 def kitchen_ticket_preview(request, order_id):
     """Browser-printable ticket for one order (window.print() fallback) — for stations
     with no printer_target wired up yet, or a manual reprint of the whole check."""
@@ -727,7 +727,7 @@ def kitchen_ticket_preview(request, order_id):
 
 
 @login_required
-@require_permission('pos', 'edit')
+@require_permission('kitchen', 'edit')
 @require_POST
 def kds_set_status(request, item_id):
     item = get_object_or_404(OrderItem, pk=item_id)
@@ -748,7 +748,7 @@ def kds_set_status(request, item_id):
 
 
 @login_required
-@require_permission('pos', 'edit')
+@require_permission('kitchen', 'edit')
 @require_POST
 def kds_set_order_status(request, order_id):
     """Advance every non-void, non-served item of a ticket together — the KDS screen
@@ -810,7 +810,7 @@ def _delivery_drivers_payload(branch):
 
 
 @login_required
-@require_permission('pos', 'view')
+@require_permission('delivery', 'view')
 def delivery_dashboard(request):
     branch, _ = _active_branch(request)
     if not branch:
@@ -829,7 +829,7 @@ def delivery_dashboard(request):
 
 
 @login_required
-@require_permission('pos', 'view')
+@require_permission('delivery', 'view')
 def delivery_orders_feed(request):
     """JSON feed backing the dashboard's websocket-triggered incremental refresh (no
     full page reload, so running timers on other cards don't restart). Includes both
@@ -845,7 +845,7 @@ def delivery_orders_feed(request):
 
 
 @login_required
-@require_permission('pos', 'edit')
+@require_permission('delivery', 'edit')
 @require_POST
 def assign_driver(request, order_id):
     from django.utils import timezone
@@ -870,7 +870,7 @@ def assign_driver(request, order_id):
 
 
 @login_required
-@require_permission('pos', 'view')
+@require_permission('delivery', 'view')
 def delivery_check_preview(request, order_id):
     """Browser-printable handoff check for the flyer: order id, customer name/phone/
     address, and the item list — printed the moment a driver is assigned."""
@@ -880,7 +880,7 @@ def delivery_check_preview(request, order_id):
 
 
 @login_required
-@require_permission('pos', 'edit')
+@require_permission('delivery', 'edit')
 @require_POST
 def driver_return_settle(request, order_id):
     """Driver came back: mark delivered, and open a CashCustody for the cash they collected.
@@ -1093,7 +1093,7 @@ def custody_settle(request, custody_id):
 # ─────────────────────────────────────────────
 
 @login_required
-@require_permission('pos', 'edit')
+@require_permission('waiter', 'edit')
 @require_POST
 def close_check(request, order_id):
     """Close an open tab as cash / visa / CL (آجل — the owner ate it, no cash collected)."""

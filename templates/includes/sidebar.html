@@ -213,31 +213,39 @@ html.fav-only-mode #topnav-items > *:not(.fav-show) { display: none; }
                 <span>الكاشير</span>
             </a>
 
-            {% if request.user|can_access:"pos:view" or request.user.is_superuser %}
+            {% if request.user|can_access:"waiter:view" or request.user.is_superuser %}
             <!-- شاشة الويتر -->
             <a href="{% url 'restaurant:waiter_tables' %}" class="tnav-link {% with vn=request.resolver_match.view_name %}{% if vn == 'restaurant:waiter_tables' or vn == 'restaurant:waiter_order' %}active{% endif %}{% endwith %}">
                 <i class="fas fa-chair text-xs"></i>
                 <span>الويتر</span>
             </a>
+            {% endif %}
 
+            {% if request.user|can_access:"pos:cashier_inbound" or request.user.is_superuser %}
             <!-- شاشة الكاشير: قائمة الطلبات الواردة -->
             <a href="{% url 'restaurant:cashier_dashboard' %}" class="tnav-link {% if request.resolver_match.view_name == 'restaurant:cashier_dashboard' %}active{% endif %}">
                 <i class="fas fa-cash-register text-xs"></i>
                 <span>الطلبات الواردة</span>
             </a>
+            {% endif %}
 
+            {% if request.user|can_access:"kitchen:view" or request.user.is_superuser %}
             <!-- شاشة المطبخ -->
             <a href="{% url 'restaurant:kds' %}" class="tnav-link {% if request.resolver_match.view_name == 'restaurant:kds' %}active{% endif %}">
                 <i class="fas fa-kitchen-set text-xs"></i>
                 <span>المطبخ</span>
             </a>
+            {% endif %}
 
+            {% if request.user|can_access:"delivery:view" or request.user.is_superuser %}
             <!-- شاشة الدليفري -->
             <a href="{% url 'restaurant:delivery_dashboard' %}" class="tnav-link {% if request.resolver_match.view_name == 'restaurant:delivery_dashboard' %}active{% endif %}">
                 <i class="fas fa-motorcycle text-xs"></i>
                 <span>الدليفري</span>
             </a>
+            {% endif %}
 
+            {% if request.user|can_access:"pos:custody" or request.user.is_superuser %}
             <!-- الجرد والودائع dropdown -->
             <div class="tnav-dropdown" id="dd-restaurant">
                 {% with vn=request.resolver_match.view_name %}

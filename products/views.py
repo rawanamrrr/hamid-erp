@@ -2383,7 +2383,7 @@ def bulk_product_save_ajax(request):
         return JsonResponse({'success': False, 'error': str(e)})
 
 @login_required
-@require_permission('products', 'add')
+@require_permission('products', 'create')
 @require_POST
 def bulk_quick_add_category_api(request):
     name = (request.POST.get('name') or '').strip()
@@ -2393,7 +2393,7 @@ def bulk_quick_add_category_api(request):
     return JsonResponse({'success': True, 'id': obj.id, 'name': obj.name, 'created': created})
 
 @login_required
-@require_permission('products', 'add')
+@require_permission('products', 'create')
 @require_POST
 def bulk_quick_add_kind_api(request):
     name = (request.POST.get('name') or '').strip()
@@ -2411,7 +2411,7 @@ def bulk_quick_add_kind_api(request):
     })
 
 @login_required
-@require_permission('products', 'add')
+@require_permission('products', 'create')
 @require_POST
 def bulk_quick_add_size_api(request):
     name = (request.POST.get('name') or '').strip()

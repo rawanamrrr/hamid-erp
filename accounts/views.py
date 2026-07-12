@@ -578,7 +578,25 @@ def user_sidebar_permissions(request, pk):
                 {'id': 'pos:desktop', 'name': 'كاشير الكمبيوتر', 'icon': 'fas fa-desktop'},
                 {'id': 'pos:mobile', 'name': 'موبايل كاشير', 'icon': 'fas fa-mobile-alt'},
                 {'id': 'pos:transfer', 'name': 'تحويل مخزون (من الكاشير)', 'icon': 'fas fa-exchange-alt'},
+                {'id': 'pos:cashier_inbound', 'name': 'الطلبات الواردة (الكاشير)', 'icon': 'fas fa-cash-register'},
+                {'id': 'pos:custody', 'name': 'الجرد والودائع (تقارير الويتر/الطيارين)', 'icon': 'fas fa-mug-saucer'},
             ]
+        },
+        # Waiter/kitchen/delivery are now their own permission modules (restaurant/views.py
+        # checks 'waiter'/'kitchen'/'delivery' directly) instead of being lumped under 'pos'
+        # — each needs its own sidebar toggle to match, same as it needs its own role
+        # checkbox in role_form.html.
+        {
+            'id': 'waiter', 'name': 'شاشة الويتر', 'icon': 'fas fa-chair',
+            'sub_links': []
+        },
+        {
+            'id': 'kitchen', 'name': 'شاشة المطبخ', 'icon': 'fas fa-kitchen-set',
+            'sub_links': []
+        },
+        {
+            'id': 'delivery', 'name': 'شاشة الدليفري', 'icon': 'fas fa-motorcycle',
+            'sub_links': []
         },
         {
             'id': 'financial', 'name': 'الخزنة والشيفتات', 'icon': 'fas fa-vault',

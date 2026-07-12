@@ -71,13 +71,33 @@
     // System Modules definition for RBAC
     const modulesDef = [
         { id: 'dashboard', name: 'اللوحة الإحصائية', actions: ['view', 'view_sensitive_money'] },
-        { id: 'pos', name: 'الكاشير (البيع)', actions: ['view', 'create'] },
+        // Split out from one combined 'pos' module into the four screens it actually used
+        // to lump together — restaurant/views.py now checks 'waiter'/'kitchen'/'delivery'
+        // for those screens directly, so a role can be granted e.g. kitchen access without
+        // also getting the waiter's void/close-check ability or the delivery dashboard.
+        { id: 'pos', name: 'الكاشير (نقطة البيع)', actions: ['view', 'create', 'edit'] },
+        { id: 'waiter', name: 'الويتر', actions: ['view', 'create', 'edit', 'void'] },
+        { id: 'kitchen', name: 'المطبخ', actions: ['view', 'edit'] },
+        { id: 'delivery', name: 'الدليفري', actions: ['view', 'edit'] },
         { id: 'products', name: 'المنتجات والمخزن', actions: ['view', 'create', 'edit', 'delete'] },
         { id: 'categories', name: 'التصنيفات', actions: ['view', 'create', 'edit', 'delete'] },
-        { id: 'financial', name: 'المالية والخزنة', actions: ['view', 'create'] },
+        // 'manage' is financial's own "full access" action (approvals, closing shifts,
+        // overriding credit limits...) — heavily used across financial/sales/restaurant
+        // views but previously had no checkbox at all.
+        { id: 'financial', name: 'المالية والخزنة', actions: ['view', 'create', 'edit', 'manage'] },
         { id: 'crm', name: 'العملاء (CRM)', actions: ['view', 'create', 'edit', 'delete'] },
-        { id: 'sales_orders', name: 'فواتير المبيعات', actions: ['view', 'delete'] },
-        { id: 'users', name: 'إدارة المستخدمين والأدوار', actions: ['view', 'create', 'edit', 'delete'] }
+        // Replaces the old unused 'sales_orders' entry (view/delete only, never actually
+        // checked anywhere in code) with the module name really enforced in sales/views.py
+        // and accounts/approvals.py: 'sales' — seeing all invoices, editing/deleting a
+        // posted invoice, and the manager-level 'manage' used for approvals.
+        { id: 'sales', name: 'فواتير المبيعات', actions: ['view_all', 'edit', 'delete', 'manage'] },
+        { id: 'users', name: 'إدارة المستخدمين والأدوار', actions: ['view', 'create', 'edit', 'delete'] },
+        // Previously had no entry at all — store settings/policies pages were unreachable
+        // for any role without superuser/master status.
+        { id: 'settings', name: 'إعدادات النظام', actions: ['view'] },
+        // Previously had no entry at all — the shipping/online-orders dashboard was
+        // unreachable for any role without superuser/master status.
+        { id: 'shipping', name: 'الشحن والتوصيل', actions: ['view', 'edit'] }
     ];
 
     // Preload from backend JSON
@@ -108,11 +128,14 @@
         
         mod.actions.forEach(act => {
             const isChecked = hasModule.includes(act) || hasModule.includes('all');
-            const actionLabel = act === 'view' ? 'رؤية وقراءة' : 
+            const actionLabel = act === 'view' ? 'رؤية وقراءة' :
                                 act === 'create' ? 'إنشاء وإضافة' :
                                 act === 'edit' ? 'تعديل البيانات' :
                                 act === 'delete' ? 'صلاحية الحذف' :
-                                act === 'view_sensitive_money' ? 'رؤية الخزنة والأرباح' : act;
+                                act === 'view_sensitive_money' ? 'رؤية الخزنة والأرباح' :
+                                act === 'void' ? 'إلغاء / إبطال الفاتورة' :
+                                act === 'manage' ? 'إدارة كاملة (اعتماد ومراجعة)' :
+                                act === 'view_all' ? 'رؤية كل الفواتير (وليس فواتيره فقط)' : act;
                                 
             html += `
                 <label class="flex items-center gap-2 cursor-pointer hover:bg-gray-50 p-2 rounded-lg transition border border-transparent hover:border-gray-100">
