@@ -86,6 +86,15 @@ class Order(models.Model):
                                related_name='waiter_orders', verbose_name="الويتر")
     driver = models.ForeignKey('restaurant.Driver', on_delete=models.SET_NULL, null=True, blank=True,
                                related_name='deliveries', verbose_name="الطيار")
+    # Stamped the moment a flyer is assigned on the delivery dashboard — drives the
+    # live elapsed-timer on the order card (and, once frozen by CashCustody.created_at
+    # at settle time, the "total time out" shown on a closed delivery card).
+    driver_assigned_at = models.DateTimeField(null=True, blank=True, verbose_name="وقت تعيين الطيار")
+    # Stamped when the flyer returns and the order is settled (driver_return_settle) —
+    # the actual "closed" marker for the delivery dashboard. Deliberately separate from
+    # is_completed ("تم الدفع"/payment complete), which is already True at creation for
+    # any delivery order paid upfront, long before a driver is even assigned.
+    driver_settled_at = models.DateTimeField(null=True, blank=True, verbose_name="وقت استلام الطيار وتسليمه")
     # Running tab: True while the check is still open on a table and can receive more items.
     is_open = models.BooleanField(default=False, db_index=True, verbose_name="شيك مفتوح")
     service_charge = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'),

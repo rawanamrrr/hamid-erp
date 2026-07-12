@@ -245,20 +245,8 @@
                     </button>
                     <button type="button" id="orderModeOnlineBtn" onclick="setOrderMode('online')"
                             class="h-full px-2.5 flex items-center gap-1 rounded-lg text-xs font-bold whitespace-nowrap transition-colors">
-                        <i class="fa-solid fa-globe text-[11px]"></i> أونلاين
+                        <i class="fa-solid fa-motorcycle text-[11px]"></i> دليفري
                     </button>
-                </div>
-
-                <!-- Driver/delivery-name picker — drops down directly under the أونلاين
-                     group the moment it's chosen, instead of needing المزيد. -->
-                <div id="driverPickerWrap" class="absolute top-full right-0 mt-1.5 z-40 w-48 bg-white border-2 border-gray-200 rounded-xl shadow-lg p-1.5" style="display:none;">
-                    <select id="driverSelect" onchange="calculateTotals()" title="السائق / الطيار"
-                            class="w-full h-9 px-2.5 text-xs font-bold text-slate-800 border border-gray-200 rounded-lg outline-none bg-white focus:border-blue-400">
-                        <option value="">-- بدون تعيين طيار --</option>
-                        {% for d in drivers %}
-                        <option value="{{ d.id }}">{{ d.name }}</option>
-                        {% endfor %}
-                    </select>
                 </div>
             </div>
 
@@ -929,6 +917,61 @@
 
     <!-- Payment modal replaced by inline payment section in sidebar — stub kept for JS ID compat -->
     <div id="paymentModal" class="hidden"></div>
+
+    <!-- ══ DELIVERY CLIENT LOOKUP MODAL ══ -->
+    <div id="deliveryClientModal" class="hidden fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
+            <div class="bg-gradient-to-l from-indigo-600 to-indigo-500 px-5 py-4 text-white flex items-center gap-2">
+                <i class="fa-solid fa-motorcycle"></i>
+                <span class="font-bold">طلب دليفري</span>
+            </div>
+            <div class="p-5">
+                <!-- Step 1: phone lookup -->
+                <div id="dcmStepPhone">
+                    <label class="text-xs font-bold text-gray-500 mb-1 block">رقم هاتف العميل</label>
+                    <div class="flex gap-2">
+                        <input type="tel" id="dcmPhoneInput" placeholder="01xxxxxxxxx"
+                               class="flex-1 h-11 px-3 border-2 border-gray-200 rounded-xl outline-none focus:border-indigo-500"
+                               onkeydown="if(event.key==='Enter'){event.preventDefault();dcmLookupPhone();}">
+                        <button type="button" onclick="dcmLookupPhone()"
+                                class="px-4 h-11 bg-indigo-600 text-white rounded-xl font-bold">بحث</button>
+                    </div>
+                    <p id="dcmNotFoundMsg" class="hidden text-sm text-red-600 mt-2 font-bold">لا يوجد عميل بهذا الرقم</p>
+                </div>
+
+                <!-- Step 2a: existing client found -->
+                <div id="dcmStepFound" class="hidden mt-3 space-y-2">
+                    <div class="bg-gray-50 rounded-xl p-3 space-y-2">
+                        <div class="flex justify-between items-center">
+                            <span class="text-xs font-bold text-gray-500">الاسم</span>
+                            <button type="button" onclick="dcmToggleEdit()" class="text-xs text-indigo-600 font-bold">تعديل</button>
+                        </div>
+                        <input type="text" id="dcmFoundName" disabled class="w-full h-9 px-2 border rounded-lg bg-white disabled:bg-gray-100">
+                        <span class="text-xs font-bold text-gray-500">العنوان</span>
+                        <textarea id="dcmFoundAddress" disabled rows="2" class="w-full px-2 py-1 border rounded-lg bg-white disabled:bg-gray-100"></textarea>
+                        <button type="button" id="dcmSaveEditBtn" onclick="dcmSaveEdit()"
+                                class="hidden w-full h-9 bg-amber-500 text-white rounded-lg font-bold text-sm">حفظ التعديل</button>
+                    </div>
+                    <button type="button" onclick="dcmStartOrder()"
+                            class="w-full h-11 bg-emerald-600 text-white rounded-xl font-bold">بدء الطلب</button>
+                </div>
+
+                <!-- Step 2b: new client form -->
+                <div id="dcmStepNew" class="hidden mt-3 space-y-2">
+                    <label class="text-xs font-bold text-gray-500 block">الاسم</label>
+                    <input type="text" id="dcmNewName" placeholder="اسم العميل" class="w-full h-10 px-2 border-2 border-gray-200 rounded-lg outline-none focus:border-indigo-500">
+                    <label class="text-xs font-bold text-gray-500 block">العنوان</label>
+                    <textarea id="dcmNewAddress" rows="2" placeholder="العنوان بالتفصيل" class="w-full px-2 py-1 border-2 border-gray-200 rounded-lg outline-none focus:border-indigo-500"></textarea>
+                    <label class="text-xs font-bold text-gray-500 block">رقم هاتف إضافي (اختياري)</label>
+                    <input type="tel" id="dcmNewPhone2" class="w-full h-10 px-2 border-2 border-gray-200 rounded-lg outline-none focus:border-indigo-500">
+                    <button type="button" onclick="dcmCreateClient()"
+                            class="w-full h-11 bg-emerald-600 text-white rounded-xl font-bold mt-1">حفظ وبدء الطلب</button>
+                </div>
+
+                <button type="button" onclick="closeDeliveryClientModal()" class="w-full h-9 text-gray-500 text-sm font-bold mt-3">إلغاء</button>
+            </div>
+        </div>
+    </div>
 
     <!-- ══ DEBT CONFIRMATION MODAL ══ -->
     <div id="debtConfirmModal"
@@ -3306,6 +3349,7 @@
         let currentOrderType = 'dine_in';
         function setOrderMode(mode) {
             const onlineCb = document.getElementById('isOnlineOrder');
+            const wasOnline = onlineCb.checked;
             if (mode === 'online') {
                 onlineCb.checked = true;
             } else {
@@ -3314,6 +3358,11 @@
             }
             renderOrderModeButtons();
             toggleOnlineMode();
+            // Newly switching into دليفري (and no client picked yet for this order):
+            // open the phone-lookup screen instead of the old inline driver picker.
+            if (mode === 'online' && !wasOnline && !currentCustomerId) {
+                openDeliveryClientModal();
+            }
         }
 
         function renderOrderModeButtons() {
@@ -3347,14 +3396,122 @@
             calculateTotals();
         }
 
-        // Shows the driver picker whenever the order is online or has a delivery cost —
-        // the same condition submit uses to decide requiresShipping (see requiresShipping).
-        function updateDriverPickerVisibility() {
-            const wrap = document.getElementById('driverPickerWrap');
-            const isOnline = document.getElementById('isOnlineOrder').checked;
-            const deliveryCost = parseFloat(document.getElementById('inlineDeliveryInput')?.value) || 0;
-            const isDelivery = isOnline || deliveryCost > 0;
-            if (wrap) wrap.style.display = isDelivery ? '' : 'none';
+        // Driver assignment no longer happens at POS — flyers are assigned later on the
+        // delivery dashboard — so there's nothing left for this to toggle. Kept as a
+        // harmless no-op since toggleOnlineMode() still calls it.
+        function updateDriverPickerVisibility() {}
+
+        // --- Delivery client lookup (phone-first) modal ---
+        let dcmFoundCustomer = null;
+
+        function openDeliveryClientModal() {
+            document.getElementById('dcmPhoneInput').value = '';
+            document.getElementById('dcmNotFoundMsg').classList.add('hidden');
+            document.getElementById('dcmStepPhone').classList.remove('hidden');
+            document.getElementById('dcmStepFound').classList.add('hidden');
+            document.getElementById('dcmStepNew').classList.add('hidden');
+            dcmFoundCustomer = null;
+            document.getElementById('deliveryClientModal').classList.remove('hidden');
+            setTimeout(() => document.getElementById('dcmPhoneInput').focus(), 50);
+        }
+
+        function closeDeliveryClientModal() {
+            document.getElementById('deliveryClientModal').classList.add('hidden');
+            // If the cashier bails out without picking/creating a client, don't leave the
+            // toolbar stuck on دليفري with no customer attached.
+            if (!currentCustomerId) {
+                setOrderMode('dine_in');
+            }
+        }
+
+        function dcmLookupPhone() {
+            const phone = document.getElementById('dcmPhoneInput').value.trim();
+            if (!phone) return;
+            fetch(`/crm/api/customer-lookup/?phone=${encodeURIComponent(phone)}`)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.found) {
+                        dcmFoundCustomer = data.customer;
+                        document.getElementById('dcmNotFoundMsg').classList.add('hidden');
+                        document.getElementById('dcmStepFound').classList.remove('hidden');
+                        document.getElementById('dcmStepNew').classList.add('hidden');
+                        document.getElementById('dcmFoundName').value = data.customer.name;
+                        document.getElementById('dcmFoundAddress').value = data.customer.address;
+                        document.getElementById('dcmFoundName').disabled = true;
+                        document.getElementById('dcmFoundAddress').disabled = true;
+                        document.getElementById('dcmSaveEditBtn').classList.add('hidden');
+                    } else {
+                        dcmFoundCustomer = null;
+                        document.getElementById('dcmNotFoundMsg').classList.remove('hidden');
+                        document.getElementById('dcmStepFound').classList.add('hidden');
+                        document.getElementById('dcmStepNew').classList.remove('hidden');
+                        document.getElementById('dcmNewName').value = '';
+                        document.getElementById('dcmNewAddress').value = '';
+                        document.getElementById('dcmNewPhone2').value = '';
+                    }
+                });
+        }
+
+        function dcmToggleEdit() {
+            const nameEl = document.getElementById('dcmFoundName');
+            const addrEl = document.getElementById('dcmFoundAddress');
+            const editing = !nameEl.disabled;
+            nameEl.disabled = editing;
+            addrEl.disabled = editing;
+            document.getElementById('dcmSaveEditBtn').classList.toggle('hidden', editing);
+        }
+
+        function dcmSaveEdit() {
+            if (!dcmFoundCustomer) return;
+            const name = document.getElementById('dcmFoundName').value.trim();
+            const address = document.getElementById('dcmFoundAddress').value.trim();
+            fetch(`/crm/api/customer/${dcmFoundCustomer.id}/quick-update/`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
+                body: JSON.stringify({ name, address }),
+            })
+            .then(r => r.json())
+            .then(res => {
+                if (res.status === 'ok') {
+                    dcmFoundCustomer = res.customer;
+                    document.getElementById('dcmFoundName').disabled = true;
+                    document.getElementById('dcmFoundAddress').disabled = true;
+                    document.getElementById('dcmSaveEditBtn').classList.add('hidden');
+                } else {
+                    alert(res.message || 'حدث خطأ');
+                }
+            });
+        }
+
+        function dcmCreateClient() {
+            const phone = document.getElementById('dcmPhoneInput').value.trim();
+            const name = document.getElementById('dcmNewName').value.trim();
+            const address = document.getElementById('dcmNewAddress').value.trim();
+            const phone2 = document.getElementById('dcmNewPhone2').value.trim();
+            if (!name) { alert('من فضلك أدخل اسم العميل'); return; }
+            if (!address) { alert('من فضلك أدخل عنوان العميل'); return; }
+            fetch(`/crm/api/customer-quick-create/`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
+                body: JSON.stringify({ phone, name, address, phone2 }),
+            })
+            .then(r => r.json())
+            .then(res => {
+                if (res.status === 'ok') {
+                    dcmFoundCustomer = res.customer;
+                    dcmStartOrder();
+                } else {
+                    alert(res.message || 'حدث خطأ');
+                }
+            });
+        }
+
+        function dcmStartOrder() {
+            if (!dcmFoundCustomer) return;
+            selectCustomer(dcmFoundCustomer.id, dcmFoundCustomer.customer_type, dcmFoundCustomer.name,
+                           dcmFoundCustomer.address, dcmFoundCustomer.balance, dcmFoundCustomer.credit_limit,
+                           dcmFoundCustomer.phone);
+            document.getElementById('deliveryClientModal').classList.add('hidden');
         }
 
         // --- Top-bar "More" overflow menu (online toggle + price type) ---

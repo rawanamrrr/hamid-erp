@@ -11,6 +11,7 @@ from decimal import Decimal
 from django.utils import timezone
 from django.views import View
 from django.views.generic import ListView
+from django.views.decorators.http import require_POST
 from django.utils.decorators import method_decorator
 from django.utils.http import urlencode
 import io
@@ -695,3 +696,110 @@ def customer_delete(request, pk):
         customer.delete()
         return redirect('customer_list')
     return render(request, 'crm/customer_confirm_delete.html', {'object': customer, 'title': 'حذف عميل'})
+
+
+# ─────────────────────────────────────────────
+#  POS delivery-screen quick client lookup/create (phone-first flow)
+# ─────────────────────────────────────────────
+
+@login_required
+@require_permission('crm', 'view')
+def customer_lookup_by_phone(request):
+    """Used by the POS delivery screen: enter a phone number, get back the matching
+    customer (name/address/phone2) if one already exists, so the cashier never has to
+    retype anything already on file."""
+    phone = (request.GET.get('phone') or '').strip()
+    if not phone:
+        return JsonResponse({'found': False})
+    customer = Customer.objects.filter(Q(phone=phone) | Q(phone2=phone)).first()
+    if not customer:
+        return JsonResponse({'found': False})
+    return JsonResponse({
+        'found': True,
+        'customer': {
+            'id': customer.id,
+            'name': f"{customer.first_name} {customer.last_name}".strip(),
+            'phone': customer.phone,
+            'phone2': customer.phone2,
+            'address': customer.address or '',
+            'balance': float(customer.get_balance()),
+            'credit_limit': float(customer.credit_limit or 0),
+            'customer_type': customer.customer_type,
+        },
+    })
+
+
+@login_required
+@require_permission('crm', 'create')
+@require_POST
+def customer_quick_create(request):
+    """Creates a customer from the delivery-screen "no existing client" form. The phone
+    number was already entered on the lookup screen, so it's taken as-is here rather than
+    asked for again."""
+    try:
+        payload = json.loads(request.body or b'{}')
+    except ValueError:
+        payload = request.POST
+
+    phone = (payload.get('phone') or '').strip()
+    name = (payload.get('name') or '').strip()
+    address = (payload.get('address') or '').strip()
+    phone2 = (payload.get('phone2') or '').strip()
+
+    if not phone:
+        return JsonResponse({'status': 'error', 'message': 'رقم الهاتف مطلوب'}, status=400)
+    if not name:
+        return JsonResponse({'status': 'error', 'message': 'اسم العميل مطلوب'}, status=400)
+    if Customer.objects.filter(phone=phone).exists():
+        return JsonResponse({'status': 'error', 'message': 'يوجد عميل بهذا الرقم بالفعل'}, status=400)
+
+    parts = name.split(' ', 1)
+    first_name = parts[0]
+    last_name = parts[1] if len(parts) > 1 else ''
+
+    customer = Customer.objects.create(
+        first_name=first_name, last_name=last_name, phone=phone, phone2=phone2, address=address,
+    )
+    return JsonResponse({
+        'status': 'ok',
+        'customer': {
+            'id': customer.id, 'name': name, 'phone': customer.phone,
+            'phone2': customer.phone2, 'address': customer.address or '',
+            'balance': 0.0, 'credit_limit': float(customer.credit_limit or 0),
+            'customer_type': customer.customer_type,
+        },
+    })
+
+
+@login_required
+@require_permission('crm', 'edit')
+@require_POST
+def customer_quick_update(request, pk):
+    """Inline "تعديل" from the delivery-screen lookup result — edits name/address/phone2
+    without leaving the POS screen."""
+    customer = get_object_or_404(Customer, pk=pk)
+    try:
+        payload = json.loads(request.body or b'{}')
+    except ValueError:
+        payload = request.POST
+
+    name = (payload.get('name') or '').strip()
+    if name:
+        parts = name.split(' ', 1)
+        customer.first_name = parts[0]
+        customer.last_name = parts[1] if len(parts) > 1 else ''
+    if 'address' in payload:
+        customer.address = (payload.get('address') or '').strip()
+    if 'phone2' in payload:
+        customer.phone2 = (payload.get('phone2') or '').strip()
+    customer.save(update_fields=['first_name', 'last_name', 'address', 'phone2'])
+
+    return JsonResponse({
+        'status': 'ok',
+        'customer': {
+            'id': customer.id, 'name': f"{customer.first_name} {customer.last_name}".strip(),
+            'phone': customer.phone, 'phone2': customer.phone2, 'address': customer.address or '',
+            'balance': float(customer.get_balance()), 'credit_limit': float(customer.credit_limit or 0),
+            'customer_type': customer.customer_type,
+        },
+    })

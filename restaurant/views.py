@@ -6,6 +6,7 @@ from django.contrib.auth.decorators import login_required
 from django.db import transaction as db_transaction
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils.dateparse import parse_datetime
 from django.views.decorators.http import require_POST
 
@@ -773,6 +774,41 @@ def kds_set_order_status(request, order_id):
 #  DELIVERY
 # ─────────────────────────────────────────────
 
+def _delivery_orders_payload(branch):
+    """Today's delivery orders for the branch, serialized for the tabbed dashboard
+    (All/Assigned/Unassigned) and its websocket-driven incremental refresh."""
+    from django.utils import timezone
+
+    orders = (Order.objects
+              .filter(warehouse=branch, order_type=Order.ORDER_TYPE_DELIVERY,
+                      created_at__date=timezone.localdate())
+              .exclude(status='void')
+              .select_related('driver', 'customer')
+              .order_by('-created_at'))
+
+    payload = []
+    for o in orders:
+        payload.append({
+            'id': o.id,
+            'display_number': o.display_number,
+            'customer_name': str(o.customer) if o.customer_id else '—',
+            'address': o.shipping_address or (o.customer.address if o.customer_id else '') or '',
+            'total_amount': float(o.total_amount),
+            'delivery_cost': float(o.delivery_cost or 0),
+            'outstanding': float(max(Decimal('0'), Decimal(str(o.total_amount)) - Decimal(str(o.received_amount or 0)))),
+            'driver_id': o.driver_id,
+            'driver_name': o.driver.name if o.driver_id else None,
+            'driver_assigned_at': o.driver_assigned_at.isoformat() if o.driver_assigned_at else None,
+            'is_completed': bool(o.driver_settled_at),
+        })
+    return payload
+
+
+def _delivery_drivers_payload(branch):
+    drivers = Driver.objects.filter(branch=branch, is_active=True)
+    return [{'id': d.id, 'name': d.name, 'phone': d.phone, 'owed': float(d.owed_today())} for d in drivers]
+
+
 @login_required
 @require_permission('pos', 'view')
 def delivery_dashboard(request):
@@ -784,14 +820,27 @@ def delivery_dashboard(request):
     drivers = list(Driver.objects.filter(branch=branch, is_active=True))
     for d in drivers:
         d.owed = d.owed_today()
-    open_orders = Order.objects.filter(
-        warehouse=branch, order_type=Order.ORDER_TYPE_DELIVERY,
-    ).exclude(status='void').select_related('driver', 'customer').order_by('-created_at')[:100]
-
-    driver_owed = {d.id: d.owed for d in drivers}
 
     return render(request, 'restaurant/delivery.html', {
-        'branch': branch, 'drivers': drivers, 'orders': open_orders, 'driver_owed': driver_owed,
+        'branch': branch, 'drivers': drivers,
+        'orders_json': json.dumps(_delivery_orders_payload(branch)),
+        'drivers_json': json.dumps(_delivery_drivers_payload(branch)),
+    })
+
+
+@login_required
+@require_permission('pos', 'view')
+def delivery_orders_feed(request):
+    """JSON feed backing the dashboard's websocket-triggered incremental refresh (no
+    full page reload, so running timers on other cards don't restart). Includes both
+    orders and drivers (with their live owed balance) since assigning/settling an
+    order or clearing a driver's account can change either."""
+    branch, _ = _active_branch(request)
+    if not branch:
+        return JsonResponse({'orders': [], 'drivers': []})
+    return JsonResponse({
+        'orders': _delivery_orders_payload(branch),
+        'drivers': _delivery_drivers_payload(branch),
     })
 
 
@@ -799,18 +848,35 @@ def delivery_dashboard(request):
 @require_permission('pos', 'edit')
 @require_POST
 def assign_driver(request, order_id):
+    from django.utils import timezone
+
     order = get_object_or_404(Order, pk=order_id)
     driver_id = request.POST.get('driver_id')
     driver = get_object_or_404(Driver, pk=driver_id)
     order.driver = driver
     order.order_type = Order.ORDER_TYPE_DELIVERY
-    order.save(update_fields=['driver', 'order_type'])
+    order.driver_assigned_at = timezone.now()
+    order.save(update_fields=['driver', 'order_type', 'driver_assigned_at'])
 
     if order.warehouse_id:
         push_event('delivery', order.warehouse_id, {
             'event': 'order_assigned', 'order_id': order.id, 'driver_id': driver.id,
+            'driver_assigned_at': order.driver_assigned_at.isoformat(),
         })
-    return JsonResponse({'status': 'ok'})
+    return JsonResponse({
+        'status': 'ok',
+        'print_url': reverse('restaurant:delivery_check_preview', args=[order.id]),
+    })
+
+
+@login_required
+@require_permission('pos', 'view')
+def delivery_check_preview(request, order_id):
+    """Browser-printable handoff check for the flyer: order id, customer name/phone/
+    address, and the item list — printed the moment a driver is assigned."""
+    order = get_object_or_404(Order, pk=order_id)
+    items = order.items.filter(is_void=False).select_related('product')
+    return render(request, 'restaurant/delivery_check.html', {'order': order, 'items': items})
 
 
 @login_required
@@ -821,30 +887,49 @@ def driver_return_settle(request, order_id):
 
     Cash-on-delivery orders are typically created unpaid (order.cash_paid == 0 — the
     payment doesn't exist yet at order time, only once the driver actually collects it
-    at the door), so the amount the driver is holding must be entered here rather than
-    read off the order. Falls back to the order's outstanding amount so a prepaid order
-    (cash_paid already set) still works without extra input.
+    at the door). But a delivery order can also have been paid in full up front (card/
+    wallet at POS, no COD) — in that case there's nothing left for the flyer to collect,
+    and crediting them here anyway would double the customer's payment on record.
+
+    So the amount actually collected at the door is capped at the order's outstanding
+    balance (total - what's already been received), never blindly re-added on top of an
+    already-settled order. Of whatever was actually collected, the flyer keeps
+    delivery_cost as their own earning — only the remainder is money they owe back to
+    the owner (the CashCustody amount).
     """
     order = get_object_or_404(Order, pk=order_id)
     if not order.driver_id:
         return JsonResponse({'status': 'error', 'message': 'لا يوجد طيار مرتبط بهذا الطلب'}, status=400)
 
+    outstanding = Decimal(str(order.total_amount)) - Decimal(str(order.received_amount or 0))
+    if outstanding < 0:
+        outstanding = Decimal('0')
+
     collected_raw = request.POST.get('collected_amount')
     if collected_raw not in (None, ''):
         try:
-            amount = Decimal(str(collected_raw))
+            collected = Decimal(str(collected_raw))
         except Exception:
             return JsonResponse({'status': 'error', 'message': 'مبلغ غير صالح'}, status=400)
     else:
-        outstanding = Decimal(str(order.total_amount)) - Decimal(str(order.received_amount or 0))
-        amount = outstanding if outstanding > 0 else (order.cash_paid or Decimal('0'))
+        collected = outstanding
+    # Can never collect more from the customer than what's actually still owed on the
+    # invoice — this is the guard that prevents double-counting a prepaid order.
+    if collected > outstanding:
+        collected = outstanding
+    if collected < 0:
+        collected = Decimal('0')
+
+    owed_to_owner = collected - Decimal(str(order.delivery_cost or 0))
+    if owed_to_owner < 0:
+        owed_to_owner = Decimal('0')
 
     custody = None
-    if amount > 0:
+    if owed_to_owner > 0:
         custody = CashCustody.objects.create(
             branch=order.warehouse, kind=CashCustody.KIND_DRIVER,
             holder_name=order.driver.name, driver=order.driver,
-            amount=amount, created_by=request.user,
+            amount=owed_to_owner, created_by=request.user,
         )
         custody.orders.add(order)
 
@@ -858,10 +943,13 @@ def driver_return_settle(request, order_id):
     # post_sale() when it was first created unpaid — CashCustody.settle()'s DEPOSIT
     # transaction now clears that AR leg via post_cash_transaction (financial/posting.py),
     # so the journal/VAT/income-statement do end up reflecting it, just at settlement time.
-    order.cash_paid = (order.cash_paid or Decimal('0')) + amount
-    order.received_amount = (order.received_amount or Decimal('0')) + amount
+    from django.utils import timezone
+
+    order.cash_paid = (order.cash_paid or Decimal('0')) + collected
+    order.received_amount = (order.received_amount or Decimal('0')) + collected
     order.is_completed = True
-    order.save(update_fields=['cash_paid', 'received_amount', 'is_completed'])
+    order.driver_settled_at = timezone.now()
+    order.save(update_fields=['cash_paid', 'received_amount', 'is_completed', 'driver_settled_at'])
 
     if order.warehouse_id:
         push_event('delivery', order.warehouse_id, {
@@ -870,6 +958,65 @@ def driver_return_settle(request, order_id):
         })
 
     return JsonResponse({'status': 'ok', 'custody_id': custody.id if custody else None})
+
+
+@login_required
+@require_permission('financial', 'edit')
+@require_POST
+def driver_account_settle(request, driver_id):
+    """"تخليص حساب" / partial payment from the delivery dashboard's driver header.
+
+    Settles the driver's held custodies (oldest first) up to `amount`. Omit `amount`
+    (or send it >= what's owed) for a full "تخليص حساب" — every held custody is
+    settled and the driver's owed balance drops to zero. A smaller amount only
+    settles that much: it fully settles as many of the oldest custodies as it covers,
+    then splits the next one into a settled portion (this payment) and a remaining
+    held portion (still owed), so the balance is reduced by exactly `amount` rather
+    than only in whole-custody increments.
+    """
+    driver = get_object_or_404(Driver, pk=driver_id)
+    shift = get_active_shift()
+    held = list(CashCustody.objects.filter(driver=driver, status=CashCustody.STATUS_HELD).order_by('created_at'))
+    owed = sum((c.amount for c in held), Decimal('0'))
+
+    amount_raw = request.POST.get('amount')
+    if amount_raw not in (None, ''):
+        try:
+            amount = Decimal(str(amount_raw))
+        except Exception:
+            return JsonResponse({'status': 'error', 'message': 'مبلغ غير صالح'}, status=400)
+    else:
+        amount = owed
+
+    if amount <= 0:
+        return JsonResponse({'status': 'error', 'message': 'المبلغ يجب أن يكون أكبر من صفر'}, status=400)
+    if amount > owed:
+        amount = owed
+
+    remaining = amount
+    try:
+        with db_transaction.atomic():
+            for custody in held:
+                if remaining <= 0:
+                    break
+                if custody.amount <= remaining:
+                    remaining -= custody.amount
+                    custody.settle(settled_by=request.user, shift=shift)
+                else:
+                    paid_portion = CashCustody.objects.create(
+                        branch=custody.branch, kind=custody.kind, holder_name=custody.holder_name,
+                        driver=custody.driver, amount=remaining, created_by=request.user,
+                        note=f"دفعة جزئية من الوديعة #{custody.id}",
+                    )
+                    paid_portion.orders.set(custody.orders.all())
+                    paid_portion.settle(settled_by=request.user, shift=shift)
+                    custody.amount = custody.amount - remaining
+                    custody.save(update_fields=['amount'])
+                    remaining = Decimal('0')
+    except ValueError as e:
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
+
+    return JsonResponse({'status': 'ok', 'settled_amount': float(amount), 'owed_after': float(driver.owed_today())})
 
 
 # ─────────────────────────────────────────────

@@ -17,4 +17,9 @@ urlpatterns = [
     path('payment-receipt/<int:payment_id>/', views.payment_receipt, name='payment_receipt'),
     path('<int:pk>/report/', views.customer_report, name='customer_report'),
     path('<int:pk>/statement/', views.customer_statement, name='customer_statement'),
+
+    # POS delivery-screen quick client lookup/create/edit (phone-first)
+    path('api/customer-lookup/', views.customer_lookup_by_phone, name='customer_lookup_by_phone'),
+    path('api/customer-quick-create/', views.customer_quick_create, name='customer_quick_create'),
+    path('api/customer/<int:pk>/quick-update/', views.customer_quick_update, name='customer_quick_update'),
 ]

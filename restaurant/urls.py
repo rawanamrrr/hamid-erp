@@ -33,8 +33,11 @@ urlpatterns = [
 
     # Delivery
     path('delivery/', views.delivery_dashboard, name='delivery_dashboard'),
+    path('delivery/feed/', views.delivery_orders_feed, name='delivery_orders_feed'),
     path('delivery/order/<int:order_id>/assign/', views.assign_driver, name='assign_driver'),
     path('delivery/order/<int:order_id>/return/', views.driver_return_settle, name='driver_return_settle'),
+    path('delivery/order/<int:order_id>/check/', views.delivery_check_preview, name='delivery_check_preview'),
+    path('delivery/driver/<int:driver_id>/settle/', views.driver_account_settle, name='driver_account_settle'),
 
     # Cash custody (وديعة)
     path('custody/', views.custody_list, name='custody_list'),

@@ -1,68 +1,291 @@
 {% extends 'base.html' %}
 {% block title %}شاشة الدليفري{% endblock %}
 {% block content %}
-<div class="p-4" x-data="{ branchId: {{ branch.id }} }" x-init="
-    let ws = new WebSocket((location.protocol==='https:'?'wss://':'ws://') + location.host + '/ws/delivery/' + branchId + '/');
-    ws.onmessage = (e) => { location.reload(); };
-">
+<div class="p-4" x-data="{ branchId: {{ branch.id }} }" x-init="initDeliveryScreen(branchId)">
     <h1 class="text-2xl font-bold mb-4">شاشة الدليفري — {{ branch.name }}</h1>
 
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-        {% for d in drivers %}
-        <div class="rounded-xl border p-4 bg-white shadow-sm">
-            <div class="font-bold">{{ d.name }}</div>
-            <div class="text-sm text-gray-500">{{ d.phone }}</div>
-            <div class="text-sm mt-2">معاه اليوم: <span class="font-bold">{{ d.owed }}</span> ج.م</div>
-        </div>
-        {% empty %}
-        <p class="text-gray-500 col-span-full">لا يوجد طيارين مُعرّفين لهذا الفرع.</p>
-        {% endfor %}
+    <div id="driverCardsWrap" class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6"></div>
+
+    <!-- Tabs -->
+    <div class="flex gap-2 mb-4 border-b">
+        <button type="button" onclick="switchDeliveryTab('all')" id="tabBtn-all"
+                class="px-4 py-2 text-sm font-bold border-b-2">الكل</button>
+        <button type="button" onclick="switchDeliveryTab('assigned')" id="tabBtn-assigned"
+                class="px-4 py-2 text-sm font-bold border-b-2">معين</button>
+        <button type="button" onclick="switchDeliveryTab('unassigned')" id="tabBtn-unassigned"
+                class="px-4 py-2 text-sm font-bold border-b-2">غير معين</button>
     </div>
 
-    <table class="w-full bg-white rounded-xl border overflow-hidden">
-        <thead class="bg-gray-50 text-sm text-gray-600">
-            <tr>
-                <th class="p-3 text-right">الفاتورة</th>
-                <th class="p-3 text-right">العميل</th>
-                <th class="p-3 text-right">الإجمالي</th>
-                <th class="p-3 text-right">الطيار</th>
-                <th class="p-3 text-right">إجراء</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for order in orders %}
-            <tr class="border-t text-sm">
-                <td class="p-3">{{ order.display_number }}</td>
-                <td class="p-3">{{ order.customer|default:"—" }}</td>
-                <td class="p-3">{{ order.total_amount }}</td>
-                <td class="p-3">
-                    {% if order.driver %}{{ order.driver.name }}
-                    {% else %}
-                    <form method="post" action="{% url 'restaurant:assign_driver' order.id %}" class="flex gap-1">
-                        {% csrf_token %}
-                        <select name="driver_id" class="border rounded px-2 py-1 text-xs">
-                            {% for d in drivers %}<option value="{{ d.id }}">{{ d.name }}</option>{% endfor %}
-                        </select>
-                        <button class="px-2 py-1 bg-indigo-600 text-white rounded text-xs">تعيين</button>
-                    </form>
-                    {% endif %}
-                </td>
-                <td class="p-3">
-                    {% if order.driver and not order.is_completed %}
-                    <form method="post" action="{% url 'restaurant:driver_return_settle' order.id %}" class="flex items-center gap-1">
-                        {% csrf_token %}
-                        <input type="number" step="0.01" name="collected_amount" placeholder="المبلغ المحصّل"
-                               value="{{ order.total_amount|add:'0' }}"
-                               class="w-24 border rounded px-2 py-1 text-xs" title="المبلغ الذي حصّله الطيار من العميل">
-                        <button class="px-2 py-1 bg-emerald-600 text-white rounded text-xs">رجع الطيار / تسليم</button>
-                    </form>
-                    {% elif order.is_completed %}
-                    <span class="text-emerald-600 text-xs font-semibold">تم</span>
-                    {% endif %}
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+    <div id="deliveryCardsWrap" class="grid grid-cols-1 md:grid-cols-3 gap-3"></div>
 </div>
+
+<!-- Assign-driver modal -->
+<div id="assignModal" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center">
+    <div class="bg-white rounded-xl p-5 w-80 shadow-xl">
+        <h3 class="font-bold mb-3">تعيين طيار للطلب <span id="assignModalOrderNo"></span></h3>
+        <select id="assignDriverSelect" class="w-full border rounded-lg px-3 py-2 mb-3">
+            {% for d in drivers %}<option value="{{ d.id }}">{{ d.name }}</option>{% endfor %}
+        </select>
+        <div class="flex gap-2">
+            <button onclick="confirmAssignDriver()" class="flex-1 bg-indigo-600 text-white rounded-lg py-2 font-bold">تعيين وطباعة</button>
+            <button onclick="closeAssignModal()" class="flex-1 bg-gray-100 rounded-lg py-2 font-bold">إلغاء</button>
+        </div>
+    </div>
+</div>
+
+<!-- Driver account modal (تخليص حساب / دفعة جزئية) -->
+<div id="driverAccountModal" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center">
+    <div class="bg-white rounded-xl p-5 w-80 shadow-xl">
+        <h3 class="font-bold mb-1">حساب الطيار: <span id="daModalDriverName"></span></h3>
+        <p class="text-sm text-gray-500 mb-3">معاه حالياً: <span id="daModalOwed" class="font-bold"></span> ج.م</p>
+
+        <button onclick="confirmClearDriverAccount()"
+                class="w-full h-11 bg-emerald-600 text-white rounded-xl font-bold mb-3">تخليص حساب (دفع الكل)</button>
+
+        <div class="border-t pt-3">
+            <label class="text-xs font-bold text-gray-500 mb-1 block">أو دفع جزء من المبلغ</label>
+            <div class="flex gap-2">
+                <input type="number" step="0.01" id="daPartialAmountInput" placeholder="المبلغ"
+                       class="flex-1 h-10 px-2 border rounded-lg">
+                <button onclick="confirmPartialDriverPayment()"
+                        class="px-3 h-10 bg-amber-500 text-white rounded-lg font-bold text-sm">دفع جزء</button>
+            </div>
+        </div>
+
+        <button onclick="closeDriverAccountModal()" class="w-full h-9 text-gray-500 text-sm font-bold mt-3">إغلاق</button>
+    </div>
+</div>
+
+<!-- Mark-successful modal -->
+<div id="settleModal" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center">
+    <div class="bg-white rounded-xl p-5 w-80 shadow-xl">
+        <h3 class="font-bold mb-3">تسليم الطلب <span id="settleModalOrderNo"></span></h3>
+        <label class="text-xs text-gray-500 mb-1 block">إجمالي المبلغ الذي حصّله الطيار من العميل (شامل تكلفة التوصيل)</label>
+        <input type="number" step="0.01" id="settleAmountInput" class="w-full border rounded-lg px-3 py-2 mb-3">
+        <div class="flex gap-2">
+            <button onclick="confirmSettleOrder()" class="flex-1 bg-emerald-600 text-white rounded-lg py-2 font-bold">تم التسليم</button>
+            <button onclick="closeSettleModal()" class="flex-1 bg-gray-100 rounded-lg py-2 font-bold">إلغاء</button>
+        </div>
+    </div>
+</div>
+
+<script>
+let deliveryOrders = {{ orders_json|safe }};
+let deliveryDrivers = {{ drivers_json|safe }};
+let currentDeliveryTab = 'all';
+let assignTargetOrderId = null;
+let settleTargetOrderId = null;
+let accountTargetDriverId = null;
+let deliveryTimerInterval = null;
+
+function initDeliveryScreen(branchId) {
+    renderDriverCards();
+    renderDeliveryCards();
+    switchDeliveryTab('all');
+
+    const ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws/delivery/' + branchId + '/');
+    ws.onmessage = () => { refreshDeliveryFeed(); };
+
+    if (deliveryTimerInterval) clearInterval(deliveryTimerInterval);
+    deliveryTimerInterval = setInterval(updateDeliveryTimers, 1000);
+}
+
+function refreshDeliveryFeed() {
+    fetch('{% url "restaurant:delivery_orders_feed" %}')
+        .then(r => r.json())
+        .then(data => {
+            deliveryOrders = data.orders;
+            deliveryDrivers = data.drivers;
+            renderDriverCards();
+            renderDeliveryCards();
+        });
+}
+
+function renderDriverCards() {
+    const wrap = document.getElementById('driverCardsWrap');
+    if (!deliveryDrivers.length) {
+        wrap.innerHTML = '<p class="text-gray-500 col-span-full">لا يوجد طيارين مُعرّفين لهذا الفرع.</p>';
+        return;
+    }
+    wrap.innerHTML = deliveryDrivers.map(d => `
+        <div class="rounded-xl border p-4 bg-white shadow-sm cursor-pointer hover:border-indigo-400 transition"
+             onclick="openDriverAccountModal(${d.id})">
+            <div class="font-bold">${d.name}</div>
+            <div class="text-sm text-gray-500">${d.phone || ''}</div>
+            <div class="text-sm mt-2">معاه اليوم: <span class="font-bold">${d.owed.toFixed(2)}</span> ج.م</div>
+        </div>
+    `).join('');
+}
+
+function openDriverAccountModal(driverId) {
+    accountTargetDriverId = driverId;
+    const driver = deliveryDrivers.find(d => d.id === driverId);
+    if (!driver) return;
+    document.getElementById('daModalDriverName').textContent = driver.name;
+    document.getElementById('daModalOwed').textContent = driver.owed.toFixed(2);
+    document.getElementById('daPartialAmountInput').value = '';
+    document.getElementById('driverAccountModal').classList.remove('hidden');
+}
+function closeDriverAccountModal() {
+    document.getElementById('driverAccountModal').classList.add('hidden');
+    accountTargetDriverId = null;
+}
+function _postDriverSettle(amount) {
+    if (!accountTargetDriverId) return;
+    const body = (amount === null) ? '' : `amount=${encodeURIComponent(amount)}`;
+    fetch(`/restaurant/delivery/driver/${accountTargetDriverId}/settle/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': '{{ csrf_token }}' },
+        body,
+    })
+    .then(r => r.json())
+    .then(res => {
+        if (res.status === 'ok') {
+            closeDriverAccountModal();
+            refreshDeliveryFeed();
+        } else {
+            alert(res.message || 'حدث خطأ');
+        }
+    });
+}
+function confirmClearDriverAccount() {
+    _postDriverSettle(null); // no amount = full "تخليص حساب"
+}
+function confirmPartialDriverPayment() {
+    const amount = document.getElementById('daPartialAmountInput').value;
+    if (!amount || parseFloat(amount) <= 0) { alert('من فضلك أدخل مبلغاً صحيحاً'); return; }
+    _postDriverSettle(amount);
+}
+
+function switchDeliveryTab(tab) {
+    currentDeliveryTab = tab;
+    ['all', 'assigned', 'unassigned'].forEach(t => {
+        const btn = document.getElementById('tabBtn-' + t);
+        if (btn) btn.className = 'px-4 py-2 text-sm font-bold border-b-2 ' +
+            (t === tab ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500');
+    });
+    renderDeliveryCards();
+}
+
+function ordersForTab(tab) {
+    if (tab === 'assigned') return deliveryOrders.filter(o => o.driver_id && !o.is_completed);
+    if (tab === 'unassigned') return deliveryOrders.filter(o => !o.driver_id);
+    return deliveryOrders; // all
+}
+
+function fmtElapsed(seconds) {
+    seconds = Math.max(0, Math.floor(seconds));
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+}
+
+function renderDeliveryCards() {
+    const wrap = document.getElementById('deliveryCardsWrap');
+    const list = ordersForTab(currentDeliveryTab);
+    if (!list.length) {
+        wrap.innerHTML = '<p class="text-gray-500 col-span-full">لا توجد طلبات في هذا التبويب.</p>';
+        return;
+    }
+    wrap.innerHTML = list.map(o => {
+        let badge = '';
+        let action = '';
+        if (o.is_completed) {
+            badge = '<span class="text-xs font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">مكتمل</span>';
+        } else if (o.driver_id) {
+            badge = '<span class="text-xs font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">معين: ' + o.driver_name + '</span>';
+            action = `<div class="mt-2 text-xs font-mono text-gray-600">⏱ <span id="timer-${o.id}">00:00</span></div>
+                      <button onclick="openSettleModal(${o.id})" class="mt-2 w-full bg-emerald-600 text-white rounded-lg py-1.5 text-xs font-bold">رجع الطيار / تسليم</button>`;
+        } else {
+            badge = '<span class="text-xs font-bold px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">غير معين</span>';
+            action = `<button onclick="openAssignModal(${o.id})" class="mt-2 w-full bg-indigo-600 text-white rounded-lg py-1.5 text-xs font-bold">تعيين طيار</button>`;
+        }
+        return `<div class="rounded-xl border p-4 bg-white shadow-sm" data-order-id="${o.id}" data-assigned-at="${o.driver_assigned_at || ''}">
+            <div class="flex justify-between items-start mb-1">
+                <div class="font-bold">طلب ${o.display_number}</div>
+                ${badge}
+            </div>
+            <div class="text-sm text-gray-600">${o.address || 'لا يوجد عنوان'}</div>
+            ${action}
+        </div>`;
+    }).join('');
+    updateDeliveryTimers();
+}
+
+function updateDeliveryTimers() {
+    document.querySelectorAll('[data-assigned-at]').forEach(card => {
+        const assignedAt = card.dataset.assignedAt;
+        if (!assignedAt) return;
+        const orderId = card.dataset.orderId;
+        const el = document.getElementById('timer-' + orderId);
+        if (!el) return;
+        const elapsed = (Date.now() - new Date(assignedAt).getTime()) / 1000;
+        el.textContent = fmtElapsed(elapsed);
+    });
+}
+
+function openAssignModal(orderId) {
+    assignTargetOrderId = orderId;
+    const order = deliveryOrders.find(o => o.id === orderId);
+    document.getElementById('assignModalOrderNo').textContent = order ? order.display_number : orderId;
+    document.getElementById('assignModal').classList.remove('hidden');
+}
+function closeAssignModal() {
+    document.getElementById('assignModal').classList.add('hidden');
+    assignTargetOrderId = null;
+}
+function confirmAssignDriver() {
+    if (!assignTargetOrderId) return;
+    const driverId = document.getElementById('assignDriverSelect').value;
+    fetch(`/restaurant/delivery/order/${assignTargetOrderId}/assign/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': '{{ csrf_token }}' },
+        body: `driver_id=${driverId}`,
+    })
+    .then(r => r.json())
+    .then(res => {
+        if (res.status === 'ok') {
+            if (res.print_url) window.open(res.print_url, '_blank', 'width=340,height=600');
+            closeAssignModal();
+            refreshDeliveryFeed();
+        } else {
+            alert(res.message || 'حدث خطأ');
+        }
+    });
+}
+
+function openSettleModal(orderId) {
+    settleTargetOrderId = orderId;
+    const order = deliveryOrders.find(o => o.id === orderId);
+    document.getElementById('settleModalOrderNo').textContent = order ? order.display_number : orderId;
+    // Prefill with what's still actually owed on the invoice (0 for an order already
+    // paid in full at POS) — never blindly total-minus-delivery-fee, which would
+    // double-count a prepaid order's payment when confirmed.
+    const defaultAmount = order ? order.outstanding : 0;
+    document.getElementById('settleAmountInput').value = defaultAmount.toFixed(2);
+    document.getElementById('settleModal').classList.remove('hidden');
+}
+function closeSettleModal() {
+    document.getElementById('settleModal').classList.add('hidden');
+    settleTargetOrderId = null;
+}
+function confirmSettleOrder() {
+    if (!settleTargetOrderId) return;
+    const amount = document.getElementById('settleAmountInput').value;
+    fetch(`/restaurant/delivery/order/${settleTargetOrderId}/return/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': '{{ csrf_token }}' },
+        body: `collected_amount=${encodeURIComponent(amount)}`,
+    })
+    .then(r => r.json())
+    .then(res => {
+        if (res.status === 'ok') {
+            closeSettleModal();
+            refreshDeliveryFeed();
+        } else {
+            alert(res.message || 'حدث خطأ');
+        }
+    });
+}
+</script>
 {% endblock %}

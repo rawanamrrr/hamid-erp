@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<style>
+    html { background: #e5e7eb; }
+    body { font-family: 'Courier New', monospace; width: 280px; margin: 16px auto; padding: 8px;
+           background: #fff; box-shadow: 0 1px 6px rgba(0,0,0,0.15); }
+    @media print {
+        html { background: none; }
+        body { margin: 0 auto; box-shadow: none; }
+    }
+    h2 { text-align: center; margin: 0 0 4px; font-size: 16px; }
+    .meta { text-align: center; font-size: 12px; margin-bottom: 8px; border-bottom: 1px dashed #000; padding-bottom: 6px; }
+    .row { font-size: 13px; margin: 4px 0; display: flex; justify-content: space-between; gap: 8px; }
+    .row .label { font-weight: bold; white-space: nowrap; }
+    .address { font-size: 13px; margin: 6px 0; padding: 6px; border: 1px dashed #000; }
+    .items { margin-top: 8px; border-top: 1px dashed #000; padding-top: 6px; }
+    .item { font-size: 14px; font-weight: bold; margin: 3px 0; }
+    .total { text-align: center; font-size: 15px; font-weight: bold; margin-top: 8px;
+             border-top: 1px dashed #000; padding-top: 6px; }
+    .footer { text-align: center; font-size: 11px; margin-top: 8px; }
+</style>
+</head>
+<body onload="window.print()">
+    <h2>تذكرة تسليم دليفري</h2>
+    <div class="meta">
+        طلب #{{ order.display_number }}<br>
+        {{ order.created_at|date:"Y-m-d H:i" }}
+    </div>
+
+    <div class="row"><span class="label">العميل:</span><span>{{ order.customer|default:"—" }}</span></div>
+    <div class="row"><span class="label">الهاتف:</span><span>{{ order.customer.phone|default:"—" }}</span></div>
+    {% if order.customer.phone2 %}
+    <div class="row"><span class="label">هاتف إضافي:</span><span>{{ order.customer.phone2 }}</span></div>
+    {% endif %}
+    <div class="address">{{ order.shipping_address|default:order.customer.address|default:"—" }}</div>
+
+    <div class="items">
+        {% for item in items %}
+        <div class="item">{{ item.quantity }} × {{ item.product.name }}</div>
+        {% endfor %}
+    </div>
+
+    <div class="total">الإجمالي: {{ order.total_amount }} ج.م</div>
+    {% if order.delivery_cost %}
+    <div class="row"><span class="label">تكلفة التوصيل:</span><span>{{ order.delivery_cost }} ج.م</span></div>
+    {% endif %}
+
+    <div class="footer">الطيار: {{ order.driver.name|default:"—" }}</div>
+</body>
+</html>
