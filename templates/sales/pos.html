@@ -4375,15 +4375,6 @@
                         showToast('تم الحفظ بنجاح');
                         closePaymentModal();
 
-                        // If Online, ask to go to the delivery dashboard (cafe delivery is
-                        // handled by the restaurant app's own driver flow, not shipping companies).
-                        if (isOnline) {
-                            if (confirm('تم تسجيل الطلب. الانتقال إلى شاشة الدليفري؟')) {
-                                window.location.href = "{% url 'restaurant:delivery_dashboard' %}";
-                                return;
-                            }
-                        }
-
                         if (print) {
                             // Logic to handle print style. If boolean true passed, default to thermal
                             let style = (print && print !== true) ? print : 'thermal';
