@@ -121,11 +121,12 @@
                 <div>
                     <h3 class="text-lg font-bold text-gray-800 border-b pb-2 mb-4">الشاشة الافتراضية بعد الدخول</h3>
                     <select name="default_landing" class="w-full md:w-1/3 p-2.5 border border-gray-300 rounded-lg">
-                        <option value="dashboard" {% if user_obj.profile.default_landing == 'dashboard' or not user_obj %}selected{% endif %}>لوحة التحكم</option>
+                        <option value="auto" {% if user_obj.profile.default_landing == 'auto' or not user_obj %}selected{% endif %}>تلقائي (حسب صلاحيات المستخدم)</option>
+                        <option value="dashboard" {% if user_obj.profile.default_landing == 'dashboard' %}selected{% endif %}>لوحة التحكم</option>
                         <option value="waiter" {% if user_obj.profile.default_landing == 'waiter' %}selected{% endif %}>شاشة الويتر (POS)</option>
                         <option value="cashier" {% if user_obj.profile.default_landing == 'cashier' %}selected{% endif %}>شاشة الكاشير</option>
                     </select>
-                    <p class="text-xs text-gray-500 mt-2">اختر "شاشة الويتر" أو "شاشة الكاشير" للموظفين الذين لا يحتاجون لوحة التحكم — سيتم توجيههم مباشرة لشاشة عملهم بعد تسجيل الدخول.</p>
+                    <p class="text-xs text-gray-500 mt-2">"تلقائي" يوجّه المستخدم لأول شاشة تسمح بها صلاحياته (لوحة التحكم، ثم الكاشير، ثم الويتر...) دون تدخل يدوي. اختر شاشة محددة فقط إذا أردت إجبار موظف معين عليها بغض النظر عن صلاحياته.</p>
                 </div>
 
                 <!-- Section: Operational limits (Phase 3.2) -->

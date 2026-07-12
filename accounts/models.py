@@ -74,15 +74,20 @@ class UserProfile(models.Model):
     # Where this user lands right after login. Waiters/cashiers shouldn't see the
     # analytics dashboard (and often can't — 'dashboard'.'view' is usually denied for
     # them) — this sends them straight to their actual work screen instead of a 403.
+    # 'auto' (the default) picks it automatically from the user's own صلاحيات via
+    # get_best_landing_url() — an admin only needs 'waiter'/'cashier'/'dashboard' to
+    # force a specific screen regardless of what their permissions would pick.
+    LANDING_AUTO = 'auto'
     LANDING_DASHBOARD = 'dashboard'
     LANDING_WAITER = 'waiter'
     LANDING_CASHIER = 'cashier'
     LANDING_CHOICES = [
+        (LANDING_AUTO, 'تلقائي (حسب صلاحيات المستخدم)'),
         (LANDING_DASHBOARD, 'لوحة التحكم'),
         (LANDING_WAITER, 'شاشة الويتر (POS)'),
         (LANDING_CASHIER, 'شاشة الكاشير'),
     ]
-    default_landing = models.CharField(max_length=10, choices=LANDING_CHOICES, default=LANDING_DASHBOARD,
+    default_landing = models.CharField(max_length=10, choices=LANDING_CHOICES, default=LANDING_AUTO,
                                        verbose_name="الشاشة الافتراضية بعد الدخول")
 
     def __str__(self):

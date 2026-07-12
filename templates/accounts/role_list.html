@@ -52,6 +52,12 @@
                 <a href="{% url 'role_edit' role.pk %}" class="px-4 py-2 bg-white border border-gray-200 text-gray-700 hover:bg-gray-100 rounded-lg text-sm font-bold transition flex items-center gap-1">
                     <i class="fas fa-pen text-xs border-r pr-2 ml-2"></i> تعديل الصلاحيات
                 </a>
+                <button type="button" onclick="confirmDeleteRole({{ role.pk }}, '{{ role.name|escapejs }}', {{ role.users_count }})" class="w-10 h-10 bg-red-50 text-red-600 rounded-lg flex items-center justify-center hover:bg-red-600 hover:text-white transition" title="حذف الدور">
+                    <i class="fas fa-trash text-sm"></i>
+                </button>
+                <form id="delete-role-form-{{ role.pk }}" action="{% url 'role_delete' role.pk %}" method="POST" class="hidden">
+                    {% csrf_token %}
+                </form>
             </div>
         </div>
         {% empty %}
@@ -66,4 +72,28 @@
         {% endfor %}
     </div>
 </div>
+
+<script>
+function confirmDeleteRole(roleId, roleName, usersCount) {
+    const warningLine = usersCount > 0
+        ? `<br><br>هذا الدور مرتبط حالياً بـ <strong class="text-amber-600">${usersCount}</strong> مستخدم — لن يتم حذفهم، لكنهم سيفقدون صلاحيات هذا الدور فوراً حتى تُضيف لهم دوراً آخر من صفحة المستخدمين.`
+        : '';
+    Swal.fire({
+        title: 'هل أنت متأكد؟',
+        html: `هذه العملية دائمة، لا يمكن التراجع بعدها!<br>سيتم حذف الدور: <strong class="text-red-600">${roleName}</strong>${warningLine}`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#dc2626',
+        cancelButtonColor: '#6b7280',
+        confirmButtonText: 'نعم، حذف نهائي!',
+        cancelButtonText: 'إلغاء',
+        reverseButtons: true
+    }).then((result) => {
+        if (result.isConfirmed) {
+            const form = document.getElementById(`delete-role-form-${roleId}`);
+            if (form) form.submit();
+        }
+    });
+}
+</script>
 {% endblock %}

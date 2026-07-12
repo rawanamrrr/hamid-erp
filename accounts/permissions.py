@@ -44,17 +44,38 @@ def has_permission(user, module, action):
 def get_best_landing_url(user):
     """
     Determines the best landing page URL for a user based on their permissions.
+
+    An admin can force a specific screen via UserProfile.default_landing
+    ('dashboard'/'waiter'/'cashier') — honored here as long as the user still
+    actually has permission for it (so a stale override doesn't 403 them after
+    their role changes later). Otherwise, and for the default 'auto' setting,
+    the landing screen is picked automatically from the user's own صلاحيات.
     """
     if not user.is_authenticated:
         return reverse('login')
-        
+
+    explicit = getattr(getattr(user, 'profile', None), 'default_landing', None)
+
+    if explicit == 'dashboard' and has_permission(user, 'dashboard', 'view'):
+        return reverse('dashboard')
+    if explicit == 'waiter' and has_permission(user, 'waiter', 'view'):
+        return reverse('restaurant:waiter_tables')
+    if explicit == 'cashier' and has_permission(user, 'pos', 'view'):
+        return reverse('pos_view')
+
     if has_permission(user, 'dashboard', 'view'):
         return reverse('dashboard')
     elif has_permission(user, 'pos', 'view'):
         return reverse('pos_view')
+    elif has_permission(user, 'waiter', 'view'):
+        return reverse('restaurant:waiter_tables')
+    elif has_permission(user, 'kitchen', 'view'):
+        return reverse('restaurant:kds')
+    elif has_permission(user, 'delivery', 'view'):
+        return reverse('restaurant:delivery_dashboard')
 
-    # Neither dashboard nor POS is granted — fall back to the first page the
-    # user's permissions actually unlock (same registry the navbar/favorites use).
+    # Nothing above is granted — fall back to the first page the user's permissions
+    # actually unlock (same registry the navbar/favorites use).
     from .shortcuts import available_for
     available = available_for(user)
     if available:

@@ -43,13 +43,15 @@ def _exclude_voided_orders_q(field_prefix=''):
 @login_required
 def dashboard(request):
     # Waiters/cashiers land straight on their work screen instead of hitting a 403 on
-    # the analytics dashboard they usually have no permission to view.
-    profile = getattr(request.user, 'profile', None)
-    landing = getattr(profile, 'default_landing', 'dashboard')
-    if landing == 'waiter':
-        return redirect('restaurant:waiter_tables')
-    if landing == 'cashier':
-        return redirect('restaurant:cashier_dashboard')
+    # the analytics dashboard they usually have no permission to view. Delegates to
+    # get_best_landing_url() — the single source of truth for this decision (also used
+    # right after login) — instead of duplicating its own (and, previously, inconsistent)
+    # copy of the same default_landing→URL mapping here.
+    if not has_permission(request.user, 'dashboard', 'view'):
+        from accounts.permissions import get_best_landing_url
+        target = get_best_landing_url(request.user)
+        if target != resolve_url('dashboard'):
+            return redirect(target)
 
     if not has_permission(request.user, 'dashboard', 'view'):
         raise PermissionDenied("You do not have permission to perform this action.")

@@ -1,5 +1,6 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_POST
 from django.http import JsonResponse
 from django.core.exceptions import PermissionDenied
 import json
@@ -455,6 +456,26 @@ def role_edit(request, pk):
         
     perms_json_str = json.dumps(role.permissions)
     return render(request, 'accounts/role_form.html', {'role': role, 'perms_json_str': perms_json_str, 'title': 'تعديل الدور'})
+
+@login_required
+@require_permission('users', 'delete')
+@require_POST
+def role_delete(request, pk):
+    role = get_object_or_404(Role, pk=pk)
+    name = role.name
+    # Deleting a Role only clears the M2M row on UserProfile.roles — any user who had it
+    # keeps their account and simply loses that role's permissions (falling back to
+    # whatever their other roles/direct_permissions grant), exactly like removing any
+    # other role from their profile. They are NOT deleted or deactivated.
+    users_count = role.users.count()
+    role.delete()
+
+    UserActivityLog.objects.create(
+        user=request.user, action_type='DELETE', module='roles',
+        description=f'حذف الدور: {name} (كان مرتبطاً بـ {users_count} مستخدم)'
+    )
+    messages.success(request, f'تم حذف الدور "{name}" بنجاح. المستخدمون المرتبطون به لم يُحذفوا، لكنهم فقدوا صلاحياته حتى تتم إضافة دور آخر لهم.')
+    return redirect('role_list')
 
 
 # ----------------- ACTIVITY LOGS -----------------
