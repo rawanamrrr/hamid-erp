@@ -639,11 +639,15 @@
                         <span class="num">{{ order.gross_profit|floatformat:2|intcomma }}</span>
                     </div>
                     {% endif %}
+                    {% if not order.is_online_order or order.driver_settled_at %}
                     <div class="total-row bg-gray">
                         <span class="font-bold text-xs">المدفوع</span>
                         <span class="num font-bold">{{ order.received_amount|floatformat:"-2"|intcomma }}</span>
                     </div>
-                    {% if order.remaining_amount > 0 %}
+                    {% endif %}
+                    {% if order.is_online_order and not order.driver_settled_at %}
+                    <!-- COD delivery order: reads like a normal receipt, no paid/remaining line. -->
+                    {% elif order.remaining_amount > 0 %}
                     <div class="total-row bg-red-light text-red">
                         <span class="font-bold text-xs">المتبقي</span>
                         <span class="num font-bold">{{ order.remaining_amount|floatformat:"-2"|intcomma }}</span>
@@ -781,11 +785,15 @@
                             <span class="num">{{ order.gross_profit|floatformat:2|intcomma }}</span>
                         </div>
                         {% endif %}
+                        {% if not order.is_online_order or order.driver_settled_at %}
                         <div class="total-row bg-gray">
                             <span class="font-bold text-xs">المدفوع</span>
                             <span class="num font-bold">{{ order.received_amount|floatformat:"-2"|intcomma }}</span>
                         </div>
-                        {% if order.remaining_amount > 0 %}
+                        {% endif %}
+                        {% if order.is_online_order and not order.driver_settled_at %}
+                        <!-- COD delivery order: reads like a normal receipt, no paid/remaining line. -->
+                        {% elif order.remaining_amount > 0 %}
                         <div class="total-row bg-red-light text-red">
                             <span class="font-bold text-xs">المتبقي</span>
                             <span class="num font-bold">{{ order.remaining_amount|floatformat:"-2"|intcomma }}</span>

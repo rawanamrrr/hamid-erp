@@ -403,11 +403,27 @@ def customer_detail(request, pk):
         })
     # Running balance per row (positive = customer owes; negative = credit), oldest→newest,
     # starting from the opening balance. Each row moves the balance by (total − paid).
+    #
+    # Cash-on-delivery orders are unpaid at sale time by design (the driver collects at
+    # the door) — until the driver settles up, any still-outstanding shortfall on one is
+    # the driver's liability, not credit extended to this customer, so it must not move
+    # the running balance. Only the unpaid *shortfall* is suppressed though — a delivery
+    # order that's already fully (or over-) paid (e.g. paid up front, driver_settled_at
+    # just never got stamped) must still move the balance normally, or a real payment on
+    # it would vanish from the running total entirely. Same rule as Customer.get_balance()
+    # /order_invoice_debt(), so this ledger's running total reconciles with the balance
+    # figure shown elsewhere on the page instead of drifting past it.
     opening = Decimal(str(customer.opening_balance or '0.00'))
+    unsettled_cod_ids = {
+        o.id for o in real_orders if o.is_online_order and not o.driver_settled_at
+    }
     ledger.sort(key=lambda x: x['date'])
     _run = opening
     for e in ledger:
-        _run += (e['total'] - e['paid'])
+        diff = e['total'] - e['paid']
+        if e['type'] == 'order' and e['id'] in unsettled_cod_ids and diff > 0:
+            diff = Decimal('0.00')
+        _run += diff
         e['running'] = _run
     ledger.sort(key=lambda x: x['date'], reverse=True)
 

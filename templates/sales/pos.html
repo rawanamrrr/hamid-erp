@@ -4419,6 +4419,16 @@
                                     badgeContainer.innerHTML = html;
                                 }
                             }
+
+                            // The customer stays selected for a possible next order (same
+                            // session) — without this, the smart-pay overlay/badge would keep
+                            // showing the pre-order balance until the customer is re-picked
+                            // from the dropdown, making credit usage look like it never
+                            // actually reduced their available balance.
+                            if (String(currentCustomerId) === String(customerId)) {
+                                currentCustomerBalance = parseFloat(res.updated_balance) || 0;
+                                updateCustomerBalanceBadge(document.getElementById('chipCustomerName')?.textContent || searchInput.value, currentCustomerBalance, customerId);
+                            }
                         }
 
                         // Clear any consumed manager authorization.
@@ -5622,7 +5632,7 @@
                 </div>
 
                 <h2 class="text-3xl font-black text-slate-900 mb-2">اكتشاف رصيد متاح!</h2>
-                <p class="text-slate-500 text-sm mb-8 leading-relaxed">هذا العميل لديه رصيد سابق. نظام مكاوي الذكي ينصح
+                <p class="text-slate-500 text-sm mb-8 leading-relaxed">هذا العميل لديه رصيد سابق. يُنصح
                     باستخدامه لتسهيل المعاملة.</p>
 
                 <div class="space-y-4 mb-8">

@@ -102,10 +102,25 @@ class Customer(models.Model):
         """رصيد العميل (ما له أو ما عليه)"""
         # Exclude dummy orders that don't have items, and voided invoices.
         real_orders = self._real_orders()
-        
+
         total_due = real_orders.aggregate(total=Sum('total_amount'))['total'] or Decimal('0.00')
         total_paid = real_orders.aggregate(total=Sum('received_amount'))['total'] or Decimal('0.00')
-        
+
+        # Cash-on-delivery orders are unpaid at sale time by design (the driver collects
+        # at the door), so any still-outstanding balance on one would otherwise look like
+        # credit extended to this customer. Until the driver settles up it's the driver's
+        # liability, not theirs — suppress just that unpaid *shortfall* the same way
+        # order_invoice_debt() does per-invoice. A delivery order that's already fully (or
+        # over-) paid — e.g. paid up front, driver_settled_at just never got stamped for
+        # it — must NOT be touched here, or a real payment on it would be double-excluded
+        # (once from total_due, while its full received_amount still sits in total_paid).
+        unsettled_cod_shortfall = sum(
+            (max(Decimal('0.00'), o.total_amount - o.received_amount)
+             for o in real_orders if o.is_online_order and not o.driver_settled_at),
+            Decimal('0.00'),
+        )
+        total_due -= unsettled_cod_shortfall
+
         # Sum transactions from new CustomerPayment model
         payments_sum = self.payments_log.filter(transaction_type='payment').aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
         manual_debt_sum = self.payments_log.filter(transaction_type='debt').aggregate(total=Sum('amount'))['total'] or Decimal('0.00')

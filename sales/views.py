@@ -1121,6 +1121,13 @@ def submit_order_ajax(request):
                 # Completion Status
                 if order.remaining_amount <= 0:
                     order.is_completed = True
+                elif requires_shipping:
+                    # Cash-on-delivery: unpaid at sale time by design — the driver collects
+                    # this from the customer at the door and settles it back at the shop
+                    # (driver_return_settle), it's never real store credit extended to the
+                    # customer. Skip the "بيع آجل" gates (blacklist/credit-limit) entirely;
+                    # a registered customer with phone/address was already required above.
+                    order.is_completed = False
                 else:
                     # Layer 2: 'sales.require_customer_on_credit' — the store decides whether a
                     # credit/deferred sale (paid < total) needs a named customer. This is the

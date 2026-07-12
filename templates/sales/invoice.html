@@ -502,12 +502,16 @@
 
                 <!-- Payment Details -->
                 <div class="pt-2 mt-2 border-t border-gray-300">
+                    {% if not order.is_online_order or order.driver_settled_at %}
                     <div class="flex justify-between text-sm mt-1"><span>المدفوع:</span><span class="num font-bold">{{ order.received_amount }}</span></div>
-                    
+                    {% endif %}
+
                     <div class="flex justify-between text-xs mt-1">
                         <span>طريقة الدفع:</span>
                         <span class="font-bold">
-                            {% if order.cash_paid > 0 and order.wallet_paid == 0 and order.instapay_paid == 0 and order.visa_paid == 0 and order.credit_paid == 0 %}
+                            {% if order.is_online_order and not order.driver_settled_at %}
+                                الدفع عند الاستلام
+                            {% elif order.cash_paid > 0 and order.wallet_paid == 0 and order.instapay_paid == 0 and order.visa_paid == 0 and order.credit_paid == 0 %}
                                 نقدي
                             {% elif order.wallet_paid > 0 and order.cash_paid == 0 and order.instapay_paid == 0 and order.visa_paid == 0 and order.credit_paid == 0 %}
                                 محفظة
@@ -532,7 +536,11 @@
                             {% if order.credit_paid > 0 %}<div class="flex justify-between text-[10px] pr-3 text-emerald-600 font-bold"><span>- رصيد سابق:</span><span class="num">{{ order.credit_paid }}</span></div>{% endif %}
                         </div>
                     {% endif %}
-                    {% if order.remaining_amount > 0 %}
+                    {% if order.is_online_order and not order.driver_settled_at %}
+                    <!-- COD delivery order: the customer owes nothing on the invoice itself —
+                         the driver collects this at the door, so no "remaining/debt" or
+                         "paid" line at all — the receipt just reads like a normal sale. -->
+                    {% elif order.remaining_amount > 0 %}
                     <div class="flex justify-between text-sm text-red-600 font-bold mt-1 border-t border-red-100 pt-1">
                         <span>⚠️ المتبقي (عليه):</span>
                         <span class="num">{{ order.remaining_amount }}</span>

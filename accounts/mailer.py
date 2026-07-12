@@ -32,9 +32,9 @@ def send_reset_email(to_email, code):
     body = (f"رمز استعادة كلمة المرور الخاص بك هو: {code}\n"
             f"الرمز صالح لمدة 15 دقيقة. إذا لم تطلب ذلك، تجاهل هذه الرسالة.")
     if not sender or not pwd or not to_email:
-        logger.warning("[RESET EMAIL→%s] code=%s (no SMTP configured — shown for the operator)",
+        logger.warning("[RESET EMAIL -> %s] code=%s (no SMTP configured - shown for the operator)",
                        to_email, code)
-        print(f"[RESET EMAIL→{to_email}] code={code}")
+        print(f"[RESET EMAIL -> {to_email}] code={code}")
         return False
     try:
         from django.core.mail.backends.smtp import EmailBackend
@@ -45,5 +45,5 @@ def send_reset_email(to_email, code):
         return True
     except Exception as exc:
         logger.error("reset email send failed: %s", exc)
-        print(f"[RESET EMAIL→{to_email}] code={code} (send failed — shown for testing)")
+        print(f"[RESET EMAIL -> {to_email}] code={code} (send failed - shown for testing)")
         return False

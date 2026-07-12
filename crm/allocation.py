@@ -12,6 +12,12 @@ from django.db import transaction as db_transaction
 
 def order_invoice_debt(order):
     """The credit portion of an invoice at sale time = total - money received then."""
+    # Cash-on-delivery orders are unpaid at sale time by design — the customer pays the
+    # driver at the door, not the shop directly. Until the driver settles up, that unpaid
+    # balance is the driver's liability, not credit extended to the customer, so it must
+    # not appear as the customer's own debt.
+    if getattr(order, 'is_online_order', False) and not getattr(order, 'driver_settled_at', None):
+        return Decimal('0.00')
     total = Decimal(str(order.total_amount or 0))
     received = Decimal(str(order.received_amount or 0))
     debt = total - received
