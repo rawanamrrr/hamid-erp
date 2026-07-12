@@ -60,8 +60,11 @@
 <div id="settleModal" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center">
     <div class="bg-white rounded-xl p-5 w-80 shadow-xl">
         <h3 class="font-bold mb-3">تسليم الطلب <span id="settleModalOrderNo"></span></h3>
-        <label class="text-xs text-gray-500 mb-1 block">إجمالي المبلغ الذي حصّله الطيار من العميل (شامل تكلفة التوصيل)</label>
-        <input type="number" step="0.01" id="settleAmountInput" class="w-full border rounded-lg px-3 py-2 mb-3">
+        <div class="bg-gray-50 rounded-lg p-3 mb-3 space-y-1 text-sm">
+            <div class="flex justify-between"><span class="text-gray-500">المطلوب تحصيله من العميل</span><span id="settleOrderTotal" class="font-bold"></span></div>
+            <div class="flex justify-between"><span class="text-gray-500">تكلفة التوصيل (للطيار)</span><span id="settleDeliveryCost" class="font-bold text-amber-600"></span></div>
+            <div class="flex justify-between border-t pt-1"><span class="text-gray-700 font-bold">المستحق للمحل</span><span id="settleOwedAmount" class="font-bold text-emerald-700"></span></div>
+        </div>
         <div class="flex gap-2">
             <button onclick="confirmSettleOrder()" class="flex-1 bg-emerald-600 text-white rounded-lg py-2 font-bold">تم التسليم</button>
             <button onclick="closeSettleModal()" class="flex-1 bg-gray-100 rounded-lg py-2 font-bold">إلغاء</button>
@@ -258,11 +261,15 @@ function openSettleModal(orderId) {
     settleTargetOrderId = orderId;
     const order = deliveryOrders.find(o => o.id === orderId);
     document.getElementById('settleModalOrderNo').textContent = order ? order.display_number : orderId;
-    // Prefill with what's still actually owed on the invoice (0 for an order already
-    // paid in full at POS) — never blindly total-minus-delivery-fee, which would
-    // double-count a prepaid order's payment when confirmed.
-    const defaultAmount = order ? order.outstanding : 0;
-    document.getElementById('settleAmountInput').value = defaultAmount.toFixed(2);
+    // Fully automatic — never typed in: what's still owed on the invoice (0 for an
+    // order already paid in full at POS), minus the delivery fee the flyer keeps as
+    // their own earning. Matches driver_return_settle's own default exactly.
+    const outstanding = order ? order.outstanding : 0;
+    const deliveryCost = order ? order.delivery_cost : 0;
+    const owed = Math.max(0, outstanding - deliveryCost);
+    document.getElementById('settleOrderTotal').textContent = outstanding.toFixed(2) + ' ج.م';
+    document.getElementById('settleDeliveryCost').textContent = deliveryCost.toFixed(2) + ' ج.م';
+    document.getElementById('settleOwedAmount').textContent = owed.toFixed(2) + ' ج.م';
     document.getElementById('settleModal').classList.remove('hidden');
 }
 function closeSettleModal() {
@@ -271,11 +278,12 @@ function closeSettleModal() {
 }
 function confirmSettleOrder() {
     if (!settleTargetOrderId) return;
-    const amount = document.getElementById('settleAmountInput').value;
+    // No amount sent — the backend computes the exact same auto-calculated figure
+    // shown in the modal (outstanding minus delivery cost), so there's nothing to type.
     fetch(`/restaurant/delivery/order/${settleTargetOrderId}/return/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': '{{ csrf_token }}' },
-        body: `collected_amount=${encodeURIComponent(amount)}`,
+        body: '',
     })
     .then(r => r.json())
     .then(res => {

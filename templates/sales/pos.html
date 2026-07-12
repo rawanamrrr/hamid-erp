@@ -3933,6 +3933,20 @@
             let paymentRequired = total;
             let deductAmount = 0;
 
+            // Delivery/COD orders aren't paid at the register — the flyer collects the
+            // cash at the door and it's recorded later on the delivery dashboard
+            // (driver_return_settle). Auto-filling "cash paid = total" here would mark
+            // the order fully paid before any money has actually changed hands, hiding
+            // it from the delivery dashboard's outstanding-balance tracking entirely.
+            const isDeliveryOrderCOD = document.getElementById('isOnlineOrder')?.checked
+                && !(useCustomerCredit && currentCustomerBalance < -0.01);
+            if (isDeliveryOrderCOD) {
+                cash.value = ''; wallet.value = ''; insta.value = ''; visa.value = '';
+                if (received) { received.value = ''; received.style.color = ''; }
+                if (hintEl) { hintEl.classList.add('hidden'); hintEl.classList.remove('flex'); }
+                return;
+            }
+
             if (useCustomerCredit && currentCustomerBalance < -0.01) {
                 const creditAvailable = Math.abs(currentCustomerBalance);
                 deductAmount = Math.min(total, creditAvailable);
@@ -4280,8 +4294,12 @@
             {% endif %}
             // ────────────────────────────────────────────────────────────
 
-            // If customer selected and paid < total → show debt confirmation modal
-            if (customerId && paid < total && !window._skipDebtCheck) {
+            // If customer selected and paid < total → show debt confirmation modal.
+            // Skipped for delivery/COD orders: paid=0 there is the normal, expected state
+            // (the flyer collects cash at the door — see driver_return_settle), not the
+            // store voluntarily extending credit, so the "أضف للمديونية" wording doesn't
+            // apply and would just be confusing/redundant on every single delivery order.
+            if (customerId && paid < total && !window._skipDebtCheck && !isOnline) {
                 const customerName = document.getElementById('customerSearchInput').value || 'العميل';
                 const debtAmount = (total - paid).toFixed(2);
                 document.getElementById('debtModalCustomerName').textContent = customerName;
