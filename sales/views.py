@@ -153,35 +153,13 @@ def pos_view(request):
     if not active_warehouse and warehouses.exists():
         active_warehouse = warehouses.first()
     
-    # Build customer balance map for POS display.
-    # MUST match Customer.get_balance() (the CRM/profile page) exactly, otherwise the POS
-    # badge and the customer profile disagree. Formula:
-    #   (orders-with-items due + opening + manual debt) − (orders received + customer payments)
-    # The previous version ignored CustomerPayment deposits entirely, so a customer who had
-    # paid deposits showed a tiny POS balance but a huge credit on their profile page.
-    from django.db.models import Sum as _Sum, Q as _Q
-    from crm.models import CustomerPayment
-
-    # Order ids that actually have line items (subquery → no row multiplication from the join).
-    _order_ids_with_items = OrderItem.objects.values_list('order_id', flat=True).distinct()
-    _order_aggs = (Order.objects.exclude(status='void')
-                   .filter(id__in=_order_ids_with_items)
-                   .values('customer')
-                   .annotate(due=_Sum('total_amount'), paid=_Sum('received_amount')))
-    _due_map = {a['customer']: (a['due'] or 0, a['paid'] or 0) for a in _order_aggs if a['customer']}
-
-    _pay_aggs = (CustomerPayment.objects.values('customer').annotate(
-        pay=_Sum('amount', filter=_Q(transaction_type='payment')),
-        debt=_Sum('amount', filter=_Q(transaction_type='debt')),
-    ))
-    _pay_map = {a['customer']: (a['pay'] or 0, a['debt'] or 0) for a in _pay_aggs if a['customer']}
-
-    customer_balances = {}
-    for c in customers:
-        _due, _paid = _due_map.get(c.id, (0, 0))
-        _pay, _debt = _pay_map.get(c.id, (0, 0))
-        bal = float(_due) + float(c.opening_balance or 0) + float(_debt) - float(_paid) - float(_pay)
-        customer_balances[c.id] = round(bal, 2)
+    # Build customer balance map for POS display. Calls each customer's own
+    # get_balance() directly instead of a hand-rolled reimplementation of its formula —
+    # a prior duplicate here had drifted out of sync (it predated the COD-shortfall
+    # exclusion added to get_balance(), so a customer with only pending
+    # cash-on-delivery orders showed a large debt in this POS dropdown while their CRM
+    # profile page — which does call get_balance() — correctly showed them settled).
+    customer_balances = {c.id: round(float(c.get_balance()), 2) for c in customers}
 
     products_data = []
     if active_warehouse:
