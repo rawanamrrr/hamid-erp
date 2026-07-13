@@ -33,7 +33,7 @@
         <div class="flex justify-between px-5 py-3 bg-orange-50 font-black"><span>(−) ضريبة المدخلات (على المشتريات)</span><span class="dir-ltr text-orange-700">{{ v.input_vat|floatformat:2|intcomma }}</span></div>
         <div class="flex justify-between px-5 py-4 bg-gray-800 text-white font-black text-lg"><span>صافي الضريبة المستحقة</span><span class="dir-ltr {% if v.net_payable < 0 %}text-green-300{% endif %}">{{ v.net_payable|floatformat:2|intcomma }}</span></div>
     </div>
-    <p class="text-center text-xs text-gray-400">تُحسب ضريبة المبيعات على أساس أن الأسعار شاملة للضريبة. ضريبة المشتريات من بنود فواتير الشراء المؤكدة.</p>
+    <p class="text-center text-xs text-gray-400">تُحسب ضريبة المبيعات لكل فاتورة حسب وضعها الفعلي وقت البيع (مضمنة في السعر أو مضافة عليه). ضريبة المشتريات من بنود فواتير الشراء المؤكدة.</p>
 </div>
 {% if print_mode %}<script>window.onload=function(){window.print();};</script>{% endif %}
 {% endblock %}

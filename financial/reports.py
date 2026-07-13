@@ -210,8 +210,17 @@ def sales_analytics(date_from=None, date_to=None):
 
 
 def vat_report(date_from=None, date_to=None):
-    """VAT summary (Phase 4.8) — output VAT on sales (prices treated as VAT-inclusive at
-    the configured rate) minus input VAT on confirmed purchases = net VAT payable.
+    """VAT summary (Phase 4.8) — output VAT on sales minus input VAT on confirmed
+    purchases = net VAT payable.
+
+    Each order's own vat_amount/vat_breakdown() is used instead of re-deriving VAT
+    from its gross total_amount — that total also carries service charge and (in
+    "not included" mode) an already-separate VAT add-on, so blindly running the
+    VAT-inclusive extraction formula (gross * rate / (100 + rate)) against the whole
+    total double-counts the service charge as if it were part of the VATable price
+    and, for "not included" orders, re-derives a VAT figure that doesn't match what
+    was actually charged. Using vat_breakdown() reuses the exact per-order snapshot
+    (rate/mode locked in at checkout) that the invoice/refund/dashboard already rely on.
 
     Touches no checkout logic; if the configured rate is 0 the report simply shows zeros.
     """
@@ -237,9 +246,12 @@ def vat_report(date_from=None, date_to=None):
     returns_gross = returns.aggregate(s=Coalesce(Sum('total_refund_amount'), ZERO))['s']
     net_sales = sales_gross - returns_gross
 
-    # VAT-inclusive extraction: tax = gross * rate / (100 + rate)
-    factor = (rate / (Decimal('100') + rate)) if rate > 0 else ZERO
-    output_vat = (net_sales * factor).quantize(Decimal('0.01'))
+    output_vat_sales = sum(
+        (vb['tax'] for vb in (o.vat_breakdown() for o in orders) if vb),
+        ZERO,
+    )
+    output_vat_returns = returns.aggregate(s=Coalesce(Sum('vat_amount'), ZERO))['s']
+    output_vat = output_vat_sales - output_vat_returns
     net_sales_ex = net_sales - output_vat
 
     input_vat = pitems.aggregate(s=Coalesce(Sum('tax_amount'), ZERO))['s']
