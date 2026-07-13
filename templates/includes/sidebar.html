@@ -433,6 +433,9 @@ html.fav-only-mode #topnav-items > *:not(.fav-show) { display: none; }
                     <a href="{% url 'size_list' %}" class="tnav-sub {% if vn == 'size_list' %}active{% endif %}"><i class="fas fa-ruler text-indigo-400 w-4"></i> الأحجام</a>
                     <a href="{% url 'restaurant:modifier_group_list' %}" class="tnav-sub {% if vn == 'restaurant:modifier_group_list' %}active{% endif %}"><i class="fas fa-list-check text-indigo-400 w-4"></i> الإضافات والاختيارات</a>
                     <a href="{% url 'unit_list' %}" class="tnav-sub {% if vn == 'unit_list' %}active{% endif %}"><i class="fas fa-weight-hanging text-indigo-400 w-4"></i> وحدات القياس</a>
+                    <p class="tnav-section-label">الوصفات</p>
+                    <a href="{% url 'restaurant:menu_recipe_list' %}" class="tnav-sub {% if vn == 'restaurant:menu_recipe_list' or vn == 'restaurant:recipe_edit' %}active{% endif %}"><i class="fas fa-book-open text-emerald-400 w-4"></i> الوصفة</a>
+                    <a href="{% url 'restaurant:subrecipe_list' %}" class="tnav-sub {% if vn == 'restaurant:subrecipe_list' or vn == 'restaurant:subrecipe_edit' or vn == 'restaurant:subrecipe_create' %}active{% endif %}"><i class="fas fa-layer-group text-emerald-400 w-4"></i> الوصفة الفرعية</a>
                 </div>
                 {% endwith %}
             </div>

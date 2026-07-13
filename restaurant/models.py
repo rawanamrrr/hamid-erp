@@ -127,9 +127,16 @@ class Recipe(models.Model):
 
     When present, selling the linked product deducts each RecipeItem's ingredient
     quantity from stock via the existing inventory service.
+
+    `size` lets a menu item with dimensions (ProductVariant sizes, e.g. "صغير/كبير")
+    carry a DIFFERENT recipe per size — a small pizza's dough recipe isn't the large
+    one's. `size=None` is the item's single/base recipe (no sizes, or "applies to
+    every size" when nothing more specific exists) — see `Recipe.for_product`.
     """
-    product = models.OneToOneField('products.Product', on_delete=models.CASCADE,
-                                   related_name='recipe', verbose_name="الصنف")
+    product = models.ForeignKey('products.Product', on_delete=models.CASCADE,
+                                related_name='recipes', verbose_name="الصنف")
+    size = models.ForeignKey('products.Size', on_delete=models.CASCADE, null=True, blank=True,
+                             related_name='+', verbose_name="الحجم")
     notes = models.TextField(blank=True, verbose_name="ملاحظات التحضير")
     is_active = models.BooleanField(default=True, verbose_name="نشطة")
     created_at = models.DateTimeField(auto_now_add=True)
@@ -137,9 +144,23 @@ class Recipe(models.Model):
     class Meta:
         verbose_name = "وصفة تحضير"
         verbose_name_plural = "وصفات التحضير"
+        unique_together = ('product', 'size')
 
     def __str__(self):
-        return f"وصفة: {self.product.name}"
+        return f"وصفة: {self.product.name}" + (f" ({self.size.name})" if self.size_id else "")
+
+    @classmethod
+    def for_product(cls, product, size_id=None):
+        """The recipe that applies when selling `product` at `size_id` (None = no size
+        picked). Prefers an exact size match; falls back to the item's base (size=None)
+        recipe so a product doesn't need every single size covered to have *a* recipe.
+        """
+        qs = cls.objects.filter(product=product, is_active=True)
+        if size_id:
+            exact = qs.filter(size_id=size_id).first()
+            if exact:
+                return exact
+        return qs.filter(size__isnull=True).first()
 
 
 # Conversion factor FROM the key unit TO the value unit's family base, e.g. 1 G = 0.001 KG.
@@ -168,10 +189,74 @@ def compatible_units(base_unit):
     return [(u, choices[u]) for u in choices if u in allowed]
 
 
-class RecipeItem(models.Model):
-    recipe = models.ForeignKey(Recipe, on_delete=models.CASCADE, related_name='items', verbose_name="الوصفة")
+def convert_quantity(quantity, entered_unit, base_unit):
+    """Shared by RecipeItem.base_quantity and SubRecipeItem.base_quantity — converts an
+    entered quantity/unit into the ingredient's own tracked unit."""
+    entered_unit = entered_unit or base_unit
+    if entered_unit == base_unit:
+        return quantity
+    factor = UNIT_CONVERSION.get((entered_unit, base_unit))
+    if factor is None:
+        # Incompatible/unknown pair — safest fallback is to treat it as already in the
+        # base unit rather than silently deducting a wildly wrong amount.
+        return quantity
+    return quantity * factor
+
+
+class SubRecipe(models.Model):
+    """A reusable "batch" recipe (e.g. عجينة البيتزا) that isn't sold on its own — it's
+    pulled into one or more product Recipes as a single RecipeItem row, on top of that
+    product's own direct ingredients. Keeps repeated prep steps defined once instead of
+    copy-pasted into every product/size recipe that uses them.
+    """
+    name = models.CharField(max_length=150, unique=True, verbose_name="اسم الوصفة الفرعية")
+    notes = models.TextField(blank=True, verbose_name="ملاحظات التحضير")
+    is_active = models.BooleanField(default=True, verbose_name="نشطة")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "وصفة فرعية"
+        verbose_name_plural = "الوصفات الفرعية"
+        ordering = ['name']
+
+    def __str__(self):
+        return self.name
+
+
+class SubRecipeItem(models.Model):
+    sub_recipe = models.ForeignKey(SubRecipe, on_delete=models.CASCADE, related_name='items',
+                                   verbose_name="الوصفة الفرعية")
     ingredient = models.ForeignKey('products.Product', on_delete=models.PROTECT,
+                                   related_name='used_in_subrecipes', verbose_name="الخامة")
+    quantity = models.DecimalField(max_digits=10, decimal_places=3, verbose_name="الكمية")
+    unit = models.CharField(max_length=10, blank=True, default='', verbose_name="وحدة الكمية")
+
+    class Meta:
+        verbose_name = "مكوّن وصفة فرعية"
+        verbose_name_plural = "مكوّنات الوصفات الفرعية"
+        unique_together = ('sub_recipe', 'ingredient')
+
+    def __str__(self):
+        return f"{self.ingredient.name} x{self.quantity}"
+
+    @property
+    def base_quantity(self):
+        return convert_quantity(self.quantity, self.unit, self.ingredient.unit_measure)
+
+
+class RecipeItem(models.Model):
+    """One line of a Recipe: either a raw-material ingredient OR a SubRecipe (exactly
+    one of the two must be set) — e.g. a pizza's recipe can pull in the "عجينة" sub-recipe
+    plus its own direct "جبنة" ingredient line side by side.
+    """
+    recipe = models.ForeignKey(Recipe, on_delete=models.CASCADE, related_name='items', verbose_name="الوصفة")
+    ingredient = models.ForeignKey('products.Product', on_delete=models.PROTECT, null=True, blank=True,
                                    related_name='used_in_recipes', verbose_name="الخامة")
+    sub_recipe = models.ForeignKey(SubRecipe, on_delete=models.PROTECT, null=True, blank=True,
+                                   related_name='used_in_recipes', verbose_name="الوصفة الفرعية")
+    # For an ingredient row: the quantity, in `unit`. For a sub_recipe row: how many
+    # batches of that sub-recipe go in (e.g. 0.5 = half a batch of dough) — `unit` is
+    # unused/blank, since a sub-recipe isn't tracked in a stock unit of its own.
     quantity = models.DecimalField(max_digits=10, decimal_places=3, verbose_name="الكمية")
     # The unit `quantity` was actually entered in — may differ from the ingredient's own
     # tracked unit (e.g. a recipe calling for "30 G" of an ingredient whose stock is kept
@@ -181,26 +266,31 @@ class RecipeItem(models.Model):
     class Meta:
         verbose_name = "مكوّن وصفة"
         verbose_name_plural = "مكوّنات الوصفات"
-        unique_together = ('recipe', 'ingredient')
+        constraints = [
+            models.CheckConstraint(
+                condition=(
+                    models.Q(ingredient__isnull=False, sub_recipe__isnull=True) |
+                    models.Q(ingredient__isnull=True, sub_recipe__isnull=False)
+                ),
+                name='recipeitem_exactly_one_of_ingredient_or_subrecipe',
+            ),
+        ]
 
     def __str__(self):
-        return f"{self.ingredient.name} x{self.quantity}"
+        name = self.ingredient.name if self.ingredient_id else self.sub_recipe.name
+        return f"{name} x{self.quantity}"
 
     @property
     def base_quantity(self):
         """`quantity` converted into the ingredient's own unit — this is what actually
         gets deducted from stock (issue_stock always works in the ingredient's unit).
+        Meaningless for a sub_recipe row (each of ITS ingredients gets its own
+        conversion) — callers should expand sub_recipe rows via `.sub_recipe.items`
+        instead of reading base_quantity on them.
         """
-        base_unit = self.ingredient.unit_measure
-        entered_unit = self.unit or base_unit
-        if entered_unit == base_unit:
+        if not self.ingredient_id:
             return self.quantity
-        factor = UNIT_CONVERSION.get((entered_unit, base_unit))
-        if factor is None:
-            # Incompatible/unknown pair — safest fallback is to treat it as already in
-            # the base unit rather than silently deducting a wildly wrong amount.
-            return self.quantity
-        return self.quantity * factor
+        return convert_quantity(self.quantity, self.unit, self.ingredient.unit_measure)
 
 
 class Driver(models.Model):

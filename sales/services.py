@@ -14,7 +14,38 @@ from decimal import Decimal
 
 from products.models import Product
 from products.inventory_services import issue_stock, available_quantity
+from restaurant.models import Recipe
 from .models import OrderItem
+
+
+def _deduct_recipe(recipe, qty, warehouse, user, order, product_name):
+    """Issue stock for every ingredient a recipe needs to make `qty` units of the menu
+    item — expanding any SubRecipe rows (e.g. "عجينة") into their own ingredients too,
+    scaled by both the sub-recipe's quantity-per-item and the line quantity sold.
+    Never blocks the sale: a cafe still serves the item even if an ingredient runs short.
+    """
+    for ri in recipe.items.select_related('ingredient', 'sub_recipe').all():
+        if ri.ingredient_id:
+            try:
+                issue_stock(
+                    ri.ingredient, warehouse, ri.base_quantity * qty,
+                    user=user, reference=str(order.id),
+                    note=f"استهلاك وصفة: {product_name}",
+                    allow_negative=True,
+                )
+            except ValueError:
+                pass
+        elif ri.sub_recipe_id:
+            for sub_item in ri.sub_recipe.items.select_related('ingredient').all():
+                try:
+                    issue_stock(
+                        sub_item.ingredient, warehouse, sub_item.base_quantity * ri.quantity * qty,
+                        user=user, reference=str(order.id),
+                        note=f"استهلاك وصفة فرعية ({ri.sub_recipe.name}): {product_name}",
+                        allow_negative=True,
+                    )
+                except ValueError:
+                    pass
 
 
 def _to_decimal(v, default='0'):
@@ -99,19 +130,13 @@ def issue_cart_items(order, cart_items, warehouse, user, applied_deal=None, note
             )
 
             # Same hybrid-recipe deduction as the plain (non-sized) branch below — a sized
-            # menu item (e.g. "Large Latte") still consumes its recipe's ingredients.
-            recipe = getattr(product, 'recipe', None)
-            if recipe and recipe.is_active:
-                for ri in recipe.items.select_related('ingredient').all():
-                    try:
-                        issue_stock(
-                            ri.ingredient, warehouse, ri.base_quantity * qty,
-                            user=user, reference=str(order.id),
-                            note=f"استهلاك وصفة: {product.name}",
-                            allow_negative=True,
-                        )
-                    except ValueError:
-                        pass
+            # menu item (e.g. "Large Latte") still consumes its recipe's ingredients, and
+            # a differently-sized item can have a genuinely different recipe (e.g. a large
+            # pizza uses more دقيق than a small one) — Recipe.for_product picks the recipe
+            # for this exact size, falling back to the item's base/no-size recipe.
+            recipe = Recipe.for_product(product, size_id=variant.size_id)
+            if recipe:
+                _deduct_recipe(recipe, qty, warehouse, user, order, product.name)
 
             line_total = qty * price
             subtotal += line_total
@@ -158,20 +183,11 @@ def issue_cart_items(order, cart_items, warehouse, user, applied_deal=None, note
         # Hybrid recipes: a menu item sold through the regular cashier/POS checkout must
         # deduct its ingredients exactly like the waiter flow does (restaurant/views.py
         # waiter_open_or_append) — otherwise ingredient stock never moves for every sale
-        # rung up directly at the counter instead of through a table. Never blocks the
-        # sale itself: a cafe still serves the drink even if an ingredient runs short.
-        recipe = getattr(product, 'recipe', None)
-        if recipe and recipe.is_active:
-            for ri in recipe.items.select_related('ingredient').all():
-                try:
-                    issue_stock(
-                        ri.ingredient, warehouse, ri.base_quantity * qty,
-                        user=user, reference=str(order.id),
-                        note=f"استهلاك وصفة: {product.name}",
-                        allow_negative=True,
-                    )
-                except ValueError:
-                    pass
+        # rung up directly at the counter instead of through a table. This is the no-size
+        # branch (no ProductVariant chosen), so only the item's base recipe applies.
+        recipe = Recipe.for_product(product, size_id=None)
+        if recipe:
+            _deduct_recipe(recipe, qty, warehouse, user, order, product.name)
 
         line_total = qty * price
         subtotal += line_total

@@ -52,8 +52,14 @@ urlpatterns = [
     path('reports/product-sales/', views.product_sales_report, name='product_sales_report'),
     path('reports/raw-material-usage/', views.raw_material_usage_report, name='raw_material_usage_report'),
 
-    # Recipe (optional BOM per product)
+    # Recipe (optional BOM per product, optionally per-size)
+    path('menu/recipes/', views.menu_recipe_list, name='menu_recipe_list'),
     path('product/<int:product_id>/recipe/', views.recipe_edit, name='recipe_edit'),
+
+    # Sub-recipes (وصفات فرعية) — reusable batch recipes pulled into product recipes
+    path('menu/subrecipes/', views.subrecipe_list, name='subrecipe_list'),
+    path('menu/subrecipes/add/', views.subrecipe_edit, name='subrecipe_create'),
+    path('menu/subrecipes/<int:pk>/edit/', views.subrecipe_edit, name='subrecipe_edit'),
 
     # Modifier groups (مستوى السكر، إضافات...) — fixed-choice options for a menu item
     path('modifiers/', views.modifier_group_list, name='modifier_group_list'),

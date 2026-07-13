@@ -4,7 +4,7 @@
 <div class="max-w-3xl mx-auto p-4" x-data="recipeForm()">
     <div class="flex items-center justify-between mb-4">
         <h1 class="text-2xl font-bold">وصفة (BOM) — {{ product.name }}</h1>
-        <a href="{% url 'product_detail' product.id %}" class="px-4 py-2 rounded-lg border">رجوع للمنتج</a>
+        <a href="{% url 'restaurant:menu_recipe_list' %}" class="px-4 py-2 rounded-lg border">رجوع لقائمة الوصفات</a>
     </div>
 
     {% if messages %}
@@ -15,24 +15,42 @@
     </div>
     {% endif %}
 
+    {% if sizes|length > 1 %}
+    <!-- Size tabs — each size (from الأحجام/ProductVariant) carries its own price and can
+         carry its own recipe. "عام" is the fallback used when a size has none of its own. -->
+    <div class="flex flex-wrap gap-2 mb-4">
+        {% for s in sizes %}
+        <a href="?size_id={{ s.size_id|default:'' }}"
+           class="px-4 py-2 rounded-xl border text-sm font-bold flex items-center gap-2
+                  {% if s.size_id == active_size_id %}bg-indigo-600 text-white border-indigo-600{% else %}bg-white text-gray-700{% endif %}">
+            <span>{{ s.label }}</span>
+            <span class="{% if s.size_id == active_size_id %}text-indigo-100{% else %}text-gray-400{% endif %} text-xs">{{ s.price }} ج.م</span>
+            {% if s.size_id in covered_size_ids %}<i class="fas fa-circle-check text-emerald-400 text-xs"></i>{% endif %}
+        </a>
+        {% endfor %}
+    </div>
+    {% endif %}
+
     {% if recipe %}
     <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4 flex items-center justify-between">
-        <span class="text-sm text-amber-800">هذا الصنف له وصفة مفعّلة حالياً — بيعه بيخصم الخامات تلقائياً.</span>
-        <form method="post" onsubmit="return confirm('تأكيد إلغاء الوصفة؟ الصنف هيرجع يتباع من غير خصم خامات.');">
+        <span class="text-sm text-amber-800">هذا الحجم له وصفة مفعّلة حالياً — بيعه بيخصم الخامات تلقائياً.</span>
+        <form method="post" onsubmit="return confirm('تأكيد إلغاء الوصفة؟ الحجم ده هيرجع يتباع من غير خصم خامات.');">
             {% csrf_token %}
             <input type="hidden" name="action" value="remove_recipe">
+            <input type="hidden" name="size_id" value="{{ active_size_id|default:'' }}">
             <button type="submit" class="px-3 py-2 rounded-lg bg-red-600 text-white text-sm">إلغاء الوصفة</button>
         </form>
     </div>
     {% else %}
     <div class="bg-gray-50 border rounded-xl p-4 mb-4 text-sm text-gray-600">
-        لا توجد وصفة لهذا الصنف حالياً — البيع لا يخصم أي خامة من المخزون.
+        لا توجد وصفة لهذا الحجم حالياً — البيع لا يخصم أي خامة من المخزون.
     </div>
     {% endif %}
 
     <form method="post">
         {% csrf_token %}
         <input type="hidden" name="action" value="save">
+        <input type="hidden" name="size_id" value="{{ active_size_id|default:'' }}">
 
         <div class="bg-white rounded-xl border p-4 mb-4">
             <label class="flex items-center gap-2 mb-3 text-sm font-bold">
@@ -46,35 +64,71 @@
         <div class="bg-white rounded-xl border p-4">
             <div class="flex items-center justify-between mb-3">
                 <h2 class="font-semibold">المكونات</h2>
-                <button type="button" @click="addRow()" class="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-sm">+ إضافة مكوّن</button>
+                <div class="flex gap-2">
+                    <button type="button" @click="addRow('ingredient')" class="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-sm">+ إضافة خامة</button>
+                    <button type="button" @click="addRow('sub_recipe')" class="px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-sm">+ إضافة وصفة فرعية</button>
+                </div>
             </div>
             {% if not ingredients %}
             <p class="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3 mb-3">
                 لا توجد مواد خام مضافة بعد. <a href="{% url 'raw_material_create' %}" class="font-semibold underline">أضف مادة خام</a> (زي حليب أو سكر) الأول عشان تقدر تختارها هنا.
             </p>
             {% endif %}
+            {% if not sub_recipes %}
+            <p class="text-sm text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-lg p-3 mb-3">
+                لا توجد وصفات فرعية بعد. <a href="{% url 'restaurant:subrecipe_create' %}" class="font-semibold underline">أضف وصفة فرعية</a> (زي العجينة) لو هتستخدمها في أكتر من صنف.
+            </p>
+            {% endif %}
 
             <div class="space-y-2">
                 <template x-for="(row, idx) in rows" :key="row.key">
-                    <div class="flex gap-2 items-center">
-                        <select :name="'ingredient_id'" x-model="row.ingredient_id"
-                                @change="onIngredientChange(row)" class="flex-1 border rounded-lg p-2 text-sm">
-                            <option value="">-- اختر الخامة --</option>
-                            {% for ing in ingredients %}
-                            <option value="{{ ing.id }}">{{ ing.name }} ({{ ing.sku }})</option>
-                            {% endfor %}
-                        </select>
+                    <div class="flex gap-2 items-center rounded-lg p-1.5"
+                         :class="row.type === 'sub_recipe' ? 'bg-indigo-50' : ''">
+                        <span class="text-xs font-bold w-6 text-center"
+                              :class="row.type === 'sub_recipe' ? 'text-indigo-600' : 'text-emerald-600'"
+                              x-text="row.type === 'sub_recipe' ? 'فرعي' : 'خامة'"></span>
+
+                        <template x-if="row.type === 'ingredient'">
+                            <select name="ingredient_id" x-model="row.ingredient_id"
+                                    @change="onIngredientChange(row)" class="flex-1 border rounded-lg p-2 text-sm">
+                                <option value="">-- اختر الخامة --</option>
+                                {% for ing in ingredients %}
+                                <option value="{{ ing.id }}">{{ ing.name }} ({{ ing.sku }})</option>
+                                {% endfor %}
+                            </select>
+                        </template>
+                        <template x-if="row.type === 'sub_recipe'">
+                            <select name="sub_recipe_id" x-model="row.sub_recipe_id" class="flex-1 border rounded-lg p-2 text-sm">
+                                <option value="">-- اختر الوصفة الفرعية --</option>
+                                {% for sr in sub_recipes %}
+                                <option value="{{ sr.id }}">{{ sr.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </template>
+                        <!-- Keep a hidden ingredient_id/sub_recipe_id slot for whichever type
+                             ISN'T active on this row, so getlist() stays index-aligned with
+                             row_type[] server-side (a sub_recipe row still needs an empty
+                             ingredient_id[] entry at the same position, and vice versa). -->
+                        <template x-if="row.type === 'ingredient'"><input type="hidden" name="sub_recipe_id" value=""></template>
+                        <template x-if="row.type === 'sub_recipe'"><input type="hidden" name="ingredient_id" value=""></template>
+                        <input type="hidden" name="row_type" :value="row.type">
+
                         <input type="number" step="0.001" min="0" name="quantity" x-model="row.quantity"
-                               placeholder="الكمية" class="w-24 border rounded-lg p-2 text-sm">
-                        <select name="unit" x-model="row.unit" class="w-28 border rounded-lg p-2 text-sm">
-                            <template x-for="opt in (ingredientUnitChoices[row.ingredient_id] || [])" :key="opt.value">
-                                <option :value="opt.value" x-text="opt.label"></option>
-                            </template>
-                        </select>
+                               :placeholder="row.type === 'sub_recipe' ? 'عدد الدفعات' : 'الكمية'"
+                               class="w-24 border rounded-lg p-2 text-sm">
+                        <template x-if="row.type === 'ingredient'">
+                            <select name="unit" x-model="row.unit" class="w-28 border rounded-lg p-2 text-sm">
+                                <template x-for="opt in (ingredientUnitChoices[row.ingredient_id] || [])" :key="opt.value">
+                                    <option :value="opt.value" x-text="opt.label"></option>
+                                </template>
+                            </select>
+                        </template>
+                        <template x-if="row.type === 'sub_recipe'"><input type="hidden" name="unit" value=""></template>
+
                         <button type="button" @click="removeRow(idx)" class="text-red-500 text-sm px-2">حذف</button>
                     </div>
                 </template>
-                <p x-show="!rows.length" class="text-gray-400 text-sm">لا توجد مكونات بعد — اضغط "إضافة مكوّن".</p>
+                <p x-show="!rows.length" class="text-gray-400 text-sm">لا توجد مكونات بعد — اضغط "إضافة خامة" أو "إضافة وصفة فرعية".</p>
             </div>
         </div>
 
@@ -87,14 +141,18 @@ function recipeForm() {
     return {
         rows: [
             {% for ri in recipe_items %}
-            {key: {{ forloop.counter }}, ingredient_id: '{{ ri.ingredient_id }}', quantity: '{{ ri.quantity }}', unit: '{{ ri.unit|default:ri.ingredient.unit_measure }}'},
+            {% if ri.sub_recipe_id %}
+            {key: {{ forloop.counter }}, type: 'sub_recipe', ingredient_id: '', sub_recipe_id: '{{ ri.sub_recipe_id }}', quantity: '{{ ri.quantity }}', unit: ''},
+            {% else %}
+            {key: {{ forloop.counter }}, type: 'ingredient', ingredient_id: '{{ ri.ingredient_id }}', sub_recipe_id: '', quantity: '{{ ri.quantity }}', unit: '{{ ri.unit|default:ri.ingredient.unit_measure }}'},
+            {% endif %}
             {% endfor %}
         ],
         nextKey: {{ recipe_items|length|add:1 }},
         ingredientUnitChoices: {{ ingredient_unit_choices_json|default:"{}"|safe }},
         ingredientBaseUnits: {{ ingredient_base_units_json|default:"{}"|safe }},
-        addRow() {
-            this.rows.push({key: this.nextKey++, ingredient_id: '', quantity: '', unit: ''});
+        addRow(type) {
+            this.rows.push({key: this.nextKey++, type: type, ingredient_id: '', sub_recipe_id: '', quantity: '', unit: ''});
         },
         removeRow(idx) {
             this.rows.splice(idx, 1);

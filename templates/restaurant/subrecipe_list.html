@@ -1,0 +1,38 @@
+{% extends 'base.html' %}
+{% block title %}الوصفات الفرعية{% endblock %}
+{% block content %}
+<div class="max-w-2xl mx-auto p-4">
+    <div class="flex items-center justify-between mb-4">
+        <h1 class="text-2xl font-bold">الوصفات الفرعية</h1>
+        <div class="flex gap-2">
+            <a href="{% url 'restaurant:menu_recipe_list' %}" class="px-4 py-2 rounded-lg border text-sm font-bold">رجوع للوصفات</a>
+            <a href="{% url 'restaurant:subrecipe_create' %}" class="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-bold">+ وصفة فرعية جديدة</a>
+        </div>
+    </div>
+    <p class="text-sm text-gray-500 mb-4">وصفات ثابتة بتتكرر في أكتر من صنف (زي العجينة) — جهّزها هنا مرة واحدة، وبعدين اسحبها جوا وصفة أي صنف.</p>
+
+    {% if messages %}
+    <div class="mb-4">
+        {% for m in messages %}
+        <div class="bg-emerald-50 border border-emerald-200 text-emerald-700 px-4 py-2 rounded-lg text-sm">{{ m }}</div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <div class="bg-white rounded-xl border divide-y">
+        {% for sr in sub_recipes %}
+        <a href="{% url 'restaurant:subrecipe_edit' sr.pk %}" class="flex items-center justify-between p-4 hover:bg-gray-50 transition">
+            <div>
+                <div class="font-bold">{{ sr.name }}</div>
+                <div class="text-xs text-gray-500 mt-0.5">{{ sr.items.count }} مكوّن · مستخدمة في {{ sr.used_in_recipes.count }} وصفة صنف</div>
+            </div>
+            <span class="text-xs font-bold px-2 py-1 rounded-full {% if sr.is_active %}bg-emerald-100 text-emerald-700{% else %}bg-gray-100 text-gray-500{% endif %}">
+                {% if sr.is_active %}مفعّلة{% else %}غير مفعّلة{% endif %}
+            </span>
+        </a>
+        {% empty %}
+        <p class="p-4 text-gray-500">لا توجد وصفات فرعية بعد.</p>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

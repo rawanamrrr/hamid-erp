@@ -17,8 +17,8 @@ from sales.utils import get_active_shift
 
 from .consumers import push_event
 from .models import (
-    CashCustody, Driver, MenuModifier, MenuModifierGroup, Recipe, RecipeItem, Section, Table,
-    compatible_units,
+    CashCustody, Driver, MenuModifier, MenuModifierGroup, Recipe, RecipeItem, Section,
+    SubRecipe, SubRecipeItem, Table, compatible_units,
 )
 
 
@@ -301,24 +301,14 @@ def _add_items_to_order(request, order, items, branch):
         )
         new_items.append(new_item)
 
-        # Hybrid recipes: if this menu item has a BOM, deduct its ingredients too.
+        # Hybrid recipes: if this menu item has a BOM, deduct its ingredients too (per the
+        # size actually ordered, if it has one — see Recipe.for_product/Recipe.size).
         # Missing/insufficient ingredient stock never blocks the sale of the menu item —
         # a cafe still serves the drink; the shortfall shows up on the stock report.
-        recipe = getattr(product, 'recipe', None)
-        if recipe and recipe.is_active:
-            for ri in recipe.items.select_related('ingredient').all():
-                try:
-                    # base_quantity converts the recipe line's entered unit (e.g. "30 G")
-                    # into the ingredient's own tracked unit (e.g. KG) before deducting —
-                    # issue_stock always operates in the ingredient's own unit.
-                    issue_stock(
-                        ri.ingredient, branch, ri.base_quantity * qty,
-                        user=request.user, reference=f"Order #{order.id}",
-                        note=f"استهلاك وصفة: {product.name}",
-                        allow_negative=True,
-                    )
-                except ValueError:
-                    pass
+        from sales.services import _deduct_recipe
+        recipe = Recipe.for_product(product, size_id=variant.size_id if variant else None)
+        if recipe:
+            _deduct_recipe(recipe, qty, branch, request.user, order, product.name)
 
     _recompute_order_totals(order)
     update_fields = ['subtotal_amount', 'service_charge', 'vat_amount', 'total_amount']
@@ -1333,10 +1323,56 @@ def category_sales_report(request):
 # ─────────────────────────────────────────────
 
 @login_required
+@require_permission('products', 'view')
+def menu_recipe_list(request):
+    """"الوصفة" tab under إدارة المنيو: every menu-category item in one list — with its
+    sizes and their prices right there — instead of having to open each product's own
+    detail page one by one just to reach its recipe."""
+    # Raw materials (خامات) are ingredients, not sellable menu items — they never belong
+    # in this list even if someone left them in a menu-flagged category by mistake (they
+    # get picked as ingredients *inside* a recipe, not as the product a recipe is for).
+    products = (Product.objects.filter(is_active=True, is_raw_material=False, category__is_menu_category=True)
+                .select_related('category')
+                .prefetch_related('variants__size')
+                .order_by('category__name', 'name'))
+
+    rows = []
+    for p in products:
+        sizes = [{'id': v.id, 'size_id': v.size_id, 'name': v.size.name if v.size_id else 'عام',
+                  'price': float(v.price)} for v in p.variants.filter(color='', is_active=True)]
+        recipe_size_ids = set(Recipe.objects.filter(product=p, is_active=True).values_list('size_id', flat=True))
+        rows.append({
+            'product': p,
+            'sizes': sizes,
+            'has_base_recipe': None in recipe_size_ids,
+            'sized_recipe_count': len([s for s in recipe_size_ids if s is not None]),
+        })
+
+    return render(request, 'restaurant/menu_recipe_list.html', {'rows': rows})
+
+
+@login_required
 @require_permission('products', 'edit')
 def recipe_edit(request, product_id):
     product = get_object_or_404(Product, pk=product_id)
-    recipe = Recipe.objects.filter(product=product).first()
+
+    # Sizes this menu item is actually sold in (its ProductVariants) — each can carry its
+    # own recipe. size_id=None ("عام"/base) is always available as a fallback tab, used
+    # as-is for items with no sizes and as the default for any size left uncovered.
+    sizes = [{'id': None, 'size_id': None, 'label': 'عام (كل الأحجام)', 'price': float(product.price_retail)}]
+    for v in product.variants.filter(color='', is_active=True).select_related('size').order_by('size__sort_order'):
+        if v.size_id:
+            sizes.append({'id': v.id, 'size_id': v.size_id, 'label': v.size.name, 'price': float(v.price)})
+
+    requested_size_id = request.POST.get('size_id') if request.method == 'POST' else request.GET.get('size_id')
+    try:
+        active_size_id = int(requested_size_id) if requested_size_id else None
+    except (TypeError, ValueError):
+        active_size_id = None
+    if active_size_id not in [s['size_id'] for s in sizes]:
+        active_size_id = None
+
+    recipe = Recipe.objects.filter(product=product, size_id=active_size_id).first()
 
     if request.method == 'POST':
         action = request.POST.get('action')
@@ -1345,22 +1381,24 @@ def recipe_edit(request, product_id):
             if recipe:
                 recipe.delete()
                 messages.success(request, "تم إلغاء الوصفة — الصنف هيتباع من غير خصم أي خامة من المخزون.")
-            return redirect('restaurant:recipe_edit', product_id=product.id)
+            return redirect(f"{reverse('restaurant:recipe_edit', args=[product.id])}?size_id={active_size_id or ''}")
 
         # action == 'save' (create the recipe on first save, or update its items)
         if recipe is None:
-            recipe = Recipe.objects.create(product=product)
+            recipe = Recipe.objects.create(product=product, size_id=active_size_id)
 
         recipe.notes = request.POST.get('notes', '').strip()
         recipe.is_active = request.POST.get('is_active') == 'on'
         recipe.save(update_fields=['notes', 'is_active'])
 
         recipe.items.all().delete()
+        row_types = request.POST.getlist('row_type')
         ingredient_ids = request.POST.getlist('ingredient_id')
+        sub_recipe_ids = request.POST.getlist('sub_recipe_id')
         quantities = request.POST.getlist('quantity')
         units = request.POST.getlist('unit')
-        for ing_id, qty, unit in zip(ingredient_ids, quantities, units):
-            if not ing_id or not qty:
+        for row_type, ing_id, sr_id, qty, unit in zip(row_types, ingredient_ids, sub_recipe_ids, quantities, units):
+            if not qty:
                 continue
             try:
                 qty_val = Decimal(str(qty))
@@ -1368,25 +1406,37 @@ def recipe_edit(request, product_id):
                 continue
             if qty_val <= 0:
                 continue
-            ingredient = Product.objects.filter(id=ing_id).first()
-            if not ingredient:
-                continue
-            # A unit outside this ingredient's convertible family (see compatible_units)
-            # is meaningless — fall back to the ingredient's own unit rather than save
-            # something base_quantity can't convert.
-            valid_units = {u for u, _ in compatible_units(ingredient.unit_measure)}
-            if unit not in valid_units:
-                unit = ingredient.unit_measure
-            RecipeItem.objects.create(recipe=recipe, ingredient=ingredient, quantity=qty_val, unit=unit)
+
+            if row_type == 'sub_recipe':
+                if not sr_id:
+                    continue
+                sub_recipe = SubRecipe.objects.filter(id=sr_id).first()
+                if not sub_recipe:
+                    continue
+                RecipeItem.objects.create(recipe=recipe, sub_recipe=sub_recipe, quantity=qty_val, unit='')
+            else:
+                if not ing_id:
+                    continue
+                ingredient = Product.objects.filter(id=ing_id).first()
+                if not ingredient:
+                    continue
+                # A unit outside this ingredient's convertible family (see compatible_units)
+                # is meaningless — fall back to the ingredient's own unit rather than save
+                # something base_quantity can't convert.
+                valid_units = {u for u, _ in compatible_units(ingredient.unit_measure)}
+                if unit not in valid_units:
+                    unit = ingredient.unit_measure
+                RecipeItem.objects.create(recipe=recipe, ingredient=ingredient, quantity=qty_val, unit=unit)
 
         messages.success(request, "تم حفظ الوصفة بنجاح.")
-        return redirect('restaurant:recipe_edit', product_id=product.id)
+        return redirect(f"{reverse('restaurant:recipe_edit', args=[product.id])}?size_id={active_size_id or ''}")
 
     # Only raw materials show as pickable ingredients — a recipe consumes خامات, not
     # other sellable menu items (which get their own "إضافة منتج" flow).
     ingredients = (Product.objects.filter(is_active=True, is_raw_material=True).exclude(id=product.id)
                    .order_by('name').only('id', 'name', 'sku', 'unit_measure'))
-    recipe_items = recipe.items.select_related('ingredient').all() if recipe else []
+    sub_recipes = SubRecipe.objects.filter(is_active=True).order_by('name')
+    recipe_items = recipe.items.select_related('ingredient', 'sub_recipe').all() if recipe else []
 
     # Per ingredient: which units a recipe line may be entered in (its own unit, plus
     # any unit convertible to it — e.g. an ingredient tracked in KG also accepts G).
@@ -1398,11 +1448,93 @@ def recipe_edit(request, product_id):
     }
     ingredient_base_units = {ing.id: ing.unit_measure for ing in ingredients}
 
+    # Which sizes already have their own recipe — shown as a dot/badge on their tab.
+    covered_size_ids = set(Recipe.objects.filter(product=product, is_active=True).values_list('size_id', flat=True))
+
     return render(request, 'restaurant/recipe_edit.html', {
         'product': product, 'recipe': recipe, 'recipe_items': recipe_items,
-        'ingredients': ingredients,
+        'ingredients': ingredients, 'sub_recipes': sub_recipes,
+        'sizes': sizes, 'active_size_id': active_size_id, 'covered_size_ids': covered_size_ids,
         'ingredient_unit_choices_json': json.dumps(ingredient_unit_choices),
         'ingredient_base_units_json': json.dumps(ingredient_base_units),
+    })
+
+
+# ─────────────────────────────────────────────
+#  SUB-RECIPES (وصفات فرعية) — reusable batch recipes (e.g. عجينة) pulled into one or
+#  more product recipes as a single line, instead of repeating the same ingredients in
+#  every product/size recipe that uses them.
+# ─────────────────────────────────────────────
+
+@login_required
+@require_permission('products', 'view')
+def subrecipe_list(request):
+    sub_recipes = SubRecipe.objects.all().order_by('name')
+    return render(request, 'restaurant/subrecipe_list.html', {'sub_recipes': sub_recipes})
+
+
+@login_required
+@require_permission('products', 'edit')
+def subrecipe_edit(request, pk=None):
+    sub_recipe = get_object_or_404(SubRecipe, pk=pk) if pk else None
+
+    if request.method == 'POST':
+        if request.POST.get('action') == 'delete' and sub_recipe:
+            if sub_recipe.used_in_recipes.exists():
+                messages.error(request, "لا يمكن حذف هذه الوصفة الفرعية — مستخدمة في وصفة صنف واحد أو أكثر.")
+                return redirect('restaurant:subrecipe_edit', pk=sub_recipe.pk)
+            sub_recipe.delete()
+            messages.success(request, "تم حذف الوصفة الفرعية.")
+            return redirect('restaurant:subrecipe_list')
+
+        name = request.POST.get('name', '').strip()
+        if not name:
+            messages.error(request, "اسم الوصفة الفرعية مطلوب.")
+        else:
+            if sub_recipe is None:
+                sub_recipe = SubRecipe.objects.create(name=name)
+            else:
+                sub_recipe.name = name
+            sub_recipe.notes = request.POST.get('notes', '').strip()
+            sub_recipe.is_active = request.POST.get('is_active') == 'on'
+            sub_recipe.save()
+
+            sub_recipe.items.all().delete()
+            ingredient_ids = request.POST.getlist('ingredient_id')
+            quantities = request.POST.getlist('quantity')
+            units = request.POST.getlist('unit')
+            for ing_id, qty, unit in zip(ingredient_ids, quantities, units):
+                if not ing_id or not qty:
+                    continue
+                try:
+                    qty_val = Decimal(str(qty))
+                except Exception:
+                    continue
+                if qty_val <= 0:
+                    continue
+                ingredient = Product.objects.filter(id=ing_id).first()
+                if not ingredient:
+                    continue
+                valid_units = {u for u, _ in compatible_units(ingredient.unit_measure)}
+                if unit not in valid_units:
+                    unit = ingredient.unit_measure
+                SubRecipeItem.objects.create(sub_recipe=sub_recipe, ingredient=ingredient, quantity=qty_val, unit=unit)
+
+            messages.success(request, "تم حفظ الوصفة الفرعية.")
+            return redirect('restaurant:subrecipe_edit', pk=sub_recipe.pk)
+
+    ingredients = (Product.objects.filter(is_active=True, is_raw_material=True)
+                   .order_by('name').only('id', 'name', 'sku', 'unit_measure'))
+    sub_recipe_items = sub_recipe.items.select_related('ingredient').all() if sub_recipe else []
+    ingredient_unit_choices = {
+        ing.id: [{'value': u, 'label': label} for u, label in compatible_units(ing.unit_measure)]
+        for ing in ingredients
+    }
+
+    return render(request, 'restaurant/subrecipe_edit.html', {
+        'sub_recipe': sub_recipe, 'sub_recipe_items': sub_recipe_items,
+        'ingredients': ingredients,
+        'ingredient_unit_choices_json': json.dumps(ingredient_unit_choices),
     })
 
 
@@ -1452,16 +1584,29 @@ def raw_material_usage_report(request):
 
     # Which menu items use each raw material, and how much of it per unit sold —
     # so an owner can see e.g. "بن: 30G goes into كل turkish coffee, كل spanish latte".
+    # A recipe line can be a direct ingredient OR a sub_recipe (see RecipeItem) — a
+    # sub_recipe row is expanded into ITS ingredients (scaled by batches-per-item) so a
+    # raw material only used inside e.g. "عجينة" still shows up here.
     unit_labels = dict(Product.UNIT_CHOICES)
-    recipe_items = (RecipeItem.objects.select_related('recipe__product', 'ingredient')
+    recipe_items = (RecipeItem.objects.select_related('recipe__product', 'ingredient', 'sub_recipe')
+                    .prefetch_related('sub_recipe__items__ingredient')
                     .filter(recipe__is_active=True))
     used_in_by_ingredient = {}
     for ri in recipe_items:
-        unit_code = ri.unit or ri.ingredient.unit_measure
-        used_in_by_ingredient.setdefault(ri.ingredient_id, []).append({
-            'product_name': ri.recipe.product.name,
-            'quantity': ri.quantity, 'unit': unit_labels.get(unit_code, unit_code),
-        })
+        product_label = ri.recipe.product.name + (f" ({ri.recipe.size.name})" if ri.recipe.size_id else "")
+        if ri.ingredient_id:
+            unit_code = ri.unit or ri.ingredient.unit_measure
+            used_in_by_ingredient.setdefault(ri.ingredient_id, []).append({
+                'product_name': product_label,
+                'quantity': ri.quantity, 'unit': unit_labels.get(unit_code, unit_code),
+            })
+        elif ri.sub_recipe_id:
+            for sub_item in ri.sub_recipe.items.all():
+                unit_code = sub_item.unit or sub_item.ingredient.unit_measure
+                used_in_by_ingredient.setdefault(sub_item.ingredient_id, []).append({
+                    'product_name': f"{product_label} (عبر: {ri.sub_recipe.name})",
+                    'quantity': sub_item.quantity * ri.quantity, 'unit': unit_labels.get(unit_code, unit_code),
+                })
 
     rows = []
     for m in materials:

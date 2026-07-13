@@ -1,0 +1,55 @@
+{% extends 'base.html' %}
+{% block title %}الوصفات{% endblock %}
+{% block content %}
+<div class="max-w-4xl mx-auto p-4">
+    <div class="flex items-center justify-between mb-4">
+        <h1 class="text-2xl font-bold">الوصفات</h1>
+        <a href="{% url 'restaurant:subrecipe_list' %}" class="px-4 py-2 rounded-lg border text-sm font-bold">
+            <i class="fas fa-layer-group ml-1"></i> الوصفات الفرعية
+        </a>
+    </div>
+    <p class="text-sm text-gray-500 mb-4">كل أصناف المنيو في مكان واحد — اضغط على أي صنف عشان تكتب وصفته (تقدر تحط وصفة مختلفة لكل حجم).</p>
+
+    {% if messages %}
+    <div class="mb-4">
+        {% for m in messages %}
+        <div class="bg-emerald-50 border border-emerald-200 text-emerald-700 px-4 py-2 rounded-lg text-sm">{{ m }}</div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <div class="bg-white rounded-xl border divide-y">
+        {% regroup rows by product.category as category_list %}
+        {% for category in category_list %}
+        <div class="px-4 py-2 bg-gray-50 text-xs font-bold text-gray-500">{{ category.grouper.name|default:"بدون قسم" }}</div>
+        {% for row in category.list %}
+        <a href="{% url 'restaurant:recipe_edit' row.product.id %}" class="flex items-center justify-between p-4 hover:bg-gray-50 transition">
+            <div>
+                <div class="font-bold">{{ row.product.name }}</div>
+                <div class="flex flex-wrap gap-1.5 mt-1.5">
+                    {% for s in row.sizes %}
+                    <span class="text-xs bg-gray-100 rounded-full px-2 py-0.5 text-gray-600">{{ s.name }} — {{ s.price }} ج.م</span>
+                    {% empty %}
+                    <span class="text-xs bg-gray-100 rounded-full px-2 py-0.5 text-gray-600">{{ row.product.price_retail }} ج.م</span>
+                    {% endfor %}
+                </div>
+            </div>
+            <div class="flex items-center gap-2">
+                {% if row.has_base_recipe or row.sized_recipe_count %}
+                <span class="text-xs font-bold px-2 py-1 rounded-full bg-emerald-100 text-emerald-700">
+                    <i class="fas fa-circle-check"></i>
+                    {% if row.sized_recipe_count %}{{ row.sized_recipe_count }} حجم له وصفة{% else %}له وصفة{% endif %}
+                </span>
+                {% else %}
+                <span class="text-xs font-bold px-2 py-1 rounded-full bg-gray-100 text-gray-500">بدون وصفة</span>
+                {% endif %}
+                <i class="fas fa-chevron-left text-gray-300"></i>
+            </div>
+        </a>
+        {% endfor %}
+        {% empty %}
+        <p class="p-4 text-gray-500">لا توجد أصناف منيو (تأكد إن الفئة معلّم عليها "منيو" في الفئات والتصنيفات).</p>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}
