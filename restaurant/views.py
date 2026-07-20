@@ -1201,22 +1201,28 @@ def waiter_sales_detail(request, waiter_id):
     items = (OrderItem.objects
              .filter(order__waiter=waiter, is_void=False)
              .exclude(order__status='void')
-             .select_related('product'))
+             .select_related('product', 'variant__size'))
     if branch:
         items = items.filter(order__warehouse=branch)
     if date_from:
         items = items.filter(order__created_at__date__gte=date_from)
 
-    rows_by_product = {}
+    # Group by (product, variant/size) so each size appears as its own row.
+    rows_by_key = {}
     for it in items:
         if not it.product_id:
             continue
-        row = rows_by_product.setdefault(it.product_id, {
-            'product': it.product, 'quantity': Decimal('0'), 'revenue': Decimal('0'),
+        size_label = it.variant.label if it.variant_id else ''
+        key = (it.product_id, it.variant_id)
+        row = rows_by_key.setdefault(key, {
+            'product': it.product,
+            'size_label': size_label,
+            'quantity': Decimal('0'),
+            'revenue': Decimal('0'),
         })
         row['quantity'] += it.quantity
         row['revenue'] += it.subtotal
-    rows = sorted(rows_by_product.values(), key=lambda r: r['revenue'], reverse=True)
+    rows = sorted(rows_by_key.values(), key=lambda r: r['revenue'], reverse=True)
 
     return render(request, 'restaurant/waiter_sales_detail.html', {
         'branch': branch, 'waiter': waiter, 'rows': rows, 'period': period,
@@ -1248,23 +1254,29 @@ def product_sales_report(request):
     items = (OrderItem.objects
              .filter(is_void=False)
              .exclude(order__status='void')
-             .select_related('product'))
+             .select_related('product', 'variant__size'))
     if branch:
         items = items.filter(order__warehouse=branch)
     if date_from:
         items = items.filter(order__created_at__date__gte=date_from)
 
-    rows_by_product = {}
+    # Group by (product, variant/size) — size is a primary dimension in reporting.
+    rows_by_key = {}
     for it in items:
         if not it.product_id:
             continue
-        row = rows_by_product.setdefault(it.product_id, {
-            'product': it.product, 'quantity': Decimal('0'), 'revenue': Decimal('0'),
+        size_label = it.variant.label if it.variant_id else ''
+        key = (it.product_id, it.variant_id)
+        row = rows_by_key.setdefault(key, {
+            'product': it.product,
+            'size_label': size_label,
+            'quantity': Decimal('0'),
+            'revenue': Decimal('0'),
         })
         row['quantity'] += it.quantity
         row['revenue'] += it.subtotal
 
-    rows = sorted(rows_by_product.values(), key=lambda r: r['revenue'], reverse=True)
+    rows = sorted(rows_by_key.values(), key=lambda r: r['revenue'], reverse=True)
 
     return render(request, 'restaurant/product_sales_report.html', {
         'branch': branch, 'rows': rows, 'period': period,

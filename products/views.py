@@ -1368,6 +1368,8 @@ def product_create(request):
         'preselected_sizes_json': '[]',
         'market_type': market_type,
         'global_sizes': all_sizes,
+        'has_size_group': False,
+        'size_rows': [],
     })
 
 @login_required

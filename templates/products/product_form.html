@@ -357,42 +357,62 @@
            has_variants product already opens "اختر المقاس" BEFORE it's added to the cart,
            and the invoice already prints the chosen variant's label. Zero new POS/invoice
            code needed — only this admin-side data entry. -->
-      <div class="bg-white p-6 rounded-2xl border border-gray-200" id="sizesBlock" {% if 'modifiers' not in mp.features %}style="display:none"{% endif %}>
-        <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2 border-b border-gray-100 pb-3">
-          <i class="fa-solid fa-ruler text-teal-600"></i> الأحجام (اختياري)
+      <div class="bg-indigo-50/30 p-6 rounded-2xl border border-indigo-100" id="sizesBlock">
+        <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2 border-b border-indigo-100 pb-3">
+          <i class="fa-solid fa-ruler-combined text-indigo-600"></i>
+          <span>الأحجام / المقاسات</span>
+          <span class="text-xs font-normal bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded-full border border-indigo-200">مثال: صغير — وسط — كبير</span>
         </h3>
-        <label class="flex items-center gap-3 mb-3 cursor-pointer">
-          <input type="checkbox" name="has_sizes" id="hasSizesCheckbox" class="w-5 h-5 text-teal-600 rounded"
+        <label class="flex items-center gap-3 mb-4 cursor-pointer group">
+          <input type="checkbox" name="has_sizes" id="hasSizesCheckbox" class="w-5 h-5 text-indigo-600 rounded accent-indigo-600"
                  {% if has_size_group %}checked{% endif %} onchange="toggleSizesRows()">
           <div>
-            <span class="font-bold text-gray-800 block">هذا الصنف له أحجام مختلفة</span>
-            <span class="text-xs text-gray-500">مثال: كبير / وسط — لكل حجم سعره الكامل الخاص به (مش فرق سعر)</span>
+            <span class="font-bold text-gray-800 block group-hover:text-indigo-700 transition-colors">هذا الصنف له أحجام / مقاسات مختلفة</span>
+            <span class="text-xs text-gray-500">فعّل الخيار ده لو المنتج بيتباع بأكتر من حجم — لكل حجم سعره الكامل الخاص (مش فرق سعر)</span>
           </div>
         </label>
         {% if not global_sizes %}
-        <p class="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3 mb-3">
-            لا توجد أحجام مُعرّفة بعد. <a href="{% url 'size_create' %}" class="font-semibold underline">أضف حجم</a> (زي كبير أو وسط) من "الفئات والتصنيفات ← الأحجام" الأول.
-        </p>
+        <div class="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4">
+          <i class="fa-solid fa-triangle-exclamation text-amber-500 mt-0.5"></i>
+          <p class="text-sm text-amber-800">
+            لا توجد أحجام مُعرّفة بعد.
+            <a href="{% url 'size_create' %}" class="font-bold underline hover:text-amber-900">أضف الأحجام أولاً</a>
+            (مثال: صغير، وسط، كبير) من قائمة <strong>الفئات والتصنيفات ← الأحجام</strong>.
+          </p>
+        </div>
+        {% else %}
+        <div class="bg-emerald-50 border border-emerald-100 rounded-lg p-2.5 mb-3 text-xs text-emerald-700 flex items-center gap-2">
+          <i class="fa-solid fa-circle-check text-emerald-500"></i>
+          يوجد {{ global_sizes|length }} حجم مُعرّف — اضغط الخيار أعلاه ثم أضف الأحجام المتاحة لهذا المنتج مع سعر كل حجم
+        </div>
         {% endif %}
         <div id="sizesRowsWrap" class="space-y-2" style="{% if not has_size_group %}display:none{% endif %}">
           <div id="sizesRows" class="space-y-2">
             {% for s in size_rows %}
-            <div class="flex gap-2 items-center size-row">
-              <select name="size_id" class="flex-1 border rounded-lg p-2 text-sm">
+            <div class="flex gap-2 items-center size-row bg-white border border-gray-200 rounded-xl p-2">
+              <select name="size_id" class="flex-1 border border-gray-200 rounded-lg p-2 text-sm focus:border-indigo-400 focus:ring-0 outline-none">
                 <option value="">-- اختر الحجم --</option>
                 {% for gs in global_sizes %}
                 <option value="{{ gs.id }}" {% if gs.id == s.size_id %}selected{% endif %}>{{ gs.name }}</option>
                 {% endfor %}
               </select>
-              <input type="number" name="size_price" value="{{ s.price_override }}" step="0.5" placeholder="السعر الكامل"
-                     class="w-32 border rounded-lg p-2 text-sm">
-              <button type="button" onclick="this.closest('.size-row').remove()" class="text-red-500 text-sm px-2">حذف</button>
+              <div class="flex items-center gap-1">
+                <input type="number" name="size_price" value="{{ s.price_override }}" step="0.5" placeholder="السعر"
+                       class="w-28 border border-gray-200 rounded-lg p-2 text-sm focus:border-indigo-400 focus:ring-0 outline-none">
+                <span class="text-xs text-gray-400 whitespace-nowrap">ج.م</span>
+              </div>
+              <button type="button" onclick="this.closest('.size-row').remove()" class="w-7 h-7 flex items-center justify-center rounded-lg bg-red-50 text-red-500 hover:bg-red-100 transition-colors shrink-0">
+                <i class="fa-solid fa-xmark text-xs"></i>
+              </button>
             </div>
             {% endfor %}
           </div>
-          <button type="button" onclick="addSizeRow()" class="px-3 py-1.5 rounded-lg bg-teal-600 text-white text-sm">+ إضافة حجم</button>
+          <button type="button" onclick="addSizeRow()" class="flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold transition-colors">
+            <i class="fa-solid fa-plus"></i> إضافة حجم
+          </button>
         </div>
       </div>
+
 
       <!-- ══════════════ SECTION 3: PRICING ══════════════ -->
       <div class="bg-emerald-50/20 p-6 rounded-2xl border border-emerald-100/30">
@@ -570,13 +590,18 @@ function toggleSizesRows() {
 }
 function addSizeRow() {
   const row = document.createElement('div');
-  row.className = 'flex gap-2 items-center size-row';
+  row.className = 'flex gap-2 items-center size-row bg-white border border-gray-200 rounded-xl p-2';
   const options = ['<option value="">-- اختر الحجم --</option>']
     .concat(GLOBAL_SIZES.map(s => `<option value="${s.id}">${s.name}</option>`)).join('');
   row.innerHTML = `
-    <select name="size_id" class="flex-1 border rounded-lg p-2 text-sm">${options}</select>
-    <input type="number" name="size_price" step="0.5" placeholder="السعر الكامل" class="w-32 border rounded-lg p-2 text-sm">
-    <button type="button" onclick="this.closest('.size-row').remove()" class="text-red-500 text-sm px-2">حذف</button>`;
+    <select name="size_id" class="flex-1 border border-gray-200 rounded-lg p-2 text-sm focus:border-indigo-400 outline-none">${options}</select>
+    <div class="flex items-center gap-1">
+      <input type="number" name="size_price" step="0.5" placeholder="السعر" class="w-28 border border-gray-200 rounded-lg p-2 text-sm focus:border-indigo-400 outline-none">
+      <span class="text-xs text-gray-400 whitespace-nowrap">ج.م</span>
+    </div>
+    <button type="button" onclick="this.closest('.size-row').remove()" class="w-7 h-7 flex items-center justify-center rounded-lg bg-red-50 text-red-500 hover:bg-red-100 transition-colors shrink-0">
+      <i class="fa-solid fa-xmark text-xs"></i>
+    </button>`;
   document.getElementById('sizesRows').appendChild(row);
 }
 document.addEventListener('DOMContentLoaded', () => {
