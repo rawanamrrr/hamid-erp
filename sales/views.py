@@ -837,6 +837,16 @@ def submit_order_ajax(request):
             if not warehouse:
                 return JsonResponse({'status': 'error', 'message': 'لا يوجد مخزن بيع محدد أو نشط'})
 
+            # Recipe stock pre-check: warn (don't block) if an item's recipe would need
+            # more of an ingredient than is actually available — the cashier can still
+            # confirm anyway (client resubmits with confirm_recipe_shortage=true), since
+            # ingredient stock is only ever really deducted later at kitchen-ready time.
+            if not data.get('confirm_recipe_shortage'):
+                from .services import preview_recipe_shortages
+                shortages = preview_recipe_shortages(cart_items, warehouse)
+                if shortages:
+                    return JsonResponse({'status': 'recipe_warning', 'shortages': shortages})
+
             # Phase 3.1: enforce warehouse restriction SERVER-SIDE (not just the dropdown).
             if not request.user.is_superuser:
                 profile = getattr(request.user, 'profile', None)

@@ -366,6 +366,11 @@ class OrderItem(models.Model):
     ]
     kitchen_status = models.CharField(max_length=10, choices=KITCHEN_STATUS_CHOICES, default=KITCHEN_NEW,
                                       db_index=True, verbose_name="حالة التحضير")
+    # A recipe's raw materials are deducted the moment the kitchen marks this item
+    # "جاهز" (ready), not when the order is placed — this flag makes that a one-time
+    # event (kds_set_status/kds_set_order_status can be called again, or an order can
+    # be edited after reaching ready, without re-deducting the same ingredients twice).
+    recipe_deducted = models.BooleanField(default=False, verbose_name="تم خصم مكونات الوصفة")
     # Snapshot of selected MenuModifier choices at sale time, e.g.
     # [{"group": "مستوى السكر", "option": "سكر زيادة", "price_delta": 0}]
     modifiers = models.JSONField(default=list, blank=True, verbose_name="الإضافات/الاختيارات")

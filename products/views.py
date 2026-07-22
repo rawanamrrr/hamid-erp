@@ -1506,6 +1506,10 @@ def raw_material_create(request):
             # price_retail/barcode are required columns on Product but meaningless for a
             # raw material (never sold directly) — default them instead of asking for them.
             material.price_retail = Decimal('0')
+            # cost_price is optional here — usually set later from the purchase invoice
+            # when the material is actually bought in.
+            if material.cost_price is None:
+                material.cost_price = Decimal('0')
             if not material.sku:
                 material.sku = _next_sku(prefix='RM-')
             material.save()
@@ -1524,9 +1528,15 @@ def raw_material_create(request):
 def raw_material_update(request, pk):
     material = get_object_or_404(Product, pk=pk, is_raw_material=True)
     if request.method == 'POST':
+        original_cost_price = material.cost_price
         form = RawMaterialForm(request.POST, instance=material)
         if form.is_valid():
-            form.save()
+            updated = form.save(commit=False)
+            # Left blank on edit → keep whatever cost the last purchase invoice set,
+            # instead of wiping it out to 0.
+            if updated.cost_price is None:
+                updated.cost_price = original_cost_price
+            updated.save()
             messages.success(request, 'تم حفظ التعديلات.')
             return redirect('raw_material_list')
     else:
@@ -2444,7 +2454,16 @@ def api_products_search(request):
     # A supplier invoice buys raw materials (or other stocked retail goods) — never a
     # kitchen-routed menu item, which is a prepared dish, not something you receive from
     # a supplier. Recipe ingredients are the thing purchase invoices should restock.
-    products = Product.objects.filter(is_active=True).exclude(category__is_menu_category=True)
+    #
+    # Raw materials are always exempt from that exclusion though: they have no category
+    # field on their own add form, so they fall back to the generic "بدون قسم" category
+    # (is_menu_category=True, used to keep an uncategorized item from being wrongly
+    # stock-gated in the POS/waiter grids) — which would otherwise make every raw
+    # material invisible here too, even though they're exactly what a purchase invoice
+    # is meant to restock.
+    products = Product.objects.filter(is_active=True).filter(
+        Q(is_raw_material=True) | ~Q(category__is_menu_category=True)
+    )
     if query:
         products = products.filter(
             Q(name__icontains=query) | 
@@ -3449,7 +3468,7 @@ def api_stock_alerts_count(request):
     if not get_policy('inventory.warn_low_stock'):
         return JsonResponse({'count': 0})
     count = (Product.objects.filter(is_active=True, stock_quantity__lte=F('low_stock_threshold'))
-             .exclude(category__is_menu_category=True).count())
+             .exclude(category__is_menu_category=True, is_raw_material=False).count())
     return JsonResponse({'count': count})
 
 @login_required
@@ -4023,8 +4042,10 @@ def product_images_list(request, pk):
 def stock_alerts(request):
     # Kitchen-routed menu items are prepared on demand and never carry a meaningful
     # stock count — excluding them keeps this screen focused on actual stocked goods
-    # (retail products and raw materials).
-    stock_tracked = Product.objects.exclude(category__is_menu_category=True)
+    # (retail products and raw materials). Raw materials are kept even if they fall
+    # back to the generic "بدون قسم" category (is_menu_category=True) since they have
+    # no category field of their own on the raw-material add form.
+    stock_tracked = Product.objects.exclude(category__is_menu_category=True, is_raw_material=False)
 
     low_stock = stock_tracked.filter(
         is_active=True,
@@ -4159,7 +4180,8 @@ def purchase_order_create(request):
         form = PurchaseOrderForm()
     # A PO orders from a supplier — a menu item (prepared in-house) is never something a
     # supplier ships, only its raw materials are (same restriction as purchase invoices).
-    products = (Product.objects.filter(is_active=True).exclude(category__is_menu_category=True)
+    products = (Product.objects.filter(is_active=True)
+                .exclude(category__is_menu_category=True, is_raw_material=False)
                 .values('id', 'name', 'sku', 'cost_price'))
     sizes = Size.objects.filter(is_active=True).values('id', 'name')
     return render(request, 'products/purchase_order_form.html', {
@@ -4766,7 +4788,9 @@ def low_stock_report(request):
     supplier_id = request.GET.get('supplier')
 
     # Kitchen-routed menu items are prepared on demand — never reorder stock for them.
-    qs = Product.objects.filter(is_active=True).exclude(category__is_menu_category=True).select_related('supplier')
+    qs = (Product.objects.filter(is_active=True)
+          .exclude(category__is_menu_category=True, is_raw_material=False)
+          .select_related('supplier'))
     if only_out:
         qs = qs.filter(stock_quantity__lte=0)
     else:
@@ -5017,9 +5041,11 @@ def stocktake_create(request):
     count = StockCount.objects.create(warehouse=wh, created_by=request.user,
                                       note=request.POST.get('note', ''))
     # Menu-category items are prepared on demand and never carry a real stock count —
-    # including them would pollute every variance list with phantom "shortages".
+    # including them would pollute every variance list with phantom "shortages". Raw
+    # materials are always counted though, even if their category fell back to the
+    # generic "بدون قسم" (is_menu_category=True).
     rows = (WarehouseStock.objects.filter(warehouse=wh)
-            .exclude(product__category__is_menu_category=True)
+            .exclude(product__category__is_menu_category=True, product__is_raw_material=False)
             .select_related('product'))
     StockCountItem.objects.bulk_create([
         StockCountItem(count=count, product=ws.product, system_qty=ws.quantity or 0)

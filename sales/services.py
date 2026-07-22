@@ -14,7 +14,6 @@ from decimal import Decimal
 
 from products.models import Product
 from products.inventory_services import issue_stock, available_quantity
-from restaurant.models import Recipe
 from .models import OrderItem
 
 
@@ -53,6 +52,66 @@ def _to_decimal(v, default='0'):
         return Decimal(str(v if v is not None else default))
     except Exception:
         return Decimal(default)
+
+
+def preview_recipe_shortages(cart_items, warehouse):
+    """Read-only pre-check: for every cart line whose product has a recipe, sum up how
+    much of each ingredient the whole cart would need (across all lines, expanding
+    SubRecipe rows same as _deduct_recipe) and compare against what's actually
+    available right now. Returns a list of shortage dicts, empty if everything's covered.
+
+    Deliberately does NOT touch stock — recipe ingredients are only ever deducted later,
+    when the kitchen marks the item ready (see restaurant/views.py
+    _deduct_recipe_for_item). This just lets the cashier/waiter screen warn upfront that
+    an item they're about to sell may not actually be makeable, with a chance to cancel
+    or confirm anyway before the order is placed.
+    """
+    from restaurant.models import Recipe
+    from products.models import ProductVariant
+
+    needed = {}  # ingredient_id -> {'product': Product, 'qty': Decimal}
+    for item in cart_items:
+        prod_id = item.get('id') or item.get('product_id')
+        if not prod_id:
+            continue
+        product = Product.objects.filter(id=prod_id).first()
+        if not product:
+            continue
+        qty = _to_decimal(item.get('quantity') or item.get('qty', 1), '1')
+
+        size_id = None
+        variant_id = item.get('variant_id')
+        if variant_id:
+            variant = ProductVariant.objects.filter(id=variant_id).first()
+            size_id = variant.size_id if variant else None
+
+        recipe = Recipe.for_product(product, size_id=size_id)
+        if not recipe:
+            continue
+
+        for ri in recipe.items.select_related('ingredient', 'sub_recipe').all():
+            if ri.ingredient_id:
+                entry = needed.setdefault(ri.ingredient_id, {'product': ri.ingredient, 'qty': Decimal('0')})
+                entry['qty'] += ri.base_quantity * qty
+            elif ri.sub_recipe_id:
+                for sub_item in ri.sub_recipe.items.select_related('ingredient').all():
+                    if not sub_item.ingredient_id:
+                        continue
+                    entry = needed.setdefault(sub_item.ingredient_id, {'product': sub_item.ingredient, 'qty': Decimal('0')})
+                    entry['qty'] += sub_item.base_quantity * ri.quantity * qty
+
+    shortages = []
+    for entry in needed.values():
+        ingredient = entry['product']
+        available = available_quantity(ingredient, warehouse)
+        if entry['qty'] > available:
+            shortages.append({
+                'ingredient': ingredient.name,
+                'needed': float(entry['qty']),
+                'available': float(available),
+                'unit': ingredient.get_unit_measure_display(),
+            })
+    return shortages
 
 
 def issue_cart_items(order, cart_items, warehouse, user, applied_deal=None, note_prefix="فاتورة مبيعات",
@@ -129,14 +188,11 @@ def issue_cart_items(order, cart_items, warehouse, user, applied_deal=None, note
                 note=(item.get('note') or '').strip(),
             )
 
-            # Same hybrid-recipe deduction as the plain (non-sized) branch below — a sized
-            # menu item (e.g. "Large Latte") still consumes its recipe's ingredients, and
-            # a differently-sized item can have a genuinely different recipe (e.g. a large
-            # pizza uses more دقيق than a small one) — Recipe.for_product picks the recipe
-            # for this exact size, falling back to the item's base/no-size recipe.
-            recipe = Recipe.for_product(product, size_id=variant.size_id)
-            if recipe:
-                _deduct_recipe(recipe, qty, warehouse, user, order, product.name)
+            # Recipe ingredients are NOT deducted here — the kitchen hasn't actually made
+            # the item yet. They're deducted once, when kitchen_status is set to "جاهز"
+            # (see restaurant/views.py kds_set_status/kds_set_order_status), so raw
+            # material stock reflects what's actually been consumed, not what's merely
+            # been ordered.
 
             line_total = qty * price
             subtotal += line_total
@@ -180,14 +236,10 @@ def issue_cart_items(order, cart_items, warehouse, user, applied_deal=None, note
             note=(item.get('note') or '').strip(),
         )
 
-        # Hybrid recipes: a menu item sold through the regular cashier/POS checkout must
-        # deduct its ingredients exactly like the waiter flow does (restaurant/views.py
-        # waiter_open_or_append) — otherwise ingredient stock never moves for every sale
-        # rung up directly at the counter instead of through a table. This is the no-size
-        # branch (no ProductVariant chosen), so only the item's base recipe applies.
-        recipe = Recipe.for_product(product, size_id=None)
-        if recipe:
-            _deduct_recipe(recipe, qty, warehouse, user, order, product.name)
+        # Recipe ingredients are NOT deducted here — the kitchen hasn't actually made the
+        # item yet. They're deducted once, when kitchen_status is set to "جاهز" (see
+        # restaurant/views.py kds_set_status/kds_set_order_status), so raw material stock
+        # reflects what's actually been consumed, not what's merely been ordered.
 
         line_total = qty * price
         subtotal += line_total

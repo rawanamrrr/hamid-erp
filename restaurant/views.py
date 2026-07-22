@@ -301,14 +301,10 @@ def _add_items_to_order(request, order, items, branch):
         )
         new_items.append(new_item)
 
-        # Hybrid recipes: if this menu item has a BOM, deduct its ingredients too (per the
-        # size actually ordered, if it has one — see Recipe.for_product/Recipe.size).
-        # Missing/insufficient ingredient stock never blocks the sale of the menu item —
-        # a cafe still serves the drink; the shortfall shows up on the stock report.
-        from sales.services import _deduct_recipe
-        recipe = Recipe.for_product(product, size_id=variant.size_id if variant else None)
-        if recipe:
-            _deduct_recipe(recipe, qty, branch, request.user, order, product.name)
+        # Recipe ingredients are NOT deducted here — the kitchen hasn't actually made the
+        # item yet. They're deducted once, when kitchen_status is set to "جاهز" (see
+        # kds_set_status/kds_set_order_status below), so raw material stock reflects
+        # what's actually been consumed, not what's merely been ordered.
 
     _recompute_order_totals(order)
     update_fields = ['subtotal_amount', 'service_charge', 'vat_amount', 'total_amount']
@@ -371,6 +367,15 @@ def waiter_open_or_append(request, table_id):
     branch = table.branch
     if not branch:
         return JsonResponse({'status': 'error', 'message': 'لا يوجد فرع نشط'}, status=400)
+
+    # Recipe stock pre-check: warn (don't block) if an item's recipe would need more of
+    # an ingredient than is actually available — the waiter can still confirm anyway
+    # (client resends with confirm_recipe_shortage=true).
+    if not data.get('confirm_recipe_shortage'):
+        from sales.services import preview_recipe_shortages
+        shortages = preview_recipe_shortages(items, branch)
+        if shortages:
+            return JsonResponse({'status': 'recipe_warning', 'shortages': shortages})
 
     shift = get_active_shift()
 
@@ -469,6 +474,13 @@ def waiter_add_items_no_table(request, order_id):
     branch = order.warehouse
     if not branch:
         return JsonResponse({'status': 'error', 'message': 'لا يوجد فرع نشط'}, status=400)
+
+    # Recipe stock pre-check — see waiter_open_or_append for the full rationale.
+    if not data.get('confirm_recipe_shortage'):
+        from sales.services import preview_recipe_shortages
+        shortages = preview_recipe_shortages(items, branch)
+        if shortages:
+            return JsonResponse({'status': 'recipe_warning', 'shortages': shortages})
 
     with db_transaction.atomic():
         _add_items_to_order(request, order, items, branch)
@@ -716,6 +728,24 @@ def kitchen_ticket_preview(request, order_id):
     })
 
 
+def _deduct_recipe_for_item(item, user):
+    """Consume a ready item's recipe ingredients — called the moment the kitchen marks
+    it "جاهز", not when it was originally ordered (see _add_items_to_order /
+    sales.services.issue_cart_items, which deliberately no longer do this). Idempotent
+    via recipe_deducted, since kds_set_status/kds_set_order_status can re-fire "ready"
+    on an item that's already been deducted (e.g. toggled back to preparing and forward
+    again) without double-consuming its ingredients.
+    """
+    if item.recipe_deducted or item.is_void or not item.product_id or not item.order.warehouse_id:
+        return
+    from sales.services import _deduct_recipe
+    recipe = Recipe.for_product(item.product, size_id=item.variant.size_id if item.variant_id else None)
+    if recipe:
+        _deduct_recipe(recipe, item.quantity, item.order.warehouse, user, item.order, item.product.name)
+    item.recipe_deducted = True
+    item.save(update_fields=['recipe_deducted'])
+
+
 @login_required
 @require_permission('kitchen', 'edit')
 @require_POST
@@ -728,6 +758,9 @@ def kds_set_status(request, item_id):
 
     item.kitchen_status = new_status
     item.save(update_fields=['kitchen_status'])
+
+    if new_status == OrderItem.KITCHEN_READY:
+        _deduct_recipe_for_item(item, request.user)
 
     if item.order.warehouse_id:
         push_event('kds', item.order.warehouse_id, {
@@ -750,7 +783,15 @@ def kds_set_order_status(request, order_id):
     if new_status not in valid:
         return JsonResponse({'status': 'error', 'message': 'حالة غير صالحة'}, status=400)
 
-    order.items.filter(is_void=False).exclude(kitchen_status=OrderItem.KITCHEN_SERVED).update(kitchen_status=new_status)
+    items_qs = order.items.filter(is_void=False).exclude(kitchen_status=OrderItem.KITCHEN_SERVED)
+    if new_status == OrderItem.KITCHEN_READY:
+        # Per-item save (not a bulk .update()) so each one can deduct its own recipe.
+        for item in items_qs.select_related('product', 'variant'):
+            item.kitchen_status = new_status
+            item.save(update_fields=['kitchen_status'])
+            _deduct_recipe_for_item(item, request.user)
+    else:
+        items_qs.update(kitchen_status=new_status)
 
     if order.warehouse_id:
         push_event('kds', order.warehouse_id, {

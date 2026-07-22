@@ -28,6 +28,12 @@ class RawMaterialForm(forms.ModelForm):
             'placeholder': 'كود المادة (اتركه فارغاً للتوليد التلقائي)',
         })
     )
+    # Optional here — the real cost is usually set from the purchase invoice when the
+    # material is actually bought; this just lets a manager set/override it up front.
+    cost_price = forms.DecimalField(
+        required=False,
+        widget=forms.NumberInput(attrs={'class': TW_INPUT, 'step': '0.01'})
+    )
 
     class Meta:
         model = Product
@@ -35,7 +41,6 @@ class RawMaterialForm(forms.ModelForm):
         widgets = {
             'name': forms.TextInput(attrs={'class': TW_INPUT, 'placeholder': 'مثال: حليب، سكر، بن'}),
             'unit_measure': forms.Select(attrs={'class': TW_SELECT}),
-            'cost_price': forms.NumberInput(attrs={'class': TW_INPUT, 'step': '0.01'}),
             'low_stock_threshold': forms.NumberInput(attrs={'class': TW_INPUT, 'step': '0.01'}),
             'is_active': forms.CheckboxInput(attrs={'class': TW_CHECK}),
         }

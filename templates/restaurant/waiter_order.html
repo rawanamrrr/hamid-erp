@@ -378,13 +378,18 @@ function waiterOrder() {
             });
             this.picker.open = false;
         },
-        sendToKitchen() {
+        sendToKitchen(confirmShortage) {
+            const payload = {items: this.pendingCart.map(p => ({product_id: p.product_id, quantity: p.quantity, modifiers: p.modifiers || [], note: p.note || '', variant_id: p.variant_id || null}))};
+            if (confirmShortage) payload.confirm_recipe_shortage = true;
             fetch(this.addItemsUrl, {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken')},
-                body: JSON.stringify({items: this.pendingCart.map(p => ({product_id: p.product_id, quantity: p.quantity, modifiers: p.modifiers || [], note: p.note || '', variant_id: p.variant_id || null}))}),
+                body: JSON.stringify(payload),
             }).then(r => r.json()).then(data => {
                 if (data.status === 'ok') { location.reload(); }
+                else if (data.status === 'recipe_warning') {
+                    showRecipeShortageWarning(data.shortages, () => this.sendToKitchen(true));
+                }
                 else { alert(data.message || 'حدث خطأ'); }
             });
         },
@@ -423,6 +428,37 @@ function waiterOrder() {
             });
         },
     }
+}
+// Recipe stock pre-check warning — some ingredient(s) needed to make an item in the
+// cart are short or out of stock. Doesn't block the sale; just lets the waiter
+// knowingly confirm or back out before sending it to the kitchen.
+function showRecipeShortageWarning(shortages, onConfirm) {
+    const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    const rows = (shortages || []).map(s => `
+        <div class="flex justify-between items-center bg-red-50 border border-red-100 rounded-lg px-3 py-2 text-sm">
+            <span class="font-bold text-gray-800">${esc(s.ingredient)}</span>
+            <span class="text-red-600 font-bold">متاح ${s.available} ${esc(s.unit)} / مطلوب ${s.needed} ${esc(s.unit)}</span>
+        </div>
+    `).join('');
+    Swal.fire({
+        icon: 'warning',
+        title: 'نقص في مكونات الوصفة',
+        html: `
+            <div dir="rtl" class="text-right text-sm space-y-2">
+                <p class="text-gray-600 mb-2">بعض المكونات المطلوبة لتحضير صنف في السلة غير كافية بالمخزون:</p>
+                ${rows}
+                <p class="text-gray-500 text-xs mt-3">يمكنك تأكيد الطلب رغم ذلك (سيُخصم المكون فور تجهيزه في المطبخ)، أو الإلغاء لتعديل السلة.</p>
+            </div>
+        `,
+        showCancelButton: true,
+        confirmButtonText: 'تأكيد الطلب على أي حال',
+        cancelButtonText: 'إلغاء',
+        confirmButtonColor: '#16a34a',
+        cancelButtonColor: '#6b7280',
+        reverseButtons: true,
+    }).then((result) => {
+        if (result.isConfirmed && typeof onConfirm === 'function') onConfirm();
+    });
 }
 function getCookie(name) {
     let cookieValue = null;
