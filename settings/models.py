@@ -27,6 +27,31 @@ class SystemSetting(models.Model):
     # setting like everything else here, just organized alongside the other store-wide
     # behavior toggles instead of the company-profile fields on this model.
 
+    # Site-wide color palette — remaps the two "primary action" Tailwind color families
+    # (teal/indigo, used interchangeably across screens as the brand/CTA color; see
+    # UI_COLOR_PALETTES in settings/views.py) to the chosen hue via a runtime
+    # tailwind.config override in base.html. Deliberately leaves semantic colors
+    # (red=danger, green=success, amber=warning...) untouched.
+    UI_COLOR_THEME_CHOICES = [
+        ('default', 'الافتراضي (تركواز)'),
+        ('indigo', 'نيلي'),
+        ('emerald', 'زمردي'),
+        ('rose', 'وردي غامق'),
+        ('pink', 'زهري'),
+        ('amber', 'كهرماني'),
+        ('orange', 'برتقالي'),
+        ('violet', 'بنفسجي'),
+        ('fuchsia', 'فوشيا'),
+        ('sky', 'سماوي'),
+        ('cyan', 'سيان'),
+        ('lime', 'ليموني'),
+        ('slate', 'رمادي'),
+        ('brown', 'بني'),
+        ('beige', 'بيج'),
+    ]
+    ui_color_theme = models.CharField(max_length=20, choices=UI_COLOR_THEME_CHOICES, default='default',
+                                      verbose_name="نظام ألوان الواجهة")
+
     # Logo stored as Base64 string
     logo_base64 = models.TextField(blank=True, null=True, verbose_name="كود اللوجو (Base64)")
     

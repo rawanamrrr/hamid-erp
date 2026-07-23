@@ -34,11 +34,12 @@ class SystemSettingForm(forms.ModelForm):
     class Meta:
         model = SystemSetting
         fields = [
-            'shop_name', 'address', 'phone', 'market_type', 'return_policy', 'thank_you_text',
+            'shop_name', 'address', 'phone', 'market_type', 'ui_color_theme', 'return_policy', 'thank_you_text',
             'show_qr', 'qr_link', 'printer_name', 'notification_sound',
             'gmail_sender_email', 'gmail_app_password', 'email_recipients'
         ]
         widgets = {
+            'ui_color_theme': forms.Select(attrs={'class': TAILWIND_SELECT, 'id': 'id_ui_color_theme'}),
             'shop_name': forms.TextInput(attrs={'class': TAILWIND_INPUT}),
             'address': forms.Textarea(attrs={'class': TAILWIND_INPUT, 'rows': 2}),
             'phone': forms.TextInput(attrs={'class': TAILWIND_INPUT}),

@@ -76,6 +76,54 @@
                     {{ form.logo_upload }}
                     <p class="text-xs text-gray-500 mt-1">سيتم تحويل الصورة وحفظها ككود Base64</p>
                 </div>
+
+                <!-- لون الواجهة -->
+                <div class="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                    <label class="block text-sm font-bold text-gray-700 mb-2 flex items-center gap-2">
+                        <i class="fa-solid fa-palette text-gray-500"></i> لون الواجهة
+                    </label>
+                    <div class="hidden">{{ form.ui_color_theme }}</div>
+                    <div class="grid grid-cols-4 sm:grid-cols-8 gap-2" id="colorThemeSwatches">
+                        {% for value, label in form.ui_color_theme.field.choices %}
+                        <button type="button"
+                            onclick="selectColorTheme('{{ value }}')"
+                            data-theme-value="{{ value }}"
+                            class="theme-swatch-btn flex flex-col items-center gap-1 p-2 rounded-xl border-2 transition {% if form.instance.ui_color_theme == value %}border-gray-800{% else %}border-transparent hover:border-gray-200{% endif %}"
+                            title="{{ label }}">
+                            <span class="w-7 h-7 rounded-full border border-black/10 swatch-dot swatch-{{ value }}"></span>
+                            <span class="text-[10px] text-gray-600">{{ label }}</span>
+                        </button>
+                        {% endfor %}
+                    </div>
+                    <p class="text-xs text-gray-500 mt-2">يغيّر لون الأزرار والروابط الرئيسية في كل صفحات النظام. يظهر التغيير عند إعادة تحميل الصفحة بعد الحفظ.</p>
+                </div>
+                <style>
+                    .swatch-default { background:#0d9488; }
+                    .swatch-indigo { background:#4f46e5; }
+                    .swatch-emerald { background:#059669; }
+                    .swatch-rose { background:#e11d48; }
+                    .swatch-pink { background:#db2777; }
+                    .swatch-amber { background:#d97706; }
+                    .swatch-orange { background:#ea580c; }
+                    .swatch-violet { background:#7c3aed; }
+                    .swatch-fuchsia { background:#c026d3; }
+                    .swatch-sky { background:#0284c7; }
+                    .swatch-cyan { background:#0891b2; }
+                    .swatch-lime { background:#65a30d; }
+                    .swatch-slate { background:#475569; }
+                    .swatch-brown { background:#6f4726; }
+                    .swatch-beige { background:#9c7440; }
+                </style>
+                <script>
+                    function selectColorTheme(value) {
+                        document.getElementById('id_ui_color_theme').value = value;
+                        document.querySelectorAll('.theme-swatch-btn').forEach(btn => {
+                            const active = btn.dataset.themeValue === value;
+                            btn.classList.toggle('border-gray-800', active);
+                            btn.classList.toggle('border-transparent', !active);
+                        });
+                    }
+                </script>
             </div>
 
             <!-- القسم الأيسر: ذيل الفاتورة وإعدادات الطباعة -->

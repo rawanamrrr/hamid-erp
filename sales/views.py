@@ -1805,33 +1805,47 @@ def refund_view(request):
 
                         total_refund += qty * price
 
-                # VAT split — total_refund so far is built from OrderItem.price, which
-                # means something DIFFERENT depending on the store's VAT pricing mode at
-                # the time of the original sale:
-                # - Not included (added on top): OrderItem.price is the NET pre-VAT line
-                #   price (VAT is an order-level addition, never baked into the line
-                #   itself) — so the customer is entitled to the VAT they paid on top of
-                #   it back too; it's added here, proportional to the original invoice's
-                #   own tax/net ratio.
-                # - Included in price: OrderItem.price is already the GROSS, VAT-inclusive
-                #   amount the customer paid — total_refund is already the correct amount
-                #   to hand back (e.g. 100), and adding VAT on top again would refund more
-                #   than they actually paid (e.g. 112). Only the VAT portion is EXTRACTED
-                #   out of it here for the ledger split, nothing is added to the total.
+                # total_refund so far only sums qty*OrderItem.price — the customer must
+                # also get back their proportional share of the order-level extras
+                # (service charge, VAT) that price never included, or a returned item on
+                # a dine-in check silently shorts them:
+                #   - Service charge (always an on-top add-on, in EITHER VAT mode — see
+                #     _recompute_order_totals): refunded proportionally to how much of the
+                #     order's item subtotal is being returned (frac).
+                #   - VAT depends on the store's pricing mode at the time of the original
+                #     sale:
+                #     - Not included (added on top): OrderItem.price is the NET pre-VAT
+                #       line price, so the customer is entitled to their proportional
+                #       share of the VAT add-on back too (frac * order.vat_amount — NOT
+                #       total_refund/vat_breakdown()['net'], which conflates the service
+                #       charge into the ratio and silently shrinks the VAT refund whenever
+                #       a service charge is present).
+                #     - Included in price: OrderItem.price is already the GROSS,
+                #       VAT-inclusive amount — total_refund (the item portion) is already
+                #       the right amount to hand back for the goods; VAT is only EXTRACTED
+                #       from it for the ledger split, never added again.
                 if original_order and total_refund > 0:
+                    base_subtotal = original_order.subtotal_amount or Decimal('0')
+                    frac = min(total_refund / base_subtotal, Decimal('1')) if base_subtotal > 0 else Decimal('0')
+
+                    service_refund = Decimal('0.00')
+                    if original_order.service_charge:
+                        service_refund = (original_order.service_charge * frac).quantize(Decimal('0.01'))
+
                     original_vat = original_order.vat_breakdown()
+                    vat_refund = Decimal('0.00')
                     if original_vat and original_vat['rate'] > 0:
                         if original_vat['included']:
                             rate = original_vat['rate']
-                            return_invoice.vat_amount = (
+                            vat_refund = (
                                 total_refund * rate / (Decimal('100') + rate)
                             ).quantize(Decimal('0.01'))
-                        elif original_vat['net'] > 0:
-                            return_vat = (
-                                total_refund * original_vat['tax'] / original_vat['net']
-                            ).quantize(Decimal('0.01'))
-                            return_invoice.vat_amount = return_vat
-                            total_refund += return_vat
+                        elif original_order.vat_amount:
+                            vat_refund = (original_order.vat_amount * frac).quantize(Decimal('0.01'))
+                            total_refund += vat_refund
+
+                    return_invoice.vat_amount = vat_refund
+                    total_refund += service_refund
 
                 return_invoice.total_refund_amount = total_refund
                 return_invoice.save()

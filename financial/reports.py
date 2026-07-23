@@ -223,6 +223,11 @@ def vat_report(date_from=None, date_to=None):
     (rate/mode locked in at checkout) that the invoice/refund/dashboard already rely on.
 
     Touches no checkout logic; if the configured rate is 0 the report simply shows zeros.
+
+    Only orders that have actually been paid (Order.is_completed=True) count — a
+    waiter's open dine-in tab (sent to the kitchen but not yet closed/paid) or an
+    unsettled cash-on-delivery order must not show up as sales/VAT before any money
+    has actually changed hands.
     """
     from settings.policies import get_policy
     from sales.models import Order, ReturnInvoice
@@ -230,7 +235,7 @@ def vat_report(date_from=None, date_to=None):
 
     rate = Decimal(str(get_policy('tax.vat_rate') or 0))
 
-    orders = Order.objects.active()
+    orders = Order.objects.active().filter(is_completed=True)
     returns = ReturnInvoice.objects.all()
     pitems = PurchaseInvoiceItem.objects.filter(invoice__status='CONFIRMED')
     if date_from:

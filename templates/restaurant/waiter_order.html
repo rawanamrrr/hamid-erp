@@ -183,8 +183,9 @@
                     <span x-text="(order ? order.total_amount : 0).toFixed(2) + ' ج.م'"></span>
                 </div>
 
-                <button x-show="pendingCart.length" @click="sendToKitchen()" class="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black flex items-center justify-center gap-2 transition-colors">
-                    <i class="fa-solid fa-kitchen-set"></i> إرسال للمطبخ
+                <button x-show="pendingCart.length" @click="sendToKitchen()" :disabled="sendingToKitchen" :class="sendingToKitchen ? 'opacity-60 cursor-not-allowed' : ''" class="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black flex items-center justify-center gap-2 transition-colors">
+                    <i class="fa-solid fa-kitchen-set" :class="sendingToKitchen ? 'fa-spin fa-spinner' : 'fa-kitchen-set'"></i>
+                    <span x-text="sendingToKitchen ? 'جارٍ الإرسال...' : 'إرسال للمطبخ'"></span>
                 </button>
 
                 <!-- Payment only makes sense once at least one item has actually been sent
@@ -265,6 +266,7 @@ function waiterOrder() {
         variantMap: {{ variant_map_json|default:"{}"|safe }},
         branchId: {{ branch.id|default:"null" }},
         pendingCart: [],
+        sendingToKitchen: false,
         search: '',
         activeCategory: 'all',
         categoriesData: [],
@@ -379,6 +381,12 @@ function waiterOrder() {
             this.picker.open = false;
         },
         sendToKitchen(confirmShortage) {
+            // Guards against a double-tap/double-click (or a slow connection making a
+            // second tap feel necessary) firing this twice before the page reloads —
+            // each call appends the cart to the order again, silently doubling the
+            // items/subtotal/service-charge/VAT and every revenue figure built from them.
+            if (this.sendingToKitchen) return;
+            this.sendingToKitchen = true;
             const payload = {items: this.pendingCart.map(p => ({product_id: p.product_id, quantity: p.quantity, modifiers: p.modifiers || [], note: p.note || '', variant_id: p.variant_id || null}))};
             if (confirmShortage) payload.confirm_recipe_shortage = true;
             fetch(this.addItemsUrl, {
@@ -386,12 +394,13 @@ function waiterOrder() {
                 headers: {'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken')},
                 body: JSON.stringify(payload),
             }).then(r => r.json()).then(data => {
-                if (data.status === 'ok') { location.reload(); }
+                if (data.status === 'ok') { location.reload(); return; }
                 else if (data.status === 'recipe_warning') {
                     showRecipeShortageWarning(data.shortages, () => this.sendToKitchen(true));
                 }
                 else { alert(data.message || 'حدث خطأ'); }
-            });
+                this.sendingToKitchen = false;
+            }).catch(() => { this.sendingToKitchen = false; });
         },
         voidItem(itemId) {
             if (!confirm('تأكيد إلغاء هذا الصنف؟')) return;

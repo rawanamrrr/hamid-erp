@@ -39,12 +39,14 @@
 .tnav-link.active { background: #1e293b; color: #fff; }
 .tnav-link.active:hover { background: #0f172a; }
 
-/* Links inside the navigation row */
+/* Links inside the navigation row — colors driven by CSS vars (default: teal) so
+   settings/edit.html's site-wide color palette picker can reskin the navbar too
+   (see the tailwind.config/--brand-* override block in templates/base.html). */
 #topnav-items .tnav-link { color: #fff; }
-#topnav-items .tnav-link i { color: #2dd4bf; }
+#topnav-items .tnav-link i { color: var(--brand-400, #2dd4bf); }
 #topnav-items .tnav-link:hover { background: rgba(255,255,255,0.10); color: #fff; }
-#topnav-items .tnav-link.active { background: #0d9488; color: #fff; }
-#topnav-items .tnav-link.active:hover { background: #0f766e; }
+#topnav-items .tnav-link.active { background: var(--brand-600, #0d9488); color: #fff; }
+#topnav-items .tnav-link.active:hover { background: var(--brand-700, #0f766e); }
 #topnav-items .tnav-link.active i { color: #fff; }
 
 .tnav-sub {
@@ -61,7 +63,7 @@
     white-space: nowrap;
 }
 .tnav-sub:hover { background: #f9fafb; color: #111827; }
-.tnav-sub.active { color: #4f46e5; font-weight: 800; }
+.tnav-sub.active { color: var(--brand-600, #4f46e5); font-weight: 800; }
 .tnav-sub { break-inside: avoid; }
 
 .tnav-section-label {

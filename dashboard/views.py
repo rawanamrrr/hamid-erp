@@ -40,6 +40,25 @@ def _exclude_voided_orders_q(field_prefix=''):
         return Q()
     return ~Q(**{f'{field_prefix}reference_number__in': voided_ids})
 
+
+def _exclude_unpaid_orders_q(field_prefix=''):
+    """A Q() that excludes 'OUT' StockTransaction rows belonging to an order that
+    hasn't actually been paid yet (Order.is_completed=False).
+
+    A waiter sending items to the kitchen (dine-in tab, table or no-table) creates the
+    order and its StockTransaction rows immediately — is_completed only flips to True
+    once the check is closed/paid (see restaurant/views.py close_check). Same story for
+    a cash-on-delivery order: is_completed stays False until driver_return_settle. Without
+    this exclusion, every revenue/VAT-relevant widget built from StockTransaction (or
+    from Order directly) would count the sale the moment it's sent to the kitchen, long
+    before any money actually changed hands.
+    """
+    from sales.models import Order
+    unpaid_ids = [str(i) for i in Order.objects.filter(is_completed=False).values_list('id', flat=True)]
+    if not unpaid_ids:
+        return Q()
+    return ~Q(**{f'{field_prefix}reference_number__in': unpaid_ids})
+
 @login_required
 def dashboard(request):
     # Waiters/cashiers land straight on their work screen instead of hitting a 403 on
@@ -61,7 +80,7 @@ def dashboard(request):
     date_to = request.GET.get('date_to')
 
     # Base Filter for Sales Queries (Global Stats)
-    sales_filter = Q(transaction_type='OUT') & _exclude_voided_orders_q()
+    sales_filter = Q(transaction_type='OUT') & _exclude_voided_orders_q() & _exclude_unpaid_orders_q()
     if date_from:
         sales_filter &= Q(created_at__date__gte=date_from)
     if date_to:
@@ -124,7 +143,7 @@ def dashboard(request):
         service_charge_filter &= Q(created_at__date__gte=date_from)
     if date_to:
         service_charge_filter &= Q(created_at__date__lte=date_to)
-    service_charge_revenue = Order.objects.filter(service_charge_filter).exclude(status='void').aggregate(
+    service_charge_revenue = Order.objects.filter(service_charge_filter, is_completed=True).exclude(status='void').aggregate(
         total=Sum('service_charge'))['total'] or 0
     revenue = revenue + float(service_charge_revenue)
 
@@ -134,7 +153,7 @@ def dashboard(request):
     # only count 88 as real revenue, the other 12 belongs in the VAT report/payable, not
     # here. This never affected the "not included" (added-on-top) mode, since that VAT is
     # a separate order-level addition that never touches a line's own price to begin with.
-    orders_for_vat = Order.objects.active()
+    orders_for_vat = Order.objects.active().filter(is_completed=True)
     if date_from:
         orders_for_vat = orders_for_vat.filter(created_at__date__gte=date_from)
     if date_to:

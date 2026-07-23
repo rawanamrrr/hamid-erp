@@ -26,6 +26,60 @@
     <!-- Tailwind CSS (local Play build) -->
     <script src="{% static 'vendor/js/tailwind.js' %}"></script>
 
+    <!-- Site-wide color palette (settings/models.py SystemSetting.ui_color_theme):
+         'teal' and 'indigo' are used interchangeably across the app's templates as the
+         primary action/brand color (buttons, links, focus rings) — remapping BOTH of
+         them to the same chosen hue's real Tailwind stops reskins the whole site
+         without touching any individual template. 'default' leaves the app's original
+         teal+indigo mix untouched. Semantic colors (red/green/amber for danger/success/
+         warning) are deliberately never remapped. -->
+    {% if sys_settings.ui_color_theme and sys_settings.ui_color_theme != 'default' %}
+    <script>
+        (function() {
+            var PALETTES = {
+                indigo:  {50:'#eef2ff',100:'#e0e7ff',200:'#c7d2fe',300:'#a5b4fc',400:'#818cf8',500:'#6366f1',600:'#4f46e5',700:'#4338ca',800:'#3730a3',900:'#312e81'},
+                emerald: {50:'#ecfdf5',100:'#d1fae5',200:'#a7f3d0',300:'#6ee7b7',400:'#34d399',500:'#10b981',600:'#059669',700:'#047857',800:'#065f46',900:'#064e3b'},
+                rose:    {50:'#fff1f2',100:'#ffe4e6',200:'#fecdd3',300:'#fda4af',400:'#fb7185',500:'#f43f5e',600:'#e11d48',700:'#be123c',800:'#9f1239',900:'#881337'},
+                pink:    {50:'#fdf2f8',100:'#fce7f3',200:'#fbcfe8',300:'#f9a8d4',400:'#f472b6',500:'#ec4899',600:'#db2777',700:'#be185d',800:'#9d174d',900:'#831843'},
+                amber:   {50:'#fffbeb',100:'#fef3c7',200:'#fde68a',300:'#fcd34d',400:'#fbbf24',500:'#f59e0b',600:'#d97706',700:'#b45309',800:'#92400e',900:'#78350f'},
+                orange:  {50:'#fff7ed',100:'#ffedd5',200:'#fed7aa',300:'#fdba74',400:'#fb923c',500:'#f97316',600:'#ea580c',700:'#c2410c',800:'#9a3412',900:'#7c2d12'},
+                violet:  {50:'#f5f3ff',100:'#ede9fe',200:'#ddd6fe',300:'#c4b5fd',400:'#a78bfa',500:'#8b5cf6',600:'#7c3aed',700:'#6d28d9',800:'#5b21b6',900:'#4c1d95'},
+                fuchsia: {50:'#fdf4ff',100:'#fae8ff',200:'#f5d0fe',300:'#f0abfc',400:'#e879f9',500:'#d946ef',600:'#c026d3',700:'#a21caf',800:'#86198f',900:'#701a75'},
+                sky:     {50:'#f0f9ff',100:'#e0f2fe',200:'#bae6fd',300:'#7dd3fc',400:'#38bdf8',500:'#0ea5e9',600:'#0284c7',700:'#0369a1',800:'#075985',900:'#0c4a6e'},
+                cyan:    {50:'#ecfeff',100:'#cffafe',200:'#a5f3fc',300:'#67e8f9',400:'#22d3ee',500:'#06b6d4',600:'#0891b2',700:'#0e7490',800:'#155e75',900:'#164e63'},
+                lime:    {50:'#f7fee7',100:'#ecfccb',200:'#d9f99d',300:'#bef264',400:'#a3e635',500:'#84cc16',600:'#65a30d',700:'#4d7c0f',800:'#3f6212',900:'#365314'},
+                slate:   {50:'#f8fafc',100:'#f1f5f9',200:'#e2e8f0',300:'#cbd5e1',400:'#94a3b8',500:'#64748b',600:'#475569',700:'#334155',800:'#1e293b',900:'#0f172a'},
+                brown:   {50:'#faf6f2',100:'#f0e4d7',200:'#ddc3a5',300:'#c39d72',400:'#a97c4f',500:'#8b5e34',600:'#6f4726',700:'#5a3a20',800:'#47301c',900:'#3a2818'},
+                beige:   {50:'#fdfbf7',100:'#f8f1e4',200:'#efe1c8',300:'#e2caa0',400:'#d0ac74',500:'#bb8f52',600:'#9c7440',700:'#7d5c35',800:'#64492c',900:'#513c26'},
+            };
+            var chosen = PALETTES['{{ sys_settings.ui_color_theme }}'];
+            if (chosen) {
+                // Reskins every button/action-colored Tailwind utility class site-wide
+                // (product cards, buttons, focus rings...) to the chosen hue — not just
+                // teal/indigo (the two used as THE primary brand color) but every other
+                // family templates reach for on a "positive/primary" button (save, confirm,
+                // add...): emerald, green, blue, purple, cyan, sky. Deliberately excludes
+                // red (delete/danger) and amber/orange/yellow (warning) — those carry
+                // meaning across the whole app and must stay recognizable regardless of
+                // the chosen brand color.
+                tailwind.config = {
+                    theme: { extend: { colors: {
+                        teal: chosen, indigo: chosen, emerald: chosen, green: chosen,
+                        blue: chosen, purple: chosen, cyan: chosen, sky: chosen,
+                    } } }
+                };
+                // The top navbar (templates/includes/sidebar.html) styles its
+                // active-tab background/icon and dropdown active-link color with
+                // hand-written CSS (not Tailwind classes), so it needs these as CSS
+                // variables too or it stays teal/indigo regardless of the choice above.
+                document.documentElement.style.setProperty('--brand-400', chosen[400]);
+                document.documentElement.style.setProperty('--brand-600', chosen[600]);
+                document.documentElement.style.setProperty('--brand-700', chosen[700]);
+            }
+        })();
+    </script>
+    {% endif %}
+
     <!-- SweetAlert2 (local) -->
     <script src="{% static 'vendor/js/sweetalert2.min.js' %}"></script>
 
