@@ -2788,6 +2788,18 @@
                 if (delta > 0) openSerialPrompt(id, dataset);
                 return;
             }
+            // Cafe: fixed-choice extras (مستوى السكر، إضافات...) — same picker as a full
+            // card click/addProductFromData, so the quick "+" button can't silently add
+            // the item with no modifiers chosen. Only applies to a NEW line (delta>0 and
+            // not already in cart) — once it's in the cart, +/- just adjusts quantity.
+            if (delta > 0 && MODIFIER_MAP[id] && MODIFIER_MAP[id].length) {
+                const sellUnit = 'box';
+                const alreadyInCart = cart.some(i => i.id == id && i.sellUnit === sellUnit);
+                if (!alreadyInCart) {
+                    openModifierPicker(id, dataset);
+                    return;
+                }
+            }
             const sellUnit = 'box'; // Default for card +/-
             
             // Check if already in cart
