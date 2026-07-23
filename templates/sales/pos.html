@@ -2646,6 +2646,14 @@
                 confirmButtonText: 'إضافة للسلة',
                 showCancelButton: true,
                 cancelButtonText: 'إلغاء',
+                // Closing sometimes never completed: SweetAlert2 waits for the hide
+                // CSS animation's `animationend` event before actually removing the
+                // dialog from the DOM, and that event doesn't reliably fire in every
+                // environment — leaving an invisible-but-still-open dialog silently
+                // blocking every control on the page behind it (including the product
+                // card's own +/- buttons). Disabling the hide animation closes it
+                // synchronously instead of depending on that event.
+                hideClass: { popup: '' },
                 preConfirm: () => {
                     // Only a group marked "إجباري" blocks confirming — an unchecked group
                     // is purely optional, so confirming with nothing picked in it goes through.
@@ -2699,6 +2707,11 @@
             } else {
                 proceedToAddToCart(productId, 1, dataset, 'box', null, selected);
             }
+            // preConfirm's implicit `undefined` return doesn't reliably close this dialog
+            // on its own — without this it stays open (invisibly blocking the page behind
+            // it) even though the item was already added, making every control underneath
+            // (including the card's own +/- buttons) look unresponsive.
+            Swal.close();
         }
 
         // ── Grocery: weigh-by-kg ──────────────────────────────────────────────
@@ -2869,7 +2882,47 @@
             }
         }
 
+        // Recipe ids preloaded from the server (sales/views.py pos_view) — only products
+        // that actually have a recipe are worth a stock-check round trip at all.
+        const RECIPE_PRODUCT_IDS = new Set(({{ recipe_product_ids_json|default:"[]"|safe }}).map(String));
+
         function proceedToAddToCart(id, qtyToAdd, dataset, unit = 'box', forcedTier = null, forcedModifiers = null) {
+            if (RECIPE_PRODUCT_IDS.has(String(id))) {
+                checkRecipeStockThenAdd(id, qtyToAdd, dataset, unit, forcedTier, forcedModifiers);
+                return;
+            }
+            _doProceedToAddToCart(id, qtyToAdd, dataset, unit, forcedTier, forcedModifiers);
+        }
+
+        // Fires the same read-only recipe-stock pre-check used at final checkout, but
+        // right when the item is actually added to the cart — so the cashier/waiter finds
+        // out about a short ingredient immediately instead of only after building the
+        // whole order and clicking pay.
+        function checkRecipeStockThenAdd(id, qtyToAdd, dataset, unit, forcedTier, forcedModifiers) {
+            const warehouseId = document.getElementById('warehouseSelect')?.value;
+            fetch('{% url "api_check_recipe_stock" %}', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'},
+                body: JSON.stringify({
+                    items: [{ product_id: id, quantity: qtyToAdd, variant_id: dataset.variantId || null }],
+                    warehouse_id: warehouseId,
+                }),
+            })
+                .then(r => r.json())
+                .then(res => {
+                    if (res.shortages && res.shortages.length) {
+                        showRecipeShortageWarning(res.shortages, () => {
+                            _doProceedToAddToCart(id, qtyToAdd, dataset, unit, forcedTier, forcedModifiers);
+                        });
+                    } else {
+                        _doProceedToAddToCart(id, qtyToAdd, dataset, unit, forcedTier, forcedModifiers);
+                    }
+                })
+                // Never let a network hiccup on this best-effort warning block an actual sale.
+                .catch(() => _doProceedToAddToCart(id, qtyToAdd, dataset, unit, forcedTier, forcedModifiers));
+        }
+
+        function _doProceedToAddToCart(id, qtyToAdd, dataset, unit = 'box', forcedTier = null, forcedModifiers = null) {
             // forcedTier lets the cashier pick a specific price tier for THIS product
             // (from the قطاعي/نص جملة/جملة badges on the card) regardless of the global
             // price-type selector — the resulting cart line is locked (isManualPrice)
@@ -4485,6 +4538,11 @@
                 confirmButtonColor: '#16a34a',
                 cancelButtonColor: '#6b7280',
                 reverseButtons: true,
+                // See openModifierPicker's identical hideClass override — without it this
+                // dialog can get stuck open (invisibly blocking the page) after a choice
+                // is made, since SweetAlert2 sometimes never receives the hide animation's
+                // `animationend` event it waits on to finish closing.
+                hideClass: { popup: '' },
             }).then((result) => {
                 if (result.isConfirmed && typeof onConfirm === 'function') onConfirm();
             });

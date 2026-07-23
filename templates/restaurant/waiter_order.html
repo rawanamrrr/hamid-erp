@@ -465,6 +465,10 @@ function showRecipeShortageWarning(shortages, onConfirm) {
         confirmButtonColor: '#16a34a',
         cancelButtonColor: '#6b7280',
         reverseButtons: true,
+        // Without this the dialog can get stuck open (invisibly blocking the page)
+        // after a choice is made — SweetAlert2 sometimes never receives the hide
+        // animation's `animationend` event it waits on to finish closing.
+        hideClass: { popup: '' },
     }).then((result) => {
         if (result.isConfirmed && typeof onConfirm === 'function') onConfirm();
     });

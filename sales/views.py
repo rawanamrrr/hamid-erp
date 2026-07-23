@@ -120,6 +120,35 @@ def tafqeet_ar(number):
         
     return result + " لا غير"
 
+
+def _recipe_product_ids():
+    from restaurant.models import Recipe
+    return Recipe.objects.filter(is_active=True).values_list('product_id', flat=True).distinct()
+
+
+@login_required
+@require_permission('pos', 'view')
+def api_check_recipe_stock(request):
+    """Read-only recipe-stock pre-check for a SINGLE cart line, called the moment a
+    recipe-bearing product is added to the cart (not just at final checkout) — see
+    preview_recipe_shortages() for why this never blocks the sale outright."""
+    try:
+        data = json.loads(request.body)
+    except (ValueError, json.JSONDecodeError):
+        return JsonResponse({'status': 'error', 'message': 'بيانات غير صالحة'}, status=400)
+
+    items = data.get('items') or []
+    warehouse_id = data.get('warehouse_id')
+    warehouse = Warehouse.objects.filter(id=warehouse_id, is_active=True).first() if warehouse_id else None
+    if not warehouse:
+        warehouse = Warehouse.objects.filter(is_active=True, is_sales_point=True).first()
+    if not warehouse or not items:
+        return JsonResponse({'shortages': []})
+
+    from .services import preview_recipe_shortages
+    return JsonResponse({'shortages': preview_recipe_shortages(items, warehouse)})
+
+
 @login_required
 @require_permission('pos', 'view')
 def pos_view(request):
@@ -311,6 +340,10 @@ def pos_view(request):
         'suggested_start_balance': (_suggested_shift_start_balance() if current_shift is None else None),
         'drivers': drivers,
         'modifier_map_json': modifier_map_json,
+        # Product ids with an active recipe — lets the POS page skip the recipe-stock
+        # check entirely for products that have no recipe at all (most of the catalog),
+        # instead of firing a check request on every single add-to-cart click.
+        'recipe_product_ids_json': json.dumps(list(_recipe_product_ids())),
     }
     return render(request, 'sales/pos.html', context)
 

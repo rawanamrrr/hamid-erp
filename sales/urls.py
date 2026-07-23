@@ -69,6 +69,7 @@ urlpatterns = [
     # AJAX APIs
     path('api/create-customer/', views.create_customer_ajax, name='create_customer_ajax'),
     path('api/submit-order/', views.submit_order_ajax, name='submit_order_ajax'),
+    path('api/check-recipe-stock/', views.api_check_recipe_stock, name='api_check_recipe_stock'),
     path('api/update-tailoring-status/', views.update_tailoring_status_ajax, name='update_tailoring_status_ajax'),
     path('api/delete-order/', views.delete_order_ajax, name='delete_order_ajax'),
     path('api/edit-order/', views.edit_order_ajax, name='edit_order_ajax'),
