@@ -265,6 +265,7 @@ function waiterOrder() {
         modifierMap: {{ modifier_map_json|default:"{}"|safe }},
         variantMap: {{ variant_map_json|default:"{}"|safe }},
         branchId: {{ branch.id|default:"null" }},
+        recipeProductIds: new Set(({{ recipe_product_ids_json|default:"[]"|safe }}).map(String)),
         pendingCart: [],
         sendingToKitchen: false,
         search: '',
@@ -324,7 +325,7 @@ function waiterOrder() {
                 this.picker = {open: true, productId: id, name: name, price: price, groups: groups, selected: [], variantId: null, variantLabel: '', error: ''};
                 return;
             }
-            this.pendingCart.push({product_id: id, name: name, price: price, quantity: 1, modifiers: [], note: '', variant_id: null, variant_label: ''});
+            this.checkRecipeStockThenPush({product_id: id, name: name, price: price, quantity: 1, modifiers: [], note: '', variant_id: null, variant_label: ''});
         },
         selectSize(variant) {
             this.sizePicker.open = false;
@@ -335,7 +336,34 @@ function waiterOrder() {
                 this.picker = {open: true, productId: id, name: name, price: variant.price, groups: groups, selected: [], variantId: variant.id, variantLabel: variant.label, error: ''};
                 return;
             }
-            this.pendingCart.push({product_id: id, name: name, price: variant.price, quantity: 1, modifiers: [], note: '', variant_id: variant.id, variant_label: variant.label});
+            this.checkRecipeStockThenPush({product_id: id, name: name, price: variant.price, quantity: 1, modifiers: [], note: '', variant_id: variant.id, variant_label: variant.label});
+        },
+        // Fires the same read-only recipe-stock pre-check the POS cashier screen uses
+        // (sales/views.py api_check_recipe_stock), right when the item is actually added
+        // to the local cart — not just when the whole order is later sent to the kitchen.
+        checkRecipeStockThenPush(item) {
+            if (!this.recipeProductIds.has(String(item.product_id))) {
+                this.pendingCart.push(item);
+                return;
+            }
+            fetch('{% url "api_check_recipe_stock" %}', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken')},
+                body: JSON.stringify({
+                    items: [{ product_id: item.product_id, quantity: item.quantity, variant_id: item.variant_id || null }],
+                    warehouse_id: this.branchId,
+                }),
+            })
+                .then(r => r.json())
+                .then(res => {
+                    if (res.shortages && res.shortages.length) {
+                        showRecipeShortageWarning(res.shortages, () => this.pendingCart.push(item));
+                    } else {
+                        this.pendingCart.push(item);
+                    }
+                })
+                // Never let a network hiccup on this best-effort warning block a real add.
+                .catch(() => this.pendingCart.push(item));
         },
         handleModifierClick(group, opt, event) {
             const max = group.max_select || 1;
@@ -373,32 +401,31 @@ function waiterOrder() {
             }
             this.picker.error = '';
             const extra = this.picker.selected.reduce((s, m) => s + (m.price_delta || 0), 0);
-            this.pendingCart.push({
+            this.checkRecipeStockThenPush({
                 product_id: this.picker.productId, name: this.picker.name,
                 price: this.picker.price + extra, quantity: 1, modifiers: this.picker.selected, note: '',
                 variant_id: this.picker.variantId, variant_label: this.picker.variantLabel,
             });
             this.picker.open = false;
         },
-        sendToKitchen(confirmShortage) {
+        sendToKitchen() {
             // Guards against a double-tap/double-click (or a slow connection making a
             // second tap feel necessary) firing this twice before the page reloads —
             // each call appends the cart to the order again, silently doubling the
             // items/subtotal/service-charge/VAT and every revenue figure built from them.
             if (this.sendingToKitchen) return;
             this.sendingToKitchen = true;
+            // Recipe stock was already checked (and confirmed if short) when each item
+            // was added to pendingCart — see checkRecipeStockThenPush — so nothing to
+            // recheck here.
             const payload = {items: this.pendingCart.map(p => ({product_id: p.product_id, quantity: p.quantity, modifiers: p.modifiers || [], note: p.note || '', variant_id: p.variant_id || null}))};
-            if (confirmShortage) payload.confirm_recipe_shortage = true;
             fetch(this.addItemsUrl, {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken')},
                 body: JSON.stringify(payload),
             }).then(r => r.json()).then(data => {
                 if (data.status === 'ok') { location.reload(); return; }
-                else if (data.status === 'recipe_warning') {
-                    showRecipeShortageWarning(data.shortages, () => this.sendToKitchen(true));
-                }
-                else { alert(data.message || 'حدث خطأ'); }
+                alert(data.message || 'حدث خطأ');
                 this.sendingToKitchen = false;
             }).catch(() => { this.sendingToKitchen = false; });
         },

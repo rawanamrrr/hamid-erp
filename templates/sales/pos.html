@@ -2593,6 +2593,38 @@
         }
 
         function addVariantToCart(productId, variantId, label, price, modifiers) {
+            // Sized products (e.g. "سبانش لاتيه" small/large) go through this path
+            // instead of proceedToAddToCart — a size can have its OWN recipe (a large
+            // uses more ingredients than a small), so this needs the exact same
+            // add-to-cart recipe-stock check, just resolved by variant instead of the
+            // bare product id.
+            if (RECIPE_PRODUCT_IDS.has(String(productId))) {
+                const warehouseId = document.getElementById('warehouseSelect')?.value;
+                fetch('{% url "api_check_recipe_stock" %}', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'},
+                    body: JSON.stringify({
+                        items: [{ product_id: productId, quantity: 1, variant_id: variantId }],
+                        warehouse_id: warehouseId,
+                    }),
+                })
+                    .then(r => r.json())
+                    .then(res => {
+                        if (res.shortages && res.shortages.length) {
+                            showRecipeShortageWarning(res.shortages, () => {
+                                _doAddVariantToCart(productId, variantId, label, price, modifiers);
+                            });
+                        } else {
+                            _doAddVariantToCart(productId, variantId, label, price, modifiers);
+                        }
+                    })
+                    .catch(() => _doAddVariantToCart(productId, variantId, label, price, modifiers));
+                return;
+            }
+            _doAddVariantToCart(productId, variantId, label, price, modifiers);
+        }
+
+        function _doAddVariantToCart(productId, variantId, label, price, modifiers) {
             const card = document.querySelector(`.product-card[data-id="${productId}"]`);
             const parentName = card ? card.dataset.name : '';
             const extra = (modifiers || []).reduce((s, m) => s + (m.price_delta || 0), 0);
@@ -4501,10 +4533,6 @@
                         resetPos();
                     } else if (res.status === 'approval_required') {
                         requestManagerApproval(res, () => submitOrder(print));
-                    } else if (res.status === 'recipe_warning') {
-                        showRecipeShortageWarning(res.shortages, () => {
-                            submitOrderRequest(url, { ...data, confirm_recipe_shortage: true }, print, isOnline, customerId);
-                        });
                     } else {
                         window._approverUser = ''; window._approverPass = '';
                         alert('خطأ: ' + res.message);

@@ -234,11 +234,16 @@ def _waiter_menu_context(order):
             } for it in order.items.all()],
         })
 
+    from sales.views import _recipe_product_ids
     return {
         'categories': categories,
         'order_json': order_json,
         'modifier_map_json': json.dumps(modifier_map),
         'variant_map_json': json.dumps(variant_map),
+        # Same purpose as sales/views.py pos_view's identical context var — lets the
+        # waiter cart skip the recipe-stock check round trip for products that have no
+        # recipe at all (most of the menu).
+        'recipe_product_ids_json': json.dumps(list(_recipe_product_ids())),
     }
 
 
@@ -368,14 +373,11 @@ def waiter_open_or_append(request, table_id):
     if not branch:
         return JsonResponse({'status': 'error', 'message': 'لا يوجد فرع نشط'}, status=400)
 
-    # Recipe stock pre-check: warn (don't block) if an item's recipe would need more of
-    # an ingredient than is actually available — the waiter can still confirm anyway
-    # (client resends with confirm_recipe_shortage=true).
-    if not data.get('confirm_recipe_shortage'):
-        from sales.services import preview_recipe_shortages
-        shortages = preview_recipe_shortages(items, branch)
-        if shortages:
-            return JsonResponse({'status': 'recipe_warning', 'shortages': shortages})
+    # Recipe stock is checked (and warned about, non-blocking) at add-to-cart time
+    # instead — see sales.views.api_check_recipe_stock, called from the waiter cart the
+    # moment a recipe-bearing product/variant is added. Checking again here at
+    # "send to kitchen" would just re-show the same warning for an item the waiter
+    # already confirmed adding despite the shortage.
 
     shift = get_active_shift()
 
@@ -475,12 +477,7 @@ def waiter_add_items_no_table(request, order_id):
     if not branch:
         return JsonResponse({'status': 'error', 'message': 'لا يوجد فرع نشط'}, status=400)
 
-    # Recipe stock pre-check — see waiter_open_or_append for the full rationale.
-    if not data.get('confirm_recipe_shortage'):
-        from sales.services import preview_recipe_shortages
-        shortages = preview_recipe_shortages(items, branch)
-        if shortages:
-            return JsonResponse({'status': 'recipe_warning', 'shortages': shortages})
+    # Recipe stock is checked at add-to-cart time instead — see waiter_open_or_append.
 
     with db_transaction.atomic():
         _add_items_to_order(request, order, items, branch)
