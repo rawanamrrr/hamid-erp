@@ -439,7 +439,7 @@ def _get_export_headers():
         ('category', 'القسم'),
         ('kind',     'النوع'),
         ('supplier', 'المورد'),
-        ('sizes',    'المقاسات/الأحجام (مفصولة بفاصلة)'),
+        ('sizes',    'المقاسات/الأحجام — بدون سعر مفصولة بفاصلة، أو "الاسم:السعر" لكل حجم بسعر خاص به'),
     ]
     if show.get('pharmacy_specs'):
         headers += [
@@ -477,13 +477,14 @@ def _serialize_product_row(product):
     """Return a dict {key: cell_value} for one product, using the export schema."""
     if product.has_variants:
         # has_variants products (e.g. a cafe drink in "صغير/كبير") carry their sizes via
-        # ProductVariant.size, not the plain product.sizes M2M — read from there instead,
-        # or the sizes column would come out blank for every variant-based product.
-        seen = []
+        # ProductVariant.size, each with its OWN price — read from there instead of the
+        # plain product.sizes M2M, and encode as "name:price" pairs so the price round-trips
+        # too (a bare name list would silently drop per-size pricing on re-import).
+        seen = {}
         for v in product.variants.all():
-            if v.size_id and v.size.name not in seen:
-                seen.append(v.size.name)
-        sizes_str = ', '.join(seen)
+            if v.size_id and v.size_id not in seen:
+                seen[v.size_id] = f"{v.size.name}:{v.price}"
+        sizes_str = ', '.join(seen.values())
     else:
         sizes_str = ', '.join(s.name for s in product.sizes.all())
     return {
@@ -914,25 +915,46 @@ def import_products_excel(request):
                 product.save()
 
                 sizes_raw = _cell(row, header_map, 'sizes')
-                if 'sizes' in header_map and not product.has_variants:
-                    # has_variants products carry their sizes via ProductVariant.size
-                    # instead (see _serialize_product_row) — that relation also holds
-                    # per-size stock/price, so it can't be round-tripped from a plain
-                    # comma list here; leave those alone rather than writing into the
-                    # unused product.sizes M2M.
-                    if sizes_raw:
-                        size_objs = []
-                        for token in sizes_raw.replace('،', ',').split(','):
-                            token = token.strip()
-                            if not token:
+                if 'sizes' in header_map:
+                    tokens = [t.strip() for t in sizes_raw.replace('،', ',').split(',') if t.strip()] if sizes_raw else []
+                    # "الاسم:السعر" tokens (as exported for a has_variants product) mean
+                    # each size has its own price — build/update real ProductVariant rows
+                    # (price_override) instead of the plain product.sizes M2M, which has
+                    # no way to carry a per-size price.
+                    priced_tokens = [t for t in tokens if ':' in t]
+                    if priced_tokens:
+                        from .models import ProductVariant
+                        if not product.has_variants:
+                            product.has_variants = True
+                            product.save(update_fields=['has_variants'])
+                        for token in tokens:
+                            name_part, _, price_part = token.partition(':')
+                            name_part = name_part.strip()
+                            if not name_part:
                                 continue
                             size_obj, _c = Size.objects.get_or_create(
-                                name=token, defaults={'size_type': 'custom'}
+                                name=name_part, defaults={'size_type': 'custom'}
                             )
-                            size_objs.append(size_obj)
-                        product.sizes.set(size_objs)
-                    elif not is_new:
-                        product.sizes.clear()
+                            price_val = _to_decimal_or_none(price_part.strip())
+                            defaults = {'price_override': price_val} if price_val is not None else {}
+                            ProductVariant.objects.update_or_create(
+                                product=product, size=size_obj, color='', defaults=defaults
+                            )
+                    elif not product.has_variants:
+                        # Plain size list (clothing-style, no per-size price) — round-trips
+                        # via the product.sizes M2M as before.
+                        if sizes_raw:
+                            size_objs = []
+                            for token in tokens:
+                                size_obj, _c = Size.objects.get_or_create(
+                                    name=token, defaults={'size_type': 'custom'}
+                                )
+                                size_objs.append(size_obj)
+                            product.sizes.set(size_objs)
+                        elif not is_new:
+                            product.sizes.clear()
+                    # else: has_variants product with a plain (unpriced) size list in this
+                    # column — leave its ProductVariant rows alone rather than guessing.
 
                 if is_new:
                     created += 1
