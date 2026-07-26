@@ -420,33 +420,53 @@ def product_list(request):
 # ==========================================
 # PRODUCTS IMPORT / EXPORT — full round-trip
 # ==========================================
-# Single source of truth for column layout shared by xlsx/csv export,
-# import template, and the importer. (key, arabic_label).
-PRODUCT_EXPORT_HEADERS = [
-    ('id',                   'ID (لا تعدّل)'),
-    ('sku',                  'SKU (كود المنتج)'),
-    ('name',                 'اسم المنتج'),
-    ('barcode',              'الباركود (EAN-13) — اتركه فارغاً للتوليد التلقائي'),
-    ('category',             'القسم'),
-    ('kind',                 'النوع'),
-    ('supplier',             'المورد'),
-    ('sizes',                'المقاسات (مفصولة بفاصلة)'),
-    ('scientific_name',      'الاسم العلمي'),
-    ('packaging_type',       'نوع التعبئة'),
-    ('strips_per_box',       'عدد الأشرطة في العلبة'),
-    ('material',             'الخامة'),
-    ('pattern',              'النقشة / المميزات'),
-    ('color',                'اللون'),
-    ('unit_measure',         'وحدة القياس (MTR/YRD/ROLL/PCS/KG)'),
-    ('cost_price',           'سعر التكلفة'),
-    ('price_retail',         'سعر القطاعي'),
-    ('price_semi_wholesale', 'سعر نصف الجملة'),
-    ('price_wholesale',      'سعر الجملة'),
-    ('low_stock_threshold',  'حد التنبيه للنواقص'),
-    ('pieces_per_package',   'قطع في الشيكارة'),
-    ('is_active',            'نشط (1/0)'),
-    ('stock_quantity',       'الرصيد الكلي (للقراءة فقط)'),
-]
+# Column layout shared by xlsx/csv export, import template, and the importer.
+# Built dynamically from the store's active market profile (settings.market_profiles)
+# so a cafe never sees clothing/pharmacy-only columns (material, scientific_name, ...)
+# and vice versa — same fields the product form itself shows for this market. (key, arabic_label).
+def _get_export_headers():
+    from settings.market_profiles import get_market_profile
+    sys_settings = SystemSetting.objects.first()
+    mp = get_market_profile(sys_settings.market_type if sys_settings else None)
+    show = mp['show']
+    terms = mp['terms']
+
+    headers = [
+        ('id',       'ID (لا تعدّل)'),
+        ('sku',      'SKU (كود المنتج)'),
+        ('name',     'اسم المنتج'),
+        ('barcode',  'الباركود (EAN-13) — اتركه فارغاً للتوليد التلقائي'),
+        ('category', 'القسم'),
+        ('kind',     'النوع'),
+        ('supplier', 'المورد'),
+        ('sizes',    'المقاسات/الأحجام (مفصولة بفاصلة)'),
+    ]
+    if show.get('pharmacy_specs'):
+        headers += [
+            ('scientific_name', 'الاسم العلمي'),
+            ('packaging_type',  'نوع التعبئة'),
+            ('strips_per_box',  'عدد الأشرطة في العلبة'),
+        ]
+    if show.get('clothes_specs'):
+        headers += [
+            ('material', 'الخامة'),
+            ('pattern',  'النقشة / المميزات'),
+            ('color',    'اللون'),
+        ]
+    headers.append(('unit_measure', f"{terms['unit_label']} (PCS/KG/LTR...)"))
+    headers.append(('cost_price', terms['cost_label']))
+    headers.append(('price_retail', terms['retail_label']))
+    if show.get('wholesale_price'):
+        headers += [
+            ('price_semi_wholesale', 'سعر نصف الجملة'),
+            ('price_wholesale',      'سعر الجملة'),
+        ]
+    headers.append(('low_stock_threshold', 'حد التنبيه للنواقص'))
+    if show.get('pieces_per_package'):
+        headers.append(('pieces_per_package', terms['pieces_label']))
+    headers.append(('is_active', 'نشط (1/0)'))
+    headers.append(('stock_quantity', 'الرصيد الكلي (للقراءة فقط)'))
+    return headers
 
 # Arabic unit labels → model code, for tolerant parsing of unit_measure.
 _UNIT_LABEL_TO_CODE = {label: code for code, label in Product.UNIT_CHOICES}
@@ -455,7 +475,17 @@ _UNIT_LABEL_TO_CODE.update({code: code for code, _ in Product.UNIT_CHOICES})
 
 def _serialize_product_row(product):
     """Return a dict {key: cell_value} for one product, using the export schema."""
-    sizes_str = ', '.join(s.name for s in product.sizes.all())
+    if product.has_variants:
+        # has_variants products (e.g. a cafe drink in "صغير/كبير") carry their sizes via
+        # ProductVariant.size, not the plain product.sizes M2M — read from there instead,
+        # or the sizes column would come out blank for every variant-based product.
+        seen = []
+        for v in product.variants.all():
+            if v.size_id and v.size.name not in seen:
+                seen.append(v.size.name)
+        sizes_str = ', '.join(seen)
+    else:
+        sizes_str = ', '.join(s.name for s in product.sizes.all())
     return {
         'id':                   product.id,
         'sku':                  product.sku or '',
@@ -529,10 +559,16 @@ def _next_auto_sku():
     return candidate
 
 
+_DEFAULT_COL_WIDTH = 18
+_COL_WIDTH_OVERRIDES = {'id': 8, 'name': 30, 'sizes': 26, 'stock_quantity': 18}
+
+
 def _write_xlsx_response(filename, products):
     import openpyxl
     from openpyxl.styles import Font, PatternFill, Alignment
     from openpyxl.utils import get_column_letter
+
+    headers = _get_export_headers()
 
     wb = openpyxl.Workbook()
     ws = wb.active
@@ -543,7 +579,7 @@ def _write_xlsx_response(filename, products):
     header_fill = PatternFill(start_color='0F766E', end_color='0F766E', fill_type='solid')
     header_align = Alignment(horizontal='center', vertical='center', wrap_text=True)
 
-    for col_idx, (_, label) in enumerate(PRODUCT_EXPORT_HEADERS, start=1):
+    for col_idx, (_, label) in enumerate(headers, start=1):
         cell = ws.cell(row=1, column=col_idx, value=label)
         cell.font = header_font
         cell.fill = header_fill
@@ -551,16 +587,14 @@ def _write_xlsx_response(filename, products):
 
     for row_idx, product in enumerate(products, start=2):
         data = _serialize_product_row(product)
-        for col_idx, (key, _) in enumerate(PRODUCT_EXPORT_HEADERS, start=1):
+        for col_idx, (key, _) in enumerate(headers, start=1):
             value = data[key]
             if isinstance(value, Decimal):
                 value = float(value)
             ws.cell(row=row_idx, column=col_idx, value=value)
 
-    col_widths = [8, 16, 30, 20, 18, 18, 20, 20, 16, 16, 14, 18,
-                  14, 14, 18, 14, 18, 18, 12, 18]
-    for i, w in enumerate(col_widths, start=1):
-        ws.column_dimensions[get_column_letter(i)].width = w
+    for i, (key, _) in enumerate(headers, start=1):
+        ws.column_dimensions[get_column_letter(i)].width = _COL_WIDTH_OVERRIDES.get(key, _DEFAULT_COL_WIDTH)
     ws.freeze_panes = 'A2'
 
     response = HttpResponse(
@@ -572,15 +606,16 @@ def _write_xlsx_response(filename, products):
 
 
 def _write_csv_response(filename, products):
+    headers = _get_export_headers()
     response = HttpResponse(content_type='text/csv; charset=utf-8-sig')
     response['Content-Disposition'] = f'attachment; filename="{filename}"'
     response.write('\ufeff'.encode('utf8'))
     writer = csv.writer(response)
 
-    writer.writerow([label for _, label in PRODUCT_EXPORT_HEADERS])
+    writer.writerow([label for _, label in headers])
     for product in products:
         data = _serialize_product_row(product)
-        writer.writerow([data[key] for key, _ in PRODUCT_EXPORT_HEADERS])
+        writer.writerow([data[key] for key, _ in headers])
     return response
 
 
@@ -589,7 +624,7 @@ def _write_csv_response(filename, products):
 def export_products_excel(request):
     """Export filtered products to Excel (.xlsx) or CSV based on ?format=."""
     fmt = (request.GET.get('format', 'xlsx') or 'xlsx').lower()
-    queryset = get_filtered_products(request).prefetch_related('sizes').select_related(
+    queryset = get_filtered_products(request).prefetch_related('sizes', 'variants__size').select_related(
         'category', 'kind', 'supplier'
     )
     if fmt == 'csv':
@@ -666,7 +701,7 @@ def barcode_generator_view(request):
 def download_import_template(request):
     """Download import template pre-filled with current products as editable example."""
     fmt = (request.GET.get('format', 'xlsx') or 'xlsx').lower()
-    queryset = get_filtered_products(request).prefetch_related('sizes').select_related(
+    queryset = get_filtered_products(request).prefetch_related('sizes', 'variants__size').select_related(
         'category', 'kind', 'supplier'
     )
     if fmt == 'csv':
@@ -706,7 +741,7 @@ def _build_header_index_map(header_row):
         return s.strip()
 
     label_lookup = {}
-    for key, label in PRODUCT_EXPORT_HEADERS:
+    for key, label in _get_export_headers():
         label_lookup[norm(label)] = key
         label_lookup[norm(key)] = key
 
@@ -879,7 +914,12 @@ def import_products_excel(request):
                 product.save()
 
                 sizes_raw = _cell(row, header_map, 'sizes')
-                if 'sizes' in header_map:
+                if 'sizes' in header_map and not product.has_variants:
+                    # has_variants products carry their sizes via ProductVariant.size
+                    # instead (see _serialize_product_row) — that relation also holds
+                    # per-size stock/price, so it can't be round-tripped from a plain
+                    # comma list here; leave those alone rather than writing into the
+                    # unused product.sizes M2M.
                     if sizes_raw:
                         size_objs = []
                         for token in sizes_raw.replace('،', ',').split(','):
@@ -3262,7 +3302,8 @@ def costing_view(request):
     """
     return render(request, 'products/costing.html', {
         'title': 'حساب التكاليف',
-        'is_costing_page': True
+        'is_costing_page': True,
+        'categories': Category.objects.filter(is_active=True).order_by('name'),
     })
 
 @csrf_exempt
@@ -3475,16 +3516,185 @@ def api_stock_alerts_count(request):
 def api_search_products(request):
     """
     AJAX API to search products for the costing tool.
+
+    Plain search (default): any product, used to pick an existing menu item whose
+    recipe/cost we want to load or sync.
+    `?raw_only=1`: restricted to is_raw_material=True products, used by the "build a
+    new recipe" material picker — each result carries its unit_measure and the units
+    a recipe line may be entered in (see restaurant.models.compatible_units), so the
+    picker can offer e.g. grams for an ingredient stocked in KG.
     """
+    from restaurant.models import Recipe, compatible_units
+
     q = request.GET.get('q', '')
-    if len(q) < 2:
-        return JsonResponse({'products': []})
-        
-    products = Product.objects.filter(
-        Q(name__icontains=q) | Q(sku__icontains=q)
-    ).values('id', 'name', 'sku', 'cost_price')[:10]
-    
-    return JsonResponse({'products': list(products)})
+    raw_only = request.GET.get('raw_only') == '1'
+
+    if raw_only:
+        # Raw-material picker: with no query yet, browse the full raw-material list
+        # instead of showing nothing — most cafes only have a handful, so there's no
+        # need to force typing before anything appears.
+        qs = Product.objects.filter(is_raw_material=True)
+        if q:
+            qs = qs.filter(Q(name__icontains=q) | Q(sku__icontains=q))
+        qs = qs.order_by('name')
+    else:
+        if len(q) < 2:
+            return JsonResponse({'products': []})
+        qs = Product.objects.filter(Q(name__icontains=q) | Q(sku__icontains=q))
+
+    results = []
+    for p in qs.prefetch_related('variants__size')[:20]:
+        row = {
+            'id': p.id,
+            'name': p.name,
+            'sku': p.sku,
+            'cost_price': float(p.cost_price),
+            'unit_measure': p.unit_measure,
+        }
+        if raw_only:
+            row['compatible_units'] = compatible_units(p.unit_measure)
+        else:
+            sizes = []
+            if p.has_variants:
+                seen = set()
+                for v in p.variants.all():
+                    if v.size_id and v.size_id not in seen:
+                        seen.add(v.size_id)
+                        sizes.append({'id': v.size_id, 'name': v.size.name})
+            row['has_variants'] = p.has_variants
+            row['sizes'] = sizes
+            row['has_recipe'] = Recipe.objects.filter(product=p, is_active=True).exists()
+        results.append(row)
+
+    return JsonResponse({'products': results})
+
+
+@login_required
+def api_recipe_cost(request):
+    """
+    Costing tool "Option A" (منتج له وصفة بالفعل): given a product (and, for a
+    has_variants product, an optional size), expands its active Recipe — direct
+    ingredient lines plus any sub_recipe lines' own ingredients — into one row per
+    ingredient (same expansion sales.services.preview_recipe_shortages uses), pricing
+    each ingredient's line at its current Product.cost_price per its own tracked unit.
+    """
+    from restaurant.models import Recipe
+
+    product_id = request.GET.get('product_id')
+    size_id = request.GET.get('size_id') or None
+    product = get_object_or_404(Product, pk=product_id)
+
+    recipe = Recipe.for_product(product, size_id=size_id)
+    if not recipe:
+        return JsonResponse({'found': False})
+
+    rows = {}
+    for ri in recipe.items.select_related('ingredient', 'sub_recipe').all():
+        if ri.ingredient_id:
+            ing = ri.ingredient
+            entry = rows.setdefault(ing.id, {'name': ing.name, 'unit': ing.unit_measure,
+                                              'qty': Decimal('0'), 'unit_cost': ing.cost_price})
+            entry['qty'] += ri.base_quantity
+        elif ri.sub_recipe_id:
+            for si in ri.sub_recipe.items.select_related('ingredient').all():
+                ing = si.ingredient
+                entry = rows.setdefault(ing.id, {'name': ing.name, 'unit': ing.unit_measure,
+                                                  'qty': Decimal('0'), 'unit_cost': ing.cost_price})
+                entry['qty'] += si.base_quantity * ri.quantity
+
+    rows_list = []
+    total = Decimal('0')
+    for r in rows.values():
+        line_total = r['qty'] * r['unit_cost']
+        total += line_total
+        rows_list.append({
+            'name': r['name'],
+            'qty': float(r['qty']),
+            'unit': r['unit'],
+            'unit_cost': float(r['unit_cost']),
+            'line_total': float(line_total),
+        })
+
+    return JsonResponse({'found': True, 'rows': rows_list, 'total': float(total), 'notes': recipe.notes})
+
+
+@csrf_exempt
+@login_required
+@require_POST
+def api_create_recipe_product(request):
+    """
+    Costing tool "Option B" (إنشاء وصفة جديدة من المواد الخام): creates a brand-new
+    sellable menu-item Product plus a real restaurant.Recipe/RecipeItem set from the
+    raw materials the admin picked, so it works immediately in POS/KDS with real stock
+    deduction — not just a cost estimate. Recomputes the material cost server-side from
+    each ingredient's live cost_price (never trusts the client-side total).
+    """
+    from restaurant.models import Recipe, RecipeItem, convert_quantity
+
+    try:
+        data = json.loads(request.body)
+    except (ValueError, json.JSONDecodeError):
+        return JsonResponse({'status': 'error', 'message': 'بيانات غير صالحة'}, status=400)
+
+    name = (data.get('name') or '').strip()
+    items = data.get('items') or []
+    if not name:
+        return JsonResponse({'status': 'error', 'message': 'اسم المنتج مطلوب'}, status=400)
+    if not items:
+        return JsonResponse({'status': 'error', 'message': 'أضف مكوّناً واحداً على الأقل من المواد الخام'}, status=400)
+
+    category_id = data.get('category_id') or None
+    extra_cost = _to_decimal_or_none(data.get('extra_cost')) or Decimal('0.00')
+    selling_price = _to_decimal_or_none(data.get('selling_price'))
+
+    try:
+        with db_transaction.atomic():
+            materials = []
+            material_cost = Decimal('0.00')
+            for idx, item in enumerate(items, start=1):
+                product_id = item.get('product_id')
+                qty = _to_decimal_or_none(item.get('quantity'))
+                unit = (item.get('unit') or '').strip()
+                if not product_id or qty is None or qty <= 0:
+                    raise ValueError(f'سطر {idx}: بيانات المكوّن غير مكتملة')
+                material = Product.objects.filter(id=product_id, is_raw_material=True).first()
+                if not material:
+                    raise ValueError(f'سطر {idx}: الخامة غير موجودة')
+                base_qty = convert_quantity(qty, unit, material.unit_measure)
+                material_cost += base_qty * material.cost_price
+                materials.append((material, qty, unit))
+
+            total_cost = material_cost + extra_cost
+            if selling_price is None:
+                profit_pct = _to_decimal_or_none(data.get('profit_pct')) or Decimal('0')
+                pct = profit_pct / Decimal('100')
+                selling_price = total_cost / (1 - pct) if pct < 1 else total_cost * (1 + pct)
+
+            product = Product(name=name, is_active=True, unit_measure='PCS')
+            product.sku = _next_auto_sku()
+            product.barcode = _generate_ean13_from_sku(product.sku)
+            if category_id:
+                product.category = Category.objects.filter(id=category_id).first()
+            product.cost_price = total_cost.quantize(Decimal('0.01'))
+            product.price_retail = selling_price.quantize(Decimal('0.01'))
+            product.low_stock_threshold = Decimal('0.00')
+            product.save()
+
+            recipe = Recipe.objects.create(product=product, size=None)
+            for material, qty, unit in materials:
+                RecipeItem.objects.create(recipe=recipe, ingredient=material, quantity=qty, unit=unit)
+
+    except ValueError as e:
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': f'خطأ غير متوقع: {str(e)}'}, status=500)
+
+    return JsonResponse({
+        'status': 'success',
+        'id': product.id,
+        'cost_price': float(product.cost_price),
+        'price_retail': float(product.price_retail),
+    })
 
 import json
 from .models import ProductCosting
