@@ -7,12 +7,8 @@
     
     .tab-active { border-bottom: 4px solid #0d9488; color: #0d9488; font-weight: 900; }
     
-    /* Layout Overrides for Sticky Sidebar */
-    @media (min-width: 1024px) {
-        .sticky-summary { position: sticky; top: 1.5rem; max-height: calc(100vh - 3rem); overflow-y: auto; overscroll-behavior: contain; }
-    }
-    .sticky-summary::-webkit-scrollbar { width: 6px; }
-    .sticky-summary::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 3px; }
+    /* Sidebar scrolls with the page like the rest of the content — no independent
+       sticky/internal-scroll behavior. */
 
     /* Fix Search Alignment */
     .search-container { position: relative; width: 100%; }
@@ -359,28 +355,6 @@
                         <span class="font-black text-blue-600" id="logistic-total">0.00 ج.م</span>
                     </div>
                 </div>
-
-                <!-- 4. Mode-dependent action box — kept as its own standalone card in the
-                     main column, separate from the ملخص الوحدة summary box in the sidebar. -->
-                <div class="bg-white rounded-[2.5rem] p-10 shadow-xl shadow-slate-100 border border-slate-50">
-                    <div id="action-box-existing" class="hidden">
-                        <h3 class="text-xl font-black text-slate-800 mb-6 flex items-center gap-3">
-                            <span class="w-10 h-10 bg-purple-100 text-purple-600 rounded-2xl flex items-center justify-center shadow-sm"><i class="fas fa-arrows-rotate"></i></span>
-                            4. تحديث المنتج المختار
-                        </h3>
-                        <button id="sync-btn-m" disabled onclick="openSyncModal('m')" class="w-full py-5 bg-slate-50 text-slate-300 rounded-2xl font-black transition-all">تحديث سعر التكلفة في المنتج</button>
-                    </div>
-                    <div id="action-box-new" class="hidden">
-                        <h3 class="text-xl font-black text-slate-800 mb-6 flex items-center gap-3">
-                            <span class="w-10 h-10 bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center shadow-sm"><i class="fas fa-cloud-arrow-up"></i></span>
-                            4. حفظ الصنف الجديد
-                        </h3>
-                        <button id="create-product-btn" onclick="createRecipeProduct()" class="w-full py-5 bg-emerald-600 text-white rounded-2xl font-black hover:bg-emerald-700 shadow-lg shadow-emerald-100 transition-all">
-                            <i class="fas fa-cloud-arrow-up"></i> حفظ وإنشاء المنتج بوصفته
-                        </button>
-                        <p class="text-[10px] text-slate-400 text-center mt-4 font-bold">سيتم إنشاء منتج جديد بالاسم المدخل أعلاه، مع وصفة تحضير مبنية على الخامات في الجدول، وسعر تكلفة/بيع محسوبين تلقائياً.</p>
-                    </div>
-                </div>
             </div>
 
             <!-- Sticky Summary Sidebar -->
@@ -417,6 +391,29 @@
                         <div class="p-8 bg-emerald-500 rounded-[2.5rem] text-center shadow-lg shadow-emerald-500/20 transform hover:-translate-y-1 transition-all">
                              <p class="text-slate-900/40 text-[10px] font-black uppercase mb-1 tracking-widest">سعر البيع الاستراتيجي (هامش <span id="m-profit-pct-display">30</span>%)</p>
                              <div class="text-4xl font-black text-slate-900" id="m-selling-price">0.00 ج.م</div>
+                        </div>
+                    </div>
+
+                    <!-- Mode-dependent action box — its own separate card, placed directly
+                         under ملخص الوحدة in the sidebar. -->
+                    <div class="bg-white rounded-[2.5rem] p-10 shadow-xl shadow-slate-100 border border-slate-50">
+                        <div id="action-box-existing" class="hidden">
+                            <h3 class="text-xl font-black text-slate-800 mb-6 flex items-center gap-3">
+                                <span class="w-10 h-10 bg-purple-100 text-purple-600 rounded-2xl flex items-center justify-center shadow-sm"><i class="fas fa-arrows-rotate"></i></span>
+                                4. تحديث المنتج المختار
+                            </h3>
+                            <button id="sync-btn-m" disabled onclick="openSyncModal('m', 'cost')" class="w-full py-5 bg-slate-50 text-slate-300 rounded-2xl font-black transition-all mb-4">تحديث سعر التكلفة في المنتج</button>
+                            <button id="sync-price-btn-m" disabled onclick="openSyncModal('m', 'price')" class="w-full py-5 bg-slate-50 text-slate-300 rounded-2xl font-black transition-all">تحديث سعر البيع بالسعر الاستراتيجي</button>
+                        </div>
+                        <div id="action-box-new" class="hidden">
+                            <h3 class="text-xl font-black text-slate-800 mb-6 flex items-center gap-3">
+                                <span class="w-10 h-10 bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center shadow-sm"><i class="fas fa-cloud-arrow-up"></i></span>
+                                4. حفظ الصنف الجديد
+                            </h3>
+                            <button id="create-product-btn" onclick="createRecipeProduct()" class="w-full py-5 bg-emerald-600 text-white rounded-2xl font-black hover:bg-emerald-700 shadow-lg shadow-emerald-100 transition-all">
+                                <i class="fas fa-cloud-arrow-up"></i> حفظ وإنشاء المنتج بوصفته
+                            </button>
+                            <p class="text-[10px] text-slate-400 text-center mt-4 font-bold">سيتم إنشاء منتج جديد بالاسم المدخل أعلاه، مع وصفة تحضير مبنية على الخامات في الجدول، وسعر تكلفة/بيع محسوبين تلقائياً.</p>
                         </div>
                     </div>
                 </div>
@@ -820,28 +817,62 @@
 
     function updateSyncBtnState(mode, total) {
         const btn = document.getElementById(`sync-btn-${mode}`);
-        if (selectedProduct && total > 0) { 
-            btn.disabled = false; 
-            btn.className = `w-full py-5 ${mode==='retail'?'bg-blue-600 shadow-blue-100':'bg-purple-600 shadow-purple-100'} text-white shadow-xl rounded-2xl font-black text-lg transition-all flex items-center justify-center gap-3 hover:-translate-y-1`;
+        if (selectedProduct && total > 0) {
+            btn.disabled = false;
+            btn.className = `w-full py-5 ${mode==='retail'?'bg-blue-600 shadow-blue-100':'bg-purple-600 shadow-purple-100'} text-white shadow-xl rounded-2xl font-black text-lg transition-all flex items-center justify-center gap-3 hover:-translate-y-1 mb-4`;
         }
-        else { 
-            btn.disabled = true; 
-            btn.className = "w-full py-5 bg-slate-100 text-slate-300 rounded-2xl font-black text-lg transition-all flex items-center justify-center gap-3 cursor-not-allowed";
+        else {
+            btn.disabled = true;
+            btn.className = "w-full py-5 bg-slate-100 text-slate-300 rounded-2xl font-black text-lg transition-all flex items-center justify-center gap-3 cursor-not-allowed mb-4";
+        }
+
+        const priceBtn = document.getElementById(`sync-price-btn-${mode}`);
+        if (priceBtn) {
+            if (selectedProduct && total > 0) {
+                priceBtn.disabled = false;
+                priceBtn.className = 'w-full py-5 bg-emerald-600 text-white shadow-xl shadow-emerald-100 rounded-2xl font-black text-lg transition-all flex items-center justify-center gap-3 hover:-translate-y-1';
+            } else {
+                priceBtn.disabled = true;
+                priceBtn.className = 'w-full py-5 bg-slate-100 text-slate-300 rounded-2xl font-black text-lg transition-all flex items-center justify-center gap-3 cursor-not-allowed';
+            }
         }
     }
 
-    function openSyncModal(mode) {
-        const cost = mode === 'retail' ? document.getElementById('retail-total-cost').innerText : document.getElementById('m-total-final').innerText;
-        document.getElementById('sync-modal-msg').innerHTML = `سيتم تحديث تكلفة المنتج <b>${selectedProduct.name}</b> لتصبح <b>${cost} ج.م</b> في قاعدة البيانات.`;
+    // syncField: 'cost' updates Product.cost_price from the computed cost total;
+    // 'price' updates Product.price_retail from the computed سعر البيع الاستراتيجي.
+    let syncField = 'cost';
+    function openSyncModal(mode, field = 'cost') {
+        syncField = field;
+        if (field === 'price') {
+            const price = mode === 'retail'
+                ? document.getElementById('retail-selling-price').innerText.split(' ')[0]
+                : document.getElementById('m-selling-price').innerText.split(' ')[0];
+            document.getElementById('sync-modal-msg').innerHTML = `سيتم تحديث سعر البيع لمنتج <b>${selectedProduct.name}</b> ليصبح <b>${price} ج.م</b> (السعر الاستراتيجي) في قاعدة البيانات.`;
+        } else {
+            const cost = mode === 'retail' ? document.getElementById('retail-total-cost').innerText : document.getElementById('m-total-final').innerText;
+            document.getElementById('sync-modal-msg').innerHTML = `سيتم تحديث تكلفة المنتج <b>${selectedProduct.name}</b> لتصبح <b>${cost} ج.م</b> في قاعدة البيانات.`;
+        }
         const modal = document.getElementById('sync-modal');
         modal.classList.remove('opacity-0', 'pointer-events-none');
         document.getElementById('sync-modal-box').classList.remove('scale-95');
     }
-    function closeSyncModal() { 
-        document.getElementById('sync-modal').classList.add('opacity-0', 'pointer-events-none'); 
+    function closeSyncModal() {
+        document.getElementById('sync-modal').classList.add('opacity-0', 'pointer-events-none');
         document.getElementById('sync-modal-box').classList.add('scale-95');
     }
     function confirmSync() {
+        if (syncField === 'price') {
+            const price = currentMode === 'retail'
+                ? document.getElementById('retail-selling-price').innerText.split(' ')[0]
+                : document.getElementById('m-selling-price').innerText.split(' ')[0];
+            const fd = new FormData(); fd.append('product_id', selectedProduct.id); fd.append('new_price', price);
+            fetch('/products/api/update-price/', { method: 'POST', body: fd, headers: {'X-CSRFToken': '{{ csrf_token }}'} })
+                .then(r => r.json()).then(d => {
+                    if (d.status === 'success') { alert('تم تحديث سعر البيع بنجاح!'); closeSyncModal(); }
+                    else { alert('خطأ: ' + d.message); }
+                });
+            return;
+        }
         const cost = currentMode === 'retail' ? document.getElementById('retail-total-cost').innerText : document.getElementById('m-total-final').innerText;
         const fd = new FormData(); fd.append('product_id', selectedProduct.id); fd.append('new_cost', cost);
         fetch('/products/api/products/update-cost/', { method: 'POST', body: fd, headers: {'X-CSRFToken': '{{ csrf_token }}'} })
