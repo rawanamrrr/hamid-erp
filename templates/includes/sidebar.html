@@ -253,11 +253,10 @@ html.fav-only-mode #topnav-items > *:not(.fav-show) { display: none; }
                 {% with vn=request.resolver_match.view_name %}
                 <button type="button" class="tnav-link {% if 'restaurant:' in vn %}active{% endif %}" onclick="toggleDd('dd-restaurant')">
                     <i class="fas fa-mug-saucer text-xs"></i>
-                    <span>الجرد والودائع</span>
+                    <span>الجرد والتقارير</span>
                     <i class="fas fa-chevron-down text-[9px] opacity-50"></i>
                 </button>
                 <div class="tnav-dropdown-menu" style="min-width:200px">
-                    <a href="{% url 'restaurant:custody_list' %}" class="tnav-sub {% if vn == 'restaurant:custody_list' %}active{% endif %}"><i class="fas fa-hand-holding-dollar text-red-400 w-4"></i> الودائع (وديعة)</a>
                     <a href="{% url 'restaurant:reconciliation_report' %}" class="tnav-sub {% if vn == 'restaurant:reconciliation_report' %}active{% endif %}"><i class="fas fa-scale-balanced text-emerald-400 w-4"></i> تقرير الجرد اليومي</a>
                     <a href="{% url 'restaurant:waiter_sales_report' %}" class="tnav-sub {% if vn == 'restaurant:waiter_sales_report' %}active{% endif %}"><i class="fas fa-chart-column text-slate-400 w-4"></i> ريبورت مبيعات الويترز</a>
                     <a href="{% url 'restaurant:driver_owed_report' %}" class="tnav-sub {% if vn == 'restaurant:driver_owed_report' %}active{% endif %}"><i class="fas fa-clipboard-list text-slate-400 w-4"></i> ريبورت مديونية الطيارين</a>

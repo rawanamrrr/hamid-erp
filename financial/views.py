@@ -994,7 +994,12 @@ def salary_list(request):
         )
         sal.pending_advance = pending
         sal.net_after_advance = max(Decimal('0.00'), sal.net_salary - pending)
-    accounts = _exclude_dead_coded_accounts(Account.objects.filter(is_active=True)).order_by('name')
+    # Only real payment sources — a salary is paid out of cash/instapay/vodafone cash,
+    # never out of a bookkeeping category (إيرادات/أصول/خصوم...) which just confused the
+    # user with a dozen 0.00 options that aren't places money can actually come from.
+    accounts = _exclude_dead_coded_accounts(
+        Account.objects.filter(is_active=True, account_type__in=['CASH_DRAWER', 'INSTAPAY', 'VODAFONE_CASH'])
+    ).order_by('name')
     return render(request, 'financial/salary_list.html', {'salaries': salaries, 'accounts': accounts})
 
 
