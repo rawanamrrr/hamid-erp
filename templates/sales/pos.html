@@ -2989,11 +2989,19 @@
 
             const totalStripsAfterAdd = stripsInCart + stripsNeeded;
 
+            // Made-to-order items (has a recipe) are prepared on demand from their
+            // ingredients — they're never stocked as a finished good, so their own
+            // stock count is irrelevant and must never block adding to cart. Ingredient
+            // availability is a separate, non-blocking warning (see checkRecipeStockThenAdd).
+            const isRecipeItem = RECIPE_PRODUCT_IDS.has(String(id));
+
             // Layer 2: 'sales.allow_negative_stock' / 'inventory.block_sale_when_out_of_stock'
             const isOutOfStock = totalStripsAvailable <= 0;
             const isInsufficient = totalStripsAfterAdd > totalStripsAvailable;
-            const blocked = (isOutOfStock && POS_POLICIES.blockWhenOutOfStock)
-                || (isInsufficient && !POS_POLICIES.negativeStockAllowed);
+            const blocked = !isRecipeItem && (
+                (isOutOfStock && POS_POLICIES.blockWhenOutOfStock)
+                || (isInsufficient && !POS_POLICIES.negativeStockAllowed)
+            );
 
             // Check if we have enough stock
             if (blocked) {
@@ -3310,10 +3318,14 @@
         }
 
         function validateStockForProduct(id, newQuantity, unit) {
+            // Made-to-order items are never stocked as a finished good — see the
+            // matching note in _doProceedToAddToCart.
+            if (RECIPE_PRODUCT_IDS.has(String(id))) return true;
+
             // Get product dataset
             const card = document.querySelector(`.product-card[data-id="${id}"]`);
             if (!card) return true; // If no card, skip validation (edge case)
-            
+
             const dataset = card.dataset;
             const stripsPerBox = parseInt(dataset.stripsPerBox) || 1;
             const totalStripsAvailable = parseInt(dataset.totalStrips) || 0;
@@ -4263,6 +4275,8 @@
             let hasStockError = false;
             for (let i = 0; i < cart.length; i++) {
                 const item = cart[i];
+                if (RECIPE_PRODUCT_IDS.has(String(item.id))) continue; // made-to-order — see note above
+
                 const card = document.querySelector(`.product-card[data-id="${item.id}"]`);
                 if (!card) continue;
 

@@ -1009,9 +1009,20 @@ def submit_order_ajax(request):
                 from .models import reserved_quantities
                 _reserved = reserved_quantities(warehouse.id, exclude_reservation_id=reservation_id)
                 _neg_ok = _policy('sales.allow_negative_stock') or (profile and profile.allows_below_zero_stock())
+                _recipe_ids = set(_recipe_product_ids())
                 for item in cart_items:
                     prod_id = item.get('id') or item.get('product_id')
                     product = Product.objects.get(id=prod_id)
+
+                    # Made-to-order items (has an active Recipe) are prepared on demand from
+                    # their ingredients — they're never stocked as a finished good themselves,
+                    # so their own stock_quantity/ProductVariant.stock_quantity is always ~0
+                    # and irrelevant here. Their real availability constraint is ingredient
+                    # stock, already surfaced (non-blocking) by preview_recipe_shortages at
+                    # add-to-cart time — see sales.views.api_check_recipe_stock.
+                    if product.id in _recipe_ids:
+                        continue
+
                     qty = Decimal(str(item.get('quantity') or item.get('qty', 1)))
                     sell_unit = item.get('sell_unit', 'box')
                     strips_per_box = item.get('strips_per_box') or product.strips_per_box or 1
