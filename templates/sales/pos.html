@@ -5,6 +5,20 @@
 
 {% block title %}{{ title }}{% endblock %}
 
+{% block extra_head %}
+<style>
+    /* A visible, grabbable scrollbar for the checkout column — it was previously
+       scrollable (overflow-y-auto) but with .no-scrollbar hiding the scrollbar itself,
+       so there was no visual/draggable affordance telling the cashier more content
+       (quick-cash buttons, دفع وطباعة...) was reachable below the fold. */
+    .checkout-scrollbar { scrollbar-width: thin; scrollbar-color: #cbd5e1 transparent; }
+    .checkout-scrollbar::-webkit-scrollbar { width: 8px; }
+    .checkout-scrollbar::-webkit-scrollbar-track { background: transparent; }
+    .checkout-scrollbar::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 999px; }
+    .checkout-scrollbar::-webkit-scrollbar-thumb:hover { background-color: #94a3b8; }
+</style>
+{% endblock %}
+
 {% block content %}
 <!-- Layout change: -mt-6 cancels the sitewide <main> top padding (base.html, p-6 = 24px) so only this page sits flush under the header.
      Height on desktop (xl+) is no longer a hardcoded calc() guess — a small script below measures the real remaining
@@ -609,7 +623,7 @@
             <!-- Layout change: was "flex-1 flex flex-col ... gap-2" which relied on flex-grow + a later "mt-auto" on the settlement section to pin it to the bottom.
                  That combination could leave a large unpredictable blank gap above the payment section when the column was taller than its content.
                  Replaced with a plain block-flow scroll container (space-y-3) so every card just stacks in natural order with no fragile flex math. -->
-            <div class="flex-1 xl:overflow-y-auto overflow-x-hidden no-scrollbar p-2.5 space-y-3" style="scrollbar-width: none;">
+            <div class="flex-1 xl:overflow-y-auto overflow-x-hidden checkout-scrollbar p-2.5 space-y-3">
 
                 <!-- Invoice summary group label -->
                 <div class="text-[10px] font-black text-slate-400 uppercase tracking-wider px-1">ملخص الفاتورة</div>

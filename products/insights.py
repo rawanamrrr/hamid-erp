@@ -24,7 +24,11 @@ def inventory_insights(window_days=90, dead_days=60, lead_days=14):
 
     rows, dead = [], []
     window = Decimal(str(window_days))
-    for p in Product.objects.filter(is_active=True):
+    # Raw materials (ingredients) are never sold directly — they're consumed via
+    # recipes, so their own "sell rate/dead stock" numbers are meaningless here; this
+    # report is about menu/sellable items only (see products.views.get_filtered_products
+    # for the same is_raw_material=False split used everywhere else in this app).
+    for p in Product.objects.filter(is_active=True, is_raw_material=False):
         stock = p.stock_quantity or Decimal('0')
         rec = sold_map.get(p.id)
         sold = Decimal(str(rec['sold'])) if rec else Decimal('0')

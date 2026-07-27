@@ -545,14 +545,18 @@ def _generate_ean13_from_sku(sku):
 
 
 def _next_auto_sku():
-    """Mirror the next-SKU logic from product_create."""
-    last_product = Product.objects.order_by('id').last()
-    candidate = "10001"
-    if last_product and last_product.sku and last_product.sku.isdigit():
-        try:
-            candidate = str(int(last_product.sku) + 1)
-        except ValueError:
-            pass
+    """Next unused all-digits SKU — one past the highest EXISTING numeric SKU (not
+    just the most-recently-created row's SKU, which can be lower than an older row's
+    if products were ever imported/created out of numeric order, e.g. via Excel import
+    or a deleted-and-recreated row). Falls back to 10001 if there are no digit-only
+    SKUs yet, then skips forward past any already-taken value just in case."""
+    from django.db.models import Max, IntegerField
+    from django.db.models.functions import Cast
+
+    max_sku = Product.objects.filter(sku__regex=r'^\d+$').annotate(
+        sku_int=Cast('sku', IntegerField())
+    ).aggregate(m=Max('sku_int'))['m']
+    candidate = str((max_sku or 10000) + 1)
     while Product.objects.filter(sku=candidate).exists():
         try:
             candidate = str(int(candidate) + 1)
@@ -2301,14 +2305,9 @@ def bulk_product_add_view(request):
     warehouses = Warehouse.objects.filter(is_active=True)
     sys_settings = SystemSetting.objects.first()
     
-    # Calculate suggested start SKU
-    last_product = Product.objects.order_by('id').last()
-    start_sku = "10001"
-    if last_product and last_product.sku and last_product.sku.isdigit():
-        try:
-            start_sku = str(int(last_product.sku) + 1)
-        except ValueError:
-            pass
+    # Suggested start SKU — one past the highest existing numeric SKU, guaranteed
+    # unused (see _next_auto_sku).
+    start_sku = _next_auto_sku()
 
     context = {
         'categories': categories,
@@ -2344,6 +2343,7 @@ def _compress_uploaded_image_to_base64(uploaded_file, max_width=1280, quality=70
 @require_POST
 def bulk_product_save_ajax(request):
     """API Endpoint to save a single product from the bulk table"""
+    from .models import ProductVariant
     try:
         data = request.POST.dict() if request.POST else json.loads(request.body)
         
@@ -2423,8 +2423,28 @@ def bulk_product_save_ajax(request):
             
         product.save()
 
-        # 3.1 Handle sizes many-to-many
-        if sizes_selected:
+        # 3.1 Per-size pricing (each selected size gets its OWN full price, not a
+        # قطاعي/نص جملة/جملة split) — same ProductVariant(color='') mechanism the
+        # single-product form and POS/waiter "اختر المقاس" already use. `size_id` and
+        # `size_price` arrive as parallel repeated fields, one pair per size chip the
+        # cashier picked for this row (see renderSizePriceInputs in the template).
+        row_size_ids = request.POST.getlist('size_id')
+        row_size_prices = request.POST.getlist('size_price')
+        variant_prices = []
+        for sid, sprice in zip(row_size_ids, row_size_prices):
+            if not sid or not sid.isdigit():
+                continue
+            price_val = to_decimal(sprice, 0)
+            ProductVariant.objects.create(product=product, size_id=int(sid), color='', price_override=price_val)
+            variant_prices.append(price_val)
+
+        if variant_prices:
+            product.has_variants = True
+            product.price_retail = min(variant_prices)
+            product.save(update_fields=['has_variants', 'price_retail'])
+        elif sizes_selected:
+            # Legacy path: a plain size tag with no per-size price (shouldn't happen
+            # from this page anymore, but tolerate it rather than dropping the data).
             size_ids = [int(x) for x in sizes_selected.split(',') if x.strip().isdigit()]
             if size_ids:
                 product.sizes.set(size_ids)
@@ -2468,11 +2488,26 @@ def bulk_product_save_ajax(request):
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)})
 
+def _post_or_json(request):
+    """The bulk-add page's quick-add modals all POST a JSON body (fetch with
+    Content-Type: application/json) — request.POST is only populated for
+    form-urlencoded/multipart bodies, so reading request.POST.get(...) against a JSON
+    body silently returns nothing, always failing the "name required" check no matter
+    what the user typed. Mirrors quick_create_unit_ajax's already-correct handling."""
+    if request.content_type == 'application/json':
+        try:
+            return json.loads(request.body or '{}')
+        except (ValueError, json.JSONDecodeError):
+            return {}
+    return request.POST
+
+
 @login_required
 @require_permission('products', 'create')
 @require_POST
 def bulk_quick_add_category_api(request):
-    name = (request.POST.get('name') or '').strip()
+    data = _post_or_json(request)
+    name = (data.get('name') or '').strip()
     if not name:
         return JsonResponse({'success': False, 'error': 'اسم القسم مطلوب'})
     obj, created = Category.objects.get_or_create(name=name, defaults={'is_active': True})
@@ -2482,8 +2517,9 @@ def bulk_quick_add_category_api(request):
 @require_permission('products', 'create')
 @require_POST
 def bulk_quick_add_kind_api(request):
-    name = (request.POST.get('name') or '').strip()
-    category_id = request.POST.get('category_id')
+    data = _post_or_json(request)
+    name = (data.get('name') or '').strip()
+    category_id = data.get('category_id')
     if not name or not category_id:
         return JsonResponse({'success': False, 'error': 'اسم النوع والقسم مطلوبان'})
     try:
@@ -2500,9 +2536,10 @@ def bulk_quick_add_kind_api(request):
 @require_permission('products', 'create')
 @require_POST
 def bulk_quick_add_size_api(request):
-    name = (request.POST.get('name') or '').strip()
-    size_type = (request.POST.get('size_type') or 'custom').strip()
-    sort_order = request.POST.get('sort_order')
+    data = _post_or_json(request)
+    name = (data.get('name') or '').strip()
+    size_type = (data.get('size_type') or 'custom').strip()
+    sort_order = data.get('sort_order')
     if not name:
         return JsonResponse({'success': False, 'error': 'اسم المقاس مطلوب'})
     try:
@@ -4947,21 +4984,10 @@ def api_quick_create_product(request):
             return JsonResponse({'status': 'error', 'message': 'اسم المنتج والسعر القطاعي مطلوبان'}, status=400)
 
         with db_transaction.atomic():
-            # Generate SKU if not provided
+            # Generate SKU if not provided — see _next_sku's docstring for why this
+            # can't just be "last created row's SKU + 1".
             if not sku:
-                last_product = Product.objects.order_by('id').last()
-                next_sku = "10001"
-                if last_product and last_product.sku and last_product.sku.isdigit():
-                    try:
-                        next_sku = str(int(last_product.sku) + 1)
-                    except ValueError:
-                        pass
-                sku = next_sku
-                while Product.objects.filter(sku=sku).exists():
-                    try:
-                        sku = str(int(sku) + 1)
-                    except ValueError:
-                        break
+                sku = _next_sku()
 
             # Generate barcode from SKU
             digits = ''.join(filter(str.isdigit, sku)).zfill(12)[-12:]

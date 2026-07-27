@@ -254,11 +254,6 @@
 
     <div class="no-print">
         <h2 style="margin-top:0;">لوحات عرض المنتجات (A4 - أفقي)</h2>
-        <div id="localhost-warning" class="alert-box">
-            ⚠️ <b>انتبه:</b> أنت تفتح النظام حالياً باستخدام (localhost). <br>
-            الكاميرا الخاصة بالموبايل لن تستطيع قراءة الكود بهذه الطريقة!<br>
-            <b>يرجى الدخول للنظام باستخدام الـ IP الخاص بجهازك (مثال: 192.168.1.16:8000) قبل الطباعة.</b>
-        </div>
         <button class="btn" onclick="window.print()">🖨️ طباعة اللوحات</button>
         <button class="btn" style="background:#dc2626;" onclick="window.close(); setTimeout(function(){ if (window.history.length > 1) window.history.back(); }, 50)">إلغاء</button>
     </div>
@@ -297,10 +292,12 @@
                 </div>
 
                 <div class="footer-section">
+                    {% if mp.key != 'cafe' %}
                     <div class="specs">
                         <span>الخامة واللون:</span>
                         {% if p.material %}{{ p.material }}{% else %}غير محدد{% endif %} - {% if p.color %}{{ p.color }}{% else %}-{% endif %}
                     </div>
+                    {% endif %}
                     <div class="barcode-area">
                         <svg class="footer-barcode" jsbarcode-value="{{ p.sku }}"></svg>
                     </div>
@@ -328,10 +325,6 @@
     {% endfor %}
 
     <script>
-        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-            document.getElementById('localhost-warning').style.display = 'block';
-        }
-
         document.querySelectorAll('.qr-code').forEach(el => {
             const url = el.getAttribute('data-url');
             new QRCode(el, {

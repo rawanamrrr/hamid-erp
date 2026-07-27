@@ -38,7 +38,9 @@
                     <label class="flex items-center gap-2 cursor-pointer select-none"><input type="checkbox" checked onchange="toggleColumn('kind', this.checked)" class="rounded text-indigo-600 w-3.5 h-3.5"><span class="text-xs font-bold text-gray-600">النوع</span></label>
                     <label class="flex items-center gap-2 cursor-pointer select-none"><input type="checkbox" checked onchange="toggleColumn('supplier', this.checked)" class="rounded text-indigo-600 w-3.5 h-3.5"><span class="text-xs font-bold text-gray-600">المورد</span></label>
                     <label class="flex items-center gap-2 cursor-pointer select-none"><input type="checkbox" checked onchange="toggleColumn('sizes', this.checked)" class="rounded text-indigo-600 w-3.5 h-3.5"><span class="text-xs font-bold text-gray-600">المقاسات</span></label>
+                    {% if sys_settings.market_type != 'cafe' %}
                     <label class="flex items-center gap-2 cursor-pointer select-none"><input type="checkbox" checked onchange="toggleColumn('specs', this.checked)" class="rounded text-indigo-600 w-3.5 h-3.5"><span class="text-xs font-bold text-gray-600">الخامة/النقشة/اللون</span></label>
+                    {% endif %}
                     <label class="flex items-center gap-2 cursor-pointer select-none"><input type="checkbox" checked onchange="toggleColumn('cost', this.checked)" class="rounded text-indigo-600 w-3.5 h-3.5"><span class="text-xs font-bold text-gray-600">التكلفة</span></label>
                     <label class="flex items-center gap-2 cursor-pointer select-none"><input type="checkbox" checked onchange="toggleColumn('quantity', this.checked)" class="rounded text-indigo-600 w-3.5 h-3.5"><span class="text-xs font-bold text-gray-600">الكمية</span></label>
                     <label class="flex items-center gap-2 cursor-pointer select-none"><input type="checkbox" checked onchange="toggleColumn('unit', this.checked)" class="rounded text-indigo-600 w-3.5 h-3.5"><span class="text-xs font-bold text-gray-600">الوحدة</span></label>
@@ -101,7 +103,9 @@
                         <th scope="col" class="col-kind px-2 py-2 text-xs font-semibold text-gray-900 w-32">النوع</th>
                         <th scope="col" class="col-supplier px-2 py-2 text-xs font-semibold text-gray-900 w-32">المورد</th>
                         <th scope="col" class="col-sizes px-2 py-2 text-xs font-semibold text-gray-900 w-32">المقاسات</th>
+                        {% if sys_settings.market_type != 'cafe' %}
                         <th scope="col" class="col-specs px-2 py-2 text-xs font-semibold text-gray-900 w-24">الخامة/النقشة/اللون</th>
+                        {% endif %}
                         <th scope="col" class="col-cost px-2 py-2 text-xs font-semibold text-gray-900 w-24">التكلفة</th>
                         <th scope="col" class="px-2 py-2 text-xs font-semibold text-gray-900 w-32">سعر البيع</th>
                         <th scope="col" class="col-quantity px-2 py-2 text-xs font-semibold text-gray-900 w-20">الكمية</th>
@@ -169,12 +173,11 @@
         <h3 class="text-lg font-bold text-gray-800 mb-4">إضافة مقاس جديد</h3>
         <div class="grid grid-cols-2 gap-3">
             <input id="quickSizeName" type="text" class="rounded-md border-gray-300 col-span-2" placeholder="اسم المقاس">
-            <select id="quickSizeType" class="rounded-md border-gray-300">
+            <select id="quickSizeType" class="rounded-md border-gray-300 col-span-2">
                 <option value="alpha">حروف</option>
                 <option value="numeric">أرقام</option>
                 <option value="custom" selected>مخصص</option>
             </select>
-            <input id="quickSizeSort" type="number" min="0" value="0" class="rounded-md border-gray-300" placeholder="الترتيب">
         </div>
         <div class="mt-4 flex justify-end gap-2">
             <button type="button" onclick="closeQuickModals()" class="px-4 py-2 rounded-md border">إلغاء</button>
@@ -287,6 +290,27 @@
         const wrap = btn.closest('.size-chips-wrap');
         const selectedIds = Array.from(wrap.querySelectorAll('.size-chip.bg-teal-600')).map(b => b.dataset.sizeId);
         row.querySelector('.sizes-selected-input').value = selectedIds.join(',');
+        renderSizePriceInputs(row);
+    }
+
+    // Each selected size gets its OWN full price (not a قطاعي/نص جملة/جملة split) —
+    // one price input per currently-selected size chip in this row, falling back to a
+    // single plain "سعر البيع" field when the row has no sizes selected at all.
+    function renderSizePriceInputs(row) {
+        const priceCell = row.querySelector('.col-sale-price');
+        if (!priceCell) return;
+        const selectedChips = Array.from(row.querySelectorAll('.size-chip.bg-teal-600'));
+        if (!selectedChips.length) {
+            priceCell.innerHTML = `<input type="number" name="price_retail" step="0.01" class="block w-full rounded-md border-0 py-1 px-2 text-gray-900 ring-1 ring-inset ring-gray-300 sm:text-sm" placeholder="سعر البيع">`;
+            return;
+        }
+        priceCell.innerHTML = selectedChips.map(chip => `
+            <div class="flex items-center gap-1 mb-1 last:mb-0">
+                <input type="hidden" name="size_id" value="${chip.dataset.sizeId}">
+                <span class="text-[10px] font-bold text-gray-500 w-12 truncate shrink-0">${chip.textContent}</span>
+                <input type="number" name="size_price" step="0.01" class="block w-full rounded-md border-0 py-1 px-2 text-gray-900 ring-1 ring-inset ring-gray-300 text-xs" placeholder="السعر">
+            </div>
+        `).join('');
     }
 
     function addRows(count) {
@@ -328,6 +352,7 @@
                 <td class="col-sizes whitespace-nowrap px-2 py-2 text-sm text-gray-500 w-40">
                     ${sizeChipsHtml(rowCount)}
                 </td>
+                {% if sys_settings.market_type != 'cafe' %}
                 <td class="col-specs whitespace-nowrap px-2 py-2 text-sm text-gray-500">
                     <div class="flex flex-col gap-1">
                         {% if sys_settings.market_type == 'pharmacy' %}
@@ -366,20 +391,10 @@
                         {% endif %}
                     </div>
                 </td>
+                {% endif %}
                 <td class="col-cost whitespace-nowrap px-2 py-2 text-sm text-gray-500"><input type="number" name="cost_price" step="0.01" class="block w-full rounded-md border-0 py-1 px-2 text-gray-900 ring-1 ring-inset ring-gray-300 sm:text-sm" placeholder="0.00"></td>
-                <td class="whitespace-nowrap px-2 py-2 text-sm text-gray-500 w-32">
-                    <div class="flex flex-col gap-1 w-full">
-                        <div class="flex rounded-md shadow-sm w-full" role="group">
-                            <button type="button" onclick="switchPriceTab(this, 'retail')" class="price-tab-btn w-1/3 px-1 py-0.5 text-[10px] font-medium text-white bg-teal-600 border border-teal-600 rounded-r-md transition-colors">قطاعي</button>
-                            <button type="button" onclick="switchPriceTab(this, 'semi')" class="price-tab-btn w-1/3 px-1 py-0.5 text-[10px] font-medium text-teal-700 bg-white border-y border-teal-600 transition-colors">نص</button>
-                            <button type="button" onclick="switchPriceTab(this, 'whole')" class="price-tab-btn w-1/3 px-1 py-0.5 text-[10px] font-medium text-teal-700 bg-white border border-teal-600 rounded-l-md transition-colors">جملة</button>
-                        </div>
-                        <div class="relative w-full">
-                            <input type="number" name="price_retail" step="0.01" class="price-input price-retail block w-full rounded-md border-0 py-1 px-2 text-gray-900 ring-1 ring-inset ring-gray-300 sm:text-sm" placeholder="قطاعي">
-                            <input type="number" name="price_semi_wholesale" step="0.01" class="price-input price-semi hidden block w-full rounded-md border-0 py-1 px-2 text-gray-900 ring-1 ring-inset ring-gray-300 sm:text-sm" placeholder="نص جملة">
-                            <input type="number" name="price_wholesale" step="0.01" class="price-input price-wholesale hidden block w-full rounded-md border-0 py-1 px-2 text-gray-900 ring-1 ring-inset ring-gray-300 sm:text-sm" placeholder="جملة">
-                        </div>
-                    </div>
+                <td class="col-sale-price whitespace-nowrap px-2 py-2 text-sm text-gray-500 w-32">
+                    <input type="number" name="price_retail" step="0.01" class="block w-full rounded-md border-0 py-1 px-2 text-gray-900 ring-1 ring-inset ring-gray-300 sm:text-sm" placeholder="سعر البيع">
                 </td>
                 <td class="col-quantity whitespace-nowrap px-2 py-2 text-sm text-gray-500"><input type="number" name="quantity" step="1" value="0" class="block w-full rounded-md border-0 py-1 px-2 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 sm:text-sm text-center"></td>
                 <td class="col-unit whitespace-nowrap px-2 py-2 text-sm text-gray-500">
@@ -423,21 +438,6 @@
             }
         }
         COLUMN_KEYS.forEach(c => applyColumnVisibility(c, columnVisibility[c]));
-    }
-
-    function switchPriceTab(btn, type) {
-        const container = btn.closest('div.w-full').parentElement;
-        container.querySelectorAll('.price-tab-btn').forEach(b => {
-            b.classList.remove('bg-teal-600', 'text-white');
-            b.classList.add('bg-white', 'text-teal-700');
-        });
-        btn.classList.remove('bg-white', 'text-teal-700');
-        btn.classList.add('bg-teal-600', 'text-white');
-        
-        container.querySelectorAll('.price-input').forEach(inp => inp.classList.add('hidden'));
-        if (type === 'retail') container.querySelector('.price-retail').classList.remove('hidden');
-        if (type === 'semi') container.querySelector('.price-semi').classList.remove('hidden');
-        if (type === 'whole') container.querySelector('.price-wholesale').classList.remove('hidden');
     }
 
     function deleteRow(rowId) {
@@ -803,14 +803,13 @@
     async function submitQuickSize() {
         const name = document.getElementById('quickSizeName').value.trim();
         const size_type = document.getElementById('quickSizeType').value;
-        const sort_order = document.getElementById('quickSizeSort').value;
         if (!name) return alert('أدخل الاسم');
 
         try {
             const res = await fetch('/products/api/products/bulk/quick-add/size/', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
-                body: JSON.stringify({ name, size_type, sort_order })
+                body: JSON.stringify({ name, size_type })
             });
             const data = await res.json();
             if (data.success) {
