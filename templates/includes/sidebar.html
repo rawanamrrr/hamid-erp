@@ -251,7 +251,7 @@ html.fav-only-mode #topnav-items > *:not(.fav-show) { display: none; }
             <!-- الجرد والودائع dropdown -->
             <div class="tnav-dropdown" id="dd-restaurant">
                 {% with vn=request.resolver_match.view_name %}
-                <button type="button" class="tnav-link {% if 'restaurant:' in vn %}active{% endif %}" onclick="toggleDd('dd-restaurant')">
+                <button type="button" class="tnav-link {% if vn == 'restaurant:reconciliation_report' or vn == 'restaurant:waiter_sales_report' or vn == 'restaurant:driver_owed_report' or vn == 'restaurant:category_sales_report' or vn == 'restaurant:product_sales_report' or vn == 'restaurant:raw_material_usage_report' or vn == 'restaurant:setup' %}active{% endif %}" onclick="toggleDd('dd-restaurant')">
                     <i class="fas fa-mug-saucer text-xs"></i>
                     <span>الجرد والتقارير</span>
                     <i class="fas fa-chevron-down text-[9px] opacity-50"></i>
@@ -414,7 +414,7 @@ html.fav-only-mode #topnav-items > *:not(.fav-show) { display: none; }
             <!-- إدارة الأصناف dropdown -->
             <div class="tnav-dropdown" id="dd-products">
                 {% with vn=request.resolver_match.view_name %}
-                <button type="button" class="tnav-link {% if vn == 'product_list' or vn == 'product_create' or vn == 'bulk_product_add' or vn == 'import_products_excel' or vn == 'low_stock_report' or vn == 'costing_view' or vn == 'category_list' or vn == 'kind_list' or vn == 'unit_list' %}active{% endif %}" onclick="toggleDd('dd-products')">
+                <button type="button" class="tnav-link {% if vn == 'product_list' or vn == 'product_create' or vn == 'bulk_product_add' or vn == 'import_products_excel' or vn == 'low_stock_report' or vn == 'costing_view' or vn == 'category_list' or vn == 'kind_list' or vn == 'unit_list' or vn == 'size_list' or vn == 'restaurant:modifier_group_list' or vn == 'restaurant:menu_recipe_list' or vn == 'restaurant:recipe_edit' or vn == 'restaurant:subrecipe_list' or vn == 'restaurant:subrecipe_edit' or vn == 'restaurant:subrecipe_create' %}active{% endif %}" onclick="toggleDd('dd-products')">
                     <i class="fas fa-barcode text-xs"></i>
                     <span>إدارة المنيو</span>
                     <i class="fas fa-chevron-down text-[9px] opacity-50"></i>

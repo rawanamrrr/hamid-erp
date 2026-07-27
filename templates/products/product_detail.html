@@ -464,8 +464,11 @@
         </div>
     </div>
 
+    {% if mp.show.wholesale_price %}
     <!-- ====================================== -->
     <!-- Quantity-break pricing (Phase 6.6)     -->
+    <!-- Hidden for markets with no wholesale tier (e.g. cafe) — quantity-tiered pricing
+         only makes sense where a قطاعي/نص جملة/جملة split exists in the first place. -->
     <!-- ====================================== -->
     <div class="mt-8 bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
         <div class="p-5 border-b border-gray-100">
@@ -500,6 +503,7 @@
             </form>
         </div>
     </div>
+    {% endif %}
 
     <!-- ====================================== -->
     <!-- Product Sales History Table            -->
