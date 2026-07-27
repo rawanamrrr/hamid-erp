@@ -2989,11 +2989,13 @@
 
             const totalStripsAfterAdd = stripsInCart + stripsNeeded;
 
-            // Made-to-order items (has a recipe) are prepared on demand from their
-            // ingredients — they're never stocked as a finished good, so their own
-            // stock count is irrelevant and must never block adding to cart. Ingredient
-            // availability is a separate, non-blocking warning (see checkRecipeStockThenAdd).
-            const isRecipeItem = RECIPE_PRODUCT_IDS.has(String(id));
+            // Made-to-order items are prepared on demand — they're never stocked as a
+            // finished good, so their own stock count is irrelevant and must never block
+            // adding to cart. This covers any menu-category item (data-track-stock=0,
+            // same flag that already keeps these off the "منتهي" list — see cardHasStock)
+            // as well as items with an active Recipe specifically; ingredient availability
+            // is a separate, non-blocking warning (see checkRecipeStockThenAdd).
+            const isRecipeItem = dataset.trackStock === '0' || RECIPE_PRODUCT_IDS.has(String(id));
 
             // Layer 2: 'sales.allow_negative_stock' / 'inventory.block_sale_when_out_of_stock'
             const isOutOfStock = totalStripsAvailable <= 0;
@@ -3318,13 +3320,13 @@
         }
 
         function validateStockForProduct(id, newQuantity, unit) {
-            // Made-to-order items are never stocked as a finished good — see the
-            // matching note in _doProceedToAddToCart.
-            if (RECIPE_PRODUCT_IDS.has(String(id))) return true;
-
             // Get product dataset
             const card = document.querySelector(`.product-card[data-id="${id}"]`);
             if (!card) return true; // If no card, skip validation (edge case)
+
+            // Made-to-order items are never stocked as a finished good — see the
+            // matching note in _doProceedToAddToCart.
+            if (card.dataset.trackStock === '0' || RECIPE_PRODUCT_IDS.has(String(id))) return true;
 
             const dataset = card.dataset;
             const stripsPerBox = parseInt(dataset.stripsPerBox) || 1;
@@ -4275,10 +4277,9 @@
             let hasStockError = false;
             for (let i = 0; i < cart.length; i++) {
                 const item = cart[i];
-                if (RECIPE_PRODUCT_IDS.has(String(item.id))) continue; // made-to-order — see note above
-
                 const card = document.querySelector(`.product-card[data-id="${item.id}"]`);
                 if (!card) continue;
+                if (card.dataset.trackStock === '0' || RECIPE_PRODUCT_IDS.has(String(item.id))) continue; // made-to-order — see note above
 
                 const dataset = card.dataset;
                 const stripsPerBox = parseInt(dataset.stripsPerBox) || 1;

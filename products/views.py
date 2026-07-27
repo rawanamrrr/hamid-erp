@@ -112,7 +112,7 @@ def notify_price_changes(request, changes, price_type_label="أسعار المن
 def get_filtered_products(request):
     # Raw materials have their own dedicated screen (raw_material_list) — they're
     # ingredients, not sellable products, so they don't belong mixed into this list.
-    queryset = Product.objects.filter(is_raw_material=False).order_by('-created_at')
+    queryset = Product.objects.filter(is_raw_material=False).select_related('category').prefetch_related('variants__size').order_by('-created_at')
 
     search_query = request.GET.get('search', '')
     barcode_search = request.GET.get('barcode_search', '')
@@ -846,7 +846,17 @@ def import_products_excel(request):
 
                 cat_name = _cell(row, header_map, 'category')
                 if cat_name:
-                    product.category, _c = Category.objects.get_or_create(name=cat_name)
+                    # A brand-new category defaults to is_menu_category=True — matching
+                    # every other product-creation path in this cafe ERP (see the
+                    # Product.save() fallback and product_create's own category picker):
+                    # a category is made-to-order/not-stock-tracked unless someone
+                    # explicitly turns that off in Settings afterward. Without this, an
+                    # imported item would sit at 0 stock_quantity forever (recipe items
+                    # are never "in stock" — they're prepared per order) and show up as
+                    # "منتهي"/hidden everywhere the stock-tracked assumption applies.
+                    product.category, _c = Category.objects.get_or_create(
+                        name=cat_name, defaults={'is_menu_category': True, 'is_active': True}
+                    )
                 elif 'category' in header_map:
                     product.category = None
 
@@ -3467,6 +3477,16 @@ def quick_update_product_ajax(request):
             elif field == 'is_active':
                 product.is_active = value in (True, 'true', '1', 1)
                 product.save(update_fields=['is_active', 'updated_at'])
+            elif field == 'variant_price':
+                # Quick-edit for a has_variants product's per-size price — value comes as
+                # "<variant_id>:<price>" since each size needs its own field on the row.
+                from .models import ProductVariant
+                variant_id, _, price_str = str(value).partition(':')
+                variant = ProductVariant.objects.filter(id=variant_id, product=product).first()
+                if not variant:
+                    return JsonResponse({'status': 'error', 'message': 'الحجم غير موجود'}, status=404)
+                variant.price_override = Decimal(str(price_str))
+                variant.save(update_fields=['price_override'])
             else:
                 return JsonResponse({'status': 'error', 'message': 'Invalid field'}, status=400)
                 

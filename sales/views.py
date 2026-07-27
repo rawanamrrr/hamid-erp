@@ -1014,13 +1014,14 @@ def submit_order_ajax(request):
                     prod_id = item.get('id') or item.get('product_id')
                     product = Product.objects.get(id=prod_id)
 
-                    # Made-to-order items (has an active Recipe) are prepared on demand from
-                    # their ingredients — they're never stocked as a finished good themselves,
-                    # so their own stock_quantity/ProductVariant.stock_quantity is always ~0
-                    # and irrelevant here. Their real availability constraint is ingredient
-                    # stock, already surfaced (non-blocking) by preview_recipe_shortages at
-                    # add-to-cart time — see sales.views.api_check_recipe_stock.
-                    if product.id in _recipe_ids:
+                    # Made-to-order items are prepared on demand — they're never stocked as
+                    # a finished good, so their own stock_quantity/ProductVariant.stock_quantity
+                    # is always ~0 and irrelevant here. This covers both: (a) any item whose
+                    # category is a menu category (Category.is_menu_category — the same flag
+                    # POS/waiter already use to never show these as "منتهي"), and (b) items
+                    # with an active Recipe specifically (ingredient availability is a
+                    # separate, non-blocking warning — see sales.views.api_check_recipe_stock).
+                    if (product.category_id and product.category.is_menu_category) or product.id in _recipe_ids:
                         continue
 
                     qty = Decimal(str(item.get('quantity') or item.get('qty', 1)))

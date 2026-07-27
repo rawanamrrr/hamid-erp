@@ -1,4 +1,5 @@
 ﻿{% extends 'base.html' %}
+{% load l10n %}
 
 {% block content %}
 
@@ -317,8 +318,8 @@
                     </th>
                     <th class="py-5 px-6 text-[11px] font-bold text-gray-400 uppercase tracking-widest">{% if mp.key == 'cafe' %}القسم / النوع{% else %}القسم / النوع / المقاسات{% endif %}
                     </th>
-                    <th class="py-5 px-6 text-[11px] font-bold text-gray-400 uppercase tracking-widest">{% if mp.key == 'cafe' %}سعر البيع{% else %}سعر الجملة /
-                        التجزئة{% endif %}</th>
+                    <th class="py-5 px-6 text-[11px] font-bold text-gray-400 uppercase tracking-widest">{% if mp.show.wholesale_price %}سعر الجملة /
+                        التجزئة{% else %}سعر البيع{% endif %}</th>
                     <th class="py-5 px-6 text-[11px] font-bold text-gray-400 uppercase tracking-widest text-center">
                         الرصيد الكلي</th>
                     <th class="py-5 px-6 text-[11px] font-bold text-gray-400 uppercase tracking-widest text-center">
@@ -423,22 +424,49 @@
 
                     <!-- Pricing -->
                     <td class="py-5 px-6">
+                        {% if product.has_variants %}
+                        <!-- Sized product (e.g. صغير/كبير) — each size has its own full price,
+                             not a wholesale/retail split, so quick-edit shows one row per size. -->
+                        <div class="flex flex-col gap-1">
+                            {% for v in product.variants.all %}
+                            <div class="flex items-center gap-1.5">
+                                <span class="quick-view-price text-sm font-black text-indigo-700">{{ v.price|unlocalize }}</span>
+                                <input type="number" step="0.5" value="{{ v.price_override|default:v.price|unlocalize }}"
+                                       class="quick-edit-input hidden w-20 p-1 text-xs border border-indigo-200 rounded bg-white font-bold"
+                                       onchange="quickUpdate(this, {{ product.id }}, 'variant_price', {{ v.id }})">
+                                <span class="text-[10px] text-gray-400">{{ v.size.name|default:"—" }}</span>
+                            </div>
+                            {% empty %}
+                            <span class="text-xs text-gray-300 italic">لا توجد أحجام</span>
+                            {% endfor %}
+                        </div>
+                        {% elif mp.show.wholesale_price %}
                         <div class="flex flex-col gap-1">
                             <div class="flex items-center gap-1.5">
-                                <span class="quick-view-price text-sm font-black text-teal-700">{{ product.price_wholesale }}</span>
-                                <input type="number" step="0.5" value="{{ product.price_wholesale }}" 
+                                <span class="quick-view-price text-sm font-black text-teal-700">{{ product.price_wholesale|unlocalize }}</span>
+                                <input type="number" step="0.5" value="{{ product.price_wholesale|unlocalize }}"
                                        class="quick-edit-input hidden w-20 p-1 text-xs border border-teal-200 rounded bg-white font-bold"
                                        onchange="quickUpdate(this, {{ product.id }}, 'price_wholesale')">
                                 <span class="text-[10px] text-gray-400">جملة</span>
                             </div>
                             <div class="flex items-center gap-1.5">
-                                <span class="quick-view-price text-xs text-gray-400">{{ product.price_retail }}</span>
-                                <input type="number" step="0.5" value="{{ product.price_retail }}" 
+                                <span class="quick-view-price text-xs text-gray-400">{{ product.price_retail|unlocalize }}</span>
+                                <input type="number" step="0.5" value="{{ product.price_retail|unlocalize }}"
                                        class="quick-edit-input hidden w-20 p-1 text-xs border border-gray-200 rounded bg-white font-bold"
                                        onchange="quickUpdate(this, {{ product.id }}, 'price_retail')">
                                 <span class="text-[9px] text-gray-300 italic">قطاعي</span>
                             </div>
                         </div>
+                        {% else %}
+                        <!-- This market doesn't use a wholesale/retail split (e.g. cafe) —
+                             a single سعر البيع field, no جملة/قطاعي labels. -->
+                        <div class="flex items-center gap-1.5">
+                            <span class="quick-view-price text-sm font-black text-gray-800">{{ product.price_retail|unlocalize }}</span>
+                            <input type="number" step="0.5" value="{{ product.price_retail|unlocalize }}"
+                                   class="quick-edit-input hidden w-20 p-1 text-xs border border-gray-200 rounded bg-white font-bold"
+                                   onchange="quickUpdate(this, {{ product.id }}, 'price_retail')">
+                        </div>
+                        {% endif %}
                     </td>
 
                     <!-- Stock Quantity -->
@@ -652,8 +680,11 @@
         }
     }
 
-    async function quickUpdate(input, productId, field) {
-        const value = input.value;
+    async function quickUpdate(input, productId, field, variantId) {
+        const rawValue = input.value;
+        // variant_price packs both the target variant and its new price into one value —
+        // see quick_update_product_ajax's "variant_price" branch.
+        const postValue = field === 'variant_price' ? `${variantId}:${rawValue}` : rawValue;
         const originalBg = input.style.backgroundColor;
         input.style.backgroundColor = '#f0f9ff'; // blue-50 highlight while saving
 
@@ -664,22 +695,26 @@
                     'Content-Type': 'application/json',
                     'X-CSRFToken': '{{ csrf_token }}'
                 },
-                body: JSON.stringify({ product_id: productId, field: field, value: value })
+                body: JSON.stringify({ product_id: productId, field: field, value: postValue })
             });
             const data = await res.json();
-            
+
             if (data.status === 'success') {
                 input.style.backgroundColor = '#ecfdf5'; // emerald-50 success
                 setTimeout(() => input.style.backgroundColor = '', 1000);
-                
+
                 // Update the hidden view element text so it's correct when exiting quick edit
                 const row = input.closest('tr');
+                const value = rawValue;
                 if (field === 'price_retail') {
                     const el = row.querySelector('.quick-view-price.text-gray-400');
                     if (el) el.innerText = value;
                 } else if (field === 'price_wholesale') {
                     const el = row.querySelector('.quick-view-price.text-teal-700');
                     if (el) el.innerText = value;
+                } else if (field === 'variant_price') {
+                    const el = input.previousElementSibling;
+                    if (el && el.classList.contains('quick-view-price')) el.innerText = value;
                 } else if (field === 'stock') {
                     const stockEl = row.querySelector('.quick-view-stock');
                     if (stockEl) {

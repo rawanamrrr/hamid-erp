@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% load widget_tweaks %}
+{% load widget_tweaks l10n %}
 
 {% block title %}{{ title }}{% endblock %}
 
@@ -397,7 +397,7 @@
                 {% endfor %}
               </select>
               <div class="flex items-center gap-1">
-                <input type="number" name="size_price" value="{{ s.price_override }}" step="0.5" placeholder="السعر"
+                <input type="number" name="size_price" value="{{ s.price_override|unlocalize }}" step="0.5" placeholder="السعر"
                        class="w-28 border border-gray-200 rounded-lg p-2 text-sm focus:border-indigo-400 focus:ring-0 outline-none">
                 <span class="text-xs text-gray-400 whitespace-nowrap">ج.م</span>
               </div>
