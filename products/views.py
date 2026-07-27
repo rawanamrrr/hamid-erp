@@ -151,11 +151,13 @@ def get_filtered_products(request):
 # ==========================================
 def public_product_detail(request, sku):
     product = get_object_or_404(Product, sku=sku, is_active=True)
+    sys_settings = SystemSetting.objects.first()
     # Get base URL to ensure QR points exactly here, but for rendering page we just need product
     return render(request, 'products/product_public.html', {
-        'product': product, 
+        'product': product,
         'title': product.name,
-        'public_url': request.build_absolute_uri()
+        'public_url': request.build_absolute_uri(),
+        'sys_settings': sys_settings,
     })
 
 

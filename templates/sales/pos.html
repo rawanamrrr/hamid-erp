@@ -388,7 +388,10 @@
                     data-sub-units-per-main="{{ product.sub_units_per_main_unit|default:1 }}"
                     data-sub-unit-price="{{ product.sub_unit_price|default:0 }}"
                     data-scientific-name="{{ product.scientific_name|default:'' }}"
-                    data-warranty-months="{{ product.warranty_months|default:0 }}">
+                    data-warranty-months="{{ product.warranty_months|default:0 }}"
+                    data-calories="{{ product.calories|default:'' }}"
+                    data-allergens="{{ product.allergens|default:'' }}"
+                    data-serve-temp="{{ product.get_serve_temperature_display|default:'' }}">
 
                     <!-- SKU badge -->
                     <div
@@ -3219,6 +3222,9 @@
                                 </div>
                             </div>
                         </div>
+                        <button onclick="showItemInfo(${item.id})" class="text-gray-300 hover:text-teal-500 transition-colors p-1 group-hover:text-gray-400 shrink-0" title="معلومات الصنف">
+                            <i class="fa-solid fa-circle-info text-base"></i>
+                        </button>
                         <button onclick="removeFromCart(${item.id}, '${safeUnit}', ${item.variantId || 'null'})" class="text-gray-300 hover:text-red-500 transition-colors p-1 group-hover:text-gray-400 shrink-0" title="حذف">
                             <i class="fa-solid fa-circle-xmark text-base"></i>
                         </button>
@@ -3317,6 +3323,28 @@
             cart = cart.filter(i => !(String(i.id) === String(id) && i.sellUnit === unit && (i.variantId || null) === (variantId || null)));
             checkAndUpdateDealAfterCartChange();
             renderCart();
+        }
+
+        function showItemInfo(id) {
+            const card = document.querySelector(`.product-card[data-id="${id}"]`);
+            if (!card) return;
+            const d = card.dataset;
+            const rows = [
+                { label: 'السعرات الحرارية', value: d.calories ? `${d.calories} سعرة` : null },
+                { label: 'درجة التقديم', value: d.serveTemp || null },
+                { label: 'مسببات الحساسية', value: d.allergens || null },
+            ].filter(r => r.value);
+
+            const html = rows.length
+                ? `<div style="text-align:right">${rows.map(r => `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f1f5f9"><span style="color:#64748b;font-weight:700">${r.label}</span><span style="font-weight:900">${r.value}</span></div>`).join('')}</div>`
+                : '<p style="color:#94a3b8">لا توجد معلومات إضافية مسجّلة لهذا الصنف.</p>';
+
+            Swal.fire({
+                title: d.name,
+                html,
+                confirmButtonText: 'حسناً',
+                hideClass: { popup: '' },
+            });
         }
 
         function validateStockForProduct(id, newQuantity, unit) {

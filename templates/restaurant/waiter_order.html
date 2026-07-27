@@ -44,6 +44,7 @@
             <script type="application/json" id="menu-categories-data">
                 [{% for cat in categories %}{"id": {{ cat.id }}, "items": [{% for p in cat.products.all %}{"n":"{{ p.name|escapejs|lower }}","ok":{% if p.is_active and not p.is_raw_material %}true{% else %}false{% endif %}}{% if not forloop.last %},{% endif %}{% endfor %}]}{% if not forloop.last %},{% endif %}{% endfor %}]
             </script>
+            <script type="application/json" id="product-specs-data">{{ product_specs_json|default:"{}"|safe }}</script>
 
             <!-- Category chips -->
             <div class="flex items-center gap-2 overflow-x-auto pb-3 mb-2 -mx-1 px-1" style="scrollbar-width:thin">
@@ -117,6 +118,9 @@
                                     <span class="text-sm font-bold text-gray-800" x-text="it.product_name + (it.variant_label ? ' (' + it.variant_label + ')' : '') + ' ×' + it.quantity"></span>
                                     <div class="flex items-center gap-2 shrink-0">
                                         <span class="text-sm font-black text-gray-700" x-text="it.subtotal.toFixed(2)"></span>
+                                        <button @click="showItemInfo(it.product_id)" class="w-6 h-6 rounded-lg bg-gray-50 text-gray-400 hover:bg-teal-50 hover:text-teal-600 flex items-center justify-center">
+                                            <i class="fa-solid fa-circle-info text-[10px]"></i>
+                                        </button>
                                         <button x-show="!it.is_void" @click="voidItem(it.id)" class="w-6 h-6 rounded-lg bg-red-50 text-red-500 hover:bg-red-100 flex items-center justify-center">
                                             <i class="fa-solid fa-xmark text-[10px]"></i>
                                         </button>
@@ -151,6 +155,9 @@
                                     <span class="text-sm font-bold text-gray-800" x-text="pc.name + (pc.variant_label ? ' (' + pc.variant_label + ')' : '') + ' ×' + pc.quantity"></span>
                                     <div class="flex items-center gap-2 shrink-0">
                                         <span class="text-sm font-black text-gray-700" x-text="(pc.price * pc.quantity).toFixed(2)"></span>
+                                        <button @click="showItemInfo(pc.product_id)" class="w-6 h-6 rounded-lg bg-white text-gray-400 hover:bg-teal-50 hover:text-teal-600 flex items-center justify-center">
+                                            <i class="fa-solid fa-circle-info text-[10px]"></i>
+                                        </button>
                                         <button @click="pendingCart.splice(idx, 1)" class="w-6 h-6 rounded-lg bg-red-50 text-red-500 hover:bg-red-100 flex items-center justify-center">
                                             <i class="fa-solid fa-xmark text-[10px]"></i>
                                         </button>
@@ -266,6 +273,7 @@ function waiterOrder() {
         variantMap: {{ variant_map_json|default:"{}"|safe }},
         branchId: {{ branch.id|default:"null" }},
         recipeProductIds: new Set(({{ recipe_product_ids_json|default:"[]"|safe }}).map(String)),
+        productSpecs: {{ product_specs_json|default:"{}"|safe }},
         pendingCart: [],
         sendingToKitchen: false,
         search: '',
@@ -337,6 +345,25 @@ function waiterOrder() {
                 return;
             }
             this.checkRecipeStockThenPush({product_id: id, name: name, price: variant.price, quantity: 1, modifiers: [], note: '', variant_id: variant.id, variant_label: variant.label});
+        },
+        showItemInfo(productId) {
+            const spec = this.productSpecs[productId];
+            const rows = spec ? [
+                spec.calories ? { label: 'السعرات الحرارية', value: `${spec.calories} سعرة` } : null,
+                spec.serve_temperature ? { label: 'درجة التقديم', value: spec.serve_temperature } : null,
+                spec.allergens ? { label: 'مسببات الحساسية', value: spec.allergens } : null,
+            ].filter(Boolean) : [];
+
+            const html = rows.length
+                ? `<div style="text-align:right">${rows.map(r => `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f1f5f9"><span style="color:#64748b;font-weight:700">${r.label}</span><span style="font-weight:900">${r.value}</span></div>`).join('')}</div>`
+                : '<p style="color:#94a3b8">لا توجد معلومات إضافية مسجّلة لهذا الصنف.</p>';
+
+            Swal.fire({
+                title: spec ? spec.name : '',
+                html,
+                confirmButtonText: 'حسناً',
+                hideClass: { popup: '' },
+            });
         },
         // Fires the same read-only recipe-stock pre-check the POS cashier screen uses
         // (sales/views.py api_check_recipe_stock), right when the item is actually added

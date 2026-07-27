@@ -461,6 +461,21 @@ class Product(models.Model):
     shelf_life_days = models.PositiveIntegerField(null=True, blank=True, verbose_name="مدة الصلاحية (أيام)")
     requires_refrigeration = models.BooleanField(default=False, verbose_name="يحتاج تبريد")
     
+    # Cafe/restaurant-specific fields
+    calories = models.PositiveIntegerField(null=True, blank=True, verbose_name="السعرات الحرارية")
+    allergens = models.CharField(max_length=200, blank=True, verbose_name="مسببات الحساسية",
+                                  help_text="مثال: يحتوي على مكسرات، ألبان، جلوتين")
+    SERVE_TEMP_CHOICES = [
+        ('', 'غير محدد'),
+        ('hot', 'ساخن'),
+        ('cold', 'بارد'),
+        ('room', 'حرارة الغرفة'),
+    ]
+    serve_temperature = models.CharField(
+        max_length=10, blank=True, default='', choices=SERVE_TEMP_CHOICES,
+        verbose_name="درجة التقديم"
+    )
+
     # Electronics-specific fields
     brand = models.CharField(max_length=100, blank=True, verbose_name="الماركة/العلامة التجارية")
     model_number = models.CharField(max_length=100, blank=True, verbose_name="رقم الموديل")

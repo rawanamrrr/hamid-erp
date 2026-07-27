@@ -168,6 +168,8 @@
                         مواصفات البقالة
                     {% elif sys_settings.market_type == 'electronics' %}
                         مواصفات الإلكترونيات
+                    {% elif sys_settings.market_type == 'cafe' %}
+                        المواصفات الفنية للكافيه/المطعم
                     {% else %}
                         مواصفات المنتج
                     {% endif %}
@@ -268,6 +270,19 @@
                         <span class="font-semibold text-gray-700 whitespace-pre-line">{{ product.specifications }}</span>
                     </div>
                     {% endif %}
+                    {% elif sys_settings.market_type == 'cafe' %}
+                    <div class="bg-gray-50 p-3 rounded-lg">
+                        <span class="text-xs text-gray-500 block mb-1">السعرات الحرارية</span>
+                        <span class="font-semibold text-gray-700">{{ product.calories|default:"-" }}</span>
+                    </div>
+                    <div class="bg-gray-50 p-3 rounded-lg">
+                        <span class="text-xs text-gray-500 block mb-1">درجة التقديم</span>
+                        <span class="font-semibold text-gray-700">{{ product.get_serve_temperature_display|default:"-" }}</span>
+                    </div>
+                    <div class="bg-gray-50 p-3 rounded-lg">
+                        <span class="text-xs text-gray-500 block mb-1">مسببات الحساسية</span>
+                        <span class="font-semibold text-gray-700">{{ product.allergens|default:"-" }}</span>
+                    </div>
                     {% else %}
                     <div class="bg-gray-50 p-3 rounded-lg">
                         <span class="text-xs text-gray-500 block mb-1">الخامة</span>

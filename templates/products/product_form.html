@@ -261,6 +261,24 @@
           </div>
         </div>
 
+        <!-- ── Cafe / Restaurant Fields ── -->
+        <div id="cafeSpecsBlock" class="{% if not mp.show.cafe_specs %}hidden{% endif %}">
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label class="block text-sm font-semibold text-gray-600 mb-2">السعرات الحرارية</label>
+              {{ form.calories }}
+            </div>
+            <div>
+              <label class="block text-sm font-semibold text-gray-600 mb-2">درجة التقديم</label>
+              {{ form.serve_temperature }}
+            </div>
+            <div>
+              <label class="block text-sm font-semibold text-gray-600 mb-2">مسببات الحساسية</label>
+              {{ form.allergens }}
+            </div>
+          </div>
+        </div>
+
         <!-- ── Grocery / General Fields ── -->
         <div id="grocerySpecsBlock" class="{% if not mp.show.grocery_specs %}hidden{% endif %}">
           <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">

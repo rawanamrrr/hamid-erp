@@ -38,6 +38,7 @@ _BASE = {
         'pharmacy_specs':    False,  # scientific name / expiry / strips
         'electronics_specs': False,  # serials / warranty
         'grocery_specs':     False,  # weight / variants
+        'cafe_specs':        False,  # calories / allergens / serve temperature
         'pieces_per_package': False, # شيكارة / كرتون block
         'wholesale_price':   True,   # the نص جملة price field
         'weighted':          False,  # sold by weight (scale)
@@ -120,7 +121,7 @@ MARKET_PROFILES = {
             'pieces_hint':   'كود الصنف داخل نطاق القسم',
             'specs_label':   'للكافيه/المطعم',
         },
-        show={'wholesale_price': False},
+        show={'wholesale_price': False, 'cafe_specs': True},
         default_unit='PCS',
         image_prefix='مشروب أو طبق ',
         features=['tables', 'kds', 'modifiers', 'recipes', 'delivery', 'cash_custody'],

@@ -86,6 +86,8 @@ class ProductForm(forms.ModelForm):
             'net_weight', 'weight_unit', 'shelf_life_days', 'requires_refrigeration',
             # Electronics fields
             'brand', 'model_number', 'serial_number', 'warranty_months', 'is_serialized', 'is_refurbished', 'specifications',
+            # Cafe fields
+            'calories', 'allergens', 'serve_temperature',
             # Multi-Unit fields
             'has_sub_unit', 'sub_unit', 'sub_units_per_main_unit', 'sub_unit_price',
         ]
@@ -125,6 +127,10 @@ class ProductForm(forms.ModelForm):
             'warranty_months': forms.NumberInput(attrs={'class': TW_INPUT, 'min': '0', 'placeholder': 'مدة الضمان'}),
             'is_refurbished': forms.CheckboxInput(attrs={'class': TW_CHECK}),
             'specifications': forms.Textarea(attrs={'class': TW_TEXTAREA, 'rows': '4', 'placeholder': 'المواصفات الفنية...'}),
+            # Cafe widgets
+            'calories': forms.NumberInput(attrs={'class': TW_INPUT, 'min': '0', 'placeholder': 'مثال: 250'}),
+            'allergens': forms.TextInput(attrs={'class': TW_INPUT, 'placeholder': 'مثال: يحتوي على مكسرات، ألبان'}),
+            'serve_temperature': forms.Select(attrs={'class': TW_SELECT}),
             # Multi-Unit widgets
             'has_sub_unit': forms.CheckboxInput(attrs={'class': TW_CHECK, 'id': 'id_has_sub_unit'}),
             'sub_unit': forms.Select(attrs={'class': TW_SELECT, 'id': 'id_sub_unit'}),
@@ -161,6 +167,10 @@ class ProductForm(forms.ModelForm):
             
         # Make electronics fields optional
         for field in ['brand', 'model_number', 'serial_number', 'warranty_months', 'is_refurbished', 'specifications']:
+            self.fields[field].required = False
+
+        # Make cafe fields optional
+        for field in ['calories', 'allergens', 'serve_temperature']:
             self.fields[field].required = False
 
         # Make cost_price read-only if active batches/invoices exist

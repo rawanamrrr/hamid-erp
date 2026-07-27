@@ -224,6 +224,7 @@ def _waiter_menu_context(order):
             'total_amount': float(order.total_amount),
             'items': [{
                 'id': it.id,
+                'product_id': it.product_id,
                 'product_name': it.product.name if it.product else '',
                 'variant_label': it.variant.label if it.variant_id else '',
                 'quantity': float(it.quantity),
@@ -234,12 +235,26 @@ def _waiter_menu_context(order):
             } for it in order.items.all()],
         })
 
+    # Calories/allergens/serve-temperature per product — looked up by the cart's "ℹ️"
+    # info button (see showItemInfo in waiter_order.html) for both pending and
+    # already-sent lines, without a round trip per click.
+    product_specs = {}
+    for cat in categories:
+        for p in cat.products.all():
+            product_specs[p.id] = {
+                'name': p.name,
+                'calories': p.calories,
+                'allergens': p.allergens,
+                'serve_temperature': p.get_serve_temperature_display() if p.serve_temperature else '',
+            }
+
     from sales.views import _recipe_product_ids
     return {
         'categories': categories,
         'order_json': order_json,
         'modifier_map_json': json.dumps(modifier_map),
         'variant_map_json': json.dumps(variant_map),
+        'product_specs_json': json.dumps(product_specs),
         # Same purpose as sales/views.py pos_view's identical context var — lets the
         # waiter cart skip the recipe-stock check round trip for products that have no
         # recipe at all (most of the menu).

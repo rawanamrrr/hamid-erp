@@ -65,6 +65,40 @@
 
                     <!-- Specs List (Clean UI) -->
                     <div class="mt-6 space-y-5">
+                        {% if sys_settings.market_type == 'cafe' %}
+                        <!-- Calories -->
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center text-teal-600">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                                </div>
+                                <span class="font-bold text-slate-500 text-sm">السعرات الحرارية</span>
+                            </div>
+                            <span class="font-bold text-slate-900 text-sm">{% if product.calories %}{{ product.calories }} سعرة{% else %}غير محدد{% endif %}</span>
+                        </div>
+
+                        <!-- Serve temperature -->
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center text-teal-600">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm0-6v2m0 16v2m10-10h-2M4 12H2m15.36-7.36l-1.42 1.42M6.05 17.95l-1.42 1.42m12.73 0l-1.42-1.42M6.05 6.05L4.63 4.63"></path></svg>
+                                </div>
+                                <span class="font-bold text-slate-500 text-sm">درجة التقديم</span>
+                            </div>
+                            <span class="font-bold text-slate-900 text-sm">{{ product.get_serve_temperature_display|default:"غير محدد" }}</span>
+                        </div>
+
+                        <!-- Allergens -->
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center text-teal-600">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                                </div>
+                                <span class="font-bold text-slate-500 text-sm">مسببات الحساسية</span>
+                            </div>
+                            <span class="font-bold text-slate-900 text-sm">{% if product.allergens %}{{ product.allergens }}{% else %}لا يوجد{% endif %}</span>
+                        </div>
+                        {% else %}
                         <!-- Material -->
                         <div class="flex items-center justify-between">
                             <div class="flex items-center gap-3">
@@ -75,7 +109,7 @@
                             </div>
                             <span class="font-bold text-slate-900 text-sm">{% if product.material %}{{ product.material }}{% else %}غير محدد{% endif %}</span>
                         </div>
-                        
+
                         <!-- Color & Pattern -->
                         <div class="flex items-center justify-between">
                             <div class="flex items-center gap-3">
@@ -89,6 +123,7 @@
                                 <span class="text-[11px] text-slate-400 font-semibold block mt-0.5">{% if product.color %}{{ product.color }}{% else %}بدون لون محدد{% endif %}</span>
                             </div>
                         </div>
+                        {% endif %}
 
                         <!-- Unit -->
                         <div class="flex items-center justify-between">
