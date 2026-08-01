@@ -93,7 +93,9 @@ def dashboard(request):
     # excluded here so a cafe's drinks/desserts don't inflate the "low/out of stock" widgets.
     # Raw materials are kept even if they fall back to the generic "بدون قسم" category
     # (is_menu_category=True) since they have no category field of their own.
-    _stock_tracked = Product.objects.exclude(category__is_menu_category=True, is_raw_material=False)
+    _stock_tracked = Product.objects.exclude(
+        Q(category__is_menu_category=True) & Q(is_raw_material=False) & Q(track_stock_no_recipe=False)
+    )
     low_stock_count = _stock_tracked.filter(stock_quantity__lte=F('low_stock_threshold'), stock_quantity__gt=0).count()
     out_of_stock_count = _stock_tracked.filter(stock_quantity__lte=0).count()
     total_users = User.objects.count()

@@ -161,15 +161,15 @@ class DealDiscountForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         from products.models import Product
-        from django.db.models import Sum
-        from django.db.models.functions import Coalesce
-        from decimal import Decimal
-        
-        # Only show available products (>0 quantity)
-        available_products = Product.objects.annotate(
-            total_stock=Coalesce(Sum('warehouse_stocks__quantity'), Decimal('0'))
-        ).filter(total_stock__gt=0).order_by('name')
-        
+
+        # Menu items only — never raw materials (they're never sold directly, so they
+        # can't be part of a customer-facing offer). Not filtered by stock: cafe/recipe
+        # menu items are made to order and never carry a real stock count, so a
+        # total_stock>0 filter used to hide almost every menu product from this picker.
+        available_products = Product.objects.filter(
+            is_active=True, is_raw_material=False,
+        ).order_by('name')
+
         self.fields['products'].queryset = available_products
         self.fields['get_products'].queryset = available_products
 
@@ -177,3 +177,32 @@ class DealDiscountForm(forms.ModelForm):
         self.fields['categories'].queryset = Category.objects.filter(is_active=True).order_by('name')
         self.fields['categories'].required = False
         self.fields['products'].required = False
+
+        # 'value' is only meaningful for promo_type='discount' — its input is hidden by
+        # JS for buy_x_get_y/buy_n_for_price, so leaving it required=True made those two
+        # promo types silently fail validation (the "قيمة الخصم" error rendered inside a
+        # div the JS keeps hidden, so nothing ever appeared to explain why nothing saved).
+        self.fields['value'].required = False
+
+    def clean(self):
+        from decimal import Decimal
+        cleaned = super().clean()
+        promo_type = cleaned.get('promo_type')
+        if promo_type == 'discount':
+            if not cleaned.get('value'):
+                self.add_error('value', 'قيمة الخصم مطلوبة لهذا النوع من العروض.')
+        else:
+            # Not used by this promo type, and the model column has no default — fill it
+            # in so _post_clean()'s model.full_clean() doesn't reject a blank 'value'.
+            cleaned['value'] = Decimal('0.00')
+        if promo_type == 'buy_x_get_y':
+            if not cleaned.get('buy_x_qty'):
+                self.add_error('buy_x_qty', 'يجب تحديد كمية الشراء (X).')
+            if not cleaned.get('get_y_qty'):
+                self.add_error('get_y_qty', 'يجب تحديد الكمية المجانية (Y).')
+        elif promo_type == 'buy_n_for_price':
+            if not cleaned.get('buy_n_qty'):
+                self.add_error('buy_n_qty', 'يجب تحديد كمية العرض (N).')
+            if not cleaned.get('for_price'):
+                self.add_error('for_price', 'يجب تحديد السعر الإجمالي للعرض.')
+        return cleaned

@@ -13,10 +13,16 @@
                 <p class="text-gray-500 text-sm">عرض وإدارة جميع فواتير الشراء المسجلة في النظام</p>
             </div>
         </div>
-        <a href="{% url 'purchase_invoice_create' %}" class="px-6 py-3 bg-emerald-600 text-white rounded-2xl hover:bg-emerald-700 transition flex items-center gap-2 shadow-lg shadow-emerald-100 font-bold">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
-            فاتورة شراء جديدة
-        </a>
+        <div class="flex items-center gap-3">
+            <a href="{% url 'purchase_order_list' %}" class="px-6 py-3 bg-gray-100 text-gray-700 rounded-2xl hover:bg-gray-200 transition flex items-center gap-2 font-bold">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2M9 13h6m-6 4h6"></path></svg>
+                أوامر الشراء (PO)
+            </a>
+            <a href="{% url 'purchase_invoice_create' %}" class="px-6 py-3 bg-emerald-600 text-white rounded-2xl hover:bg-emerald-700 transition flex items-center gap-2 shadow-lg shadow-emerald-100 font-bold">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                فاتورة شراء جديدة
+            </a>
+        </div>
     </div>
 
     <!-- Table -->

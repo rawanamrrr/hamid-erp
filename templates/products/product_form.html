@@ -277,6 +277,13 @@
               {{ form.allergens }}
             </div>
           </div>
+          <div class="mt-4 flex items-center gap-2">
+            {{ form.track_stock_no_recipe }}
+            <label for="id_track_stock_no_recipe" class="text-sm font-semibold text-gray-600 cursor-pointer">
+              لا يُحضّر من مواد خام
+              <span class="block text-xs font-normal text-gray-400">فعّله لصنف يُشترى جاهزًا (مثل مشروب معلب) بدل ما يتحضر من وصفة — هيتم تتبع كميته الفعلية ويمكن إضافته من فاتورة مشتريات مثل المواد الخام.</span>
+            </label>
+          </div>
         </div>
 
         <!-- ── Grocery / General Fields ── -->

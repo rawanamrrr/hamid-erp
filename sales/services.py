@@ -163,8 +163,11 @@ def issue_cart_items(order, cart_items, warehouse, user, applied_deal=None, note
             variant = ProductVariant.objects.select_for_update().get(id=variant_id, product=product)
             # A menu-category size variant (e.g. "قهوة - كبير") is prepared on demand just
             # like the plain product — its stock isn't real, so it must never compute a
-            # false shortfall (same exemption as the non-variant branch below).
-            is_menu_item = bool(product.category_id and product.category.is_menu_category)
+            # false shortfall (same exemption as the non-variant branch below). A product
+            # flagged track_stock_no_recipe (bought ready-made) is excluded from this
+            # exemption — its stock is real and must be checked.
+            is_menu_item = bool(product.category_id and product.category.is_menu_category
+                                 and not product.track_stock_no_recipe)
             variant_shortfall = Decimal('0') if is_menu_item else max(Decimal('0'), qty - variant.stock_quantity)
             variant.stock_quantity = variant.stock_quantity - qty
             variant.save(update_fields=['stock_quantity'])
@@ -210,8 +213,10 @@ def issue_cart_items(order, cart_items, warehouse, user, applied_deal=None, note
         # deduction — or it's lost (see OrderItem.shortfall_qty docstring).
         # Menu-category items (cafe drinks/food, prepared on demand) never carry a real
         # stock count — every sale would otherwise compute against ~0 available and print
-        # a false "exceeded available stock" warning on every single invoice.
-        if product.category_id and product.category.is_menu_category:
+        # a false "exceeded available stock" warning on every single invoice. A product
+        # flagged track_stock_no_recipe (bought ready-made) is excluded from this
+        # exemption — its stock is real and must be checked.
+        if product.category_id and product.category.is_menu_category and not product.track_stock_no_recipe:
             shortfall = Decimal('0')
         else:
             available = available_quantity(product, warehouse)
@@ -375,7 +380,7 @@ def compute_dine_in_service_charge(subtotal, order_type):
 
 def compute_discount_and_total(subtotal, qualified_subtotal, *, discount, discount_type,
                                applied_deal, delivery_cost, tailoring_cost=Decimal('0'),
-                               service_charge=Decimal('0'), vat_rate=None, vat_included=None,
+                               order_type=None, vat_rate=None, vat_included=None,
                                cart_items=None):
     """Resolve the discount amount and final total for an order.
 
@@ -384,11 +389,13 @@ def compute_discount_and_total(subtotal, qualified_subtotal, *, discount, discou
     where (discount, discount_type, applied_deal) are the NORMALISED values to persist
     on the Order. Raises ValueError if a deal's minimum-order-value isn't met.
 
-    `service_charge` is the caller-computed dine-in service charge amount (already 0 for
-    takeaway/delivery orders, or when the store's service charge is configured as
-    "included in price" — see settings.service_charge_included_in_price) — added on top
-    the same way delivery_cost/tailoring_cost are, and passed straight through so the
-    caller can persist it on Order.service_charge.
+    `order_type` drives the dine-in service charge (compute_dine_in_service_charge — 0
+    for takeaway/delivery, or when the store's rate is configured as "included in
+    price"). Like VAT, it's computed on the subtotal AFTER any discount/offer — the
+    caller used to pass in a ready-made service_charge amount computed on the raw
+    pre-discount subtotal, which meant a "buy X get Y" or "N for price" deal reduced the
+    VAT but not the service charge added on top of it. Both taxes/surcharges now share
+    the exact same post-discount base.
 
     Total is clamped at zero (a discount larger than the subtotal never goes negative).
     """
@@ -397,7 +404,6 @@ def compute_discount_and_total(subtotal, qualified_subtotal, *, discount, discou
     discount = _to_decimal(discount)
     delivery_cost = _to_decimal(delivery_cost)
     tailoring_cost = _to_decimal(tailoring_cost)
-    service_charge = _to_decimal(service_charge)
 
     if applied_deal:
         if subtotal < applied_deal.minimum_order_value:
@@ -418,14 +424,16 @@ def compute_discount_and_total(subtotal, qualified_subtotal, *, discount, discou
 
     # Never let the discount drive the line subtotal below zero.
     applied_discount = min(applied_discount, subtotal)
-    pre_extras_total = subtotal - applied_discount + delivery_cost + tailoring_cost
-    if pre_extras_total < 0:
-        pre_extras_total = Decimal('0')
+    discounted_subtotal = max(Decimal('0'), subtotal - applied_discount)
+    pre_extras_total = discounted_subtotal + delivery_cost + tailoring_cost
 
     # VAT and the service charge are each an independent percentage of the same
-    # pre-extras total, added side by side — NOT compounded (VAT must not also apply to
-    # the service charge amount, or vice versa). E.g. 100 + 12% service + 14% VAT = 126,
-    # not 100 * 1.12 * 1.14. Both are 0 when configured as "included in price".
+    # post-discount subtotal, added side by side — NOT compounded (VAT must not also
+    # apply to the service charge amount, or vice versa). E.g. 100 + 12% service + 14%
+    # VAT = 126, not 100 * 1.12 * 1.14. Both are 0 when configured as "included in price".
+    # Service charge deliberately excludes delivery_cost/tailoring_cost from its base
+    # (dine-in orders don't carry either), same as it always has.
+    service_charge = compute_dine_in_service_charge(discounted_subtotal, order_type)
     vat_amount = compute_vat_amount(pre_extras_total, vat_rate, vat_included)
     total = pre_extras_total + service_charge + vat_amount
 

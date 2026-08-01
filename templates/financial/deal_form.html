@@ -317,6 +317,7 @@
         // Initialize Choices.js
         const element = document.getElementById('id_products');
         let choicesInstance = null;
+        let getProductsChoicesInstance = null;
         if (element) {
             choicesInstance = new Choices(element, {
                 removeItemButton: true,
@@ -335,9 +336,10 @@
         // aren't reflected in the live price-preview below (that preview only knows about
         // explicitly-picked `products`) — the actual discount application at checkout
         // still applies correctly to every product in the selected category regardless.
+        let categoriesChoicesInstance = null;
         const categoriesElement = document.getElementById('id_categories');
         if (categoriesElement) {
-            new Choices(categoriesElement, {
+            categoriesChoicesInstance = new Choices(categoriesElement, {
                 removeItemButton: true,
                 searchPlaceholderValue: 'ابحث عن قسم...',
                 itemSelectText: 'اضغط للاختيار',
@@ -346,7 +348,39 @@
                 shouldSort: false
             });
         }
-        
+
+        // "اختر المنتجات المحددة للعرض" / "المنتجات المجانية" should only ever offer
+        // products from the selected أقسام — with none selected, every (non-raw-material)
+        // menu product is fair game. Re-applied whenever the category picker changes.
+        function buildProductChoiceList(selectedCategoryIds, currentValues) {
+            const list = [];
+            for (const id in productPrices) {
+                const p = productPrices[id];
+                if (selectedCategoryIds.length === 0 || selectedCategoryIds.includes(String(p.category_id))) {
+                    list.push({value: id, label: p.name, selected: currentValues.includes(id)});
+                }
+            }
+            return list;
+        }
+
+        function refreshProductChoiceScope() {
+            const selectedCategoryIds = categoriesChoicesInstance ? categoriesChoicesInstance.getValue(true).map(String) : [];
+            // Preserve whatever's already picked (existing selections when re-filtering,
+            // or the deal's saved products/get_products on the initial edit-mode load)
+            // as long as it still falls within the new category scope.
+            if (choicesInstance) {
+                const currentValues = choicesInstance.getValue(true);
+                choicesInstance.clearChoices();
+                choicesInstance.setChoices(buildProductChoiceList(selectedCategoryIds, currentValues), 'value', 'label', true);
+            }
+            if (getProductsChoicesInstance) {
+                const currentValues2 = getProductsChoicesInstance.getValue(true);
+                getProductsChoicesInstance.clearChoices();
+                getProductsChoicesInstance.setChoices(buildProductChoiceList(selectedCategoryIds, currentValues2), 'value', 'label', true);
+            }
+            updatePriceSummary();
+        }
+
         function updatePriceSummary() {
             summaryList.innerHTML = '';
             const val = parseFloat(discountValueInput.value) || 0;
@@ -465,7 +499,7 @@
         // Initialize get_products Choices.js
         const getProductsElement = document.getElementById('id_get_products');
         if (getProductsElement) {
-            new Choices(getProductsElement, {
+            getProductsChoicesInstance = new Choices(getProductsElement, {
                 removeItemButton: true,
                 searchPlaceholderValue: 'ابحث عن منتج...',
                 itemSelectText: 'اضغط للاختيار',
@@ -474,7 +508,14 @@
                 shouldSort: false
             });
         }
-        
+
+        if (categoriesElement) {
+            categoriesElement.addEventListener('change', refreshProductChoiceScope);
+        }
+        // Apply the initial category scope (handles both a fresh form and editing an
+        // existing deal that already has categories pre-selected).
+        refreshProductChoiceScope();
+
         // Run initial calculation
         setTimeout(updatePriceSummary, 100);
 

@@ -293,10 +293,16 @@
     productSearch.addEventListener('input', async (e) => {
         const q = e.target.value.trim();
         if (q.length < 2) { searchResults.classList.add('hidden'); return; }
+        const supplierId = document.getElementById('supplierSelect').value;
+        if (!supplierId) {
+            searchResults.innerHTML = '<div class="p-4 text-center text-amber-600 text-sm font-bold"><i class="fas fa-triangle-exclamation ml-1"></i> اختر المورد أولاً — الكمية المتاحة للإرجاع تُحسب حسب ما اشتريته منه تحديدًا</div>';
+            searchResults.classList.remove('hidden');
+            return;
+        }
         searchResults.innerHTML = '<div class="p-4 text-center text-gray-400 text-sm"><i class="fas fa-spinner fa-spin ml-1"></i> جاري البحث...</div>';
         searchResults.classList.remove('hidden');
         try {
-            const res = await fetch(`/products/api/products/search/?q=${encodeURIComponent(q)}`);
+            const res = await fetch(`/products/api/products/search/?q=${encodeURIComponent(q)}&supplier_id=${encodeURIComponent(supplierId)}`);
             const products = await res.json();
             if (products.length > 0) {
                 searchResults.innerHTML = '';

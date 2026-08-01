@@ -45,6 +45,12 @@ class RawMaterialForm(forms.ModelForm):
             'is_active': forms.CheckboxInput(attrs={'class': TW_CHECK}),
         }
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Same as ProductForm — without this, custom units added on وحدات القياس
+        # (products/units/) never show up here, only the hardcoded UNIT_CHOICES list.
+        self.fields['unit_measure'].choices = Product.get_combined_unit_choices()
+
 
 class ProductForm(forms.ModelForm):
     sku = forms.CharField(
@@ -87,7 +93,7 @@ class ProductForm(forms.ModelForm):
             # Electronics fields
             'brand', 'model_number', 'serial_number', 'warranty_months', 'is_serialized', 'is_refurbished', 'specifications',
             # Cafe fields
-            'calories', 'allergens', 'serve_temperature',
+            'calories', 'allergens', 'serve_temperature', 'track_stock_no_recipe',
             # Multi-Unit fields
             'has_sub_unit', 'sub_unit', 'sub_units_per_main_unit', 'sub_unit_price',
         ]
@@ -131,6 +137,7 @@ class ProductForm(forms.ModelForm):
             'calories': forms.NumberInput(attrs={'class': TW_INPUT, 'min': '0', 'placeholder': 'مثال: 250'}),
             'allergens': forms.TextInput(attrs={'class': TW_INPUT, 'placeholder': 'مثال: يحتوي على مكسرات، ألبان'}),
             'serve_temperature': forms.Select(attrs={'class': TW_SELECT}),
+            'track_stock_no_recipe': forms.CheckboxInput(attrs={'class': TW_CHECK, 'id': 'id_track_stock_no_recipe'}),
             # Multi-Unit widgets
             'has_sub_unit': forms.CheckboxInput(attrs={'class': TW_CHECK, 'id': 'id_has_sub_unit'}),
             'sub_unit': forms.Select(attrs={'class': TW_SELECT, 'id': 'id_sub_unit'}),

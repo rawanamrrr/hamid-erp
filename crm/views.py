@@ -428,11 +428,19 @@ def customer_detail(request, pk):
     ledger.sort(key=lambda x: x['date'], reverse=True)
 
     # Saved/recurring orders (Phase 6.11) with a quick shortage count (item stock < saved qty).
+    # Made-to-order items (menu-category or has a Recipe) are prepared on demand and
+    # never carry a meaningful stock_quantity of their own — see the identical bypass
+    # in sales/views.py submit_order_ajax and pos.html's isRecipeItem check.
+    from sales.views import _recipe_product_ids
+    _recipe_ids = set(_recipe_product_ids())
     saved_orders = []
-    for so in customer.saved_orders.prefetch_related('items__product').all():
+    for so in customer.saved_orders.prefetch_related('items__product__category').all():
         so_items = list(so.items.all())
         short = sum(1 for it in so_items
-                    if it.product and (it.product.stock_quantity or 0) < it.quantity)
+                    if it.product and it.product.id not in _recipe_ids
+                    and not (it.product.category_id and it.product.category.is_menu_category
+                             and not it.product.track_stock_no_recipe)
+                    and (it.product.stock_quantity or 0) < it.quantity)
         saved_orders.append({
             'id': so.id, 'name': so.name, 'count': len(so_items),
             'short': short, 'updated': so.updated_at,

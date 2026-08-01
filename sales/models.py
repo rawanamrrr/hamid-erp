@@ -297,6 +297,19 @@ class Order(models.Model):
         """
         return sum((it.gross_profit for it in self.items.all()), Decimal('0'))
 
+    def delete(self, *args, **kwargs):
+        """Hard-deleting an order (e.g. delete_order_ajax, factory_order_delete) used to
+        leave its post_sale() journal entry (reference_number f"SALE-{id}") behind
+        forever — no Order left to explain it, permanently corrupting the trial balance/
+        income statement's revenue, COGS, AR and VAT-payable totals (found 56 of these
+        already sitting in this database). Mirrors financial.models.Transaction.delete()'s
+        identical fix for standalone cash-movement transactions.
+        """
+        from financial.posting import unpost
+        with db_transaction.atomic():
+            unpost(f"SALE-{self.pk}")
+            super().delete(*args, **kwargs)
+
     def __str__(self):
         return f"Order #{self.id}"
 
@@ -598,6 +611,14 @@ class ReturnInvoice(models.Model):
     @property
     def display_number(self):
         return self.return_number or f"RET#{self.id}"
+
+    def delete(self, *args, **kwargs):
+        """Same fix as Order.delete()/Transaction.delete() — a hard-deleted return must
+        not leave its post_refund() journal entry (reference_number f"RET-{id}") behind."""
+        from financial.posting import unpost
+        with db_transaction.atomic():
+            unpost(f"RET-{self.pk}")
+            super().delete(*args, **kwargs)
 
 class ReturnItem(models.Model):
     return_invoice = models.ForeignKey(ReturnInvoice, on_delete=models.CASCADE, related_name='items')

@@ -13,6 +13,23 @@
     </div>
     {% endif %}
 
+    {% if pending_purchase_orders %}
+    <!-- Buy against an existing PO in one click — picks up the PO's supplier/warehouse/
+         items instead of re-entering everything from scratch. -->
+    <div class="flex items-center gap-2 bg-teal-50 border border-teal-200 rounded-xl px-4 py-2 no-print flex-shrink-0">
+        <svg class="w-4 h-4 text-teal-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2M9 13h6m-6 4h6"/></svg>
+        <label for="poQuickSelect" class="text-xs text-teal-800 font-bold whitespace-nowrap">شراء من أمر شراء جاهز:</label>
+        <select id="poQuickSelect"
+                onchange="if(this.value) window.location.href = '{% url 'purchase_invoice_create' %}?po=' + this.value;"
+                class="flex-1 bg-white border border-teal-200 rounded-lg py-1.5 px-2.5 focus:ring-2 focus:ring-teal-400 outline-none font-bold text-teal-800 text-xs max-w-md">
+            <option value="">— اختر أمر شراء —</option>
+            {% for po_row in pending_purchase_orders %}
+            <option value="{{ po_row.id }}">{{ po_row.po_number }} — {{ po_row.supplier.name }} ({{ po_row.total_amount|floatformat:2 }} ج.م)</option>
+            {% endfor %}
+        </select>
+    </div>
+    {% endif %}
+
     <!-- ══ TOP BAR: Title + Meta fields in ONE row ══ -->
     <div class="bg-white rounded-xl shadow-sm border border-gray-100 px-4 py-2.5 flex-shrink-0 no-print">
         <div class="flex items-center gap-3">

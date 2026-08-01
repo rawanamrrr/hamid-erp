@@ -230,12 +230,49 @@
                      which is only created on its first send), so gating on just "order"
                      showed كاش/فيزا/آجل before there was anything to pay for. -->
                 <template x-if="order && order.items.length">
-                    <div class="grid grid-cols-3 gap-2">
-                        <button @click="closeCheck('cash')" class="py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-black transition-colors shadow-sm">كاش</button>
-                        <button @click="closeCheck('visa')" class="py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black transition-colors shadow-sm">فيزا</button>
-                        <button @click="closeCheck('wallet')" class="py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-black transition-colors shadow-sm">محفظة</button>
-                        <button @click="closeCheck('instapay')" class="py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-black transition-colors shadow-sm">إنستا باي</button>
-                        <button @click="closeCheck('cl')" class="py-2.5 rounded-xl bg-gray-700 hover:bg-gray-800 text-white text-xs font-black transition-colors col-span-2 shadow-sm">آجل (CL)</button>
+                    <div class="space-y-2">
+                        <!-- Customer + partial-payment panel: a شيك closed آجل, or with less
+                             than the full total collected, needs a customer to carry the باقي
+                             on their account — otherwise it has nowhere to be tracked. -->
+                        <div class="relative">
+                            <input type="text" x-model="customerSearch" @focus="$refs.custDropdown.classList.remove('hidden')"
+                                   @input="customerId = ''"
+                                   placeholder="اختياري: ابحث عن عميل لربط الشيك به (للآجل/الدفع الجزئي)"
+                                   class="w-full text-xs border border-gray-200 bg-white rounded-xl px-3 py-2 outline-none focus:border-amber-400">
+                            <div x-ref="custDropdown" @click.outside="$refs.custDropdown.classList.add('hidden')"
+                                 class="hidden absolute bottom-full mb-1 w-full bg-white border border-gray-200 rounded-xl shadow-xl max-h-40 overflow-y-auto z-30">
+                                <template x-for="c in filteredCustomers()" :key="c.id">
+                                    <div @click="pickCustomer(c); $refs.custDropdown.classList.add('hidden')"
+                                         class="px-3 py-2 text-xs hover:bg-amber-50 cursor-pointer border-b border-gray-50">
+                                        <span class="font-bold" x-text="c.name"></span>
+                                        <span class="text-gray-400" x-text="c.phone"></span>
+                                    </div>
+                                </template>
+                            </div>
+                            <div x-show="customerId" class="text-[11px] text-emerald-600 font-bold mt-1">
+                                <i class="fa-solid fa-check-circle"></i> سيُسجَّل الباقي على هذا العميل
+                            </div>
+                        </div>
+
+                        <label class="flex items-center gap-1.5 text-[11px] font-bold text-gray-500 cursor-pointer">
+                            <input type="checkbox" x-model="showPartialPay">
+                            دفعة جزئية (الباقي يُسجَّل على العميل)
+                        </label>
+                        <div x-show="showPartialPay" class="flex items-center gap-2">
+                            <input type="number" step="0.01" min="0" x-model="receivedAmount" placeholder="المبلغ المستلم فعلياً"
+                                   class="flex-1 text-xs border border-gray-200 rounded-xl px-3 py-2 outline-none focus:border-amber-400">
+                            <span class="text-[11px] font-bold text-red-500 whitespace-nowrap" x-show="partialRemaining > 0.01">
+                                الباقي: <span x-text="partialRemaining.toFixed(2)"></span>
+                            </span>
+                        </div>
+
+                        <div class="grid grid-cols-3 gap-2">
+                            <button @click="closeCheck('cash')" class="py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-black transition-colors shadow-sm">كاش</button>
+                            <button @click="closeCheck('visa')" class="py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black transition-colors shadow-sm">فيزا</button>
+                            <button @click="closeCheck('wallet')" class="py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-black transition-colors shadow-sm">محفظة</button>
+                            <button @click="closeCheck('instapay')" class="py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-black transition-colors shadow-sm">إنستا باي</button>
+                            <button @click="closeCheck('cl')" class="py-2.5 rounded-xl bg-gray-700 hover:bg-gray-800 text-white text-xs font-black transition-colors col-span-2 shadow-sm">آجل (CL)</button>
+                        </div>
                     </div>
                 </template>
             </div>
@@ -310,6 +347,11 @@ function waiterOrder() {
         branchId: {{ branch.id|default:"null" }},
         recipeProductIds: new Set(({{ recipe_product_ids_json|default:"[]"|safe }}).map(String)),
         productSpecs: {{ product_specs_json|default:"{}"|safe }},
+        customers: {{ customers_json|default:"[]"|safe }},
+        customerId: '',
+        customerSearch: '',
+        showPartialPay: false,
+        receivedAmount: '',
         pendingCart: [],
         sendingToKitchen: false,
         search: '',
@@ -510,9 +552,38 @@ function waiterOrder() {
                 if (data.status === 'ok') window.location.href = "{% url 'restaurant:waiter_tables' %}";
             });
         },
+        get partialRemaining() {
+            const total = this.order ? this.order.total_amount : 0;
+            const received = parseFloat(this.receivedAmount);
+            if (isNaN(received)) return total;
+            return Math.max(0, total - received);
+        },
+        filteredCustomers() {
+            const q = (this.customerSearch || '').trim();
+            if (!q) return this.customers.slice(0, 20);
+            return this.customers.filter(c => c.name.includes(q) || c.phone.includes(q)).slice(0, 20);
+        },
+        pickCustomer(c) {
+            this.customerId = c.id;
+            this.customerSearch = c.name;
+        },
         closeCheck(type) {
+            const params = {close_type: type};
+            if (type === 'cl') {
+                if (!this.customerId) { alert('اختر عميلاً أولاً لتسجيل قيمة الشيك كمديونية آجلة عليه'); return; }
+                params.customer_id = this.customerId;
+            } else if (this.showPartialPay) {
+                const total = this.order ? this.order.total_amount : 0;
+                const received = parseFloat(this.receivedAmount);
+                if (isNaN(received) || received < 0) { alert('أدخل المبلغ المستلم'); return; }
+                if (received < total - 0.01 && !this.customerId) {
+                    alert('يوجد باقي على العميل، اختر عميلاً لتسجيله كمديونية عليه'); return;
+                }
+                params.received_amount = received;
+                if (this.customerId) params.customer_id = this.customerId;
+            }
             if (!confirm('تأكيد قفل الشيك؟')) return;
-            const body = new URLSearchParams({close_type: type});
+            const body = new URLSearchParams(params);
             fetch(`/restaurant/order/${this.orderId}/close/`, {
                 method: 'POST', headers: {'X-CSRFToken': getCookie('csrftoken'), 'Content-Type': 'application/x-www-form-urlencoded'},
                 body: body,

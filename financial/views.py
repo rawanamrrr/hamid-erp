@@ -1107,6 +1107,17 @@ def salary_pay(request, pk):
             description=desc,
             created_by=request.user,
         )
+        # Same cash outflow the Transaction above records, but categorized under
+        # "رواتب موظفين" — so this payout also appears in the position report's
+        # "المصروفات حسب التصنيف" box, which only ever reads sales.Expense and had no
+        # idea payroll payouts existed (they used to only post to the plain
+        # Transaction ledger, uncategorized).
+        from sales.models import Expense
+        Expense.objects.create(
+            title=desc, category='salary', amount=net_to_pay,
+            description=f"صرف راتب {salary_config.employee.username} — {current_period}",
+            user=request.user,
+        )
 
     messages.success(request, f"تم صرف راتب شهر {current_period} ({net_to_pay} ج.م) بنجاح للموظف {salary_config.employee.username} من حساب {payment_account.name}!")
     return redirect('financial:salary_list')
@@ -1221,10 +1232,20 @@ def payslip_pay(request, pk):
     with db_tx.atomic():
         for a, due in plan:
             a.apply(due)
+        desc = f"صرف راتب {ps.period_month} - {ps.employee.username}"
         Transaction.objects.create(
             account=account, transaction_type='EXPENSE', amount=net,
-            description=f"صرف راتب {ps.period_month} - {ps.employee.username}",
+            description=desc,
             created_by=request.user,
+        )
+        # Same cash outflow, categorized as "رواتب موظفين" so it shows up in the
+        # position report's "المصروفات حسب التصنيف" box (see salary_pay for the
+        # identical fix on the legacy quick-pay flow).
+        from sales.models import Expense
+        Expense.objects.create(
+            title=desc, category='salary', amount=net,
+            description=f"صرف راتب {ps.employee.username} — {ps.period_month}",
+            user=request.user,
         )
         ps.status = 'paid'
         ps.paid_at = timezone.now()
@@ -1272,6 +1293,34 @@ def advance_create(request):
             messages.error(request, f"تعذّر الحفظ: {e}")
     employees = User.objects.filter(is_active=True).order_by('username')
     return render(request, 'financial/advance_form.html', {'employees': employees})
+
+
+@login_required
+@require_permission('financial', 'manage')
+def advance_edit(request, pk):
+    from .payroll_models import EmployeeAdvance
+    from decimal import Decimal
+    from django.contrib.auth.models import User
+
+    advance = get_object_or_404(EmployeeAdvance, pk=pk)
+    if request.method == 'POST':
+        try:
+            advance.employee = get_object_or_404(User, pk=request.POST.get('employee'))
+            advance.amount = Decimal(str(request.POST.get('amount')))
+            advance.per_period_deduction = Decimal(str(request.POST.get('per_period_deduction') or 0))
+            advance.remaining = Decimal(str(request.POST.get('remaining') or 0))
+            date_taken = request.POST.get('date_taken')
+            if date_taken:
+                advance.date_taken = date_taken
+            advance.notes = request.POST.get('notes', '')
+            advance.is_settled = advance.remaining <= 0
+            advance.save()
+            messages.success(request, f"تم تعديل سلفة الموظف {advance.employee.username}.")
+            return redirect('financial:advance_list')
+        except Exception as e:
+            messages.error(request, f"تعذّر الحفظ: {e}")
+    employees = User.objects.filter(is_active=True).order_by('username')
+    return render(request, 'financial/advance_form.html', {'employees': employees, 'advance': advance})
 
 
 # User-Facing Deals & Promotions Views
@@ -1333,18 +1382,15 @@ def deal_create(request):
     else:
         form = DealDiscountForm()
         
-    # Get prices for dynamic frontend preview
-    from django.db.models import Sum
-    from django.db.models.functions import Coalesce
-    from decimal import Decimal
-    
-    available_products = Product.objects.annotate(
-        total_stock=Coalesce(Sum('warehouse_stocks__quantity'), Decimal('0'))
-    ).filter(total_stock__gt=0)
-    
-    prices_dict = {str(p.id): {'name': p.name, 'price': float(p.price_retail)} for p in available_products}
+    # Prices (+ owning category, for the JS "filter products by selected category" live
+    # filter) for the dynamic frontend preview. Menu items only, never raw materials —
+    # matches DealDiscountForm's own product querysets.
+    available_products = Product.objects.filter(is_active=True, is_raw_material=False)
+
+    prices_dict = {str(p.id): {'name': p.name, 'price': float(p.price_retail), 'category_id': p.category_id}
+                   for p in available_products}
     product_prices_json = json.dumps(prices_dict)
-        
+
     return render(request, 'financial/deal_form.html', {
         'form': form,
         'product_prices_json': product_prices_json,
@@ -1359,12 +1405,9 @@ def deal_edit(request, pk):
     from .forms import DealDiscountForm
     from products.models import Product
     import json
-    from django.db.models import Sum
-    from django.db.models.functions import Coalesce
-    from decimal import Decimal
-    
+
     deal = get_object_or_404(DealDiscount, pk=pk)
-    
+
     if request.method == 'POST':
         form = DealDiscountForm(request.POST, instance=deal)
         if form.is_valid():
@@ -1373,12 +1416,11 @@ def deal_edit(request, pk):
             return redirect('financial:deal_list')
     else:
         form = DealDiscountForm(instance=deal)
-        
-    available_products = Product.objects.annotate(
-        total_stock=Coalesce(Sum('warehouse_stocks__quantity'), Decimal('0'))
-    ).filter(total_stock__gt=0)
-    
-    prices_dict = {str(p.id): {'name': p.name, 'price': float(p.price_retail)} for p in available_products}
+
+    available_products = Product.objects.filter(is_active=True, is_raw_material=False)
+
+    prices_dict = {str(p.id): {'name': p.name, 'price': float(p.price_retail), 'category_id': p.category_id}
+                   for p in available_products}
     product_prices_json = json.dumps(prices_dict)
         
     return render(request, 'financial/deal_form.html', {

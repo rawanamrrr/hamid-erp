@@ -378,13 +378,13 @@
                 invoice just to get its stock_quantity above zero.
                 {% endcomment %}
                 <div class="product-card bg-white rounded-xl border cursor-pointer transition-all relative group min-h-44 flex flex-col
-                    {% if product.stock_quantity <= 0 and not product.category.is_menu_category %}border-red-200 opacity-60{% elif product.is_low_stock and policies.inventory.warn_low_stock %}border-amber-200{% else %}border-gray-200{% endif %}
+                    {% if product.stock_quantity <= 0 and not product.category.is_menu_category and not product.track_stock_no_recipe %}border-red-200 opacity-60{% elif product.is_low_stock and policies.inventory.warn_low_stock %}border-amber-200{% else %}border-gray-200{% endif %}
                     hover:shadow-lg hover:border-teal-400 hover:-translate-y-0.5 active:scale-[0.98] shadow-sm overflow-hidden"
                     data-id="{{ product.id }}" onclick="addProductFromData(this)" data-cat="{{ product.category.id }}"
                     data-name="{{ product.name }}" data-sku="{{ product.sku }}" data-barcode="{{ product.barcode }}"
                     data-price-retail="{{ product.price_retail }}" data-price-semi="{{ product.price_semi_wholesale }}"
                     data-price-wholesale="{{ product.price_wholesale }}" data-stock="{{ product.stock_quantity }}"
-                    data-track-stock="{% if product.category.is_menu_category %}0{% else %}1{% endif %}"
+                    data-track-stock="{% if product.category.is_menu_category and not product.track_stock_no_recipe %}0{% else %}1{% endif %}"
                     data-strips-per-box="{{ product.strips_per_box|default:1 }}"
                     data-box-count="{{ product.box_count }}"
                     data-remaining-strips="{{ product.remaining_strips }}"
@@ -2155,13 +2155,17 @@
                     const short = [];
                     d.items.forEach(it => {
                         const card = document.querySelector(`.product-card[data-id="${it.product_id}"]`);
-                        const available = card ? (parseFloat(card.dataset.stock) || 0) : 0;
                         const want = it.quantity;
-                        const addQty = Math.min(want, available);
+                        // Made-to-order items (menu-category/recipe, same flag the rest of
+                        // the cart already respects) are never limited by their own
+                        // stock_quantity — see _doProceedToAddToCart's isRecipeItem check.
+                        const isMadeToOrder = card && (card.dataset.trackStock === '0' || RECIPE_PRODUCT_IDS.has(String(it.product_id)));
+                        const available = card ? (parseFloat(card.dataset.stock) || 0) : 0;
+                        const addQty = isMadeToOrder ? want : Math.min(want, available);
                         if (card && addQty > 0) {
                             proceedToAddToCart(it.product_id, addQty, card.dataset, 'box');
                         }
-                        if (available < want) short.push({ name: it.name, want: want, available: available });
+                        if (!isMadeToOrder && available < want) short.push({ name: it.name, want: want, available: available });
                     });
                     closeSavedOrdersModal();
                     if (short.length) {
@@ -3889,15 +3893,25 @@
                                     }
                                 });
 
-                                // 2. Calculate sets
-                                let sets = Math.floor(buyQty / buyX);
+                                // 2. Calculate sets. When the free item comes from an explicit
+                                // "get_products" list, each group only consumes X purchased
+                                // units. But when there's no separate free-list (the freebie
+                                // comes out of the SAME items being bought), a group must
+                                // consume X+Y units total — e.g. "buy 1 get 1 free" needs 2
+                                // units per group (1 paid + 1 free), not 1. Dividing by X alone
+                                // here (matching the backend's sales/services.py
+                                // compute_deal_discount, which already uses x+y in this case)
+                                // used to make EVERY unit past the first "free", so 2 units on
+                                // a buy-1-get-1 deal made both items free instead of just one.
+                                let useGetProductsList = deal.get_product_ids && deal.get_product_ids.length > 0;
+                                let groupSize = useGetProductsList ? buyX : (buyX + getY);
+                                let sets = Math.floor(buyQty / groupSize);
                                 let maxFreeItems = sets * getY;
 
                                 if (maxFreeItems > 0) {
                                     // 3. Find eligible "Get" items and expand into individual flat items
                                     let getPool = [];
-                                    let useGetProductsList = deal.get_product_ids && deal.get_product_ids.length > 0;
-                                    
+
                                     cart.forEach(item => {
                                         let isEligible = false;
                                         if (deal.apply_to_all) isEligible = true;
@@ -3984,19 +3998,24 @@
                 appliedDiscount = manualDiscountAmount;
             }
 
+            let discountedSubtotal = subtotal - appliedDiscount;
+            if (discountedSubtotal < 0) discountedSubtotal = 0;
+
             // Service charge — dine-in only, mirrors sales.services.compute_dine_in_service_charge()
             // exactly. Online/delivery always resolves to order_type='delivery' at submit
             // time regardless of the dine-in/takeaway toggle (see submitOrder()'s
             // order_type payload), so it must never get a service charge here either.
+            // Computed on the discounted subtotal (like VAT below), not the raw pre-offer
+            // subtotal — a "buy X get Y"/"N for price" deal (or a manual discount) must
+            // reduce the service charge exactly like it reduces VAT.
             const isOnlineForTotals = document.getElementById('isOnlineOrder')?.checked || deliveryCost > 0;
             let serviceChargeAmt = 0;
             if (!isOnlineForTotals && typeof currentOrderType !== 'undefined' && currentOrderType === 'dine_in'
                 && TAX_SETTINGS.servicePct > 0 && !TAX_SETTINGS.serviceIncluded) {
-                serviceChargeAmt = subtotal * TAX_SETTINGS.servicePct / 100;
+                serviceChargeAmt = discountedSubtotal * TAX_SETTINGS.servicePct / 100;
             }
 
-            let preExtrasTotal = subtotal - appliedDiscount + deliveryCost;
-            if (preExtrasTotal < 0) preExtrasTotal = 0;
+            let preExtrasTotal = discountedSubtotal + deliveryCost;
 
             // VAT and the service charge are each an independent percentage of the SAME
             // pre-extras total, added side by side — not compounded on each other (VAT

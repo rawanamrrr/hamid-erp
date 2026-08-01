@@ -52,6 +52,7 @@ urlpatterns = [
     path('payslips/<int:pk>/print/', views.payslip_print, name='payslip_print'),
     path('advances/', views.advance_list, name='advance_list'),
     path('advances/create/', views.advance_create, name='advance_create'),
+    path('advances/<int:pk>/edit/', views.advance_edit, name='advance_edit'),
 
     # Deals & Discounts (Normal User Pages)
     path('deals/', views.deal_list, name='deal_list'),

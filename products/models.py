@@ -559,6 +559,17 @@ class Product(models.Model):
     # directly, so it's added through its own simple screen instead of "إضافة منتج"
     # (which is built for sellable final products) and is hidden from POS/waiter menus.
     is_raw_material = models.BooleanField(default=False, verbose_name="مادة خام (غير مباعة مباشرة)")
+    # A sellable product that is bought ready-made (canned drinks, packaged snacks...)
+    # rather than prepared from raw materials — unlike the rest of a menu category
+    # (Category.is_menu_category), it DOES need a real stock count and must be
+    # purchasable via فاتورة مشتريات just like a raw material is. Every "is stock
+    # tracked?" check across the app already reads as "is_raw_material OR NOT
+    # category.is_menu_category" — this field is a third way IN to that same set,
+    # for a sellable product living inside an otherwise made-to-order category.
+    track_stock_no_recipe = models.BooleanField(
+        default=False, verbose_name="لا يُحضّر من مواد خام",
+        help_text="فعّله لصنف يُشترى جاهزًا (مثل مشروب معلب) بدل ما يتحضر من وصفة — هيتم تتبع كميته ويمكن إضافته من فاتورة مشتريات مثل المواد الخام."
+    )
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="تاريخ الإضافة")
     updated_at = models.DateTimeField(auto_now=True, verbose_name="آخر تحديث")
 

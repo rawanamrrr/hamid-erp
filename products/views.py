@@ -2510,7 +2510,7 @@ def bulk_quick_add_category_api(request):
     name = (data.get('name') or '').strip()
     if not name:
         return JsonResponse({'success': False, 'error': 'اسم القسم مطلوب'})
-    obj, created = Category.objects.get_or_create(name=name, defaults={'is_active': True})
+    obj, created = Category.objects.get_or_create(name=name, defaults={'is_active': True, 'is_menu_category': True})
     return JsonResponse({'success': True, 'id': obj.id, 'name': obj.name, 'created': created})
 
 @login_required
@@ -2559,8 +2559,16 @@ def bulk_quick_add_size_api(request):
 def api_products_search(request):
     """
     JSON API for product search (used by Purchase Invoice / Purchase Return item pickers).
+
+    `supplier_id` (optional, purchase-return picker only): when set, `stock` is NOT the
+    product's total warehouse stock — it's (confirmed quantity bought from THIS supplier)
+    minus (quantity already returned to THIS supplier), i.e. what's actually eligible to
+    hand back to them. Total warehouse stock could include units from other suppliers, or
+    already sold/returned-elsewhere stock, that this supplier never shipped and has
+    nothing to do with.
     """
     query = request.GET.get('q', '').strip()
+    supplier_id = request.GET.get('supplier_id', '').strip()
 
     # A supplier invoice buys raw materials (or other stocked retail goods) — never a
     # kitchen-routed menu item, which is a prepared dish, not something you receive from
@@ -2571,9 +2579,11 @@ def api_products_search(request):
     # (is_menu_category=True, used to keep an uncategorized item from being wrongly
     # stock-gated in the POS/waiter grids) — which would otherwise make every raw
     # material invisible here too, even though they're exactly what a purchase invoice
-    # is meant to restock.
+    # is meant to restock. Same for a menu-category product explicitly flagged
+    # track_stock_no_recipe (bought ready-made, e.g. a canned drink, instead of
+    # prepared from a recipe) — it needs to be purchasable here too.
     products = Product.objects.filter(is_active=True).filter(
-        Q(is_raw_material=True) | ~Q(category__is_menu_category=True)
+        Q(is_raw_material=True) | ~Q(category__is_menu_category=True) | Q(track_stock_no_recipe=True)
     )
     if query:
         products = products.filter(
@@ -2586,12 +2596,35 @@ def api_products_search(request):
 
     results = []
     for p in products:
+        cost_price = p.cost_price
+        if supplier_id:
+            invoice_lines = PurchaseInvoiceItem.objects.filter(
+                invoice__supplier_id=supplier_id, invoice__status='CONFIRMED', product=p,
+            )
+            agg = invoice_lines.aggregate(
+                total_qty=Sum('quantity'),
+                total_value=Sum(F('quantity') * F('unit_price')),
+            )
+            purchased = agg['total_qty'] or Decimal('0')
+            already_returned = PurchaseReturnItem.objects.filter(
+                purchase_return__supplier_id=supplier_id, product=p,
+            ).aggregate(total=Sum('quantity'))['total'] or Decimal('0')
+            stock = max(Decimal('0'), purchased - already_returned)
+            # What this supplier actually charged for it (weighted average across their
+            # confirmed invoices) — not the product's overall cost_price, which is a
+            # store-wide weighted average across every supplier that's ever shipped it.
+            # A return has to credit back what THIS supplier was paid, not a blended
+            # figure other suppliers' prices dragged up or down.
+            if purchased > 0:
+                cost_price = agg['total_value'] / purchased
+        else:
+            stock = p.stock_quantity
         results.append({
             'id': p.id,
             'name': p.name,
             'sku': p.sku,
-            'cost_price': float(p.cost_price),
-            'stock': float(p.stock_quantity),
+            'cost_price': float(cost_price),
+            'stock': float(stock),
             'unit': p.get_unit_measure_display(),
             'sizes': [{'id': s.id, 'name': s.name} for s in p.sizes.all()],
         })
@@ -2685,7 +2718,18 @@ def purchase_invoice_create(request, pk=None):
         accounts = []
         
     sys_settings = SystemSetting.objects.first()
-        
+
+    # Let the user jump straight into receiving a PO from this same page — without this,
+    # the only way in was navigating to that specific PO's own detail page first and
+    # clicking "تحويل إلى فاتورة شراء" there. Only offered on a fresh, standalone invoice
+    # (not while editing an existing draft or already loaded from a PO).
+    pending_purchase_orders = None
+    if not invoice and not po:
+        pending_purchase_orders = (PurchaseOrder.objects
+                                    .filter(status__in=['CONFIRMED', 'PARTIAL'])
+                                    .select_related('supplier')
+                                    .order_by('-created_at'))
+
     return render(request, 'products/purchase_invoice_create.html', {
         'suppliers': suppliers,
         'warehouses': warehouses,
@@ -2696,6 +2740,7 @@ def purchase_invoice_create(request, pk=None):
         'po_id': po.id if po else None,
         'prefill_supplier_id': prefill_supplier_id,
         'prefill_warehouse_id': prefill_warehouse_id,
+        'pending_purchase_orders': pending_purchase_orders,
         'title': f'تعديل فاتورة مشتريات #{invoice.id}' if invoice else (f'استلام أمر شراء {po.po_number}' if po else 'فاتورة مشتريات جديدة'),
         'sys_settings': sys_settings
     })
@@ -3590,7 +3635,8 @@ def api_stock_alerts_count(request):
     if not get_policy('inventory.warn_low_stock'):
         return JsonResponse({'count': 0})
     count = (Product.objects.filter(is_active=True, stock_quantity__lte=F('low_stock_threshold'))
-             .exclude(category__is_menu_category=True, is_raw_material=False).count())
+             .exclude(Q(category__is_menu_category=True) & Q(is_raw_material=False) & Q(track_stock_no_recipe=False))
+             .count())
     return JsonResponse({'count': count})
 
 @login_required
@@ -4335,8 +4381,13 @@ def stock_alerts(request):
     # stock count — excluding them keeps this screen focused on actual stocked goods
     # (retail products and raw materials). Raw materials are kept even if they fall
     # back to the generic "بدون قسم" category (is_menu_category=True) since they have
-    # no category field of their own on the raw-material add form.
-    stock_tracked = Product.objects.exclude(category__is_menu_category=True, is_raw_material=False)
+    # no category field of their own on the raw-material add form. A menu-category
+    # product explicitly flagged track_stock_no_recipe (bought ready-made, not
+    # prepared from a recipe) is kept too — it needs real stock tracking despite
+    # living in a made-to-order category.
+    stock_tracked = Product.objects.exclude(
+        Q(category__is_menu_category=True) & Q(is_raw_material=False) & Q(track_stock_no_recipe=False)
+    )
 
     low_stock = stock_tracked.filter(
         is_active=True,
@@ -4471,8 +4522,9 @@ def purchase_order_create(request):
         form = PurchaseOrderForm()
     # A PO orders from a supplier — a menu item (prepared in-house) is never something a
     # supplier ships, only its raw materials are (same restriction as purchase invoices).
+    # A menu-category product flagged track_stock_no_recipe (bought ready-made) is kept.
     products = (Product.objects.filter(is_active=True)
-                .exclude(category__is_menu_category=True, is_raw_material=False)
+                .exclude(Q(category__is_menu_category=True) & Q(is_raw_material=False) & Q(track_stock_no_recipe=False))
                 .values('id', 'name', 'sku', 'cost_price'))
     sizes = Size.objects.filter(is_active=True).values('id', 'name')
     return render(request, 'products/purchase_order_form.html', {
@@ -5068,8 +5120,9 @@ def low_stock_report(request):
     supplier_id = request.GET.get('supplier')
 
     # Kitchen-routed menu items are prepared on demand — never reorder stock for them.
+    # A menu-category product flagged track_stock_no_recipe (bought ready-made) is kept.
     qs = (Product.objects.filter(is_active=True)
-          .exclude(category__is_menu_category=True, is_raw_material=False)
+          .exclude(Q(category__is_menu_category=True) & Q(is_raw_material=False) & Q(track_stock_no_recipe=False))
           .select_related('supplier'))
     if only_out:
         qs = qs.filter(stock_quantity__lte=0)
@@ -5323,9 +5376,11 @@ def stocktake_create(request):
     # Menu-category items are prepared on demand and never carry a real stock count —
     # including them would pollute every variance list with phantom "shortages". Raw
     # materials are always counted though, even if their category fell back to the
-    # generic "بدون قسم" (is_menu_category=True).
+    # generic "بدون قسم" (is_menu_category=True). Same for a menu-category product
+    # flagged track_stock_no_recipe (bought ready-made).
     rows = (WarehouseStock.objects.filter(warehouse=wh)
-            .exclude(product__category__is_menu_category=True, product__is_raw_material=False)
+            .exclude(Q(product__category__is_menu_category=True) & Q(product__is_raw_material=False)
+                     & Q(product__track_stock_no_recipe=False))
             .select_related('product'))
     StockCountItem.objects.bulk_create([
         StockCountItem(count=count, product=ws.product, system_qty=ws.quantity or 0)

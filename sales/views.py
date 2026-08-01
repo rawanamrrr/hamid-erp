@@ -1021,7 +1021,9 @@ def submit_order_ajax(request):
                     # POS/waiter already use to never show these as "منتهي"), and (b) items
                     # with an active Recipe specifically (ingredient availability is a
                     # separate, non-blocking warning — see sales.views.api_check_recipe_stock).
-                    if (product.category_id and product.category.is_menu_category) or product.id in _recipe_ids:
+                    if ((product.category_id and product.category.is_menu_category
+                         and not product.track_stock_no_recipe)
+                            or product.id in _recipe_ids):
                         continue
 
                     qty = Decimal(str(item.get('quantity') or item.get('qty', 1)))
@@ -1123,7 +1125,7 @@ def submit_order_ajax(request):
                     applied_deal = DealDiscount.objects.filter(id=applied_deal_id, is_active=True).first()
 
                 # Process items + compute totals via the shared OrderService (Phase 2.2)
-                from .services import issue_cart_items, compute_discount_and_total, compute_dine_in_service_charge
+                from .services import issue_cart_items, compute_discount_and_total
                 subtotal, qualified_subtotal = issue_cart_items(
                     order, cart_items, warehouse, request.user, applied_deal,
                     note_prefix="فاتورة مبيعات",
@@ -1136,7 +1138,7 @@ def submit_order_ajax(request):
                     discount=discount, discount_type=discount_type,
                     applied_deal=applied_deal, delivery_cost=delivery_cost,
                     tailoring_cost=order.tailoring_cost,
-                    service_charge=compute_dine_in_service_charge(subtotal, order.order_type),
+                    order_type=order.order_type,
                     vat_rate=order.vat_rate_snapshot, vat_included=order.vat_included_snapshot,
                     cart_items=cart_items,
                 )
@@ -2526,7 +2528,7 @@ def edit_order_ajax(request):
                 if ws.quantity < deduction_qty and not _neg_ok:
                     raise Exception(f"الكمية غير متوفرة في {new_wh.name} للصنف: {product.name} (المتاح: {ws.quantity})")
 
-            from .services import issue_cart_items, compute_discount_and_total, compute_dine_in_service_charge
+            from .services import issue_cart_items, compute_discount_and_total
             total_amount, qualified_subtotal = issue_cart_items(
                 order, new_items, new_wh, request.user, applied_deal,
                 note_prefix="تخصيم تعديل فاتورة",
@@ -2539,7 +2541,7 @@ def edit_order_ajax(request):
                 discount=order.discount, discount_type=order.discount_type,
                 applied_deal=applied_deal, delivery_cost=order.delivery_cost,
                 tailoring_cost=order.tailoring_cost,
-                service_charge=compute_dine_in_service_charge(total_amount, new_order_type),
+                order_type=new_order_type,
                 vat_rate=order.vat_rate_snapshot, vat_included=order.vat_included_snapshot,
                 cart_items=new_items,
             )

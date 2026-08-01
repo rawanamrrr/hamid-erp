@@ -244,6 +244,14 @@ class Transaction(models.Model):
                 Account.objects.select_for_update().filter(pk=self.to_account_id).update(
                     balance=F('balance') - self.amount
                 )
+            # Mirror save()'s post_cash_transaction: reverses the operational
+            # Account.balance above, but a deleted Transaction also needs its journal
+            # entry (posted at reference_number f"TXN-{id}") removed — otherwise the
+            # double-entry ledger (trial balance / income statement) keeps a stale
+            # debit/credit pair forever with no corresponding Transaction, silently
+            # drifting away from Account.balance every time a transaction is deleted.
+            from .posting import unpost
+            unpost(f"TXN-{self.pk}")
             super().delete(*args, **kwargs)
 
     def __str__(self):

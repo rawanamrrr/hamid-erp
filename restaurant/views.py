@@ -32,11 +32,14 @@ def _recompute_order_totals(order):
     from sales.services import compute_dine_in_service_charge, compute_vat_amount
 
     order.subtotal_amount = sum((i.subtotal for i in order.items.filter(is_void=False)), Decimal('0'))
-    order.service_charge = compute_dine_in_service_charge(order.subtotal_amount, order.order_type)
     # VAT and the service charge are each an independent percentage of the same
-    # pre-extras total, added side by side — not compounded on top of each other.
-    pre_extras_total = (order.subtotal_amount - Decimal(str(order.discount))
-                        + Decimal(str(order.delivery_cost)))
+    # post-discount subtotal, added side by side — not compounded on top of each other.
+    # Service charge used to be computed on the raw subtotal_amount (before discount),
+    # so a discounted dine-in order still paid full service charge on the un-discounted
+    # amount while VAT correctly used the discounted base.
+    discounted_subtotal = max(Decimal('0'), order.subtotal_amount - Decimal(str(order.discount)))
+    order.service_charge = compute_dine_in_service_charge(discounted_subtotal, order.order_type)
+    pre_extras_total = discounted_subtotal + Decimal(str(order.delivery_cost))
     # Pinned to the rate this order was actually opened under (vat_rate_snapshot), not
     # whatever the store's live VAT setting happens to be right now — otherwise a rate
     # change would silently re-price an already-open table's VAT on every add-item/void.
@@ -248,6 +251,15 @@ def _waiter_menu_context(order):
                 'serve_temperature': p.get_serve_temperature_display() if p.serve_temperature else '',
             }
 
+    # Customer list for the آجل/partial-payment close — lets the waiter attach the
+    # unpaid remainder to a customer's balance instead of it vanishing into credit_paid
+    # with no ledger trace (see close_check).
+    from crm.models import Customer
+    customers_json = json.dumps([
+        {'id': c.id, 'name': (f"{c.first_name} {c.last_name}").strip(), 'phone': c.phone or ''}
+        for c in Customer.objects.all().order_by('first_name', 'last_name')
+    ])
+
     from sales.views import _recipe_product_ids
     return {
         'categories': categories,
@@ -255,6 +267,7 @@ def _waiter_menu_context(order):
         'modifier_map_json': json.dumps(modifier_map),
         'variant_map_json': json.dumps(variant_map),
         'product_specs_json': json.dumps(product_specs),
+        'customers_json': customers_json,
         # Same purpose as sales/views.py pos_view's identical context var — lets the
         # waiter cart skip the recipe-stock check round trip for products that have no
         # recipe at all (most of the menu).
@@ -293,7 +306,9 @@ def _add_items_to_order(request, order, items, branch):
         # Menu-category items (cafe drinks/food, prepared on demand) never carry a real
         # stock count — mirrors sales.services.issue_cart_items's exact same exemption so
         # a waiter-rung sale doesn't print a false "exceeded available stock" warning.
-        if product.category_id and product.category.is_menu_category:
+        # A product flagged track_stock_no_recipe (bought ready-made, not prepared from
+        # a recipe) is excluded from this exemption — it needs the real stock check.
+        if product.category_id and product.category.is_menu_category and not product.track_stock_no_recipe:
             shortfall = Decimal('0')
         else:
             from products.inventory_services import available_quantity
@@ -1139,7 +1154,17 @@ def custody_settle(request, custody_id):
 @require_permission('waiter', 'edit')
 @require_POST
 def close_check(request, order_id):
-    """Close an open tab as cash / visa / CL (آجل — the owner ate it, no cash collected)."""
+    """Close an open tab as cash / visa / CL (آجل), optionally partial.
+
+    A dine-in table order never had a customer attached before — so an آجل close (or a
+    partial cash/visa/wallet/instapay payment) had nowhere to record the unpaid الباقي:
+    it just sat in order.credit_paid with no link to anyone's account, invisible on any
+    customer statement. Now: any close with received < total requires customer_id, so
+    the shortfall shows up on that customer's بdiscoun (order.customer + total_amount vs
+    received_amount is exactly what crm.statements.build_customer_statement already
+    reads for every other order type).
+    """
+    from decimal import Decimal, InvalidOperation
     order = get_object_or_404(Order, pk=order_id)
     close_type = request.POST.get('close_type')
     if close_type not in dict(Order.CLOSE_TYPE_CHOICES):
@@ -1151,28 +1176,50 @@ def close_check(request, order_id):
     if order.close_type:
         return JsonResponse({'status': 'error', 'message': 'الشيك مُقفل بالفعل'}, status=400)
 
+    total = order.total_amount
+    if close_type == Order.CLOSE_TYPE_CL:
+        received = Decimal('0.00')
+    else:
+        raw_received = request.POST.get('received_amount')
+        try:
+            received = Decimal(str(raw_received)) if raw_received not in (None, '') else total
+        except InvalidOperation:
+            return JsonResponse({'status': 'error', 'message': 'المبلغ المستلم غير صالح'}, status=400)
+        received = max(Decimal('0.00'), min(received, total))
+
+    remaining = total - received
+    customer_id = request.POST.get('customer_id') or None
+    if remaining > Decimal('0.01'):
+        if not customer_id:
+            return JsonResponse({'status': 'error', 'message': 'يجب اختيار عميل لتسجيل الباقي كمديونية عليه'}, status=400)
+        from crm.models import Customer
+        customer = Customer.objects.filter(pk=customer_id).first()
+        if not customer:
+            return JsonResponse({'status': 'error', 'message': 'العميل غير موجود'}, status=400)
+    else:
+        customer = None
+
     with db_transaction.atomic():
         order.close_type = close_type
         order.is_open = False
         order.is_completed = True
+        if customer:
+            order.customer = customer
         if close_type == Order.CLOSE_TYPE_CASH:
-            order.cash_paid = order.total_amount
-            order.received_amount = order.total_amount
+            order.cash_paid = received
         elif close_type == Order.CLOSE_TYPE_VISA:
-            order.visa_paid = order.total_amount
-            order.received_amount = order.total_amount
+            order.visa_paid = received
         elif close_type == Order.CLOSE_TYPE_WALLET:
-            order.wallet_paid = order.total_amount
-            order.received_amount = order.total_amount
+            order.wallet_paid = received
         elif close_type == Order.CLOSE_TYPE_INSTAPAY:
-            order.instapay_paid = order.total_amount
-            order.received_amount = order.total_amount
+            order.instapay_paid = received
         elif close_type == Order.CLOSE_TYPE_CL:
             # آجل: not collected as cash — tracked as credit, excluded from cash reconciliation.
-            order.credit_paid = order.total_amount
+            order.credit_paid = total
+        order.received_amount = received
         order.save(update_fields=['close_type', 'is_open', 'is_completed', 'cash_paid',
                                   'visa_paid', 'wallet_paid', 'instapay_paid', 'received_amount',
-                                  'credit_paid'])
+                                  'credit_paid', 'customer'])
         if order.table_id:
             Table.objects.filter(pk=order.table_id).update(status=Table.STATUS_FREE)
 

@@ -471,11 +471,12 @@
 
                     <!-- Stock Quantity -->
                     <td class="py-5 px-6 text-center">
-                        {% if product.category.is_menu_category %}
+                        {% if product.category.is_menu_category and not product.track_stock_no_recipe %}
                         {% comment %}
                         Menu-category item — prepared on demand, has no meaningful stock count of
                         its own (only its Recipe's ingredients do, if any). Showing a "منتهي/out of
                         stock" badge here would wrongly suggest the drink itself ran out.
+                        Products flagged track_stock_no_recipe are excluded — their stock is real.
                         {% endcomment %}
                         <span class="text-xs text-gray-400 italic">يُحضّر عند الطلب</span>
                         {% else %}
