@@ -110,6 +110,9 @@ def restaurant_setup(request):
     return render(request, 'restaurant/setup.html', {
         'branch': branch, 'warehouses': warehouses,
         'sections': sections, 'tables': tables, 'drivers': drivers,
+        'tables_free': tables.filter(status=Table.STATUS_FREE).count(),
+        'tables_busy': tables.filter(status=Table.STATUS_BUSY).count(),
+        'tables_reserved': tables.filter(status=Table.STATUS_RESERVED).count(),
     })
 
 

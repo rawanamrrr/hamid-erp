@@ -266,9 +266,9 @@
                     <td>#{{ order.id }}</td>
                     {% if style == 'a4' %}<td>{{ order.customer.first_name }} {{ order.customer.last_name }}</td>{% endif %}
                     <td style="font-size: 0.9em; color: #555;">{{ order.payment_details_display }}</td>
-                    <td>{{ order.total_amount|intcomma }}</td>
-                    <td>{{ order.received_amount|intcomma }}</td>
-                    <td>{{ order.remaining_amount|intcomma }}</td>
+                    <td>{{ order.total_amount|floatformat:2|intcomma }}</td>
+                    <td>{{ order.received_amount|floatformat:2|intcomma }}</td>
+                    <td>{{ order.remaining_amount|floatformat:2|intcomma }}</td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -277,37 +277,37 @@
         <div class="totals-box">
             <div class="total-row">
                 <span>إجمالي المبيعات:</span>
-                <span>{{ total_sales_amount|intcomma }}</span>
+                <span>{{ total_sales_amount|floatformat:2|intcomma }}</span>
             </div>
             <div class="total-row">
                 <span>إجمالي التحصيل:</span>
-                <span>{{ total_collected|intcomma }}</span>
+                <span>{{ total_collected|floatformat:2|intcomma }}</span>
             </div>
             <div class="total-row" style="font-size: 0.9em; padding-right: 20px; color: #555;">
                 <span>↳ نقدي (كاش):</span>
-                <span>{{ total_collected_cash|intcomma }}</span>
+                <span>{{ total_collected_cash|floatformat:2|intcomma }}</span>
             </div>
             {% if total_collected_wallet > 0 %}
             <div class="total-row" style="font-size: 0.9em; padding-right: 20px; color: #555;">
                 <span>↳ فودافون كاش/محفظة:</span>
-                <span>{{ total_collected_wallet|intcomma }}</span>
+                <span>{{ total_collected_wallet|floatformat:2|intcomma }}</span>
             </div>
             {% endif %}
             {% if total_collected_instapay > 0 %}
             <div class="total-row" style="font-size: 0.9em; padding-right: 20px; color: #555;">
                 <span>↳ إنستا باي (InstaPay):</span>
-                <span>{{ total_collected_instapay|intcomma }}</span>
+                <span>{{ total_collected_instapay|floatformat:2|intcomma }}</span>
             </div>
             {% endif %}
             {% if total_collected_visa > 0 %}
             <div class="total-row" style="font-size: 0.9em; padding-right: 20px; color: #555;">
                 <span>↳ فيزا (Visa):</span>
-                <span>{{ total_collected_visa|intcomma }}</span>
+                <span>{{ total_collected_visa|floatformat:2|intcomma }}</span>
             </div>
             {% endif %}
             <div class="total-row" style="color: {% if style == 'a4' %}#c0392b{% else %}#000{% endif %};">
                 <span>مبيعات آجلة (لم تحصل):</span>
-                <span>{{ total_deferred|intcomma }}</span>
+                <span>{{ total_deferred|floatformat:2|intcomma }}</span>
             </div>
         </div>
 
@@ -325,7 +325,7 @@
                 {% for expense in expenses %}
                 <tr>
                     <td>{{ expense.description }}</td>
-                    <td>{{ expense.amount|intcomma }}</td>
+                    <td>{{ expense.amount|floatformat:2|intcomma }}</td>
                 </tr>
                 {% empty %}
                 <tr><td colspan="2" class="text-center">لا يوجد مصروفات مسجلة في هذا الشيفت</td></tr>
@@ -333,7 +333,7 @@
             </tbody>
         </table>
         <div class="total-row font-bold text-right" style="padding: 5px;">
-            <span>إجمالي المصروفات: {{ total_expenses|intcomma }}</span>
+            <span>إجمالي المصروفات: {{ total_expenses|floatformat:2|intcomma }}</span>
         </div>
 
         {% if style == 'a4' %}<div style="margin-bottom: 30px;"></div>{% else %}<hr style="border-style: dashed; margin: 10px 0;">{% endif %}
@@ -350,13 +350,13 @@
                 {% for w in withdrawals %}
                 <tr>
                     <td>{{ w.description }}</td>
-                    <td>{{ w.amount|intcomma }}</td>
+                    <td>{{ w.amount|floatformat:2|intcomma }}</td>
                 </tr>
                 {% endfor %}
                 {% for r in refunds %}
                 <tr>
                     <td>مرتجع: {{ r.description }}</td>
-                    <td>{{ r.amount|intcomma }}</td>
+                    <td>{{ r.amount|floatformat:2|intcomma }}</td>
                 </tr>
                 {% endfor %}
                 {% if not withdrawals and not refunds %}
@@ -365,7 +365,7 @@
             </tbody>
         </table>
         <div class="total-row font-bold text-right" style="padding: 5px;">
-            <span>مسحوبات: {{ total_withdrawals|intcomma }} | مرتجعات: {{ total_refunds|intcomma }}</span>
+            <span>مسحوبات: {{ total_withdrawals|floatformat:2|intcomma }} | مرتجعات: {{ total_refunds|floatformat:2|intcomma }}</span>
         </div>
 
         {% if style == 'a4' %}<div style="margin-bottom: 30px;"></div>{% else %}<hr style="border-style: dashed; margin: 10px 0;">{% endif %}
@@ -374,40 +374,46 @@
         <div class="totals-box">
             <div class="total-row">
                 <span>رصيد بداية الشيفت:</span>
-                <span>{{ shift.start_balance|intcomma }}</span>
+                <span>{{ shift.start_balance|floatformat:2|intcomma }}</span>
             </div>
             <div class="total-row">
                 <span>(+) تحصيل نقدي (كاش):</span>
-                <span>{{ total_collected_cash|intcomma }}</span>
+                <span>{{ total_collected_cash|floatformat:2|intcomma }}</span>
             </div>
             <div class="total-row">
                 <span>(-) إجمالي المصروفات:</span>
-                <span>{{ total_expenses|intcomma }}</span>
+                <span>{{ total_expenses|floatformat:2|intcomma }}</span>
             </div>
             <div class="total-row">
                 <span>(-) المسحوبات:</span>
-                <span>{{ total_withdrawals|intcomma }}</span>
+                <span>{{ total_withdrawals|floatformat:2|intcomma }}</span>
             </div>
             <div class="total-row">
                 <span>(-) المرتجعات:</span>
-                <span>{{ total_refunds|intcomma }}</span>
+                <span>{{ total_refunds|floatformat:2|intcomma }}</span>
             </div>
-            
+            {% if total_supplier_payments %}
+            <div class="total-row">
+                <span>(-) مدفوعات موردين:</span>
+                <span>{{ total_supplier_payments|floatformat:2|intcomma }}</span>
+            </div>
+            {% endif %}
+
             {% if style == 'a4' %}<hr style="margin: 15px 0; border-color: #ddd;">{% else %}<hr style="border-style: solid; border-width: 1px;">{% endif %}
             
             <div class="total-row grand-total">
                 <span>الرصيد المتوقع في الدرج:</span>
-                <span>{{ shift.expected_closing_balance|intcomma }} ج.م</span>
+                <span>{{ shift.expected_closing_balance|floatformat:2|intcomma }} ج.م</span>
             </div>
             
             {% if shift.is_closed %}
             <div class="total-row" style="margin-top: 10px; color: #2c3e50;">
                 <span>العد الفعلي (عند الإغلاق):</span>
-                <span>{{ shift.actual_closing_balance|intcomma }} ج.م</span>
+                <span>{{ shift.actual_closing_balance|floatformat:2|intcomma }} ج.م</span>
             </div>
             <div class="total-row" style="font-weight: bold; color: {% if shift.difference < 0 %}#c0392b{% else %}#27ae60{% endif %};">
                 <span>الفرق (عجز / زيادة):</span>
-                <span>{{ shift.difference|intcomma }} ج.م</span>
+                <span>{{ shift.difference|floatformat:2|intcomma }} ج.م</span>
             </div>
             {% endif %}
         </div>

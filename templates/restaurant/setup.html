@@ -1,12 +1,24 @@
 {% extends 'base.html' %}
 {% block title %}إعداد المطعم — الترابيزات والطيارين{% endblock %}
 {% block content %}
-<div class="p-4">
-    <div class="flex items-center justify-between mb-4">
-        <h1 class="text-2xl font-bold">إعداد المطعم{% if branch %} — {{ branch.name }}{% endif %}</h1>
+<div class="p-4 md:p-6 max-w-7xl mx-auto space-y-6">
+
+    <!-- Header -->
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div class="flex items-center gap-3">
+            <div class="w-12 h-12 rounded-2xl bg-gradient-to-br from-rose-500 to-pink-600 text-white flex items-center justify-center shadow-lg shadow-rose-200/60 flex-shrink-0">
+                <i class="fa-solid fa-sliders text-lg"></i>
+            </div>
+            <div>
+                <h1 class="text-xl md:text-2xl font-black text-gray-800 tracking-tight">إعداد المطعم</h1>
+                <p class="text-xs text-gray-400 font-bold">{% if branch %}{{ branch.name }}{% else %}الصالات، الترابيزات، والطيارين{% endif %}</p>
+            </div>
+        </div>
         {% if warehouses.count > 1 %}
         <form method="get" class="flex items-center gap-2">
-            <select name="branch_id" onchange="this.form.submit()" class="border rounded-lg px-3 py-2">
+            <i class="fa-solid fa-store text-gray-400 text-sm"></i>
+            <select name="branch_id" onchange="this.form.submit()"
+                    class="border border-gray-200 bg-white rounded-xl px-3 py-2 text-sm font-bold text-gray-700 outline-none focus:ring-2 focus:ring-rose-400 shadow-sm">
                 {% for w in warehouses %}
                 <option value="{{ w.id }}" {% if w.id == branch.id %}selected{% endif %}>{{ w.name }}</option>
                 {% endfor %}
@@ -15,67 +27,192 @@
         {% endif %}
     </div>
 
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <!-- Sections -->
-        <div class="bg-white rounded-xl border p-4">
-            <h2 class="font-semibold mb-3">الصالات</h2>
-            <form method="post" class="flex gap-2 mb-3">
+    <!-- Stats overview strip -->
+    <div class="grid grid-cols-2 sm:grid-cols-5 gap-3">
+        <div class="bg-white rounded-2xl border border-gray-100 shadow-sm px-4 py-3.5 flex items-center gap-3">
+            <div class="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-500 flex items-center justify-center flex-shrink-0"><i class="fa-solid fa-border-all text-sm"></i></div>
+            <div class="min-w-0"><p class="text-lg font-black text-gray-800 leading-none">{{ sections.count }}</p><p class="text-[10px] text-gray-400 font-bold mt-1">صالات</p></div>
+        </div>
+        <div class="bg-white rounded-2xl border border-gray-100 shadow-sm px-4 py-3.5 flex items-center gap-3">
+            <div class="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-500 flex items-center justify-center flex-shrink-0"><i class="fa-solid fa-chair text-sm"></i></div>
+            <div class="min-w-0"><p class="text-lg font-black text-gray-800 leading-none">{{ tables.count }}</p><p class="text-[10px] text-gray-400 font-bold mt-1">ترابيزات</p></div>
+        </div>
+        <div class="bg-white rounded-2xl border border-gray-100 shadow-sm px-4 py-3.5 flex items-center gap-3">
+            <div class="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center flex-shrink-0"><i class="fa-solid fa-check text-sm"></i></div>
+            <div class="min-w-0"><p class="text-lg font-black text-gray-800 leading-none">{{ tables_free }}</p><p class="text-[10px] text-gray-400 font-bold mt-1">متاحة</p></div>
+        </div>
+        <div class="bg-white rounded-2xl border border-gray-100 shadow-sm px-4 py-3.5 flex items-center gap-3">
+            <div class="w-9 h-9 rounded-xl bg-rose-50 text-rose-500 flex items-center justify-center flex-shrink-0"><i class="fa-solid fa-utensils text-sm"></i></div>
+            <div class="min-w-0"><p class="text-lg font-black text-gray-800 leading-none">{{ tables_busy }}</p><p class="text-[10px] text-gray-400 font-bold mt-1">مشغولة</p></div>
+        </div>
+        <div class="bg-white rounded-2xl border border-gray-100 shadow-sm px-4 py-3.5 flex items-center gap-3">
+            <div class="w-9 h-9 rounded-xl bg-amber-50 text-amber-500 flex items-center justify-center flex-shrink-0"><i class="fa-solid fa-motorcycle text-sm"></i></div>
+            <div class="min-w-0"><p class="text-lg font-black text-gray-800 leading-none">{{ drivers.count }}</p><p class="text-[10px] text-gray-400 font-bold mt-1">طيارين</p></div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+
+        <!-- ═══ Sections ═══ -->
+        <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col">
+            <div class="px-5 py-4 border-b border-gray-50 flex items-center gap-2.5 bg-gradient-to-l from-indigo-50/70 to-transparent">
+                <div class="w-9 h-9 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center flex-shrink-0 shadow-sm shadow-indigo-100">
+                    <i class="fa-solid fa-border-all text-sm"></i>
+                </div>
+                <div>
+                    <h2 class="font-black text-gray-800 text-sm leading-tight">الصالات</h2>
+                    <p class="text-[10px] text-gray-400 font-bold">مناطق الجلوس داخل الفرع</p>
+                </div>
+            </div>
+
+            <form method="post" class="px-5 pt-4 pb-3 flex gap-2 border-b border-gray-50">
                 {% csrf_token %}
                 <input type="hidden" name="action" value="add_section">
-                <input type="text" name="name" placeholder="اسم الصالة" required class="flex-1 border rounded-lg px-2 py-1 text-sm">
-                <button class="px-3 py-1 bg-emerald-600 text-white rounded-lg text-sm">إضافة</button>
+                <input type="text" name="name" placeholder="اسم الصالة الجديدة" required
+                       class="flex-1 min-w-0 border border-gray-200 bg-gray-50 focus:bg-white rounded-xl px-3 py-2.5 text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-400 transition-all">
+                <button class="w-11 h-11 flex-shrink-0 flex items-center justify-center bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white rounded-xl transition-all shadow-md shadow-indigo-200">
+                    <i class="fa-solid fa-plus"></i>
+                </button>
             </form>
-            <ul class="text-sm space-y-1">
+
+            <ul class="divide-y divide-gray-50 flex-1 overflow-y-auto max-h-[26rem]">
                 {% for s in sections %}
-                <li class="flex justify-between border-b py-1">
-                    <span>{{ s.name }}</span>
-                    <span class="text-gray-400">{{ s.tables.count }} ترابيزة</span>
+                <li class="flex items-center justify-between px-5 py-3.5 hover:bg-indigo-50/30 transition-colors group">
+                    <div class="flex items-center gap-3 min-w-0">
+                        <div class="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-500 flex items-center justify-center flex-shrink-0 text-xs font-black group-hover:bg-indigo-100 transition-colors">
+                            {{ s.name|slice:":1" }}
+                        </div>
+                        <span class="font-bold text-gray-700 text-sm truncate">{{ s.name }}</span>
+                    </div>
+                    <span class="text-[11px] font-black text-indigo-600 bg-indigo-50 border border-indigo-100 rounded-full px-2.5 py-1 flex-shrink-0">
+                        <i class="fa-solid fa-chair text-indigo-300 ml-1"></i>{{ s.tables.count }}
+                    </span>
                 </li>
-                {% empty %}<li class="text-gray-400">لا توجد صالات بعد.</li>{% endfor %}
+                {% empty %}
+                <li class="px-5 py-14 text-center">
+                    <i class="fa-solid fa-border-all text-3xl text-gray-200 mb-2.5 block"></i>
+                    <p class="text-xs text-gray-400 font-bold">لا توجد صالات بعد</p>
+                    <p class="text-[10px] text-gray-300 font-bold mt-0.5">أضف أول صالة من الأعلى</p>
+                </li>
+                {% endfor %}
             </ul>
         </div>
 
-        <!-- Tables -->
-        <div class="bg-white rounded-xl border p-4">
-            <h2 class="font-semibold mb-3">الترابيزات</h2>
-            <form method="post" class="space-y-2 mb-3">
+        <!-- ═══ Tables ═══ -->
+        <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col">
+            <div class="px-5 py-4 border-b border-gray-50 flex items-center gap-2.5 bg-gradient-to-l from-emerald-50/70 to-transparent">
+                <div class="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center flex-shrink-0 shadow-sm shadow-emerald-100">
+                    <i class="fa-solid fa-chair text-sm"></i>
+                </div>
+                <div>
+                    <h2 class="font-black text-gray-800 text-sm leading-tight">الترابيزات</h2>
+                    <p class="text-[10px] text-gray-400 font-bold">{{ tables_free }} متاحة · {{ tables_busy }} مشغولة{% if tables_reserved %} · {{ tables_reserved }} محجوزة{% endif %}</p>
+                </div>
+            </div>
+
+            <form method="post" class="px-5 pt-4 pb-3 space-y-2 border-b border-gray-50">
                 {% csrf_token %}
                 <input type="hidden" name="action" value="add_table">
-                <input type="text" name="number" placeholder="رقم الترابيزة" required class="w-full border rounded-lg px-2 py-1 text-sm">
-                <select name="section_id" class="w-full border rounded-lg px-2 py-1 text-sm">
-                    <option value="">بدون صالة</option>
-                    {% for s in sections %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}
-                </select>
-                <input type="number" name="seats" placeholder="عدد الكراسي" value="4" class="w-full border rounded-lg px-2 py-1 text-sm">
-                <button class="w-full py-1 bg-emerald-600 text-white rounded-lg text-sm">إضافة ترابيزة</button>
+                <input type="text" name="number" placeholder="رقم الترابيزة" required
+                       class="w-full border border-gray-200 bg-gray-50 focus:bg-white rounded-xl px-3 py-2.5 text-sm font-bold outline-none focus:ring-2 focus:ring-emerald-400 transition-all">
+                <div class="flex gap-2">
+                    <select name="section_id"
+                            class="flex-1 min-w-0 border border-gray-200 bg-gray-50 focus:bg-white rounded-xl px-3 py-2.5 text-sm font-bold outline-none focus:ring-2 focus:ring-emerald-400 transition-all">
+                        <option value="">بدون صالة</option>
+                        {% for s in sections %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}
+                    </select>
+                    <input type="number" name="seats" placeholder="الكراسي" value="4" min="1"
+                           class="w-20 flex-shrink-0 border border-gray-200 bg-gray-50 focus:bg-white rounded-xl px-2 py-2.5 text-sm font-bold text-center outline-none focus:ring-2 focus:ring-emerald-400 transition-all">
+                </div>
+                <button class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white rounded-xl text-sm font-black transition-all flex items-center justify-center gap-1.5 shadow-md shadow-emerald-200">
+                    <i class="fa-solid fa-plus"></i> إضافة ترابيزة
+                </button>
             </form>
-            <ul class="text-sm space-y-1 max-h-64 overflow-y-auto">
+
+            <ul class="divide-y divide-gray-50 flex-1 overflow-y-auto max-h-[26rem]">
                 {% for t in tables %}
-                <li class="flex justify-between border-b py-1">
-                    <span>{{ t.number }} {% if t.section %}({{ t.section.name }}){% endif %}</span>
-                    <span class="text-gray-400">{{ t.get_status_display }}</span>
+                <li class="flex items-center justify-between px-5 py-3.5 hover:bg-emerald-50/30 transition-colors group">
+                    <div class="flex items-center gap-3 min-w-0">
+                        <div class="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 text-xs font-black transition-colors
+                            {% if t.status == 'free' %}bg-emerald-50 text-emerald-600 group-hover:bg-emerald-100
+                            {% elif t.status == 'busy' %}bg-rose-50 text-rose-600 group-hover:bg-rose-100
+                            {% else %}bg-amber-50 text-amber-600 group-hover:bg-amber-100{% endif %}">
+                            {{ t.number }}
+                        </div>
+                        <div class="min-w-0">
+                            <p class="font-bold text-gray-700 text-sm truncate">ترابيزة {{ t.number }}</p>
+                            <p class="text-[10px] text-gray-400 font-bold truncate">{% if t.section %}{{ t.section.name }} · {% endif %}<i class="fa-solid fa-chair text-[8px]"></i> {{ t.seats }}</p>
+                        </div>
+                    </div>
+                    <span class="text-[11px] font-black rounded-full px-2.5 py-1 flex-shrink-0 flex items-center gap-1
+                        {% if t.status == 'free' %}bg-emerald-50 text-emerald-600
+                        {% elif t.status == 'busy' %}bg-rose-50 text-rose-600
+                        {% else %}bg-amber-50 text-amber-600{% endif %}">
+                        <span class="w-1.5 h-1.5 rounded-full
+                            {% if t.status == 'free' %}bg-emerald-500
+                            {% elif t.status == 'busy' %}bg-rose-500
+                            {% else %}bg-amber-500{% endif %}"></span>
+                        {{ t.get_status_display }}
+                    </span>
                 </li>
-                {% empty %}<li class="text-gray-400">لا توجد ترابيزات بعد.</li>{% endfor %}
+                {% empty %}
+                <li class="px-5 py-14 text-center">
+                    <i class="fa-solid fa-chair text-3xl text-gray-200 mb-2.5 block"></i>
+                    <p class="text-xs text-gray-400 font-bold">لا توجد ترابيزات بعد</p>
+                    <p class="text-[10px] text-gray-300 font-bold mt-0.5">أضف أول ترابيزة من الأعلى</p>
+                </li>
+                {% endfor %}
             </ul>
         </div>
 
-        <!-- Drivers -->
-        <div class="bg-white rounded-xl border p-4">
-            <h2 class="font-semibold mb-3">الطيارين</h2>
-            <form method="post" class="space-y-2 mb-3">
+        <!-- ═══ Drivers ═══ -->
+        <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col">
+            <div class="px-5 py-4 border-b border-gray-50 flex items-center gap-2.5 bg-gradient-to-l from-amber-50/70 to-transparent">
+                <div class="w-9 h-9 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center flex-shrink-0 shadow-sm shadow-amber-100">
+                    <i class="fa-solid fa-motorcycle text-sm"></i>
+                </div>
+                <div>
+                    <h2 class="font-black text-gray-800 text-sm leading-tight">الطيارين</h2>
+                    <p class="text-[10px] text-gray-400 font-bold">فريق التوصيل</p>
+                </div>
+            </div>
+
+            <form method="post" class="px-5 pt-4 pb-3 space-y-2 border-b border-gray-50">
                 {% csrf_token %}
                 <input type="hidden" name="action" value="add_driver">
-                <input type="text" name="name" placeholder="اسم الطيار" required class="w-full border rounded-lg px-2 py-1 text-sm">
-                <input type="text" name="phone" placeholder="رقم الهاتف" class="w-full border rounded-lg px-2 py-1 text-sm">
-                <button class="w-full py-1 bg-emerald-600 text-white rounded-lg text-sm">إضافة طيار</button>
+                <input type="text" name="name" placeholder="اسم الطيار" required
+                       class="w-full border border-gray-200 bg-gray-50 focus:bg-white rounded-xl px-3 py-2.5 text-sm font-bold outline-none focus:ring-2 focus:ring-amber-400 transition-all">
+                <input type="text" name="phone" placeholder="رقم الهاتف"
+                       class="w-full border border-gray-200 bg-gray-50 focus:bg-white rounded-xl px-3 py-2.5 text-sm font-bold outline-none focus:ring-2 focus:ring-amber-400 transition-all" dir="ltr">
+                <button class="w-full py-2.5 bg-amber-500 hover:bg-amber-600 active:scale-[0.98] text-white rounded-xl text-sm font-black transition-all flex items-center justify-center gap-1.5 shadow-md shadow-amber-200">
+                    <i class="fa-solid fa-plus"></i> إضافة طيار
+                </button>
             </form>
-            <ul class="text-sm space-y-1">
+
+            <ul class="divide-y divide-gray-50 flex-1 overflow-y-auto max-h-[26rem]">
                 {% for d in drivers %}
-                <li class="flex justify-between border-b py-1">
-                    <span>{{ d.name }}</span>
-                    <span class="text-gray-400">{{ d.phone }}</span>
+                <li class="flex items-center justify-between px-5 py-3.5 hover:bg-amber-50/30 transition-colors group">
+                    <div class="flex items-center gap-3 min-w-0">
+                        <div class="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center flex-shrink-0 text-xs font-black group-hover:bg-amber-100 transition-colors">
+                            {{ d.name|slice:":1" }}
+                        </div>
+                        <span class="font-bold text-gray-700 text-sm truncate">{{ d.name }}</span>
+                    </div>
+                    {% if d.phone %}
+                    <a href="tel:{{ d.phone }}" class="text-[11px] font-bold text-amber-600 bg-amber-50 rounded-full px-2.5 py-1.5 flex-shrink-0 hover:bg-amber-100 transition-colors flex items-center gap-1.5" dir="ltr">
+                        <i class="fa-solid fa-phone text-[9px]"></i>{{ d.phone }}
+                    </a>
+                    {% else %}
+                    <span class="text-[11px] font-bold text-gray-300 flex-shrink-0">—</span>
+                    {% endif %}
                 </li>
-                {% empty %}<li class="text-gray-400">لا يوجد طيارين بعد.</li>{% endfor %}
+                {% empty %}
+                <li class="px-5 py-14 text-center">
+                    <i class="fa-solid fa-motorcycle text-3xl text-gray-200 mb-2.5 block"></i>
+                    <p class="text-xs text-gray-400 font-bold">لا يوجد طيارين بعد</p>
+                    <p class="text-[10px] text-gray-300 font-bold mt-0.5">أضف أول طيار من الأعلى</p>
+                </li>
+                {% endfor %}
             </ul>
         </div>
     </div>

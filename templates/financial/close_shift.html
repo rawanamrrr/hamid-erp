@@ -61,15 +61,15 @@
                     <h6 class="text-blue-800 font-bold mb-3">المبيعات والفواتير</h6>
                     <div class="flex justify-between text-sm mb-1">
                         <span>إجمالي الفواتير:</span>
-                        <span class="font-bold">{{ total_sales_amount|intcomma }}</span>
+                        <span class="font-bold">{{ total_sales_amount|floatformat:2|intcomma }}</span>
                     </div>
                     <div class="flex justify-between text-sm mb-1 text-green-700">
                         <span>تم تحصيله:</span>
-                        <span class="font-bold">{{ total_collected|intcomma }}</span>
+                        <span class="font-bold">{{ total_collected|floatformat:2|intcomma }}</span>
                     </div>
                     <div class="flex justify-between text-sm mb-1 text-red-600">
                         <span>مؤجل/آجل:</span>
-                        <span class="font-bold">{{ total_deferred|intcomma }}</span>
+                        <span class="font-bold">{{ total_deferred|floatformat:2|intcomma }}</span>
                     </div>
                 </div>
 
@@ -78,19 +78,19 @@
                     <h6 class="text-green-800 font-bold mb-3">تفاصيل التحصيل</h6>
                     <div class="flex justify-between text-sm mb-1">
                         <span>كاش (درج):</span>
-                        <span class="font-bold">{{ total_collected_cash|intcomma }}</span>
+                        <span class="font-bold">{{ total_collected_cash|floatformat:2|intcomma }}</span>
                     </div>
                     <div class="flex justify-between text-sm mb-1">
                         <span>فودافون كاش:</span>
-                        <span class="font-bold">{{ total_collected_wallet|intcomma }}</span>
+                        <span class="font-bold">{{ total_collected_wallet|floatformat:2|intcomma }}</span>
                     </div>
                     <div class="flex justify-between text-sm mb-1">
                         <span>إنستا باي:</span>
-                        <span class="font-bold">{{ total_collected_instapay|intcomma }}</span>
+                        <span class="font-bold">{{ total_collected_instapay|floatformat:2|intcomma }}</span>
                     </div>
                     <div class="flex justify-between text-sm mb-1">
                         <span>فيزا:</span>
-                        <span class="font-bold">{{ total_collected_visa|intcomma }}</span>
+                        <span class="font-bold">{{ total_collected_visa|floatformat:2|intcomma }}</span>
                     </div>
                 </div>
 
@@ -99,7 +99,7 @@
                     <h6 class="text-red-800 font-bold mb-3">المصروفات</h6>
                     <div class="flex justify-between text-sm mb-1">
                         <span>إجمالي المصروفات:</span>
-                        <span class="font-bold">{{ total_expenses|intcomma }}</span>
+                        <span class="font-bold">{{ total_expenses|floatformat:2|intcomma }}</span>
                     </div>
                     <div class="text-xs text-red-600 mt-2">
                         {% for exp in expenses|slice:":3" %}
@@ -113,11 +113,11 @@
                     <h6 class="text-orange-800 font-bold mb-3">المسحوبات والمرتجعات</h6>
                     <div class="flex justify-between text-sm mb-1">
                         <span>مسحوبات المالك:</span>
-                        <span class="font-bold text-orange-700">{{ total_withdrawals|intcomma }}</span>
+                        <span class="font-bold text-orange-700">{{ total_withdrawals|floatformat:2|intcomma }}</span>
                     </div>
                     <div class="flex justify-between text-sm mb-1">
                         <span>مرتجعات بيع:</span>
-                        <span class="font-bold text-orange-700">{{ total_refunds|intcomma }}</span>
+                        <span class="font-bold text-orange-700">{{ total_refunds|floatformat:2|intcomma }}</span>
                     </div>
                     {% if withdrawals %}
                     <div class="text-xs text-orange-600 mt-2 border-t border-orange-200 pt-2">
@@ -133,37 +133,43 @@
                     <h6 class="text-gray-300 font-bold mb-3">حالة الدرج (المتوقع)</h6>
                     <div class="flex justify-between text-sm mb-1">
                         <span class="text-gray-400">رصيد البداية:</span>
-                        <span class="font-mono">{{ shift.start_balance|intcomma }}</span>
+                        <span class="font-mono">{{ shift.start_balance|floatformat:2|intcomma }}</span>
                     </div>
                     <div class="flex justify-between text-sm mb-1">
                         <span class="text-green-400">+ كاش مبيعات:</span>
-                        <span class="font-mono">{{ total_collected_cash|intcomma }}</span>
+                        <span class="font-mono">{{ total_collected_cash|floatformat:2|intcomma }}</span>
                     </div>
                     {% if added_money %}
                     <div class="flex justify-between text-sm mb-1">
                         <span class="text-green-400">+ إيداعات/إيرادات:</span>
-                        <span class="font-mono">{{ added_money|intcomma }}</span>
+                        <span class="font-mono">{{ added_money|floatformat:2|intcomma }}</span>
                     </div>
                     {% endif %}
                     <div class="flex justify-between text-sm mb-1">
                         <span class="text-red-400">- مصروفات:</span>
-                        <span class="font-mono">{{ total_expenses|intcomma }}</span>
+                        <span class="font-mono">{{ total_expenses|floatformat:2|intcomma }}</span>
                     </div>
                     {% if total_withdrawals %}
                     <div class="flex justify-between text-sm mb-1">
                         <span class="text-orange-400">- مسحوبات:</span>
-                        <span class="font-mono">{{ total_withdrawals|intcomma }}</span>
+                        <span class="font-mono">{{ total_withdrawals|floatformat:2|intcomma }}</span>
                     </div>
                     {% endif %}
                     {% if total_refunds %}
                     <div class="flex justify-between text-sm mb-1">
                         <span class="text-orange-400">- مرتجعات:</span>
-                        <span class="font-mono">{{ total_refunds|intcomma }}</span>
+                        <span class="font-mono">{{ total_refunds|floatformat:2|intcomma }}</span>
+                    </div>
+                    {% endif %}
+                    {% if total_supplier_payments %}
+                    <div class="flex justify-between text-sm mb-1">
+                        <span class="text-orange-400">- مدفوعات موردين:</span>
+                        <span class="font-mono">{{ total_supplier_payments|floatformat:2|intcomma }}</span>
                     </div>
                     {% endif %}
                     <div class="border-t border-gray-600 mt-2 pt-2 flex justify-between font-bold text-lg">
                         <span>المتوقع:</span>
-                        <span class="text-yellow-400">{{ expected_balance|intcomma }}</span>
+                        <span class="text-yellow-400">{{ expected_balance|floatformat:2|intcomma }}</span>
                     </div>
                 </div>
             </div>
@@ -233,7 +239,7 @@
                         <div class="px-6 py-4 bg-gradient-to-l from-gray-50 to-white border-b border-gray-100">
                             <div class="flex items-center justify-between">
                                 <span class="text-gray-500 text-sm font-medium">المبلغ المتوقع في الدرج:</span>
-                                <span class="text-2xl font-black text-gray-800 font-mono tracking-tight" dir="ltr">{{ expected_balance|intcomma }} <span class="text-sm font-medium text-gray-400">ج.م</span></span>
+                                <span class="text-2xl font-black text-gray-800 font-mono tracking-tight" dir="ltr">{{ expected_balance|floatformat:2|intcomma }} <span class="text-sm font-medium text-gray-400">ج.م</span></span>
                             </div>
                         </div>
 
@@ -258,7 +264,7 @@
                                     </div>
                                     <div class="flex-1 min-w-0">
                                         <div class="font-bold text-gray-800 text-sm">{{ acc.name }}</div>
-                                        <div class="text-xs text-gray-400 mt-0.5">{{ acc.get_account_type_display }} · رصيد: <span dir="ltr">{{ acc.balance|intcomma }}</span> ج.م</div>
+                                        <div class="text-xs text-gray-400 mt-0.5">{{ acc.get_account_type_display }} · رصيد: <span dir="ltr">{{ acc.balance|floatformat:2|intcomma }}</span> ج.م</div>
                                     </div>
                                     <div class="w-5 h-5 rounded-full border-2 border-gray-200 flex items-center justify-center transition-all shrink-0 account-radio-circle">
                                     </div>
@@ -465,8 +471,8 @@
                 </div>
                 <h3 class="text-xl font-bold text-gray-800">تم إغلاق هذا الشيفت</h3>
                 <p class="text-gray-500 mt-2">
-                    العد الفعلي: <strong class="text-gray-800">{{ shift.actual_closing_balance|intcomma }}</strong> | 
-                    الفرق: <strong class="{% if shift.difference < 0 %}text-red-600{% else %}text-green-600{% endif %}">{{ shift.difference|intcomma }}</strong>
+                    العد الفعلي: <strong class="text-gray-800">{{ shift.actual_closing_balance|floatformat:2|intcomma }}</strong> | 
+                    الفرق: <strong class="{% if shift.difference < 0 %}text-red-600{% else %}text-green-600{% endif %}">{{ shift.difference|floatformat:2|intcomma }}</strong>
                 </p>
                 {% if shift.notes %}
                 <p class="text-sm text-gray-600 mt-2 bg-white inline-block px-3 py-1 rounded border">"{{ shift.notes }}"</p>
@@ -498,7 +504,7 @@
                         </div>
                         <div>
                             <span class="block text-xs text-gray-400">إجمالي مدين / دائن القيود</span>
-                            <span class="font-mono font-bold text-teal-700">{{ shift.actual_closing_balance|default:expected_balance|intcomma }} ج.م</span>
+                            <span class="font-mono font-bold text-teal-700">{{ shift.actual_closing_balance|default:expected_balance|floatformat:2|intcomma }} ج.م</span>
                         </div>
                     </div>
                     <div class="bg-white p-3.5 rounded-lg border border-teal-200/60 shadow-sm flex items-center gap-3">
@@ -537,8 +543,8 @@
                                 <td class="px-4 py-2 font-mono">{{ order.id }}</td>
                                 <td class="px-4 py-2">{{ order.created_at|date:"H:i" }}</td>
                                 <td class="px-4 py-2">{{ order.customer.first_name }}</td>
-                                <td class="px-4 py-2 font-bold">{{ order.total_amount|intcomma }}</td>
-                                <td class="px-4 py-2 text-green-600">{{ order.received_amount|intcomma }}</td>
+                                <td class="px-4 py-2 font-bold">{{ order.total_amount|floatformat:2|intcomma }}</td>
+                                <td class="px-4 py-2 text-green-600">{{ order.received_amount|floatformat:2|intcomma }}</td>
                                 <td class="px-4 py-2">
                                     {% if order.is_online_order %}
                                         <span class="bg-blue-100 text-blue-800 text-xs px-2 py-0.5 rounded">أونلاين</span>

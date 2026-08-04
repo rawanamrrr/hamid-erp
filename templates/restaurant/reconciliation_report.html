@@ -14,23 +14,23 @@
     <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
         <div class="bg-white rounded-xl border p-4">
             <div class="text-xs text-gray-500 mb-1">كاش</div>
-            <div class="text-xl font-bold">{{ summary.sales.cash }}</div>
+            <div class="text-xl font-bold">{{ summary.sales.cash|floatformat:2 }}</div>
         </div>
         <div class="bg-white rounded-xl border p-4">
             <div class="text-xs text-gray-500 mb-1">فيزا</div>
-            <div class="text-xl font-bold">{{ summary.sales.visa }}</div>
+            <div class="text-xl font-bold">{{ summary.sales.visa|floatformat:2 }}</div>
         </div>
         <div class="bg-white rounded-xl border p-4">
             <div class="text-xs text-gray-500 mb-1">محفظة</div>
-            <div class="text-xl font-bold">{{ summary.sales.wallet }}</div>
+            <div class="text-xl font-bold">{{ summary.sales.wallet|floatformat:2 }}</div>
         </div>
         <div class="bg-white rounded-xl border p-4">
             <div class="text-xs text-gray-500 mb-1">إنستا باي</div>
-            <div class="text-xl font-bold">{{ summary.sales.instapay }}</div>
+            <div class="text-xl font-bold">{{ summary.sales.instapay|floatformat:2 }}</div>
         </div>
         <div class="bg-white rounded-xl border p-4">
             <div class="text-xs text-gray-500 mb-1">آجل (CL) / غير محصّل</div>
-            <div class="text-xl font-bold text-amber-600">{{ summary.credit_sales }}</div>
+            <div class="text-xl font-bold text-amber-600">{{ summary.credit_sales|floatformat:2 }}</div>
         </div>
     </div>
 
@@ -39,7 +39,7 @@
         <div class="bg-white rounded-xl border p-4">
             <div class="flex justify-between items-center mb-3">
                 <h2 class="font-semibold">معاه فلوس ولسه ما سلمهاش (وديعة)</h2>
-                <span class="font-bold text-red-600">{{ held_total }} ج.م</span>
+                <span class="font-bold text-red-600">{{ held_total|floatformat:2 }} ج.م</span>
             </div>
             <table class="w-full text-sm">
                 <thead class="text-gray-500">
@@ -50,7 +50,7 @@
                     <tr class="border-t">
                         <td class="py-1">{{ c.holder_name }}</td>
                         <td class="py-1">{{ c.get_kind_display }}</td>
-                        <td class="py-1 font-bold">{{ c.amount }}</td>
+                        <td class="py-1 font-bold">{{ c.amount|floatformat:2 }}</td>
                     </tr>
                     {% empty %}
                     <tr><td colspan="3" class="py-3 text-center text-gray-400">لا يوجد أحد معاه فلوس غير مُسلَّمة.</td></tr>
@@ -63,7 +63,7 @@
         <div class="bg-white rounded-xl border p-4">
             <div class="flex justify-between items-center mb-3">
                 <h2 class="font-semibold">تم تسليمه للخزنة اليوم</h2>
-                <span class="font-bold text-emerald-600">{{ settled_total }} ج.م</span>
+                <span class="font-bold text-emerald-600">{{ settled_total|floatformat:2 }} ج.م</span>
             </div>
             <table class="w-full text-sm">
                 <thead class="text-gray-500">
@@ -74,7 +74,7 @@
                     <tr class="border-t">
                         <td class="py-1">{{ c.holder_name }}</td>
                         <td class="py-1">{{ c.get_kind_display }}</td>
-                        <td class="py-1 font-bold">{{ c.amount }}</td>
+                        <td class="py-1 font-bold">{{ c.amount|floatformat:2 }}</td>
                     </tr>
                     {% empty %}
                     <tr><td colspan="3" class="py-3 text-center text-gray-400">لا توجد تسليمات اليوم.</td></tr>
@@ -87,8 +87,8 @@
     <div class="bg-white rounded-xl border p-4 mt-4">
         <h2 class="font-semibold mb-2">صافي الكاش</h2>
         <div class="text-sm text-gray-600">
-            وارد: {{ summary.cash_in }} ج.م — صادر: {{ summary.cash_out }} ج.م —
-            <span class="font-bold">صافي: {{ summary.net_cash }} ج.م</span>
+            وارد: {{ summary.cash_in|floatformat:2 }} ج.م — صادر: {{ summary.cash_out|floatformat:2 }} ج.م —
+            <span class="font-bold">صافي: {{ summary.net_cash|floatformat:2 }} ج.م</span>
         </div>
     </div>
 </div>

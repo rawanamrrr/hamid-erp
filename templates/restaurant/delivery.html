@@ -1,73 +1,109 @@
 {% extends 'base.html' %}
 {% block title %}شاشة الدليفري{% endblock %}
 {% block content %}
-<div class="p-4" x-data="{ branchId: {{ branch.id }} }" x-init="initDeliveryScreen(branchId)">
-    <h1 class="text-2xl font-bold mb-4">شاشة الدليفري — {{ branch.name }}</h1>
+<div class="p-4 md:p-6 max-w-7xl mx-auto space-y-6" x-data="{ branchId: {{ branch.id }} }" x-init="initDeliveryScreen(branchId)">
 
-    <div id="driverCardsWrap" class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6"></div>
-
-    <!-- Tabs -->
-    <div class="flex gap-2 mb-4 border-b">
-        <button type="button" onclick="switchDeliveryTab('all')" id="tabBtn-all"
-                class="px-4 py-2 text-sm font-bold border-b-2">الكل</button>
-        <button type="button" onclick="switchDeliveryTab('assigned')" id="tabBtn-assigned"
-                class="px-4 py-2 text-sm font-bold border-b-2">معين</button>
-        <button type="button" onclick="switchDeliveryTab('unassigned')" id="tabBtn-unassigned"
-                class="px-4 py-2 text-sm font-bold border-b-2">غير معين</button>
+    <!-- Header -->
+    <div class="flex items-center gap-3">
+        <div class="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500 to-indigo-600 text-white flex items-center justify-center shadow-lg shadow-indigo-200/60 flex-shrink-0">
+            <i class="fa-solid fa-motorcycle text-lg"></i>
+        </div>
+        <div>
+            <h1 class="text-xl md:text-2xl font-black text-gray-800 tracking-tight">شاشة الدليفري</h1>
+            <p class="text-xs text-gray-400 font-bold">{{ branch.name }}</p>
+        </div>
     </div>
 
-    <div id="deliveryCardsWrap" class="grid grid-cols-1 md:grid-cols-3 gap-3"></div>
+    <!-- Driver cards -->
+    <div id="driverCardsWrap" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3"></div>
+
+    <!-- Tabs -->
+    <div class="flex gap-2 bg-gray-100/70 p-1.5 rounded-2xl w-fit">
+        <button type="button" onclick="switchDeliveryTab('all')" id="tabBtn-all"
+                class="px-5 py-2 text-xs font-black rounded-xl transition-all">الكل</button>
+        <button type="button" onclick="switchDeliveryTab('assigned')" id="tabBtn-assigned"
+                class="px-5 py-2 text-xs font-black rounded-xl transition-all">معين</button>
+        <button type="button" onclick="switchDeliveryTab('unassigned')" id="tabBtn-unassigned"
+                class="px-5 py-2 text-xs font-black rounded-xl transition-all">غير معين</button>
+    </div>
+
+    <div id="deliveryCardsWrap" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
 </div>
 
 <!-- Assign-driver modal -->
-<div id="assignModal" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center">
-    <div class="bg-white rounded-xl p-5 w-80 shadow-xl">
-        <h3 class="font-bold mb-3">تعيين طيار للطلب <span id="assignModalOrderNo"></span></h3>
-        <select id="assignDriverSelect" class="w-full border rounded-lg px-3 py-2 mb-3">
+<div id="assignModal" class="hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl">
+        <div class="flex items-center gap-3 mb-4">
+            <div class="w-11 h-11 rounded-2xl bg-indigo-100 text-indigo-600 flex items-center justify-center flex-shrink-0">
+                <i class="fa-solid fa-motorcycle"></i>
+            </div>
+            <div>
+                <h3 class="font-black text-gray-800">تعيين طيار</h3>
+                <p class="text-xs text-gray-400 font-bold">طلب <span id="assignModalOrderNo"></span></p>
+            </div>
+        </div>
+        <select id="assignDriverSelect" class="w-full border border-gray-200 bg-gray-50 focus:bg-white rounded-xl px-3 py-2.5 mb-4 text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-400 transition-all">
             {% for d in drivers %}<option value="{{ d.id }}">{{ d.name }}</option>{% endfor %}
         </select>
         <div class="flex gap-2">
-            <button onclick="confirmAssignDriver()" class="flex-1 bg-indigo-600 text-white rounded-lg py-2 font-bold">تعيين وطباعة</button>
-            <button onclick="closeAssignModal()" class="flex-1 bg-gray-100 rounded-lg py-2 font-bold">إلغاء</button>
+            <button onclick="confirmAssignDriver()" class="flex-1 bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white rounded-xl py-2.5 font-black text-sm transition-all shadow-md shadow-indigo-200">تعيين وطباعة</button>
+            <button onclick="closeAssignModal()" class="flex-1 bg-gray-100 hover:bg-gray-200 rounded-xl py-2.5 font-black text-sm text-gray-600 transition-colors">إلغاء</button>
         </div>
     </div>
 </div>
 
 <!-- Driver account modal (تخليص حساب / دفعة جزئية) -->
-<div id="driverAccountModal" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center">
-    <div class="bg-white rounded-xl p-5 w-80 shadow-xl">
-        <h3 class="font-bold mb-1">حساب الطيار: <span id="daModalDriverName"></span></h3>
-        <p class="text-sm text-gray-500 mb-3">معاه حالياً: <span id="daModalOwed" class="font-bold"></span> ج.م</p>
+<div id="driverAccountModal" class="hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl">
+        <div class="flex items-center gap-3 mb-1">
+            <div class="w-11 h-11 rounded-2xl bg-indigo-100 text-indigo-600 flex items-center justify-center flex-shrink-0">
+                <i class="fa-solid fa-wallet"></i>
+            </div>
+            <div>
+                <h3 class="font-black text-gray-800">حساب الطيار: <span id="daModalDriverName"></span></h3>
+            </div>
+        </div>
+        <p class="text-sm text-gray-500 font-bold mb-4 mr-14">معاه حالياً: <span id="daModalOwed" class="font-black text-indigo-600"></span> ج.م</p>
 
         <button onclick="confirmClearDriverAccount()"
-                class="w-full h-11 bg-emerald-600 text-white rounded-xl font-bold mb-3">تخليص حساب (دفع الكل)</button>
+                class="w-full h-12 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white rounded-2xl font-black mb-4 transition-all shadow-md shadow-emerald-200 flex items-center justify-center gap-2">
+            <i class="fa-solid fa-check-double"></i> تخليص حساب (دفع الكل)
+        </button>
 
-        <div class="border-t pt-3">
-            <label class="text-xs font-bold text-gray-500 mb-1 block">أو دفع جزء من المبلغ</label>
+        <div class="border-t border-gray-100 pt-4">
+            <label class="text-xs font-black text-gray-500 mb-2 block">أو دفع جزء من المبلغ</label>
             <div class="flex gap-2">
                 <input type="number" step="0.01" id="daPartialAmountInput" placeholder="المبلغ"
-                       class="flex-1 h-10 px-2 border rounded-lg">
+                       class="flex-1 h-11 px-3 border border-gray-200 bg-gray-50 focus:bg-white rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-400 transition-all">
                 <button onclick="confirmPartialDriverPayment()"
-                        class="px-3 h-10 bg-amber-500 text-white rounded-lg font-bold text-sm">دفع جزء</button>
+                        class="px-4 h-11 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white rounded-xl font-black text-sm transition-all shadow-sm shadow-indigo-200">دفع جزء</button>
             </div>
         </div>
 
-        <button onclick="closeDriverAccountModal()" class="w-full h-9 text-gray-500 text-sm font-bold mt-3">إغلاق</button>
+        <button onclick="closeDriverAccountModal()" class="w-full h-9 text-gray-400 hover:text-gray-600 text-sm font-bold mt-4 transition-colors">إغلاق</button>
     </div>
 </div>
 
 <!-- Mark-successful modal -->
-<div id="settleModal" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center">
-    <div class="bg-white rounded-xl p-5 w-80 shadow-xl">
-        <h3 class="font-bold mb-3">تسليم الطلب <span id="settleModalOrderNo"></span></h3>
-        <div class="bg-gray-50 rounded-lg p-3 mb-3 space-y-1 text-sm">
-            <div class="flex justify-between"><span class="text-gray-500">المطلوب تحصيله من العميل</span><span id="settleOrderTotal" class="font-bold"></span></div>
-            <div class="flex justify-between"><span class="text-gray-500">تكلفة التوصيل (للطيار)</span><span id="settleDeliveryCost" class="font-bold text-amber-600"></span></div>
-            <div class="flex justify-between border-t pt-1"><span class="text-gray-700 font-bold">المستحق للمحل</span><span id="settleOwedAmount" class="font-bold text-emerald-700"></span></div>
+<div id="settleModal" class="hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl">
+        <div class="flex items-center gap-3 mb-4">
+            <div class="w-11 h-11 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center flex-shrink-0">
+                <i class="fa-solid fa-flag-checkered"></i>
+            </div>
+            <div>
+                <h3 class="font-black text-gray-800">تسليم الطلب</h3>
+                <p class="text-xs text-gray-400 font-bold">طلب <span id="settleModalOrderNo"></span></p>
+            </div>
+        </div>
+        <div class="bg-gray-50 rounded-2xl p-4 mb-4 space-y-2 text-sm border border-gray-100">
+            <div class="flex justify-between"><span class="text-gray-500 font-bold">المطلوب تحصيله من العميل</span><span id="settleOrderTotal" class="font-black text-gray-800"></span></div>
+            <div class="flex justify-between"><span class="text-gray-500 font-bold">تكلفة التوصيل (للطيار)</span><span id="settleDeliveryCost" class="font-black text-amber-600"></span></div>
+            <div class="flex justify-between border-t border-gray-200 pt-2"><span class="text-gray-700 font-black">المستحق للمحل</span><span id="settleOwedAmount" class="font-black text-emerald-700"></span></div>
         </div>
         <div class="flex gap-2">
-            <button onclick="confirmSettleOrder()" class="flex-1 bg-emerald-600 text-white rounded-lg py-2 font-bold">تم التسليم</button>
-            <button onclick="closeSettleModal()" class="flex-1 bg-gray-100 rounded-lg py-2 font-bold">إلغاء</button>
+            <button onclick="confirmSettleOrder()" class="flex-1 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white rounded-xl py-2.5 font-black text-sm transition-all shadow-md shadow-emerald-200">تم التسليم</button>
+            <button onclick="closeSettleModal()" class="flex-1 bg-gray-100 hover:bg-gray-200 rounded-xl py-2.5 font-black text-sm text-gray-600 transition-colors">إلغاء</button>
         </div>
     </div>
 </div>
@@ -107,15 +143,28 @@ function refreshDeliveryFeed() {
 function renderDriverCards() {
     const wrap = document.getElementById('driverCardsWrap');
     if (!deliveryDrivers.length) {
-        wrap.innerHTML = '<p class="text-gray-500 col-span-full">لا يوجد طيارين مُعرّفين لهذا الفرع.</p>';
+        wrap.innerHTML = `<div class="col-span-full bg-white rounded-2xl border border-gray-100 shadow-sm py-10 text-center">
+            <i class="fa-solid fa-motorcycle text-3xl text-gray-200 mb-2 block"></i>
+            <p class="text-xs text-gray-400 font-bold">لا يوجد طيارين مُعرّفين لهذا الفرع</p>
+        </div>`;
         return;
     }
     wrap.innerHTML = deliveryDrivers.map(d => `
-        <div class="rounded-xl border p-4 bg-white shadow-sm cursor-pointer hover:border-indigo-400 transition"
+        <div class="rounded-2xl border border-gray-100 p-4 bg-white shadow-sm cursor-pointer hover:shadow-md hover:-translate-y-0.5 hover:border-indigo-300 transition-all group"
              onclick="openDriverAccountModal(${d.id})">
-            <div class="font-bold">${d.name}</div>
-            <div class="text-sm text-gray-500">${d.phone || ''}</div>
-            <div class="text-sm mt-2">معاه اليوم: <span class="font-bold">${d.owed.toFixed(2)}</span> ج.م</div>
+            <div class="flex items-center gap-3 mb-2.5">
+                <div class="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center flex-shrink-0 text-sm font-black group-hover:bg-indigo-100 transition-colors">
+                    ${(d.name || '?').charAt(0)}
+                </div>
+                <div class="min-w-0">
+                    <div class="font-black text-gray-800 text-sm truncate">${d.name}</div>
+                    <div class="text-[11px] text-gray-400 font-bold truncate" dir="ltr">${d.phone || ''}</div>
+                </div>
+            </div>
+            <div class="flex items-center justify-between bg-indigo-50/70 rounded-xl px-3 py-2">
+                <span class="text-[11px] text-indigo-700 font-bold">معاه اليوم</span>
+                <span class="font-black text-indigo-700 text-sm">${d.owed.toFixed(2)} ج.م</span>
+            </div>
         </div>
     `).join('');
 }
@@ -164,8 +213,8 @@ function switchDeliveryTab(tab) {
     currentDeliveryTab = tab;
     ['all', 'assigned', 'unassigned'].forEach(t => {
         const btn = document.getElementById('tabBtn-' + t);
-        if (btn) btn.className = 'px-4 py-2 text-sm font-bold border-b-2 ' +
-            (t === tab ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500');
+        if (btn) btn.className = 'px-5 py-2 text-xs font-black rounded-xl transition-all ' +
+            (t === tab ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700');
     });
     renderDeliveryCards();
 }
@@ -187,28 +236,40 @@ function renderDeliveryCards() {
     const wrap = document.getElementById('deliveryCardsWrap');
     const list = ordersForTab(currentDeliveryTab);
     if (!list.length) {
-        wrap.innerHTML = '<p class="text-gray-500 col-span-full">لا توجد طلبات في هذا التبويب.</p>';
+        wrap.innerHTML = `<div class="col-span-full bg-white rounded-2xl border border-gray-100 shadow-sm py-14 text-center">
+            <i class="fa-solid fa-box-open text-3xl text-gray-200 mb-2.5 block"></i>
+            <p class="text-xs text-gray-400 font-bold">لا توجد طلبات في هذا التبويب</p>
+        </div>`;
         return;
     }
     wrap.innerHTML = list.map(o => {
         let badge = '';
         let action = '';
         if (o.is_completed) {
-            badge = '<span class="text-xs font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">مكتمل</span>';
+            badge = '<span class="text-[11px] font-black px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-600 flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>مكتمل</span>';
         } else if (o.driver_id) {
-            badge = '<span class="text-xs font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">معين: ' + o.driver_name + '</span>';
-            action = `<div class="mt-2 text-xs font-mono text-gray-600">⏱ <span id="timer-${o.id}">00:00</span></div>
-                      <button onclick="openSettleModal(${o.id})" class="mt-2 w-full bg-emerald-600 text-white rounded-lg py-1.5 text-xs font-bold">رجع الطيار / تسليم</button>`;
+            badge = '<span class="text-[11px] font-black px-2.5 py-1 rounded-full bg-amber-50 text-amber-600 flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>' + o.driver_name + '</span>';
+            action = `<div class="mt-3 flex items-center gap-1.5 text-xs font-black text-gray-500 bg-gray-50 rounded-lg px-2.5 py-1.5 w-fit">
+                          <i class="fa-solid fa-stopwatch text-gray-400"></i> <span id="timer-${o.id}" class="font-mono">00:00</span>
+                      </div>
+                      <button onclick="openSettleModal(${o.id})" class="mt-3 w-full bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white rounded-xl py-2 text-xs font-black transition-all shadow-sm shadow-emerald-100 flex items-center justify-center gap-1.5">
+                          <i class="fa-solid fa-flag-checkered"></i> رجع الطيار / تسليم
+                      </button>`;
         } else {
-            badge = '<span class="text-xs font-bold px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">غير معين</span>';
-            action = `<button onclick="openAssignModal(${o.id})" class="mt-2 w-full bg-indigo-600 text-white rounded-lg py-1.5 text-xs font-bold">تعيين طيار</button>`;
+            badge = '<span class="text-[11px] font-black px-2.5 py-1 rounded-full bg-gray-100 text-gray-500 flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-gray-400"></span>غير معين</span>';
+            action = `<button onclick="openAssignModal(${o.id})" class="mt-3 w-full bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white rounded-xl py-2 text-xs font-black transition-all shadow-sm shadow-indigo-100 flex items-center justify-center gap-1.5">
+                          <i class="fa-solid fa-motorcycle"></i> تعيين طيار
+                      </button>`;
         }
-        return `<div class="rounded-xl border p-4 bg-white shadow-sm" data-order-id="${o.id}" data-assigned-at="${o.driver_assigned_at || ''}">
-            <div class="flex justify-between items-start mb-1">
-                <div class="font-bold">طلب ${o.display_number}</div>
+        return `<div class="rounded-2xl border border-gray-100 p-4 bg-white shadow-sm hover:shadow-md transition-shadow" data-order-id="${o.id}" data-assigned-at="${o.driver_assigned_at || ''}">
+            <div class="flex justify-between items-start mb-2">
+                <div class="font-black text-gray-800 text-sm">طلب ${o.display_number}</div>
                 ${badge}
             </div>
-            <div class="text-sm text-gray-600">${o.address || 'لا يوجد عنوان'}</div>
+            <div class="text-xs text-gray-500 font-bold flex items-start gap-1.5">
+                <i class="fa-solid fa-location-dot text-gray-300 mt-0.5"></i>
+                <span>${o.address || 'لا يوجد عنوان'}</span>
+            </div>
             ${action}
         </div>`;
     }).join('');

@@ -701,6 +701,14 @@ def close_shift(request, pk):
         transaction_type='EXPENSE'
     ).aggregate(Sum('amount'))['amount__sum'] or Decimal('0.00')
 
+    # Cash paid out of the drawer to settle a supplier's invoice during this shift — part
+    # of `removed_money` above (so it's already subtracted from `expected_balance`), but
+    # it never had its own display line, so "حالة الدرج (المتوقع)" showed rows that didn't
+    # actually sum to the total whenever a supplier was paid in cash mid-shift.
+    total_supplier_payments_display = shift_transactions.filter(
+        transaction_type='SUPPLIER_PAYMENT'
+    ).aggregate(Sum('amount'))['amount__sum'] or Decimal('0.00')
+
     # 3. الرصيد المتوقع
     start_bal = shift.start_balance or Decimal('0.00')
     expected_balance = start_bal + sales_cash + added_money - removed_money
@@ -805,6 +813,7 @@ def close_shift(request, pk):
         'total_withdrawals': total_withdrawals_display,
         'refunds': all_refunds,
         'total_refunds': total_refunds_display,
+        'total_supplier_payments': total_supplier_payments_display,
         'other_transactions': other_transactions,
         'added_money': added_money,
         'withdrawal_accounts': withdrawal_accounts,
@@ -839,6 +848,12 @@ def print_shift_summary(request, pk):
     refunds = Transaction.objects.filter(shift=shift, transaction_type='REFUND')
     total_refunds = refunds.aggregate(Sum('amount'))['amount__sum'] or 0
 
+    # Same gap as close_shift(): shift.expected_closing_balance already subtracts cash
+    # supplier payments, but the printed breakdown never showed that line, so the totals
+    # on the receipt didn't visibly add up whenever a supplier was paid mid-shift.
+    supplier_payments = Transaction.objects.filter(shift=shift, transaction_type='SUPPLIER_PAYMENT')
+    total_supplier_payments = supplier_payments.aggregate(Sum('amount'))['amount__sum'] or 0
+
     other_transactions = Transaction.objects.filter(shift=shift).exclude(
         transaction_type__in=['SALE', 'EXPENSE', 'WITHDRAWAL', 'REFUND']
     )
@@ -859,6 +874,7 @@ def print_shift_summary(request, pk):
         'total_expenses': total_expenses,
         'withdrawals': withdrawals,
         'total_withdrawals': total_withdrawals,
+        'total_supplier_payments': total_supplier_payments,
         'refunds': refunds,
         'total_refunds': total_refunds,
         'other_transactions': other_transactions,
