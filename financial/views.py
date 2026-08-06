@@ -308,7 +308,17 @@ def financial_dashboard(request):
     """
     # exclude_dead_duplicates() so the "الحسابات والمحافظ" list on this page doesn't
     # show the same coded-duplicate clutter that /financial/accounts/ had.
-    accounts = _exclude_dead_coded_accounts(Account.objects.filter(is_active=True))
+    all_accounts = _exclude_dead_coded_accounts(Account.objects.filter(is_active=True))
+
+    # "الحسابات والمحافظ" card: only real money a cafe owner actually checks (cash
+    # drawer/wallets/bank) plus "مسحوبات المالك" (their own drawings) — not the nominal
+    # double-entry chart-of-accounts rows (الأصول/الخصوم/الإيرادات/المصروفات/COGS/AR/AP/
+    # تقييم المخزون/حقوق الملكية...) that the system posts to internally and always sit
+    # at a meaningless 0.00 on this dashboard anyway.
+    accounts = all_accounts.filter(
+        Q(account_type__in=['CASH_DRAWER', 'SAFE', 'BANK', 'VODAFONE_CASH', 'INSTAPAY'])
+        | Q(name='مسحوبات المالك')
+    )
 
     # SQLite's SUM() aggregate does its arithmetic in floating point internally, so summing
     # 2+ DecimalField rows can come back as e.g. Decimal('34565.8600000000') instead of
@@ -701,6 +711,17 @@ def close_shift(request, pk):
         transaction_type='EXPENSE'
     ).aggregate(Sum('amount'))['amount__sum'] or Decimal('0.00')
 
+    # Same exclusion as removed_money, but scoped to EXPENSE only — for the "حالة الدرج
+    # (المتوقع)" breakdown specifically. total_expenses_display above (used in "ملخص
+    # العمليات") deliberately keeps the opening-deficit entry since that's a real
+    # expense-type transaction that happened this shift; but showing that same
+    # unfiltered number as the "− مصروفات" line in the expected-drawer breakdown made
+    # the rows not sum to "المتوقع" (which correctly excludes it) — e.g. 0+0+300-4170
+    # displayed above a total of 300, since only the total used the filtered figure.
+    drawer_expenses_display = shift_transactions.filter(
+        transaction_type='EXPENSE'
+    ).exclude(description__startswith='عجز افتتاحي في الشيفت').aggregate(Sum('amount'))['amount__sum'] or Decimal('0.00')
+
     # Cash paid out of the drawer to settle a supplier's invoice during this shift — part
     # of `removed_money` above (so it's already subtracted from `expected_balance`), but
     # it never had its own display line, so "حالة الدرج (المتوقع)" showed rows that didn't
@@ -809,6 +830,7 @@ def close_shift(request, pk):
         'total_deferred': total_deferred,
         'expenses': all_expenses,
         'total_expenses': total_expenses_display,
+        'drawer_expenses': drawer_expenses_display,
         'withdrawals': all_withdrawals,
         'total_withdrawals': total_withdrawals_display,
         'refunds': all_refunds,

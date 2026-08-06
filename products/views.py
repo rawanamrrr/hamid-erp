@@ -1800,39 +1800,22 @@ def bulk_transfer_save_api(request):
                     raise ValueError('الكمية يجب أن تكون أكبر من صفر')
 
                 product = Product.objects.get(id=product_id)
-                
-                # Check Stock
-                src_stock = WarehouseStock.objects.filter(warehouse=from_wh, product=product).select_for_update().first()
-                current_qty = to_decimal(src_stock.quantity if src_stock else Decimal('0'))
 
-                if current_qty < qty:
-                    raise ValueError(f"الرصيد غير كافي للصنف {product.name}. المتاح: {current_qty}")
-
-                # Update Stocks
-                if src_stock:
-                    src_stock.quantity = to_decimal(src_stock.quantity)
-                    src_stock.quantity -= qty
-                    src_stock.save()
-
-                dest_stock, _ = WarehouseStock.objects.select_for_update().get_or_create(
-                    warehouse=to_wh,
-                    product=product,
-                    defaults={'quantity': Decimal('0')}
+                # Route through the same batch-aware issue_stock/restore_stock used by
+                # sales/refunds/stocktake instead of writing WarehouseStock.quantity on
+                # both sides directly — that used to move stock that had no StockBatch
+                # behind it (or leave the source's real batches untouched while its
+                # WarehouseStock number dropped), so the next sale/stocktake to touch
+                # either warehouse (which resync WarehouseStock to the true batch sum)
+                # would silently erase the transferred quantity.
+                from products.inventory_services import issue_stock, restore_stock
+                issue_stock(
+                    product, from_wh, qty, user=request.user, transaction_type='TRN',
+                    note=f"تحويل صادر إلى {to_wh.name} - {note_global}",
                 )
-                dest_stock.quantity = to_decimal(dest_stock.quantity)
-                dest_stock.quantity += qty
-                dest_stock.save()
-
-                # Create Transactions
-                StockTransaction.objects.create(
-                    product=product, warehouse=from_wh, transaction_type='TRN', 
-                    quantity=qty, note=f"تحويل صادر إلى {to_wh.name} - {note_global}",
-                    unit_price=product.cost_price 
-                )
-                StockTransaction.objects.create(
-                    product=product, warehouse=to_wh, transaction_type='TRN', 
-                    quantity=qty, note=f"تحويل وارد من {from_wh.name} - {note_global}",
-                    unit_price=product.cost_price
+                restore_stock(
+                    product, to_wh, qty, user=request.user, transaction_type='TRN',
+                    note=f"تحويل وارد من {from_wh.name} - {note_global}",
                 )
 
         return JsonResponse({'success': True, 'message': 'تم التحويل بنجاح'})
@@ -1879,37 +1862,15 @@ def pos_bulk_transfer_api(request):
                     from_wh = Warehouse.objects.get(id=from_wh_id)
                     to_wh = Warehouse.objects.get(id=to_wh_id)
 
-                    # Check Stock
-                    src_stock = WarehouseStock.objects.filter(warehouse=from_wh, product=product).select_for_update().first()
-                    current_qty = to_decimal(src_stock.quantity if src_stock else Decimal('0'))
-
-                    if current_qty < qty:
-                        raise ValueError(f"الرصيد غير كافي للصنف {product.name} في مخزن {from_wh.name}")
-
-                    # Update Stocks
-                    src_stock.quantity = to_decimal(src_stock.quantity)
-                    src_stock.quantity -= qty
-                    src_stock.save()
-
-                    dest_stock, _ = WarehouseStock.objects.select_for_update().get_or_create(
-                        warehouse=to_wh,
-                        product=product,
-                        defaults={'quantity': Decimal('0')}
+                    # Same batch-aware move as bulk_transfer_save_api — see its comment.
+                    from products.inventory_services import issue_stock, restore_stock
+                    issue_stock(
+                        product, from_wh, qty, user=request.user, transaction_type='TRN',
+                        note=f"تحويل صادر إلى {to_wh.name} (من POS) - {note}",
                     )
-                    dest_stock.quantity = to_decimal(dest_stock.quantity)
-                    dest_stock.quantity += qty
-                    dest_stock.save()
-
-                    # Create Transactions
-                    StockTransaction.objects.create(
-                        product=product, warehouse=from_wh, transaction_type='TRN', 
-                        quantity=qty, note=f"تحويل صادر إلى {to_wh.name} (من POS) - {note}",
-                        unit_price=product.cost_price 
-                    )
-                    StockTransaction.objects.create(
-                        product=product, warehouse=to_wh, transaction_type='TRN', 
-                        quantity=qty, note=f"تحويل وارد من {from_wh.name} (من POS) - {note}",
-                        unit_price=product.cost_price
+                    restore_stock(
+                        product, to_wh, qty, user=request.user, transaction_type='TRN',
+                        note=f"تحويل وارد من {from_wh.name} (من POS) - {note}",
                     )
                 except (Product.DoesNotExist, Warehouse.DoesNotExist):
                     raise ValueError(f"أحد المنتجات أو المخازن غير موجود")
@@ -1946,27 +1907,14 @@ def pos_stock_movement_api(request):
         product = Product.objects.get(id=product_id)
         warehouse = Warehouse.objects.get(id=warehouse_id)
 
+        # Same batch-aware move as bulk_transfer_save_api — see its comment.
+        from products.inventory_services import issue_stock, restore_stock
         with db_transaction.atomic():
-            ws, created = WarehouseStock.objects.get_or_create(warehouse=warehouse, product=product)
-            
-            if transaction_type == 'OUT' and ws.quantity < qty:
-                return JsonResponse({'success': False, 'error': f"الرصيد غير كافي. المتوفر: {ws.quantity}"})
-
             if transaction_type == 'IN':
-                ws.quantity += qty
+                restore_stock(product, warehouse, qty, user=request.user, transaction_type='IN', note=note)
             else:
-                ws.quantity -= qty
-            
-            ws.save()
-
-            StockTransaction.objects.create(
-                product=product,
-                warehouse=warehouse,
-                transaction_type=transaction_type,
-                quantity=qty,
-                note=note,
-                unit_price=product.cost_price
-            )
+                issue_stock(product, warehouse, qty, user=request.user, transaction_type='OUT',
+                           note=note, block_expired=False)
 
         return JsonResponse({'success': True, 'message': 'تم تسجيل الحركة بنجاح'})
 
@@ -1974,6 +1922,8 @@ def pos_stock_movement_api(request):
         return JsonResponse({'success': False, 'error': 'المنتج غير موجود'})
     except Warehouse.DoesNotExist:
         return JsonResponse({'success': False, 'error': 'المخزن غير موجود'})
+    except ValueError as e:
+        return JsonResponse({'success': False, 'error': str(e)})
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)})
 
@@ -2148,6 +2098,8 @@ def transaction_list(request):
 @login_required
 @require_granular_action('inventory', 'transactions', 'products', 'view')
 def transaction_create(request):
+    from products.inventory_services import issue_stock, restore_stock
+
     if request.method == 'POST':
         form = StockTransactionForm(request.POST)
         if form.is_valid():
@@ -2161,40 +2113,48 @@ def transaction_create(request):
                     form.add_error('quantity', 'يجب أن تكون الكمية أكبر من صفر')
                 elif not trans.warehouse:
                     form.add_error('warehouse', 'يجب اختيار المخزن')
+                elif trans.transaction_type not in ('IN', 'OUT', 'RET'):
+                    form.add_error('transaction_type', 'نوع حركة غير مدعوم من هذه الشاشة')
                 else:
-                    stock, created = WarehouseStock.objects.select_for_update().get_or_create(
-                        warehouse=trans.warehouse,
-                        product=trans.product,
-                        defaults={'quantity': Decimal('0.00')},
-                    )
-
-                    stock_qty = to_decimal(stock.quantity, default=0)
-
-                    if trans.transaction_type in ['IN', 'RET']:
-                        stock_qty += qty
-                    elif trans.transaction_type == 'OUT':
-                        if stock_qty < qty:
-                            form.add_error(
-                                'quantity',
-                                f'الكمية المطلوبة ({qty}) أكبر من المتاح في المخزن ({stock_qty})'
+                    # Route through the same batch-aware issue_stock/restore_stock used by
+                    # sales/refunds/stocktake, instead of writing WarehouseStock.quantity
+                    # directly. Writing it directly here used to create "phantom" stock —
+                    # WarehouseStock said e.g. 1500 with zero StockBatch rows behind it, so
+                    # the next sale/refund/stocktake adjustment (which all resync
+                    # WarehouseStock to the real batch sum) would silently wipe it back to
+                    # whatever the (much lower) batch total actually was.
+                    try:
+                        if trans.transaction_type in ('IN', 'RET'):
+                            restore_stock(
+                                trans.product, trans.warehouse, qty, user=request.user,
+                                transaction_type=trans.transaction_type,
+                                reference=trans.reference_number or '', note=trans.note or '',
                             )
-                        else:
-                            stock_qty -= qty
+                        else:  # OUT
+                            issue_stock(
+                                trans.product, trans.warehouse, qty, user=request.user,
+                                transaction_type='OUT',
+                                reference=trans.reference_number or '', note=trans.note or '',
+                                block_expired=False,
+                            )
+                    except ValueError as e:
+                        form.add_error('quantity', str(e))
 
                     if not form.errors:
-                        stock.quantity = stock_qty
-                        trans.quantity = qty
-                        stock.save()
-                        trans.save()
-
-                        # Use a fresh product instance to ensure calculate_total_stock uses up-to-date DB values
-                        prod = Product.objects.get(pk=trans.product.pk)
-                        prod.calculate_total_stock()
-
                         messages.success(request, 'تم تسجيل الحركة المخزنية بنجاح.')
                         return redirect('transaction_list')
     else:
-        form = StockTransactionForm()
+        # "تسجيل وارد مخزون" on the raw-materials list links here with ?product=<id> —
+        # preselect it (and default to IN/"إضافة") instead of opening with an empty
+        # product field and the type silently defaulting to OUT/"صرف" (see
+        # transaction_form.html's own hardcoded OUT fallback), which is the opposite of
+        # what that button says it does.
+        initial = {}
+        product_id = request.GET.get('product')
+        if product_id:
+            initial['product'] = product_id
+            initial['transaction_type'] = 'IN'
+        form = StockTransactionForm(initial=initial)
 
     products_data = list(Product.objects.filter(is_active=True).values('id', 'name', 'sku', 'stock_quantity'))
     avail_warehouses = Warehouse.objects.filter(is_active=True)

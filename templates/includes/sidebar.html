@@ -330,11 +330,6 @@ html.fav-only-mode #topnav-items > *:not(.fav-show) { display: none; }
 
                     <p class="tnav-section-label">التقارير المالية</p>
                     <a href="{% url 'financial:daily_summary' %}" class="tnav-sub {% if vn == 'financial:daily_summary' %}active{% endif %}"><i class="fas fa-calendar-day text-indigo-400 w-4"></i> ملخص اليوم</a>
-                    <a href="{% url 'financial:profitability' %}" class="tnav-sub {% if vn == 'financial:profitability' %}active{% endif %}"><i class="fas fa-sack-dollar text-emerald-400 w-4"></i> الربحية</a>
-                    <a href="{% url 'financial:sales_analytics' %}" class="tnav-sub {% if vn == 'financial:sales_analytics' %}active{% endif %}"><i class="fas fa-chart-line text-blue-400 w-4"></i> تحليلات المبيعات</a>
-                    <a href="{% url 'financial:financial_position' %}" class="tnav-sub {% if vn == 'financial:financial_position' %}active{% endif %}"><i class="fas fa-scale-unbalanced text-slate-400 w-4"></i> المركز المالي</a>
-                    <a href="{% url 'financial:income_statement' %}" class="tnav-sub {% if vn == 'financial:income_statement' %}active{% endif %}"><i class="fas fa-chart-pie text-fuchsia-400 w-4"></i> قائمة الدخل</a>
-                    <a href="{% url 'financial:trial_balance' %}" class="tnav-sub {% if vn == 'financial:trial_balance' %}active{% endif %}"><i class="fas fa-balance-scale text-slate-400 w-4"></i> ميزان المراجعة</a>
                     <a href="{% url 'financial:vat_report' %}" class="tnav-sub {% if vn == 'financial:vat_report' %}active{% endif %}"><i class="fas fa-percent text-amber-400 w-4"></i> تقرير ضريبة القيمة المضافة</a>
                 </div>
                 {% endwith %}
