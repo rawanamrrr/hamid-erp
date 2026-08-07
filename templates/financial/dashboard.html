@@ -18,14 +18,38 @@
             <a href="{% url 'financial:all_transactions' %}" class="flex-1 md:flex-none inline-flex items-center justify-center px-5 py-2.5 bg-indigo-50 text-indigo-600 border border-indigo-100 rounded-xl hover:bg-indigo-600 hover:text-white transition-all duration-300 font-bold shadow-sm hover:shadow-md">
                 <i class="fas fa-list-ul ms-2"></i> سجل العمليات
             </a>
+            <a href="{% url 'financial:trial_balance' %}" class="flex-1 md:flex-none inline-flex items-center justify-center px-5 py-2.5 bg-purple-50 text-purple-600 border border-purple-100 rounded-xl hover:bg-purple-600 hover:text-white transition-all duration-300 font-bold shadow-sm hover:shadow-md">
+                <i class="fas fa-scale-balanced ms-2"></i> ميزان المراجعة
+            </a>
+            {% if can_view_profit %}
+            <a href="{% url 'financial:income_statement' %}" class="flex-1 md:flex-none inline-flex items-center justify-center px-5 py-2.5 bg-teal-50 text-teal-600 border border-teal-100 rounded-xl hover:bg-teal-600 hover:text-white transition-all duration-300 font-bold shadow-sm hover:shadow-md">
+                <i class="fas fa-chart-pie ms-2"></i> قائمة الدخل
+            </a>
+            {% endif %}
             <a href="{% url 'financial:period_lock' %}" class="flex-1 md:flex-none inline-flex items-center justify-center px-5 py-2.5 bg-rose-50 text-rose-600 border border-rose-100 rounded-xl hover:bg-rose-600 hover:text-white transition-all duration-300 font-bold shadow-sm hover:shadow-md">
                 <i class="fas fa-lock ms-2"></i> إغلاق الفترة
             </a>
             <a href="{% url 'financial:daily_summary' %}" class="flex-1 md:flex-none inline-flex items-center justify-center px-5 py-2.5 bg-blue-50 text-blue-600 border border-blue-100 rounded-xl hover:bg-blue-600 hover:text-white transition-all duration-300 font-bold shadow-sm hover:shadow-md">
                 <i class="fas fa-calendar-day ms-2"></i> ملخص اليوم
             </a>
+            {% if can_view_profit %}
+            <a href="{% url 'financial:profitability' %}" class="flex-1 md:flex-none inline-flex items-center justify-center px-5 py-2.5 bg-green-50 text-green-600 border border-green-100 rounded-xl hover:bg-green-600 hover:text-white transition-all duration-300 font-bold shadow-sm hover:shadow-md">
+                <i class="fas fa-sack-dollar ms-2"></i> الربحية
+            </a>
+            {% endif %}
+            <a href="{% url 'financial:system_health' %}" class="flex-1 md:flex-none inline-flex items-center justify-center px-5 py-2.5 bg-slate-50 text-slate-600 border border-slate-100 rounded-xl hover:bg-slate-700 hover:text-white transition-all duration-300 font-bold shadow-sm hover:shadow-md">
+                <i class="fas fa-heart-pulse ms-2"></i> صحة النظام
+            </a>
             <a href="{% url 'financial:vat_report' %}" class="flex-1 md:flex-none inline-flex items-center justify-center px-5 py-2.5 bg-cyan-50 text-cyan-700 border border-cyan-100 rounded-xl hover:bg-cyan-600 hover:text-white transition-all duration-300 font-bold shadow-sm hover:shadow-md">
                 <i class="fas fa-receipt ms-2"></i> ضريبة القيمة المضافة
+            </a>
+            {% if can_view_profit %}
+            <a href="{% url 'financial:sales_analytics' %}" class="flex-1 md:flex-none inline-flex items-center justify-center px-5 py-2.5 bg-fuchsia-50 text-fuchsia-700 border border-fuchsia-100 rounded-xl hover:bg-fuchsia-600 hover:text-white transition-all duration-300 font-bold shadow-sm hover:shadow-md">
+                <i class="fas fa-chart-line ms-2"></i> تحليلات المبيعات
+            </a>
+            {% endif %}
+            <a href="{% url 'financial:financial_position' %}" class="flex-1 md:flex-none inline-flex items-center justify-center px-5 py-2.5 bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-xl hover:bg-emerald-600 hover:text-white transition-all duration-300 font-bold shadow-sm hover:shadow-md">
+                <i class="fas fa-scale-unbalanced ms-2"></i> المركز المالي
             </a>
             <a href="{% url 'financial:shift_history' %}" class="flex-1 md:flex-none inline-flex items-center justify-center px-5 py-2.5 bg-white text-gray-700 border border-gray-200 rounded-xl hover:bg-gray-50 transition-all duration-300 font-bold shadow-sm">
                 <i class="fas fa-history text-gray-500 ms-2"></i> سجل الشيفتات
