@@ -16,6 +16,11 @@ class Role(models.Model):
     description = models.TextField(blank=True, null=True, verbose_name="وصف الدور")
     permissions = models.JSONField(default=dict, verbose_name="الصلاحيات (JSON)")
     created_at = models.DateTimeField(auto_now_add=True)
+    # Which POS order types a user with this role may create (e.g. a "دليفري فقط" role).
+    # Empty = this role doesn't restrict order types at all — see
+    # UserProfile.allowed_order_types_list() for how this combines with a per-user
+    # override on the profile itself (the profile field wins if the admin set one).
+    allowed_order_types = models.JSONField(default=list, blank=True, verbose_name="أنواع الطلبات المسموحة")
     
     def __str__(self):
         return self.name
@@ -70,6 +75,19 @@ class UserProfile(models.Model):
     can_sell_below_zero_stock = models.BooleanField(default=False, verbose_name="السماح بالبيع برصيد سالب (تحت الصفر)")
     can_change_unit = models.BooleanField(default=True, verbose_name="السماح بتغيير وحدة البيع في الكاشير")
     can_view_profit = models.BooleanField(default=False, verbose_name="إظهار الربح على الفواتير والتقارير")
+    # Which POS order types this cashier may create — e.g. a delivery-only role, or a
+    # walk-in cashier restricted to takeaway+dine-in with delivery hidden entirely.
+    # Empty list = unrestricted (all three), same "empty means no restriction" convention
+    # as direct_permissions — so existing users aren't retroactively locked out.
+    ORDER_TYPE_DINE_IN = 'dine_in'
+    ORDER_TYPE_TAKEAWAY = 'takeaway'
+    ORDER_TYPE_DELIVERY = 'delivery'
+    ORDER_TYPE_CHOICES = [
+        (ORDER_TYPE_DINE_IN, 'صالة'),
+        (ORDER_TYPE_TAKEAWAY, 'تيك أواي'),
+        (ORDER_TYPE_DELIVERY, 'دليفري'),
+    ]
+    allowed_order_types = models.JSONField(default=list, blank=True, verbose_name="أنواع الطلبات المسموحة")
 
     # Where this user lands right after login. Waiters/cashiers shouldn't see the
     # analytics dashboard (and often can't — 'dashboard'.'view' is usually denied for
@@ -130,7 +148,35 @@ class UserProfile(models.Model):
 
     def allows_view_profit(self):
         return self._is_privileged or self.can_view_profit
-    
+
+    def allowed_order_types_list(self):
+        """POS order types this user may create. Privileged users and anyone with no
+        explicit restriction — on their profile OR any assigned role — get all three
+        (unrestricted is the default; this only locks a cashier down once an admin
+        actually picks a subset somewhere).
+
+        Priority: a restriction set directly on this profile wins outright (it's a
+        deliberate per-user override); otherwise the roles' allowed lists are unioned
+        together (any role granting a type is enough — a user with two roles, one
+        delivery-only and one dine-in-only, can do both); with no restriction on the
+        profile or any role, everything is allowed.
+        """
+        all_types = [c[0] for c in self.ORDER_TYPE_CHOICES]
+        if self._is_privileged:
+            return all_types
+        if self.allowed_order_types:
+            return [t for t in self.allowed_order_types if t in all_types] or all_types
+
+        role_types = set()
+        role_restricted = False
+        for role in self.roles.all():
+            if role.allowed_order_types:
+                role_restricted = True
+                role_types.update(t for t in role.allowed_order_types if t in all_types)
+        if role_restricted:
+            return list(role_types) or all_types
+        return all_types
+
     def get_all_permissions(self):
         """
         تقوم بدمج كل الصلاحيات من جميع الأدوار المحددة للمستخدم.

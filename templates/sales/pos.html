@@ -4,6 +4,7 @@
 {% load l10n %}
 
 {% block title %}{{ title }}{% endblock %}
+{% block page_nav %}{% if not cashier_only_user %}{% include 'includes/sidebar.html' %}{% endif %}{% endblock %}
 
 {% block extra_head %}
 <style>
@@ -249,18 +250,28 @@
                  relative wrapper lets driverPickerWrap drop down directly below it. -->
             <div class="relative" id="orderModeOuter">
                 <div class="h-11 flex items-center bg-gray-50 border-2 border-gray-200 rounded-xl p-1 gap-1" id="orderModeGroup">
+                    <!-- Each button only renders if this cashier's UserProfile.allowed_order_types
+                         permits it (صلاحيات → المستخدم → أنواع الطلبات المسموحة) — a role
+                         restricted to takeaway+dine-in never sees "دليفري" at all, not just
+                         a disabled version of it. See allowed_order_types in context. -->
+                    {% if 'dine_in' in allowed_order_types %}
                     <button type="button" id="orderModeDineInBtn" onclick="setOrderMode('dine_in')"
                             class="h-full px-2.5 flex items-center gap-1 rounded-lg text-xs font-bold whitespace-nowrap transition-colors">
                         <i class="fa-solid fa-utensils text-[11px]"></i> صالة
                     </button>
+                    {% endif %}
+                    {% if 'takeaway' in allowed_order_types %}
                     <button type="button" id="orderModeTakeawayBtn" onclick="setOrderMode('takeaway')"
                             class="h-full px-2.5 flex items-center gap-1 rounded-lg text-xs font-bold whitespace-nowrap transition-colors">
                         <i class="fa-solid fa-bag-shopping text-[11px]"></i> تيك أواي
                     </button>
+                    {% endif %}
+                    {% if 'delivery' in allowed_order_types %}
                     <button type="button" id="orderModeOnlineBtn" onclick="setOrderMode('online')"
                             class="h-full px-2.5 flex items-center gap-1 rounded-lg text-xs font-bold whitespace-nowrap transition-colors">
                         <i class="fa-solid fa-motorcycle text-[11px]"></i> دليفري
                     </button>
+                    {% endif %}
                 </div>
             </div>
 
@@ -279,17 +290,27 @@
                 <div id="posMoreMenu"
                     class="hidden absolute left-0 top-full mt-1.5 z-50 w-60 bg-white border border-gray-200 rounded-xl shadow-2xl p-2.5 space-y-2">
                     <!-- Inventory shortcuts — moved in here to keep the main toolbar clean
-                         now that it also carries the order-mode buttons + driver picker. -->
+                         now that it also carries the order-mode buttons + driver picker.
+                         Hidden per-user for whoever can't actually use them (e.g. a
+                         delivery-only cashier with no products access at all) — matches
+                         the exact permission each button's own endpoint enforces, so this
+                         isn't just cosmetic, it's not shown when it would 403 anyway. -->
+                    {% if can_pos_transfer or can_bulk_movement %}
                     <div class="grid grid-cols-2 gap-1.5 px-1">
+                        {% if can_pos_transfer %}
                         <button type="button" onclick="openTransferModal()"
                             class="h-9 flex items-center justify-center gap-1.5 bg-gray-50 text-gray-700 border border-gray-200 hover:bg-gray-100 rounded-lg text-xs font-bold whitespace-nowrap">
                             <i class="fa-solid fa-right-left text-violet-500"></i> تحويل
                         </button>
+                        {% endif %}
+                        {% if can_bulk_movement %}
                         <button type="button" onclick="openBulkMovementModal()" id="bulkMovBtn"
                             class="h-9 flex items-center justify-center gap-1.5 bg-gray-50 text-gray-700 border border-gray-200 hover:bg-gray-100 rounded-lg text-xs font-bold whitespace-nowrap">
                             <i class="fa-solid fa-layer-group text-emerald-500"></i> تعديل كمية
                         </button>
+                        {% endif %}
                     </div>
+                    {% endif %}
                     <!-- Salesman / rep (Phase 6.8) -->
                     <div class="px-1">
                         <label class="text-[10px] font-bold text-gray-500 flex items-center gap-1.5 mb-1">
@@ -329,9 +350,6 @@
                 </div>
             </div>
         </div>
-
-
-
     </div>
 
     <!-- ══════════ MAIN POS LAYOUT: 3 COLUMNS ══════════ -->
@@ -2279,7 +2297,7 @@
         // Open POS preloaded from customer page / reservation:
         // ?customer_id=X&saved_order=Y (6.11) or ?customer_id=X&reservation=Z (6.3)
         document.addEventListener('DOMContentLoaded', function () {
-            setOrderType('dine_in');
+            setOrderMode(defaultOrderMode());
             const params = new URLSearchParams(window.location.search);
             const custId = params.get('customer_id');
             const savedId = params.get('saved_order');
@@ -3504,7 +3522,16 @@
         // --- Order mode: صالة / تيك أواي / أونلاين — one segmented control in the
         // toolbar drives both currentOrderType and the isOnlineOrder checkbox that the
         // rest of the app (driver picker, submit payload, requiresShipping) already reads. ---
-        let currentOrderType = 'dine_in';
+        const ALLOWED_ORDER_TYPES = ({{ allowed_order_types_json|default:'["dine_in","takeaway","delivery"]'|safe }});
+        // This cashier's first allowed non-delivery mode — 'dine_in' is only safe to
+        // hard-code as a fallback when it's actually one of their allowed types;
+        // otherwise every reset/bail-out path needs to land somewhere they can use.
+        function defaultOrderMode() {
+            if (ALLOWED_ORDER_TYPES.includes('dine_in')) return 'dine_in';
+            if (ALLOWED_ORDER_TYPES.includes('takeaway')) return 'takeaway';
+            return 'online'; // delivery-only cashier — nothing else to fall back to
+        }
+        let currentOrderType = defaultOrderMode() === 'online' ? 'dine_in' : defaultOrderMode();
         function setOrderMode(mode) {
             const onlineCb = document.getElementById('isOnlineOrder');
             const wasOnline = onlineCb.checked;
@@ -3561,6 +3588,11 @@
 
         // --- Delivery client lookup (phone-first) modal ---
         let dcmFoundCustomer = null;
+        // Set when this modal was opened because checkout was blocked on "no customer for
+        // a delivery order" — holds the `print` flag submitOrder() was called with, so
+        // picking/creating a client here can resume the SAME checkout instead of just
+        // attaching a customer and leaving the cashier to click "إتمام الطلب" again.
+        let dcmResumePrint = null;
 
         function openDeliveryClientModal() {
             document.getElementById('dcmPhoneInput').value = '';
@@ -3575,10 +3607,14 @@
 
         function closeDeliveryClientModal() {
             document.getElementById('deliveryClientModal').classList.add('hidden');
+            dcmResumePrint = null; // bailed out — nothing to resume
             // If the cashier bails out without picking/creating a client, don't leave the
             // toolbar stuck on دليفري with no customer attached.
-            if (!currentCustomerId) {
-                setOrderMode('dine_in');
+            // For a delivery-only cashier there's no other mode to fall back to (calling
+            // setOrderMode('online') again here would just reopen this same modal) — leave
+            // أونلاين toggled on with no customer yet; they pick one before checkout instead.
+            if (!currentCustomerId && defaultOrderMode() !== 'online') {
+                setOrderMode(defaultOrderMode());
             }
         }
 
@@ -3670,6 +3706,15 @@
                            dcmFoundCustomer.address, dcmFoundCustomer.balance, dcmFoundCustomer.credit_limit,
                            dcmFoundCustomer.phone);
             document.getElementById('deliveryClientModal').classList.add('hidden');
+            // If this modal was opened because "إتمام الطلب" got blocked on "no customer",
+            // finish that same checkout now instead of leaving the cashier to click it
+            // again — the customer is attached, so the exact same submitOrder() call that
+            // failed before should go through this time.
+            if (dcmResumePrint !== null) {
+                const printFlag = dcmResumePrint;
+                dcmResumePrint = null;
+                submitOrder(printFlag);
+            }
         }
 
         // --- Top-bar "More" overflow menu (online toggle + price type) ---
@@ -4401,7 +4446,13 @@
             // that's what gets printed on the invoice and used on لوحة متابعة الشحن والأونلاين.
             if (requiresShipping) {
                 if (!customerId) {
-                    promptSelectCustomerForShipping();
+                    // No blocking error message — open the phone-first client modal
+                    // (looks up an existing customer by phone and autofills their
+                    // name/address, or registers a brand-new one via
+                    // /crm/api/customer-quick-create/) and resume this exact checkout
+                    // once a customer is attached — see dcmResumePrint/dcmStartOrder().
+                    dcmResumePrint = print;
+                    openDeliveryClientModal();
                     return;
                 }
                 if (!selectedCustomerPhone || selectedCustomerPhone.trim() === '') {
@@ -4745,7 +4796,6 @@
             document.getElementById('isOnlineOrder').checked = false;
             const driverSelectReset = document.getElementById('driverSelect');
             if (driverSelectReset) driverSelectReset.value = '';
-            setOrderType('dine_in');
             updateDriverPickerVisibility();
 
             // Reset totals display
@@ -4764,6 +4814,12 @@
 
             // Reset Customer
             selectCustomer('', (POS_POLICIES.defaultPriceTier || 'retail'),'عميل نقدي (قطاعي)', '', 0);
+
+            // Now that currentCustomerId is actually cleared, switching back into the
+            // default order mode can correctly detect "no customer yet" — for a
+            // delivery-only cashier this reopens the phone-lookup modal for the very
+            // next order, instead of needing a manual page refresh to get it back.
+            setOrderMode(defaultOrderMode());
         }
 
         // --- Drafts ---
@@ -4985,23 +5041,6 @@
             t.className = `fixed bottom-5 left-5 px-4 py-2 rounded shadow-lg transform transition-all z-50 text-sm font-bold ${isError ? 'bg-red-600 text-white' : 'bg-gray-800 text-white'}`;
             t.classList.remove('translate-y-20', 'opacity-0');
             setTimeout(() => t.classList.add('translate-y-20', 'opacity-0'), 3000);
-        }
-
-        // Online/shipping order attempted with no customer selected — instead of just an
-        // alert, open the customer search dropdown (pick an existing one) with its built-in
-        // "إضافة كعميل جديد" fallback right there for adding a new one.
-        // The setTimeout matters: this runs from the checkout button's click handler, and
-        // there's a document-level click listener that closes the dropdown on any click
-        // outside the search box — that same click bubbles to document and would close the
-        // dropdown in the same tick if we opened it synchronously here.
-        function promptSelectCustomerForShipping() {
-            showToast('اختر عميلاً مسجلاً أو أضف عميلاً جديداً لإتمام الطلب الأونلاين/الشحن', true);
-            setTimeout(() => {
-                const input = document.getElementById('customerSearchInput');
-                input.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                input.focus();
-                dropdownList.classList.remove('hidden');
-            }, 0);
         }
 
         function openModal(defaultName = '') {

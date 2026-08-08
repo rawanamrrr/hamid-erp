@@ -27,7 +27,7 @@ from .utils import record_sale_transaction, get_active_shift, get_or_create_acti
 from financial.models import Account, Transaction, DailyShift
 
 # --- RBAC (Phase 3.1) ---
-from accounts.permissions import require_permission, has_permission, require_granular_action, require_granular_action_open, cashier_can_open_shift, cashier_can_close_shift
+from accounts.permissions import require_permission, has_permission, has_granular_action, require_granular_action, require_granular_action_open, cashier_can_open_shift, cashier_can_close_shift
 from settings.policies import get_policy
 from financial.views import suggested_shift_start_balance as _suggested_shift_start_balance
 
@@ -161,7 +161,18 @@ def pos_view(request):
     categories = Category.objects.all()
     customers = Customer.objects.all()
     sys_settings = SystemSetting.objects.first()
-    
+
+    # A user whose access is limited to the cashier screen (no other module besides the
+    # 'crm' access every pos-permitted role now auto-grants — see role_form.html's
+    # autoGrantCrmForPos) has no use for the top navbar; they can't reach anything else in
+    # it anyway. Same treatment as kitchen_only_user in restaurant/views.py's kds_view.
+    cashier_only_user = False
+    _prof = getattr(request.user, 'profile', None)
+    if not request.user.is_superuser and not getattr(_prof, 'is_master', False) and _prof is not None:
+        _perms = _prof.get_all_permissions()
+        _granted_modules = {m for m, actions in _perms.items() if actions}
+        cashier_only_user = bool(_granted_modules) and _granted_modules <= {'pos', 'crm'}
+
     # --- WAREHOUSE SELECTION LOGIC ---
     # Fetch all active sales point warehouses
     warehouses = Warehouse.objects.filter(is_active=True, is_sales_point=True)
@@ -344,7 +355,19 @@ def pos_view(request):
         # check entirely for products that have no recipe at all (most of the catalog),
         # instead of firing a check request on every single add-to-cart click.
         'recipe_product_ids_json': json.dumps(list(_recipe_product_ids())),
+        'allowed_order_types': (request.user.profile.allowed_order_types_list()
+                                 if getattr(request.user, 'profile', None) else
+                                 ['dine_in', 'takeaway', 'delivery']),
+        # "تحويل" and "تعديل كمية" in the POS toolbar's "المزيد" menu are warehouse/stock
+        # management tools, not order-taking — hide them for a cashier with no products
+        # access at all (e.g. a delivery-only role) instead of showing buttons that just
+        # 403 when clicked. Mirrors the exact permission each button's own endpoint
+        # enforces (products/views.py: pos_bulk_transfer_api / bulk_transaction_create).
+        'can_pos_transfer': has_granular_action(request.user, 'pos', 'transfer', 'products', 'view'),
+        'can_bulk_movement': has_permission(request.user, 'products', 'view'),
+        'cashier_only_user': cashier_only_user,
     }
+    context['allowed_order_types_json'] = json.dumps(context['allowed_order_types'])
     return render(request, 'sales/pos.html', context)
 
 
@@ -854,6 +877,21 @@ def submit_order_ajax(request):
                     return JsonResponse({'status': 'error', 'message': 'رقم هاتف العميل مطلوب لطلبات الأونلاين/الشحن.'})
                 if not (customer.address or '').strip():
                     return JsonResponse({'status': 'error', 'message': 'عنوان العميل مطلوب لطلبات الأونلاين/الشحن.'})
+
+            # A cashier restricted to a subset of order types (see UserProfile.
+            # allowed_order_types) can't create the others even by forging the payload —
+            # the POS UI already hides the buttons for the disallowed ones, this is the
+            # server-side half of that same restriction. `driver_id` alone (without the
+            # "طلب أونلاين" toggle or a delivery cost) also forces delivery — same as the
+            # order_type resolution at Order() creation below — so it's checked here too.
+            _resolved_order_type = (Order.ORDER_TYPE_DELIVERY if (requires_shipping or driver_id)
+                                     else (data.get('order_type') if data.get('order_type') in
+                                           (Order.ORDER_TYPE_DINE_IN, Order.ORDER_TYPE_TAKEAWAY)
+                                           else Order.ORDER_TYPE_DINE_IN))
+            _profile = getattr(request.user, 'profile', None)
+            if _profile is not None and _resolved_order_type not in _profile.allowed_order_types_list():
+                return JsonResponse({'status': 'error',
+                                      'message': 'لا تملك صلاحية إنشاء هذا النوع من الطلبات.'})
 
             # --- IDENTIFY WAREHOUSE ---
             # Try to get warehouse_id from the payload
@@ -2539,6 +2577,14 @@ def edit_order_ajax(request):
             # Layer 2: same 'sales.allow_negative_stock' / per-user override as submit_order_ajax.
             from settings.policies import get_policy as _policy
             profile = getattr(request.user, 'profile', None)
+            # Same order-type restriction as submit_order_ajax — only enforced when the
+            # edit is actually CHANGING the order type, so a restricted cashier can still
+            # save unrelated edits on an order that was already created as e.g. delivery
+            # by someone else (or by themselves before the restriction was set).
+            if (profile is not None and new_order_type != order.order_type
+                    and new_order_type not in profile.allowed_order_types_list()):
+                return JsonResponse({'status': 'error',
+                                      'message': 'لا تملك صلاحية تحويل الطلب لهذا النوع.'})
             _neg_ok = _policy('sales.allow_negative_stock') or (profile and profile.allows_below_zero_stock())
 
             # Pre-check availability (friendly early error before issuing anything).

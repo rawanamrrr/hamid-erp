@@ -1,6 +1,15 @@
 <header class="flex items-center justify-between px-6 py-3 bg-white border-b border-gray-200">
-    <div class="flex items-center">
+    <div class="flex items-center gap-3">
         <h1 class="text-xl font-semibold text-gray-800">{{ title|default:"نظام الإدارة" }}</h1>
+        {% if cashier_only_user %}
+        <!-- A cashier-only account (see cashier_only_user in sales/views.py pos_view)
+             has no top navbar on this page and so no other way to log out — put it right
+             next to the page title where it's actually visible, instead of buried in the
+             toolbar. Only this page sets cashier_only_user, so it's a no-op elsewhere. -->
+        <a href="{% url 'logout' %}" class="flex items-center gap-1.5 text-xs font-black text-gray-500 hover:text-red-600 border border-gray-300 hover:border-red-300 rounded-lg px-2.5 py-1.5 transition-colors">
+            <i class="fa-solid fa-right-from-bracket"></i> تسجيل الخروج
+        </a>
+        {% endif %}
     </div>
 </header>
 

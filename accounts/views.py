@@ -246,6 +246,8 @@ def user_create(request):
                 # can_change_unit / can_view_profit are no longer editable from this form
                 # (not useful per-user — profit visibility is governed by the store-wide
                 # 'sales.show_profit_on_invoice' policy instead) — left at their model defaults.
+                # allowed_order_types is set per-ROLE only (إضافة/تعديل دور) — no per-user
+                # override field on this form, so it's left untouched here.
                 landing = request.POST.get('default_landing')
                 if landing in dict(prof.LANDING_CHOICES):
                     prof.default_landing = landing
@@ -324,13 +326,20 @@ def user_edit(request, pk):
                 # can_change_unit / can_view_profit are no longer editable from this form
                 # (not useful per-user — profit visibility is governed by the store-wide
                 # 'sales.show_profit_on_invoice' policy instead) — left at their model defaults.
+                prof.allowed_order_types = [
+                    t for t, field in (
+                        (prof.ORDER_TYPE_DINE_IN, 'allowed_order_type_dine_in'),
+                        (prof.ORDER_TYPE_TAKEAWAY, 'allowed_order_type_takeaway'),
+                        (prof.ORDER_TYPE_DELIVERY, 'allowed_order_type_delivery'),
+                    ) if request.POST.get(field) == 'on'
+                ]
                 landing = request.POST.get('default_landing')
                 if landing in dict(prof.LANDING_CHOICES):
                     prof.default_landing = landing
                 prof.save(update_fields=[
                     'max_discount_percent', 'max_discount_amount', 'can_sell_below_cost',
                     'can_edit_price', 'can_sell_below_sale_price', 'can_sell_below_zero_stock',
-                    'default_landing',
+                    'allowed_order_types', 'default_landing',
                 ])
 
             UserActivityLog.objects.create(
@@ -419,8 +428,16 @@ def role_create(request):
         except:
             permissions = {}
             
-        role = Role.objects.create(name=name, description=description, permissions=permissions)
-        
+        allowed_order_types = [
+            t for t, field in (
+                ('dine_in', 'role_allowed_order_type_dine_in'),
+                ('takeaway', 'role_allowed_order_type_takeaway'),
+                ('delivery', 'role_allowed_order_type_delivery'),
+            ) if request.POST.get(field) == 'on'
+        ]
+        role = Role.objects.create(name=name, description=description, permissions=permissions,
+                                    allowed_order_types=allowed_order_types)
+
         UserActivityLog.objects.create(
             user=request.user, action_type='CREATE', module='roles',
             description=f'إنشاء دور جديد: {role.name}'
@@ -445,7 +462,15 @@ def role_edit(request, pk):
             role.permissions = json.loads(raw_perms)
         except:
             pass
-            
+
+        role.allowed_order_types = [
+            t for t, field in (
+                ('dine_in', 'role_allowed_order_type_dine_in'),
+                ('takeaway', 'role_allowed_order_type_takeaway'),
+                ('delivery', 'role_allowed_order_type_delivery'),
+            ) if request.POST.get(field) == 'on'
+        ]
+
         role.save()
         UserActivityLog.objects.create(
             user=request.user, action_type='UPDATE', module='roles',

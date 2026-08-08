@@ -107,6 +107,11 @@
         currentPerms = JSON.parse(raw);
     } catch(e) {}
 
+    // Which order types this role currently allows — {{ role|yesno:',' }} unset (new
+    // role) or nothing customized yet both mean "all three" (unrestricted default).
+    const roleAllowedOrderTypes = {{ role.allowed_order_types|default:"[]"|safe }};
+    const roleOrderTypesUnrestricted = {% if not role or not role.allowed_order_types %}true{% else %}false{% endif %};
+
     const container = document.getElementById('permissionsContainer');
 
     // Build the UI exactly corresponding to `modulesDef`
@@ -144,9 +149,54 @@
                 </label>
             `;
         });
-        
-        html += `</div></div>`;
+
+        html += `</div>`; // close the actions grid
+
+        // Allowed POS order types lives inside the pos module's own card (not a separate
+        // top-level section) — it's a property of "what this cashier role can do at the
+        // register", same place as its view/create/edit checkboxes.
+        if (mod.id === 'pos') {
+            const dineChecked = roleOrderTypesUnrestricted || roleAllowedOrderTypes.includes('dine_in');
+            const takeawayChecked = roleOrderTypesUnrestricted || roleAllowedOrderTypes.includes('takeaway');
+            const deliveryChecked = roleOrderTypesUnrestricted || roleAllowedOrderTypes.includes('delivery');
+            html += `
+                <div class="bg-gray-50 border-t border-gray-200 p-4">
+                    <h5 class="text-xs font-bold text-gray-500 mb-3">أنواع الطلبات المسموحة لهذا الدور — اترك الكل محدداً لعدم التقييد، أو ألغِ تحديد "صالة" و"تيك أواي" لعمل دور دليفري فقط</h5>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <label class="flex items-center gap-2 p-2.5 bg-white rounded-lg border cursor-pointer text-sm font-bold text-gray-700">
+                            <input type="checkbox" name="role_allowed_order_type_dine_in" ${dineChecked ? 'checked' : ''} class="w-5 h-5 rounded">
+                            صالة (Dine-in)
+                        </label>
+                        <label class="flex items-center gap-2 p-2.5 bg-white rounded-lg border cursor-pointer text-sm font-bold text-gray-700">
+                            <input type="checkbox" name="role_allowed_order_type_takeaway" ${takeawayChecked ? 'checked' : ''} class="w-5 h-5 rounded">
+                            تيك أواي
+                        </label>
+                        <label class="flex items-center gap-2 p-2.5 bg-white rounded-lg border cursor-pointer text-sm font-bold text-gray-700">
+                            <input type="checkbox" name="role_allowed_order_type_delivery" ${deliveryChecked ? 'checked' : ''} class="w-5 h-5 rounded">
+                            دليفري
+                        </label>
+                    </div>
+                </div>
+            `;
+        }
+
+        html += `</div>`; // close the module card
         container.innerHTML += html;
+    });
+
+    // A cashier role needs CRM access too — the delivery client phone-lookup/quick-create
+    // step (POS checkout) calls crm:view/crm:create directly, so a "pos"-only role used
+    // to 403 there with a confusing generic permission error the first time anyone hit
+    // checkout on a delivery order. Auto-grant crm view/create/edit (not delete — a
+    // cashier shouldn't be able to delete customer records) the moment any pos checkbox
+    // gets checked, same as ticking "تحديد الكل" on the pos module.
+    function autoGrantCrmForPos() {
+        document.querySelectorAll('.perm-chk-crm').forEach(chk => {
+            if (chk.value !== 'delete') chk.checked = true;
+        });
+    }
+    document.querySelectorAll('.perm-chk-pos').forEach(chk => {
+        chk.addEventListener('change', () => { if (chk.checked) autoGrantCrmForPos(); });
     });
 
     // Helper functions
@@ -164,6 +214,7 @@
     function selectAll(e, id) {
         e.stopPropagation();
         document.querySelectorAll(`.perm-chk-${id}`).forEach(chk => chk.checked = true);
+        if (id === 'pos') autoGrantCrmForPos();
     }
     
     function deselectAll(e, id) {
