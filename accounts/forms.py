@@ -15,11 +15,18 @@ class CreateUserForm(forms.ModelForm):
     """
     نموذج إضافة مستخدم جديد (معدل ليتوافق مع نظام الأدوار الجديدة RBAC بدلاً من Groups)
     """
-    password = forms.CharField(label="كلمة المرور", widget=forms.PasswordInput(attrs={'class': TAILWIND_INPUT, 'dir': 'ltr'}))
-    # Email is REQUIRED + unique — it's the password-recovery channel (reset code is emailed).
+    # min_length=6 (not Django's default 8) is the only hard-enforced rule — matches
+    # AUTH_PASSWORD_VALIDATORS and the forgot-password/admin-reset flows. A weak-but-
+    # long-enough password (common word, all-numeric, etc.) is intentionally NOT
+    # blocked here.
+    password = forms.CharField(label="كلمة المرور", min_length=6,
+                                widget=forms.PasswordInput(attrs={'class': TAILWIND_INPUT, 'dir': 'ltr'}))
+    # Optional — kept unique when provided (still the password-recovery channel for
+    # whoever does have one on file), but not every staff account has an email in
+    # practice, so it no longer blocks creating the account.
     email = forms.EmailField(
-        label="البريد الإلكتروني", required=True,
-        widget=forms.EmailInput(attrs={'class': TAILWIND_INPUT, 'dir': 'ltr', 'placeholder': 'email@example.com'}),
+        label="البريد الإلكتروني", required=False,
+        widget=forms.EmailInput(attrs={'class': TAILWIND_INPUT, 'dir': 'ltr', 'placeholder': 'email@example.com (اختياري)'}),
     )
     # Phone is optional but unique when provided (one phone ↔ one account).
     phone = forms.CharField(
@@ -30,7 +37,7 @@ class CreateUserForm(forms.ModelForm):
     def clean_email(self):
         email = (self.cleaned_data.get('email') or '').strip().lower()
         if not email:
-            raise forms.ValidationError("البريد الإلكتروني مطلوب.")
+            return ''
         if User.objects.filter(email__iexact=email).exists():
             raise forms.ValidationError("البريد الإلكتروني مستخدم بالفعل لحساب آخر.")
         return email

@@ -431,10 +431,11 @@ def compute_discount_and_total(subtotal, qualified_subtotal, *, discount, discou
     # post-discount subtotal, added side by side — NOT compounded (VAT must not also
     # apply to the service charge amount, or vice versa). E.g. 100 + 12% service + 14%
     # VAT = 126, not 100 * 1.12 * 1.14. Both are 0 when configured as "included in price".
-    # Service charge deliberately excludes delivery_cost/tailoring_cost from its base
-    # (dine-in orders don't carry either), same as it always has.
+    # Both service charge AND VAT deliberately exclude delivery_cost from their base —
+    # the delivery fee is a flat pass-through charge, not part of the taxable sale, so
+    # picking a 30 ج.م delivery preset must add exactly 30, never 30 + VAT on top.
     service_charge = compute_dine_in_service_charge(discounted_subtotal, order_type)
-    vat_amount = compute_vat_amount(pre_extras_total, vat_rate, vat_included)
+    vat_amount = compute_vat_amount(discounted_subtotal + tailoring_cost, vat_rate, vat_included)
     total = pre_extras_total + service_charge + vat_amount
 
     return {

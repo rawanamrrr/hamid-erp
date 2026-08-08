@@ -9,11 +9,16 @@ TAILWIND_SELECT = 'w-full px-4 py-2 mt-2 text-gray-700 bg-white border border-gr
 class SystemSettingForm(forms.ModelForm):
     # حقل وهمي لرفع الصورة
     logo_upload = forms.ImageField(required=False, label="رفع اللوجو", widget=forms.FileInput(attrs={'class': 'block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-teal-50 file:text-teal-700 hover:file:bg-teal-100'}))
+    # No longer editable from the settings UI at all — it's now purely carried through as
+    # a hidden field so the store's existing value keeps round-tripping on every save
+    # (products' add-item fields, etc. still key off SystemSetting.market_type elsewhere
+    # in the app; only the ability to change it from here is removed). The
+    # is_market_type_locked/CHANGE_STORE_TYPE-token mechanism below is unaffected.
     market_type = forms.ChoiceField(
         choices=MARKET_TYPE_CHOICES,
-        required=True,
+        required=False,
         label="نوع المتجر / السوق",
-        widget=forms.Select(attrs={'class': TAILWIND_SELECT})
+        widget=forms.HiddenInput()
     )
 
     # Explicitly define printer_name to use a ChoiceField (Dropdown)

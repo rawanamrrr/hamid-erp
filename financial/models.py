@@ -123,12 +123,25 @@ class DailyShift(models.Model):
         ).exclude(description__startswith='عجز افتتاحي في الشيفت').aggregate(Sum('amount'))['amount__sum'] or Decimal('0.00')
         
         # 2. Orders: مبيعات الكاش من جدول الأوردرات
+        #
+        # Delivery COD orders are excluded here (driver_settled_at is set) because their
+        # cash isn't in the drawer yet when the driver leaves with it — restaurant.views.
+        # driver_return_settle() deliberately posts NO Transaction at that point, and sets
+        # order.cash_paid to the FULL amount the driver collected (which includes the
+        # delivery fee the driver keeps as their own earning, never entering the drawer).
+        # The only money that actually reaches CASH_DRAWER for such an order is posted
+        # later, once, by CashCustody.settle() (restaurant/models.py) when the driver
+        # hands the remainder over — and that DEPOSIT Transaction is already counted below
+        # in added_money_trans. Counting order.cash_paid here TOO double-counted that same
+        # cash (once via cash_paid, once via the settle() deposit) and also wrongly
+        # counted the driver's own kept delivery fee as drawer cash.
         sales_cash_orders = Decimal('0.00')
         if Order:
             sales_cash_orders = Order.objects.filter(
                 user=self.employee, # أو يمكن إزالتها لحساب كل مبيعات الفترة
                 created_at__range=(self.start_time, end_t)
-            ).exclude(status='void').aggregate(Sum('cash_paid'))['cash_paid__sum'] or Decimal('0.00')
+            ).exclude(status='void').exclude(driver_settled_at__isnull=False).aggregate(
+                Sum('cash_paid'))['cash_paid__sum'] or Decimal('0.00')
 
         # رصيد البداية
         start_bal = self.start_balance if self.start_balance is not None else Decimal('0.00')

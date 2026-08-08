@@ -53,9 +53,9 @@
                             {{ form.username }}
                         </div>
                         <div>
-                            <label class="block text-sm font-bold text-gray-700 mb-2">البريد الإلكتروني{% if not user_obj %} <span class="text-red-500">*</span>{% endif %}</label>
+                            <label class="block text-sm font-bold text-gray-700 mb-2">البريد الإلكتروني</label>
                             {{ form.email }}
-                            {% if not user_obj %}<p class="text-xs text-gray-400 mt-1">مطلوب — يُستخدم لاستعادة كلمة المرور (بريد واحد لكل حساب).</p>{% endif %}
+                            {% if not user_obj %}<p class="text-xs text-gray-400 mt-1">اختياري — إن وُجد يُستخدم لاستعادة كلمة المرور (بريد واحد لكل حساب).</p>{% endif %}
                         </div>
                         {% if form.phone %}
                         <div>

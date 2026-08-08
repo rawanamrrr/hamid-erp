@@ -378,6 +378,21 @@ def pos_view(request):
         'dine_in_tables': dine_in_tables,
     }
     context['allowed_order_types_json'] = json.dumps(context['allowed_order_types'])
+    def _parse_delivery_price_options(raw):
+        options = []
+        for token in (raw or '').split(','):
+            token = token.strip()
+            if not token:
+                continue
+            try:
+                value = float(token)
+            except ValueError:
+                continue
+            if value > 0:
+                options.append(value)
+        return options
+    context['delivery_price_options_json'] = json.dumps(
+        _parse_delivery_price_options(get_policy('sales.delivery_price_options')))
     context['dine_in_tables_json'] = json.dumps([
         {'id': t.id, 'number': t.number, 'status': t.status, 'occupied': t.status != 'free'}
         for t in dine_in_tables

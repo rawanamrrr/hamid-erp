@@ -17,6 +17,9 @@
             <p class="text-slate-300 font-medium">إعدادات رواتب الموظفين الثابتة وصرف الرواتب الشهرية بسهولة.</p>
         </div>
         <div class="relative z-10 flex items-center gap-3">
+            <a href="{% url 'financial:attendance_settings' %}" class="inline-flex items-center px-5 py-3 bg-white/10 text-white font-bold rounded-2xl ring-1 ring-white/20 hover:bg-white/20 transition-all duration-300">
+                <i class="fas fa-user-clock me-2"></i> إعدادات الحضور والخصومات
+            </a>
             <a href="{% url 'financial:advance_list' %}" class="inline-flex items-center px-5 py-3 bg-white/10 text-white font-bold rounded-2xl ring-1 ring-white/20 hover:bg-white/20 transition-all duration-300">
                 <i class="fas fa-hand-holding-usd me-2"></i> السلف
             </a>

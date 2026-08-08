@@ -18,6 +18,13 @@ until something reads it — defaults are chosen to preserve current behavior.
 """
 
 # Tab groups (mirror the SKY SOFT constants tabs). key -> Arabic label.
+# NOTE: 'payroll' policies exist in POLICY_REGISTRY below and are still read via
+# get_policy()/resolved_policies() exactly like any other policy, but are deliberately
+# left OUT of this dict so they never appear on the generic "ثوابت النظام" page —
+# they get their own dedicated "إعدادات الحضور والخصومات" page under
+# financial/salaries/ instead (financial.views.attendance_settings), since they're
+# specific to one module rather than a store-wide constant. Both pages write into the
+# exact same SystemPolicy.values store, so nothing about storage/reading changes.
 POLICY_GROUPS = {
     'sales':     'المبيعات',
     'cashier':   'نقطة البيع (الكاشير)',
@@ -27,12 +34,13 @@ POLICY_GROUPS = {
     'customers': 'العملاء',
     'receipts':  'الإيصالات والفواتير',
     'shifts':    'الورديات والخزنة',
-    'payroll':   'الرواتب',
     'kitchen':   'شاشة المطبخ',
 }
 
 # Each policy: key -> dict(group, label, help, type, default, [choices]).
-# type: 'bool' | 'int' | 'decimal' | 'choice'
+# type: 'bool' | 'int' | 'decimal' | 'choice' | 'text' | 'price_list'
+# 'price_list': stored/edited as a comma-separated string of numbers (e.g. "20,30,50"),
+# but rendered in the UI as a repeatable "add another price" list instead of a raw text box.
 POLICY_REGISTRY = {
     # ── Sales ──────────────────────────────────────────────────────────────
     'sales.require_customer_on_credit': dict(
@@ -52,6 +60,11 @@ POLICY_REGISTRY = {
         choices=[('retail', 'قطاعي'), ('semi_wholesale', 'نص جملة'), ('wholesale', 'جملة')],
         label='شريحة السعر الافتراضية في الكاشير',
         help='السعر المختار تلقائياً عند إضافة منتج للسلة.'),
+    'sales.delivery_price_options': dict(
+        group='sales', type='price_list', default='20,30,50',
+        label='خيارات سعر التوصيل (ج.م)',
+        help='قائمة أسعار توصيل جاهزة يختار منها الكاشير عند فتح طلب دليفري، مفصولة بفاصلة (مثال: 20,30,50). '
+             'يمكن للكاشير كتابة سعر مختلف يدوياً أيضاً.'),
 
     # ── Cashier / POS ──────────────────────────────────────────────────────
     'cashier.allow_discount': dict(
@@ -151,6 +164,35 @@ POLICY_REGISTRY = {
         group='payroll', type='decimal', default='3.33',
         label='نسبة الخصم عن كل يوم غياب (%)',
         help='النسبة المئوية من الراتب الأساسي التي تُخصم عن كل يوم غياب في قسيمة الراتب (الافتراضي 3.33% ≈ يوم من 30).'),
+    'payroll.grace_period_minutes': dict(
+        group='payroll', type='int', default='15',
+        label='فترة السماح قبل احتساب التأخير (دقيقة)',
+        help='وصول الموظف خلال هذه الدقائق من موعد الحضور الرسمي لا يُحتسب تأخيراً إطلاقاً.'),
+    'payroll.work_start_time': dict(
+        group='payroll', type='text', default='09:00',
+        label='موعد الحضور الرسمي (HH:MM)',
+        help='يُستخدم فقط عند تسجيل وقت حضور فعلي للموظف — لحساب دقائق التأخير تلقائياً بدل كتابتها يدوياً.'),
+    'payroll.work_end_time': dict(
+        group='payroll', type='text', default='17:00',
+        label='موعد الانصراف الرسمي (HH:MM)',
+        help='يُستخدم فقط عند تسجيل وقت انصراف فعلي للموظف — لحساب دقائق الانصراف المبكر تلقائياً.'),
+    'payroll.late_deduction_method': dict(
+        group='payroll', type='choice', default='fixed_rate',
+        choices=[('fixed_rate', 'سعر ثابت لكل ساعة تأخير'), ('employee_hourly', 'حسب أجر الموظف الفعلي (الراتب ÷ أيام العمل ÷ ساعات العمل)')],
+        label='طريقة حساب خصم التأخير',
+        help='"سعر ثابت" يطبّق نفس السعر على الجميع بغض النظر عن راتبهم. "حسب أجر الموظف" يحسب سعر الساعة الفعلي لكل موظف من راتبه.'),
+    'payroll.late_deduction_per_hour': dict(
+        group='payroll', type='decimal', default='0',
+        label='سعر ساعة التأخير الثابت (ج.م)',
+        help='يُستخدم فقط عندما تكون طريقة الحساب "سعر ثابت". 0 = لا يوجد خصم تأخير.'),
+    'payroll.working_days_per_month': dict(
+        group='payroll', type='int', default='26',
+        label='عدد أيام العمل في الشهر',
+        help='يُستخدم لحساب أجر الساعة الفعلي للموظف عندما تكون طريقة حساب خصم التأخير "حسب أجر الموظف".'),
+    'payroll.working_hours_per_day': dict(
+        group='payroll', type='decimal', default='8',
+        label='عدد ساعات العمل في اليوم',
+        help='يُستخدم لحساب أجر الساعة الفعلي للموظف عندما تكون طريقة حساب خصم التأخير "حسب أجر الموظف".'),
 }
 
 

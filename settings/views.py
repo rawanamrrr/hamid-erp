@@ -112,8 +112,16 @@ def policies_view(request):
     policy_obj, _ = SystemPolicy.objects.get_or_create(pk=1)
 
     if request.method == 'POST':
-        new_values = {}
+        # Start from whatever's already stored (e.g. 'payroll.*' keys saved from the
+        # separate إعدادات الحضور والخصومات page) and only overwrite the keys this page
+        # actually renders — POLICY_GROUPS no longer lists 'payroll', so grouped_registry()
+        # already excludes it; iterating the full POLICY_REGISTRY here instead would blank
+        # every payroll setting back to its default on every save of this unrelated page.
+        new_values = dict(policy_obj.values or {})
+        rendered_keys = {key for _, _, items in grouped_registry() for key, _ in items}
         for key, meta in POLICY_REGISTRY.items():
+            if key not in rendered_keys:
+                continue
             field = key.replace('.', '__')  # dots aren't valid in form field names
             t = meta.get('type', 'bool')
             if t == 'bool':
@@ -154,6 +162,7 @@ def policies_view(request):
                 'value': value,
                 'is_bool': meta.get('type') == 'bool',
                 'is_choice': meta.get('type') == 'choice',
+                'is_price_list': meta.get('type') == 'price_list',
             })
         groups.append({'key': gkey, 'label': glabel, 'rows': rows})
 

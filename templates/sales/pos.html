@@ -704,6 +704,7 @@
                                 <span class="text-[11px] font-black text-blue-600 shrink-0 text-center whitespace-nowrap">+<span
                                         id="deliveryDisplaySummary">0</span></span>
                             </div>
+                            <div id="deliveryPresetsWrap" class="hidden flex flex-wrap gap-1 mt-1.5"></div>
                         </div>
                     </div>
 
@@ -3577,6 +3578,23 @@
         // toolbar drives both currentOrderType and the isOnlineOrder checkbox that the
         // rest of the app (driver picker, submit payload, requiresShipping) already reads. ---
         const ALLOWED_ORDER_TYPES = ({{ allowed_order_types_json|default:'["dine_in","takeaway","delivery"]'|safe }});
+        const DELIVERY_PRICE_OPTIONS = ({{ delivery_price_options_json|default:'[]'|safe }});
+        function renderDeliveryPresets() {
+            const wrap = document.getElementById('deliveryPresetsWrap');
+            if (!wrap) return;
+            if (!DELIVERY_PRICE_OPTIONS.length) { wrap.innerHTML = ''; return; }
+            wrap.innerHTML = DELIVERY_PRICE_OPTIONS.map(price => `
+                <button type="button" onclick="pickDeliveryPreset(${price})"
+                    class="px-2 py-1 text-[11px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors">${price % 1 === 0 ? price.toFixed(0) : price} ج.م</button>
+            `).join('');
+        }
+        function pickDeliveryPreset(price) {
+            const input = document.getElementById('inlineDeliveryInput');
+            if (!input) return;
+            input.value = price;
+            applyInlineDelivery();
+        }
+        renderDeliveryPresets();
         // This cashier's first allowed non-delivery mode — 'dine_in' is only safe to
         // hard-code as a fallback when it's actually one of their allowed types;
         // otherwise every reset/bail-out path needs to land somewhere they can use.
@@ -3681,8 +3699,11 @@
         // --- Online Toggle Logic ---
         function toggleOnlineMode() {
             // deliveryInput was removed — delivery cost is now managed via the Details Modal
+            const isOnline = document.getElementById('isOnlineOrder').checked;
             const dot = document.getElementById('posMoreOnlineDot');
-            if (dot) dot.classList.toggle('hidden', !document.getElementById('isOnlineOrder').checked);
+            if (dot) dot.classList.toggle('hidden', !isOnline);
+            const presetsWrap = document.getElementById('deliveryPresetsWrap');
+            if (presetsWrap) presetsWrap.classList.toggle('hidden', !isOnline || !DELIVERY_PRICE_OPTIONS.length);
             renderOrderModeButtons();
             updateDriverPickerVisibility();
             calculateTotals();
@@ -4170,13 +4191,14 @@
 
             let preExtrasTotal = discountedSubtotal + deliveryCost;
 
-            // VAT and the service charge are each an independent percentage of the SAME
-            // pre-extras total, added side by side — not compounded on each other (VAT
-            // must not also apply to the service charge amount). Mirrors
+            // VAT and the service charge are each an independent percentage of the
+            // discounted subtotal, added side by side — not compounded on each other, and
+            // BOTH exclude deliveryCost from their base (a delivery fee is a flat
+            // pass-through charge, not part of the taxable sale). Mirrors
             // sales.services.compute_discount_and_total() exactly.
             let vatAmt = 0;
             if (TAX_SETTINGS.vatRate > 0 && !TAX_SETTINGS.vatIncluded) {
-                vatAmt = preExtrasTotal * TAX_SETTINGS.vatRate / 100;
+                vatAmt = discountedSubtotal * TAX_SETTINGS.vatRate / 100;
             }
             let total = preExtrasTotal + serviceChargeAmt + vatAmt;
 

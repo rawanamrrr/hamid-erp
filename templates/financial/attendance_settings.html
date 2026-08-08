@@ -1,0 +1,66 @@
+{% extends 'base.html' %}
+{% block title %}إعدادات الحضور والخصومات{% endblock %}
+{% block content %}
+<div class="max-w-4xl mx-auto font-arabic py-8 px-4 sm:px-6 lg:px-8" dir="rtl">
+
+  <div class="mb-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-gradient-to-r from-slate-900 to-slate-800 p-8 rounded-3xl shadow-2xl relative overflow-hidden">
+    <div class="absolute -right-20 -top-20 w-64 h-64 bg-teal-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20"></div>
+    <div class="absolute -left-20 -bottom-20 w-64 h-64 bg-indigo-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20"></div>
+    <div class="relative z-10">
+      <h1 class="text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-teal-200 to-teal-400 mb-2">
+        <i class="fas fa-user-clock me-2"></i>إعدادات الحضور والخصومات
+      </h1>
+      <p class="text-slate-300 font-medium">فترة السماح، مواعيد العمل الرسمية، وطريقة احتساب خصم التأخير — تُطبّق تلقائياً عند إنشاء قسيمة الراتب.</p>
+    </div>
+    <div class="relative z-10">
+      <a href="{% url 'financial:salary_list' %}" class="inline-flex items-center px-5 py-3 bg-white/10 text-white font-bold rounded-2xl ring-1 ring-white/20 hover:bg-white/20 transition-all duration-300">
+        <i class="fas fa-arrow-right me-2"></i> رواتب الموظفين
+      </a>
+    </div>
+  </div>
+
+  {% if messages %}{% for message in messages %}
+  <div class="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-xl mb-4 text-sm">{{ message }}</div>
+  {% endfor %}{% endif %}
+
+  <form method="post" class="space-y-5">
+    {% csrf_token %}
+
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+      <div class="divide-y divide-gray-50">
+        {% for row in rows %}
+        <div class="flex items-center justify-between gap-4 px-5 py-3.5">
+          <div class="min-w-0">
+            <label for="{{ row.field }}" class="block text-sm font-bold text-gray-800 cursor-pointer">{{ row.meta.label }}</label>
+            {% if row.meta.help %}<p class="text-xs text-gray-400 mt-0.5 leading-relaxed">{{ row.meta.help }}</p>{% endif %}
+          </div>
+          <div class="shrink-0">
+            {% if row.is_bool %}
+              <label class="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" id="{{ row.field }}" name="{{ row.field }}" class="sr-only peer" {% if row.value %}checked{% endif %}>
+                <div class="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:bg-teal-500 peer-checked:after:translate-x-[-20px] after:content-[''] after:absolute after:top-0.5 after:right-0.5 after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
+              </label>
+            {% elif row.is_choice %}
+              <select id="{{ row.field }}" name="{{ row.field }}" class="text-sm border border-gray-200 rounded-lg px-3 py-1.5 bg-white focus:border-teal-400 focus:outline-none">
+                {% for cval, clabel in row.meta.choices %}
+                  <option value="{{ cval }}" {% if cval == row.value %}selected{% endif %}>{{ clabel }}</option>
+                {% endfor %}
+              </select>
+            {% else %}
+              <input type="text" id="{{ row.field }}" name="{{ row.field }}" value="{{ row.value }}"
+                     class="text-sm border border-gray-200 rounded-lg px-3 py-1.5 w-28 focus:border-teal-400 focus:outline-none" dir="ltr">
+            {% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="flex justify-end sticky bottom-4">
+      <button type="submit" class="inline-flex items-center gap-2 px-6 py-3 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-sm font-black shadow-lg">
+        <i class="fa-solid fa-floppy-disk"></i> حفظ الإعدادات
+      </button>
+    </div>
+  </form>
+</div>
+{% endblock %}

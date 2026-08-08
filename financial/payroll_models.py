@@ -31,6 +31,79 @@ class EmployeeSalary(models.Model):
         super().save(*args, **kwargs)
 
 
+class AttendanceRecord(models.Model):
+    """One row of FACT per employee per day — 'late' is not its own status (an employee
+    is present-and-late, not a third thing), and this never stores a computed deduction:
+    that's derived fresh from Payslip.late_minutes/days_absent at payslip generation time,
+    since salary or the store's deduction policy can change after the fact. One record per
+    (employee, date) — editing today's status again updates the same row, it doesn't stack.
+    """
+    STATUS_PRESENT = 'present'
+    STATUS_ABSENT = 'absent'
+    STATUS_EXCUSED = 'excused'
+    STATUS_LEAVE = 'leave'
+    STATUS_HOLIDAY = 'holiday'
+    STATUS_DAY_OFF = 'day_off'
+    STATUS_CHOICES = [
+        (STATUS_PRESENT, 'حاضر'),
+        (STATUS_ABSENT, 'غياب'),
+        (STATUS_EXCUSED, 'غياب بعذر'),
+        (STATUS_LEAVE, 'إجازة'),
+        (STATUS_HOLIDAY, 'عطلة رسمية'),
+        (STATUS_DAY_OFF, 'يوم راحة'),
+    ]
+    # Statuses that deduct salary by default when the record is created — 'absent' only.
+    # 'deduct_salary' below is still a real per-row field (not derived) so an admin can
+    # override either direction: an unpaid leave, or a no-questions-asked forgiven absence.
+    DEFAULT_DEDUCT_STATUSES = {STATUS_ABSENT}
+
+    employee = models.ForeignKey(User, on_delete=models.CASCADE, related_name='attendance_records', verbose_name="الموظف")
+    date = models.DateField(verbose_name="التاريخ")
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=STATUS_PRESENT, verbose_name="الحالة")
+
+    # Optional real clock times — if given, late/early-departure minutes are derived from
+    # them (against payroll.work_start_time/work_end_time + the grace period) instead of
+    # being typed by hand. Kept even when unused today so a future time-clock/biometric
+    # integration can just start writing these two fields without a schema change.
+    arrival_time = models.TimeField(null=True, blank=True, verbose_name="وقت الحضور")
+    departure_time = models.TimeField(null=True, blank=True, verbose_name="وقت الانصراف")
+
+    late_minutes = models.PositiveIntegerField(default=0, verbose_name="دقائق التأخير")
+    early_departure_minutes = models.PositiveIntegerField(default=0, verbose_name="دقائق الانصراف المبكر")
+
+    # Only meaningful when status='absent' or 'leave' — whether this day's absence should
+    # actually reduce salary. Sensible default per status, but a real per-row override
+    # (an "unpaid leave" or a forgiven absence both need to flip the default).
+    deduct_salary = models.BooleanField(default=False, verbose_name="يخصم من الراتب")
+
+    note = models.CharField(max_length=255, blank=True, default='', verbose_name="ملاحظات")
+    recorded_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL,
+                                     related_name='attendance_recorded', verbose_name="سجّله")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "سجل حضور"
+        verbose_name_plural = "سجلات الحضور والغياب"
+        unique_together = ('employee', 'date')
+        ordering = ['-date', 'employee_id']
+
+    def __str__(self):
+        return f"{self.employee.username} — {self.date} ({self.get_status_display()})"
+
+    def save(self, *args, **kwargs):
+        # Only auto-default on first save — never silently flip an admin's explicit
+        # override back on a later edit.
+        if not self.pk:
+            self.deduct_salary = self.status in self.DEFAULT_DEDUCT_STATUSES
+        super().save(*args, **kwargs)
+
+    @property
+    def total_late_minutes(self):
+        """Late arrival + early departure combined — both cost the same per minute."""
+        return (self.late_minutes or 0) + (self.early_departure_minutes or 0)
+
+
 class DealDiscount(models.Model):
     """
     الخصومات والعروض الترويجية الذكية (Smart Discounts & Promotions)
@@ -164,6 +237,11 @@ class Payslip(models.Model):
     basic_salary = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'), verbose_name="الراتب الأساسي")
     allowances = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'), verbose_name="البدلات الثابتة")
     days_absent = models.DecimalField(max_digits=5, decimal_places=1, default=Decimal('0.0'), verbose_name="أيام الغياب")
+    # Snapshotted from AttendanceRecord at generation time (see payslip_generate) — the
+    # attendance records themselves are the source of truth and can keep changing after
+    # this payslip exists; this is "what payroll actually used", same convention as
+    # days_absent above. Minutes, not hours, to avoid rounding drift before deduction math.
+    late_minutes = models.PositiveIntegerField(default=0, verbose_name="دقائق التأخير (متضمنة الانصراف المبكر)")
     advance_deducted = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'), verbose_name="خصم السلف")
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='draft', verbose_name="الحالة")
     paid_at = models.DateTimeField(null=True, blank=True, verbose_name="تاريخ الصرف")
@@ -201,12 +279,32 @@ class Payslip(models.Model):
         return Decimal('0.00')
 
     @property
+    def lateness_deduction(self):
+        """Admin-configurable: either a flat rate per hour late (payroll.late_deduction_
+        per_hour), or this employee's own derived hourly wage (basic_salary / working_days
+        / working_hours) — see settings.policies 'payroll.late_deduction_method'. Covers
+        late arrival AND early departure minutes together (both cost the same per minute)."""
+        if not self.late_minutes or not self.basic_salary:
+            return Decimal('0.00')
+        from settings.policies import get_policy
+        method = get_policy('payroll.late_deduction_method') or 'fixed_rate'
+        if method == 'employee_hourly':
+            working_days = get_policy('payroll.working_days_per_month') or 26
+            working_hours = get_policy('payroll.working_hours_per_day') or Decimal('8')
+            divisor = Decimal(str(working_days)) * Decimal(str(working_hours))
+            hourly_rate = (self.basic_salary / divisor) if divisor > 0 else Decimal('0.00')
+        else:
+            hourly_rate = get_policy('payroll.late_deduction_per_hour') or Decimal('0.00')
+        minutes = Decimal(str(self.late_minutes))
+        return (hourly_rate * minutes / Decimal('60')).quantize(Decimal('0.01'))
+
+    @property
     def gross(self):
         return self.basic_salary + self.allowances + self.total_additions
 
     @property
     def net(self):
-        n = (self.gross - self.total_deductions - self.absence_deduction
+        n = (self.gross - self.total_deductions - self.absence_deduction - self.lateness_deduction
              - (self.advance_deducted or Decimal('0.00')))
         return n if n > Decimal('0') else Decimal('0.00')
 

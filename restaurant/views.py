@@ -43,7 +43,9 @@ def _recompute_order_totals(order):
     # Pinned to the rate this order was actually opened under (vat_rate_snapshot), not
     # whatever the store's live VAT setting happens to be right now — otherwise a rate
     # change would silently re-price an already-open table's VAT on every add-item/void.
-    order.vat_amount = compute_vat_amount(pre_extras_total, order.vat_rate_snapshot, order.vat_included_snapshot)
+    # Excludes delivery_cost from the base, same as compute_discount_and_total() — the
+    # delivery fee is a flat pass-through charge, not part of the taxable sale.
+    order.vat_amount = compute_vat_amount(discounted_subtotal, order.vat_rate_snapshot, order.vat_included_snapshot)
     order.total_amount = pre_extras_total + order.service_charge + order.vat_amount
 
 
@@ -1180,10 +1182,21 @@ def driver_account_settle(request, driver_id):
     then splits the next one into a settled portion (this payment) and a remaining
     held portion (still owed), so the balance is reduced by exactly `amount` rather
     than only in whole-custody increments.
+
+    Scoped to TODAY's held custodies only, matching Driver.owed_today() — the exact
+    figure shown on the driver's card/modal ("معاه اليوم"). Settling used to sweep
+    every held custody regardless of age, so an old un-settled delivery from days/weeks
+    earlier (one the cashier had simply forgotten about) got silently bundled into
+    "تخليص حساب" on top of the amount actually shown, adding far more cash to the
+    drawer than the cashier saw on screen and expected. Older un-settled custodies are
+    left untouched here and need a separate, explicit reconciliation.
     """
     driver = get_object_or_404(Driver, pk=driver_id)
     shift = get_active_shift()
-    held = list(CashCustody.objects.filter(driver=driver, status=CashCustody.STATUS_HELD).order_by('created_at'))
+    from django.utils import timezone
+    held = list(CashCustody.objects.filter(
+        driver=driver, status=CashCustody.STATUS_HELD, created_at__date=timezone.localdate(),
+    ).order_by('created_at'))
     owed = sum((c.amount for c in held), Decimal('0'))
 
     amount_raw = request.POST.get('amount')

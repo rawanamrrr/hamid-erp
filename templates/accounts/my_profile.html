@@ -102,23 +102,34 @@
                     {% csrf_token %}
                     <input type="hidden" name="action" value="change_password">
 
-                    {% if password_form.errors %}
-                    <div class="rounded-xl border border-red-200 bg-red-50 text-red-700 p-3 text-xs">
-                        يرجى مراجعة كلمات المرور المدخلة.
+                    {% if password_form.non_field_errors %}
+                    <div class="rounded-xl border border-red-200 bg-red-50 text-red-700 p-3 text-xs space-y-1">
+                        {% for err in password_form.non_field_errors %}
+                        <p>{{ err }}</p>
+                        {% endfor %}
                     </div>
                     {% endif %}
 
                     <div>
                         <label class="block text-xs font-bold text-gray-600 mb-2">كلمة المرور الحالية</label>
                         {{ password_form.old_password }}
+                        {% for err in password_form.old_password.errors %}
+                        <p class="text-red-600 text-xs mt-1">{{ err }}</p>
+                        {% endfor %}
                     </div>
                     <div>
                         <label class="block text-xs font-bold text-gray-600 mb-2">كلمة المرور الجديدة</label>
                         {{ password_form.new_password1 }}
+                        {% for err in password_form.new_password1.errors %}
+                        <p class="text-red-600 text-xs mt-1">{{ err }}</p>
+                        {% endfor %}
                     </div>
                     <div>
                         <label class="block text-xs font-bold text-gray-600 mb-2">تأكيد كلمة المرور</label>
                         {{ password_form.new_password2 }}
+                        {% for err in password_form.new_password2.errors %}
+                        <p class="text-red-600 text-xs mt-1">{{ err }}</p>
+                        {% endfor %}
                     </div>
 
                     <button type="submit" class="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-indigo-600 text-white font-bold hover:bg-indigo-700 transition">

@@ -186,18 +186,15 @@ else:
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
 
+# Only length is still hard-enforced (6, not Django's default 8) — similarity-to-username,
+# common-password, and numeric-only used to hard block a save with no way to override.
+# Those are relegated to a non-blocking client-side hint (see the password-strength JS on
+# the create-user / change-password templates) instead, per the store owner's request:
+# weak is allowed through with a warning, not refused outright.
 AUTH_PASSWORD_VALIDATORS = [
     {
-        'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
-    },
-    {
         'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
-    },
-    {
-        'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
-    },
-    {
-        'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
+        'OPTIONS': {'min_length': 6},
     },
 ]
 

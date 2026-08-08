@@ -38,23 +38,10 @@
             <div class="space-y-6">
                 <h3 class="text-lg font-semibold text-teal-700 border-b pb-2">بيانات المحل (رأس الفاتورة)</h3>
 
-                <!-- نوع المتجر / السوق -->
-                <div class="bg-gradient-to-l from-teal-50 to-blue-50 p-4 rounded-xl border border-teal-200">
-                    <label class="block text-sm font-bold text-teal-800 mb-1 flex items-center gap-2">
-                        <i class="fa-solid fa-store text-teal-600"></i> نوع المتجر / السوق
-                    </label>
-                    {{ form.market_type }}
-                    <p class="text-xs text-teal-600 mt-1.5">
-                        هذا الإعداد يؤثر على حقول إضافة المنتجات (مقاسات، تعبئة، وحدات...) ويكيّف النظام لنوع نشاطك التجاري.
-                    </p>
-                    <div class="mt-2 grid grid-cols-5 gap-1 text-center text-[10px] text-gray-500">
-                        <div class="bg-white rounded-lg p-1 border border-gray-100"><i class="fa-solid fa-shirt text-indigo-400 block mb-0.5"></i>ملابس</div>
-                        <div class="bg-white rounded-lg p-1 border border-gray-100"><i class="fa-solid fa-pills text-green-400 block mb-0.5"></i>صيدلية</div>
-                        <div class="bg-white rounded-lg p-1 border border-gray-100"><i class="fa-solid fa-laptop text-blue-400 block mb-0.5"></i>إلكترونيات</div>
-                        <div class="bg-white rounded-lg p-1 border border-gray-100"><i class="fa-solid fa-basket-shopping text-orange-400 block mb-0.5"></i>بقالة</div>
-                        <div class="bg-white rounded-lg p-1 border border-gray-100"><i class="fa-solid fa-bag-shopping text-gray-400 block mb-0.5"></i>عام</div>
-                    </div>
-                </div>
+                <!-- نوع المتجر / السوق — no longer user-editable from here (see
+                     SystemSettingForm.market_type); kept only as a hidden field so the
+                     store's existing value still round-trips on save. -->
+                {{ form.market_type }}
 
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">اسم المحل</label>

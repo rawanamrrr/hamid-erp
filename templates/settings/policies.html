@@ -47,6 +47,15 @@
                   <option value="{{ cval }}" {% if cval == row.value %}selected{% endif %}>{{ clabel }}</option>
                 {% endfor %}
               </select>
+            {% elif row.is_price_list %}
+              <div class="price-list-field" data-field="{{ row.field }}">
+                <input type="hidden" id="{{ row.field }}" name="{{ row.field }}" value="{{ row.value }}">
+                <div class="price-list-rows space-y-1.5"></div>
+                <button type="button" onclick="addPriceListRow(this.closest('.price-list-field'))"
+                        class="mt-1.5 text-xs font-bold text-teal-600 hover:text-teal-700 flex items-center gap-1">
+                  <i class="fa-solid fa-plus"></i> إضافة سعر
+                </button>
+              </div>
             {% else %}
               <input type="text" id="{{ row.field }}" name="{{ row.field }}" value="{{ row.value }}"
                      class="text-sm border border-gray-200 rounded-lg px-3 py-1.5 w-28 focus:border-teal-400 focus:outline-none">
@@ -65,4 +74,40 @@
     </div>
   </form>
 </div>
+
+<script>
+  function priceListRowHtml(value) {
+    return `<div class="flex items-center gap-1.5">
+      <input type="number" min="0" step="0.5" value="${value}" oninput="syncPriceListField(this.closest('.price-list-field'))"
+             class="text-sm border border-gray-200 rounded-lg px-3 py-1.5 w-24 focus:border-teal-400 focus:outline-none" dir="ltr">
+      <button type="button" onclick="removePriceListRow(this)" class="text-gray-300 hover:text-red-500 px-1">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>`;
+  }
+
+  function addPriceListRow(fieldWrap, value) {
+    const rows = fieldWrap.querySelector('.price-list-rows');
+    rows.insertAdjacentHTML('beforeend', priceListRowHtml(value || ''));
+    syncPriceListField(fieldWrap);
+  }
+
+  function removePriceListRow(btn) {
+    const fieldWrap = btn.closest('.price-list-field');
+    btn.closest('.flex').remove();
+    syncPriceListField(fieldWrap);
+  }
+
+  function syncPriceListField(fieldWrap) {
+    const values = [...fieldWrap.querySelectorAll('.price-list-rows input')]
+      .map(i => i.value.trim()).filter(v => v !== '');
+    fieldWrap.querySelector('input[type="hidden"]').value = values.join(',');
+  }
+
+  document.querySelectorAll('.price-list-field').forEach(fieldWrap => {
+    const hidden = fieldWrap.querySelector('input[type="hidden"]');
+    const initial = (hidden.value || '').split(',').map(v => v.trim()).filter(v => v !== '');
+    (initial.length ? initial : ['']).forEach(v => addPriceListRow(fieldWrap, v));
+  });
+</script>
 {% endblock %}

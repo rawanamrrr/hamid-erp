@@ -1018,6 +1018,65 @@ def shift_history(request):
     return render(request, 'financial/shift_history.html', context)
 
 
+@login_required
+@require_permission('financial', 'manage')
+def attendance_settings(request):
+    """'إعدادات الحضور والخصومات' — the payroll/attendance policy knobs (grace period,
+    work start/end time, lateness-deduction method & rate, working days/hours). Lives
+    here under financial/salaries/ rather than the store-wide "ثوابت النظام" page,
+    since these only matter to the payroll module — but they're still stored as regular
+    Layer-2 policies (settings.policies.POLICY_REGISTRY, group='payroll') and read via
+    the exact same get_policy()/resolved_policies() every other policy uses.
+    """
+    from settings.models import SystemPolicy
+    from settings.policies import POLICY_REGISTRY, resolved_policies
+
+    payroll_items = [(k, m) for k, m in POLICY_REGISTRY.items() if m.get('group') == 'payroll']
+    policy_obj, _ = SystemPolicy.objects.get_or_create(pk=1)
+
+    if request.method == 'POST':
+        new_values = dict(policy_obj.values or {})
+        for key, meta in payroll_items:
+            field = key.replace('.', '__')
+            t = meta.get('type', 'bool')
+            if t == 'bool':
+                new_values[key] = (request.POST.get(field) == 'on')
+            elif t == 'int':
+                try:
+                    new_values[key] = int(request.POST.get(field) or meta.get('default') or 0)
+                except (TypeError, ValueError):
+                    new_values[key] = meta.get('default')
+            elif t == 'decimal':
+                new_values[key] = str(request.POST.get(field) or meta.get('default') or '0')
+            elif t == 'choice':
+                val = request.POST.get(field)
+                valid = {c[0] for c in meta.get('choices', [])}
+                new_values[key] = val if val in valid else meta.get('default')
+            else:
+                new_values[key] = request.POST.get(field, meta.get('default'))
+        policy_obj.values = new_values
+        policy_obj.save()
+        messages.success(request, "تم حفظ إعدادات الحضور والخصومات بنجاح!")
+        return redirect('financial:attendance_settings')
+
+    resolved = resolved_policies()
+    rows = []
+    for key, meta in payroll_items:
+        value = resolved.get(key)
+        if meta.get('type') == 'decimal':
+            value = str(value)
+        rows.append({
+            'key': key,
+            'field': key.replace('.', '__'),
+            'meta': meta,
+            'value': value,
+            'is_bool': meta.get('type') == 'bool',
+            'is_choice': meta.get('type') == 'choice',
+        })
+
+    return render(request, 'financial/attendance_settings.html', {'rows': rows})
+
+
 # User-Facing Salaries Views
 @login_required
 @require_granular_action('financial', 'payroll', 'financial', 'view')
