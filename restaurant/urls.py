@@ -29,6 +29,7 @@ urlpatterns = [
     path('kds/', views.kds_view, name='kds'),
     path('kds/item/<int:item_id>/status/', views.kds_set_status, name='kds_set_status'),
     path('kds/order/<int:order_id>/status/', views.kds_set_order_status, name='kds_set_order_status'),
+    path('kds/order/<int:order_id>/ack-void/', views.kds_ack_void, name='kds_ack_void'),
     path('order/<int:order_id>/ticket/', views.kitchen_ticket_preview, name='kitchen_ticket_preview'),
 
     # Delivery

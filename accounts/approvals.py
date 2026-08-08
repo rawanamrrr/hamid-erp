@@ -50,6 +50,26 @@ def authorize_inline(username, password, requester):
     return user
 
 
+def describe_authorize_failure(username, password, requester):
+    """Why `authorize_inline` returned None, for a clearer inline error message.
+
+    Doesn't change the pass/fail decision (that's still authorize_inline's job) — this
+    just re-derives *which* check failed so the UI isn't stuck saying "بيانات خاطئة"
+    for a case like self-approval, where the credentials themselves were actually
+    correct. Only called after authorize_inline already returned None.
+    """
+    if not username or not password:
+        return 'missing'
+    user = authenticate(username=username, password=password)
+    if user is None or not user.is_active:
+        return 'bad_credentials'
+    if requester is not None and user.pk == getattr(requester, 'pk', None):
+        return 'self_approval'
+    if not is_authorizer(user):
+        return 'not_authorizer'
+    return None  # shouldn't happen if authorize_inline already failed
+
+
 def record_approvals(requester, approver, violations):
     """Persist one approved ApprovalRequest per violation. Returns the created rows."""
     from .models import ApprovalRequest

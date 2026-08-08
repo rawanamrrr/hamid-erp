@@ -446,18 +446,20 @@
         </div>
         
         <!-- Top Navigation -->
-        {% include 'includes/sidebar.html' %}
+        {% block page_nav %}{% include 'includes/sidebar.html' %}{% endblock %}
 
         <!-- Content Area -->
         <div class="relative flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
 
             <!-- Header -->
-            {% include 'includes/header.html' %}
+            {% block page_header %}{% include 'includes/header.html' %}{% endblock %}
 
             <!-- Main Content -->
+            {% block main_wrapper %}
             <main class="w-full grow p-6">
                 {% block content %}{% endblock %}
             </main>
+            {% endblock %}
         </div>
     </div>
 

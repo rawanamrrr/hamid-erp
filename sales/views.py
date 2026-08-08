@@ -908,9 +908,6 @@ def submit_order_ajax(request):
 
             # --- Layer 2: store-wide policy guards (settings/policies.py) ---
             from settings.policies import get_policy as _policy
-            # Store-level discount switch (independent of the per-user discount cap below).
-            if discount and discount > 0 and not _policy('cashier.allow_discount'):
-                return JsonResponse({'status': 'error', 'message': 'الخصم غير مسموح به في إعدادات المتجر'})
             # Credit (آجل) sales must name a customer when the policy requires it.
             if credit_paid and credit_paid > 0 and not customer and _policy('sales.require_customer_on_credit'):
                 return JsonResponse({'status': 'error', 'message': 'يجب تحديد العميل لإتمام البيع الآجل'})
@@ -924,6 +921,28 @@ def submit_order_ajax(request):
             _appr_supplied = bool(data.get('approver_username') or data.get('approver_password'))
             approver = _appr.authorize_inline(
                 data.get('approver_username'), data.get('approver_password'), request.user)
+            _appr_reason = None
+            if _appr_supplied and not approver:
+                _appr_reason = _appr.describe_authorize_failure(
+                    data.get('approver_username'), data.get('approver_password'), request.user)
+
+            # If the person actually working the register is themselves an authorizer
+            # (owner/manager cashiering their own sale), there's no one else to approve
+            # it — the manager-approval popup would just be asking them to re-enter their
+            # own login. Self-authorize instead of escalating.
+            if not approver and _appr.is_authorizer(request.user):
+                approver = request.user
+
+            # Store-level discount switch ('cashier.allow_discount') used to hard-reject
+            # any discount outright — a cashier with no discount access couldn't even see
+            # the field, let alone escalate. It's now just another overridable violation,
+            # exactly like the per-user discount cap below: the field stays visible, and
+            # a manager can authorize it inline (same بيع آجل-style credential prompt)
+            # instead of the sale being flatly refused.
+            if discount and discount > 0 and not _policy('cashier.allow_discount'):
+                violations.append({'kind': _appr.OVER_DISCOUNT,
+                                   'message': 'الخصم غير مسموح به في إعدادات المتجر لهذا الكاشير',
+                                   'detail': {'store_discount_disabled': True}})
 
             if profile:
                 # 1) Discount cap
@@ -989,10 +1008,17 @@ def submit_order_ajax(request):
 
             # Approval gate: if there are violations and no authorized approver, escalate.
             if violations and not approver:
+                _appr_reason_messages = {
+                    'missing': 'الرجاء إدخال اسم المستخدم وكلمة المرور.',
+                    'bad_credentials': 'اسم المستخدم أو كلمة المرور غير صحيحة.',
+                    'self_approval': 'لا يمكنك اعتماد الخصم لعملية أنت من قام بها — يرجى استخدام حساب مدير آخر.',
+                    'not_authorizer': 'هذا الحساب لا يملك صلاحية اعتماد الخصومات.',
+                }
                 return JsonResponse({
                     'status': 'approval_required',
                     'message': 'هذه العملية تتطلب موافقة مدير',
                     'approver_error': _appr_supplied,  # creds were supplied but rejected
+                    'approver_error_message': _appr_reason_messages.get(_appr_reason),
                     'violations': [{'kind': v['kind'], 'message': v['message']} for v in violations],
                 })
             if violations and approver:

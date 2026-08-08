@@ -712,6 +712,18 @@ def kds_view(request):
         messages.error(request, "لا يوجد فرع نشط متاح لك.")
         return redirect('dashboard')
 
+    # A user whose access is limited to the kitchen screen (no other module) has no use
+    # for the sidebar/header — they can never navigate anywhere else with it anyway — so
+    # hiding it gives the ticket grid the extra vertical room to render taller cards.
+    # Master/superuser always keep the normal chrome even if their profile has no
+    # explicit role permissions recorded.
+    kitchen_only_user = False
+    prof = getattr(request.user, 'profile', None)
+    if not request.user.is_superuser and not getattr(prof, 'is_master', False) and prof is not None:
+        perms = prof.get_all_permissions()
+        granted_modules = {m for m, actions in perms.items() if actions}
+        kitchen_only_user = granted_modules == {'kitchen'}
+
     # `order__is_open` only means "waiter's running dine-in tab" — a cashier walk-in sale
     # (rung up and paid immediately at POS) is never "open" yet still needs the kitchen to
     # prepare it. Scope by "today, not yet served" instead, and only for menu-category
@@ -741,8 +753,115 @@ def kds_view(request):
     for ticket in tickets:
         ticket['status'] = min((it.kitchen_status for it in ticket['items']),
                                key=lambda s: status_priority.get(s, 0))
+        ticket['is_cancelled'] = False
 
-    return render(request, 'restaurant/kds.html', {'branch': branch, 'tickets': tickets})
+    # A waiter/cashier cancelling an item (or the whole order) AFTER it was already sent
+    # to the kitchen used to just make it vanish from this screen mid-prep — the chef had
+    # no idea it was cancelled, only that the card disappeared. Instead, keep showing it
+    # here as its own red "ملغي" notice until the chef explicitly dismisses it (remove
+    # button, or the order-number+Enter shortcut) via kds_ack_void below.
+    from django.db.models import Q
+    cancelled_items = (OrderItem.objects
+                        .filter(order__warehouse=branch,
+                                order__created_at__date=timezone.localdate(),
+                                product__category__is_menu_category=True,
+                                kitchen_void_acknowledged=False)
+                        .filter(Q(is_void=True) | Q(order__status='void'))
+                        .exclude(kitchen_status=OrderItem.KITCHEN_SERVED)
+                        .select_related('order', 'order__table', 'product')
+                        .order_by('order__created_at', 'id'))
+
+    cancelled_by_order = {}
+    for it in cancelled_items:
+        ticket = cancelled_by_order.get(it.order_id)
+        if ticket is None:
+            ticket = {'order': it.order, 'items': [], 'status': 'cancelled', 'is_cancelled': True}
+            cancelled_by_order[it.order_id] = ticket
+            tickets.append(ticket)
+        ticket['items'].append(it)
+
+    # A ticket with a lot of items no longer scrolls inside its own card, and the card
+    # itself never grows past what fits on screen without a page scroll either — instead
+    # the ticket splits across multiple same-sized cards (each labeled #<order> — جزء
+    # N/M). Split purely by count (not by whether an item happens to have modifiers/a
+    # note) — the card's item padding/spacing is tuned so MAX_ITEMS_PER_CARD items fit
+    # regardless of content, so there's no real place left over that a complexity
+    # weighting would be protecting; that only forced a split earlier than actually
+    # needed whenever an item had a note.
+    MAX_ITEMS_PER_CARD = 4
+
+    split_tickets = []
+    for ticket in tickets:
+        items_list = ticket['items']
+        chunks = [items_list[i:i + MAX_ITEMS_PER_CARD] for i in range(0, len(items_list), MAX_ITEMS_PER_CARD)]
+
+        if len(chunks) <= 1:
+            ticket['part_num'] = 1
+            ticket['total_parts'] = 1
+            split_tickets.append(ticket)
+            continue
+        for idx, chunk in enumerate(chunks, start=1):
+            split_tickets.append({
+                'order': ticket['order'], 'items': chunk, 'status': ticket['status'],
+                'is_cancelled': ticket.get('is_cancelled', False),
+                'part_num': idx, 'total_parts': len(chunks),
+            })
+    tickets = split_tickets
+
+    from settings.policies import get_policy
+    from django.core.paginator import Paginator
+
+    # Real pagination — "عدد الطلبات الظاهرة قبل الحاجة للتمرير" is now literally the
+    # page size: only that many tickets render at once, with page 1/2/3 controls instead
+    # of one long scrolling list (this replaced an earlier "scroll only, never paginate"
+    # design per a later request from the store owner).
+    try:
+        orders_per_page = int(get_policy('kitchen.orders_per_page') or 12)
+    except (TypeError, ValueError):
+        orders_per_page = 12
+    paginator = Paginator(tickets, orders_per_page)
+    page_number = request.GET.get('page') or 1
+    try:
+        page_obj = paginator.page(page_number)
+    except Exception:
+        page_obj = paginator.page(1)
+    tickets = list(page_obj.object_list)
+    # Tailwind class strings per size tier — resolved here (not in the template) since
+    # Django's {% with %}/{% if %} tags can't share one {% endwith %} across separate
+    # {% if %}/{% elif %}/{% else %} branches. One entry per dropdown choice (not banded
+    # into 3 buckets) — banding used to make 8/12 render identically and 16/20 render
+    # identically, so picking a different option from the settings page appeared to do
+    # nothing for those pairs.
+    # `cols` is chosen to EXACTLY divide orders_per_page (rows = orders_per_page / cols,
+    # no remainder) so the grid's real capacity (rows*cols) matches the number the admin
+    # picked — cols=6 for the "8" tier used to leave a half-empty 2nd row capable of
+    # holding 12, so up to 12 tickets rendered with no scroll needed even though the
+    # setting said 8. Within that constraint, cols is picked as high as reasonable so the
+    # card still lands taller than wide (fewer rows for a given height = taller cards).
+    CARD_SIZE_CLASSES = {
+        4: dict(card_pad='p-5', item_pad='px-3.5 py-2', qty_size='text-base min-w-[2.5rem] px-2 py-1',
+                name_size='text-base', size_size='text-xs px-2.5 py-1.5', note_size='text-sm',
+                btn_pad='py-3 text-base', gap='gap-3', cols=4, card_h='436px'),
+        8: dict(card_pad='p-4', item_pad='px-3 py-1', qty_size='text-sm min-w-[2.25rem] px-2 py-1',
+                name_size='text-sm', size_size='text-xs px-2 py-1', note_size='text-sm',
+                btn_pad='py-2.5 text-sm', gap='gap-2', cols=4, card_h='225px'),
+        12: dict(card_pad='p-3.5', item_pad='px-2.5 py-1', qty_size='text-sm min-w-[2rem] px-1.5 py-0.5',
+                 name_size='text-sm', size_size='text-[11px] px-2 py-1', note_size='text-xs',
+                 btn_pad='py-2 text-sm', gap='gap-2', cols=6, card_h='218px'),
+        16: dict(card_pad='p-3', item_pad='px-2 py-1', qty_size='text-xs min-w-[1.875rem] px-1.5 py-0.5',
+                 name_size='text-xs', size_size='text-[11px] px-1.5 py-0.5', note_size='text-xs',
+                 btn_pad='py-1.5 text-xs', gap='gap-1.5', cols=8, card_h='218px'),
+        20: dict(card_pad='p-2.5', item_pad='px-2 py-0.5', qty_size='text-xs min-w-[1.75rem] px-1 py-0.5',
+                 name_size='text-xs', size_size='text-[10px] px-1.5 py-0.5', note_size='text-[11px]',
+                 btn_pad='py-1.5 text-xs', gap='gap-1.5', cols=10, card_h='218px'),
+    }
+    card_size = CARD_SIZE_CLASSES.get(orders_per_page) or min(
+        CARD_SIZE_CLASSES.items(), key=lambda kv: abs(kv[0] - orders_per_page))[1]
+
+    return render(request, 'restaurant/kds.html', {
+        'branch': branch, 'tickets': tickets, 'cs': card_size, 'orders_per_page': orders_per_page,
+        'page_obj': page_obj, 'paginator': paginator, 'kitchen_only_user': kitchen_only_user,
+    })
 
 
 @login_required
@@ -829,6 +948,30 @@ def kds_set_order_status(request, order_id):
         })
 
     return JsonResponse({'status': 'ok'})
+
+
+@login_required
+@require_permission('kitchen', 'edit')
+@require_POST
+def kds_ack_void(request, order_id):
+    """Dismiss a ticket's red "ملغي" cancellation notice from the KDS screen — called
+    when the chef taps its remove button, or types its order number + Enter (see
+    kds.html). Marks every voided item of this order as acknowledged so kds_view's
+    cancelled-items query stops surfacing it; doesn't touch is_void/order.status.
+    """
+    from django.db.models import Q
+    order = get_object_or_404(Order, pk=order_id)
+    updated = order.items.filter(
+        Q(is_void=True) | Q(order__status='void'),
+        kitchen_void_acknowledged=False,
+    ).update(kitchen_void_acknowledged=True)
+
+    if order.warehouse_id:
+        push_event('kds', order.warehouse_id, {
+            'event': 'order_void_acked', 'order_id': order.id,
+        })
+
+    return JsonResponse({'status': 'ok', 'updated': updated})
 
 
 # ─────────────────────────────────────────────

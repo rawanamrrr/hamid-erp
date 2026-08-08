@@ -632,8 +632,10 @@
                 <div class="bg-white rounded-2xl border border-gray-200 p-3 space-y-2.5 shadow-sm">
                     <!-- Fix: min-w-0 on grid cells + inputs so the number fields can shrink below their intrinsic width instead of overflowing the column to the right -->
                     <div class="grid grid-cols-2 gap-3">
-                        {% if policies.cashier.allow_discount %}
-                        <!-- Discount -->
+                        <!-- Discount — stays visible even when the store's discount policy is off
+                             or this cashier's own cap is 0: attempting a discount now routes
+                             through the manager-approval flow (بيع آجل-style admin login) instead
+                             of the field being hidden/unusable outright. -->
                         <div class="min-w-0">
                             <div class="flex justify-between items-center mb-1.5 gap-1">
                                 <label class="text-[11px] font-bold text-slate-600 flex items-center gap-1 whitespace-nowrap"><i
@@ -654,9 +656,8 @@
                                         id="discountDisplaySummary">0</span></span>
                             </div>
                         </div>
-                        {% endif %}
                         <!-- Delivery -->
-                        <div class="min-w-0 {% if not policies.cashier.allow_discount %}col-span-2{% endif %}">
+                        <div class="min-w-0">
                             <label class="text-[11px] font-bold text-slate-600 flex items-center gap-1 mb-1.5 whitespace-nowrap"><i
                                     class="fa-solid fa-truck text-blue-500"></i> التوصيل</label>
                             <div class="flex items-center gap-1.5">
@@ -4657,7 +4658,7 @@
         function requestManagerApproval(res, retry) {
             const lines = (res.violations || []).map(v => `• ${v.message}`).join('<br>');
             const warned = res.approver_error
-                ? '<div style="color:#dc2626;font-weight:bold;margin-bottom:8px;">بيانات المدير غير صحيحة أو لا يملك صلاحية الاعتماد.</div>'
+                ? `<div style="color:#dc2626;font-weight:bold;margin-bottom:8px;">${res.approver_error_message || 'بيانات المدير غير صحيحة أو لا يملك صلاحية الاعتماد.'}</div>`
                 : '';
             Swal.fire({
                 title: 'تتطلب موافقة مدير',

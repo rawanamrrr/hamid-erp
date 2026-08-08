@@ -366,6 +366,11 @@ class OrderItem(models.Model):
     voided_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True,
                                   related_name='voided_order_items', verbose_name="ألغاه")
     voided_at = models.DateTimeField(null=True, blank=True, verbose_name="تاريخ الإلغاء")
+    # A void doesn't just drop the item off the kitchen screen — it had already been sent
+    # to the kitchen, possibly mid-prep, so the KDS keeps showing it (as a red "ملغي"
+    # notice) until the chef explicitly dismisses it, rather than it silently vanishing
+    # the instant a waiter/cashier cancels it. See kds_view/kds_ack_void in restaurant/views.py.
+    kitchen_void_acknowledged = models.BooleanField(default=False, verbose_name="تم استلام إلغاء المطبخ")
 
     KITCHEN_NEW = 'new'
     KITCHEN_PREPARING = 'preparing'

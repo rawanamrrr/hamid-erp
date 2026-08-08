@@ -1,7 +1,11 @@
 {% extends 'base.html' %}
 {% block title %}شاشة المطبخ{% endblock %}
-{% block content %}
-<div class="p-4" x-data="{ branchId: {{ branch.id }} }" x-init="
+{% block page_header %}{% endblock %}
+{% block page_nav %}{% if not kitchen_only_user %}{% include 'includes/sidebar.html' %}{% endif %}{% endblock %}
+{% block main_wrapper %}
+<main class="w-full grow p-0.5">
+    {% block content %}
+<div class="p-0.5" x-data="{ branchId: {{ branch.id }} }" x-init="
     let ws = new WebSocket((location.protocol==='https:'?'wss://':'ws://') + location.host + '/ws/kds/' + branchId + '/');
     ws.onmessage = (e) => {
         const sound = document.getElementById('notification-sound');
@@ -9,39 +13,123 @@
         setTimeout(() => location.reload(), 400);
     };
 ">
-    <h1 class="text-2xl font-bold mb-4">شاشة المطبخ — {{ branch.name }}</h1>
-    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+    <div class="flex items-center justify-between mb-0.5 flex-wrap gap-2">
+        <h1 class="text-sm font-bold">شاشة المطبخ — {{ branch.name }}</h1>
+        <div class="flex items-center gap-2">
+            <!-- Just type an order number anywhere on the page (no need to click into
+                 this first) then Enter, to advance that ticket to its next kitchen status
+                 (new → preparing → ready → served) — same as tapping its card's button.
+                 `readonly` + `tabindex="-1"` so it never steals focus or opens the OS
+                 keyboard on tap — it's fed purely by the global keydown listener below,
+                 just showing what's been typed so far so a wrong number is obvious
+                 before pressing Enter. -->
+            <input id="kdsOrderNumReadout" type="text" readonly tabindex="-1" inputmode="none"
+                   placeholder="رقم الطلب…"
+                   class="w-24 text-xs font-black text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-md px-2 py-1 text-center focus:outline-none cursor-default">
+            <span id="kdsOrderNumNotFound" class="hidden text-xs font-black text-red-700 bg-red-50 border border-red-300 rounded-md px-2 py-1"></span>
+            {% if paginator.count %}
+            <span class="text-sm font-bold text-gray-500">
+                {{ paginator.count }} طلب
+                {% if paginator.num_pages > 1 %}— صفحة {{ page_obj.number }} من {{ paginator.num_pages }}{% endif %}
+            </span>
+            {% endif %}
+            <!-- Kitchen-only users have no sidebar on this page (see kitchen_only_user in
+                 kds_view) and so no other way to log out — always show this link, not just
+                 for that case, since it costs nothing for everyone else either. -->
+            <a href="{% url 'logout' %}" class="flex items-center gap-1 text-xs font-black text-gray-500 hover:text-red-600 border border-gray-300 hover:border-red-300 rounded-md px-2 py-1 transition-colors">
+                <i class="fa-solid fa-right-from-bracket"></i> تسجيل الخروج
+            </a>
+        </div>
+    </div>
+
+    <style>
+        @media (min-width: 768px) {
+            #kdsGrid { grid-template-columns: repeat(var(--kds-cols), minmax(0, 1fr)); }
+        }
+        /* Uniform height for every card on the page (not just within a row), sized in JS
+           to guarantee the whole page's tickets fit with zero scrolling anywhere. A ticket
+           with more items than fits scrolls internally instead of growing the card. */
+        #kdsGrid { grid-auto-rows: var(--kds-card-h, auto); }
+        .kds-card > ul { overflow-y: auto; min-height: 0; }
+    </style>
+
+    <div id="kdsGrid" class="grid grid-cols-1 sm:grid-cols-2 {{ cs.gap }}" style="--kds-cols: {{ cs.cols }};" data-orders-per-page="{{ orders_per_page }}">
         {% for ticket in tickets %}
-        <div class="rounded-xl border-2 p-4 shadow-sm
-                    {% if ticket.status == 'new' %}bg-red-50 border-red-300
+        <div class="kds-card flex flex-col rounded-xl border-2 {{ cs.card_pad }} shadow-sm
+                    {% if ticket.is_cancelled %}bg-red-100 border-red-500
+                    {% elif ticket.status == 'new' %}bg-red-50 border-red-300
                     {% elif ticket.status == 'preparing' %}bg-amber-50 border-amber-300
-                    {% else %}bg-emerald-50 border-emerald-300{% endif %}">
-            <div class="text-xs text-gray-500 mb-2">
-                {% if ticket.order.table %}ترابيزة {{ ticket.order.table.number }}{% else %}{{ ticket.order.get_order_type_display }}{% endif %}
-                — طلب #{{ ticket.order.id }}
+                    {% else %}bg-emerald-50 border-emerald-300{% endif %}" data-order-id="{{ ticket.order.id }}" data-cancelled="{% if ticket.is_cancelled %}1{% else %}0{% endif %}">
+            <div class="flex items-center justify-between mb-2">
+                <span class="{{ cs.name_size }} font-black text-gray-700">
+                    {% if ticket.order.table %}ترابيزة {{ ticket.order.table.number }}{% else %}{{ ticket.order.get_order_type_display }}{% endif %}
+                </span>
+                <span class="flex items-center gap-1">
+                    {% if ticket.is_cancelled %}
+                    <span class="text-[11px] font-black text-white bg-red-600 rounded-md px-1.5 py-0.5 animate-pulse">ملغي</span>
+                    {% endif %}
+                    <span class="text-base font-black text-gray-900 bg-white/80 border border-gray-300 rounded-md px-2 py-0.5">#{{ ticket.order.id }}</span>
+                    {% if ticket.total_parts > 1 %}
+                    <span class="text-[11px] font-black text-white bg-indigo-600 rounded-md px-1.5 py-0.5">{{ ticket.part_num }}/{{ ticket.total_parts }}</span>
+                    {% endif %}
+                </span>
             </div>
-            <ul class="space-y-2 mb-3">
+
+            <ul class="flex-1 space-y-0.5 mb-1">
                 {% for item in ticket.items %}
-                <li>
-                    <div class="font-bold">{{ item.product.name }}{% if item.variant %} <span class="text-indigo-600">({{ item.variant.label }})</span>{% endif %} <span class="font-normal text-sm text-gray-500">x{{ item.quantity|floatformat:0 }}</span></div>
+                <li class="bg-white/80 rounded-lg {{ cs.item_pad }} shadow-sm {% if ticket.is_cancelled %}opacity-60 line-through decoration-red-600 decoration-2{% endif %}">
+                    <div class="flex flex-wrap items-start gap-2">
+                        <!-- Quantity — visually on the right (first in RTL flow) -->
+                        <span class="flex-shrink-0 text-center bg-indigo-600 text-white font-black rounded-md {{ cs.qty_size }}">
+                            ×{{ item.quantity|floatformat:0 }}
+                        </span>
+
+                        <!-- No truncate — full item name always shown, wrapping to
+                             multiple lines rather than ellipsizing, since cutting off
+                             what a cook needs to make is worse than a taller card.
+                             `min-w-0` would let this collapse to almost nothing on a
+                             narrow card once the qty/size badges take their share —
+                             a floor width forces the row itself to wrap instead. -->
+                        <span class="flex-1 min-w-[3.5rem] font-black text-gray-800 {{ cs.name_size }} break-words">{{ item.product.name }}</span>
+
+                        <!-- Size — pinned to the left with an auto start-margin
+                             instead of `justify-between`, so it stays on the left
+                             even when the row wraps onto two lines (`justify-between`
+                             would otherwise snap a lone wrapped item to the right). -->
+                        {% if item.variant %}
+                        <span class="flex-shrink-0 ms-auto font-black text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-md {{ cs.size_size }}">
+                            {{ item.variant.label }}
+                        </span>
+                        {% endif %}
+                    </div>
+
                     {% if item.modifiers %}
-                    <div class="text-xs text-gray-600">
+                    <div class="{{ cs.note_size }} text-gray-600 font-bold mt-1">
                         {% for m in item.modifiers %}{{ m.option }}{% if not forloop.last %}، {% endif %}{% endfor %}
                     </div>
                     {% endif %}
+
                     {% if item.note %}
-                    <div class="text-xs text-amber-700 font-semibold">ملاحظة: {{ item.note }}</div>
+                    <div class="flex items-start gap-1.5 mt-1.5 bg-amber-100 border border-amber-300 rounded-lg px-2 py-1.5">
+                        <i class="fa-solid fa-note-sticky text-amber-600 mt-0.5 text-xs"></i>
+                        <span class="{{ cs.note_size }} text-amber-800 font-black">{{ item.note }}</span>
+                    </div>
                     {% endif %}
                 </li>
                 {% endfor %}
             </ul>
-            <div class="flex gap-2">
-                {% if ticket.status == 'new' %}
-                <button onclick="setOrderStatus({{ ticket.order.id }}, 'preparing')" class="flex-1 py-2 rounded-lg bg-amber-500 text-white text-sm">بدأ التحضير</button>
+
+            <div class="flex gap-2 mt-auto">
+                {% if ticket.is_cancelled %}
+                <button onclick="ackVoidOrder({{ ticket.order.id }})" class="flex-1 {{ cs.btn_pad }} rounded-lg bg-red-600 hover:bg-red-700 text-white font-black transition-colors">
+                    <i class="fa-solid fa-trash"></i> إزالة
+                </button>
+                {% elif ticket.status == 'new' %}
+                <button onclick="setOrderStatus({{ ticket.order.id }}, 'preparing')" class="flex-1 {{ cs.btn_pad }} rounded-lg bg-amber-500 hover:bg-amber-600 text-white font-black transition-colors">بدأ التحضير</button>
                 {% elif ticket.status == 'preparing' %}
-                <button onclick="setOrderStatus({{ ticket.order.id }}, 'ready')" class="flex-1 py-2 rounded-lg bg-emerald-600 text-white text-sm">جاهز</button>
+                <button onclick="setOrderStatus({{ ticket.order.id }}, 'ready')" class="flex-1 {{ cs.btn_pad }} rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-black transition-colors">جاهز</button>
                 {% else %}
-                <button onclick="setOrderStatus({{ ticket.order.id }}, 'served')" class="flex-1 py-2 rounded-lg bg-gray-600 text-white text-sm">تم التقديم</button>
+                <button onclick="setOrderStatus({{ ticket.order.id }}, 'served')" class="flex-1 {{ cs.btn_pad }} rounded-lg bg-gray-600 hover:bg-gray-700 text-white font-black transition-colors">تم التقديم</button>
                 {% endif %}
             </div>
         </div>
@@ -49,6 +137,53 @@
         <p class="text-gray-500 col-span-full">لا توجد طلبات قيد التحضير حالياً.</p>
         {% endfor %}
     </div>
+
+    <!-- Worst-case item markup (long wrapping name + modifiers + a note), in the exact
+         tier classes real items use — cloned off-screen in kdsSizeCards() to measure how
+         tall a "busy" item can actually get, instead of relying on whatever happens to be
+         the tallest item on THIS page (which might all be simple 1-line items even though
+         a note-heavy ticket could land here next). <template> content isn't rendered/laid
+         out until cloned, so this costs nothing until used. -->
+    <template id="kdsItemProbe">
+        <li class="bg-white/80 rounded-lg {{ cs.item_pad }} shadow-sm">
+            <div class="flex flex-wrap items-start gap-2">
+                <span class="flex-shrink-0 text-center bg-indigo-600 text-white font-black rounded-md {{ cs.qty_size }}">×9</span>
+                <span class="flex-1 min-w-[3.5rem] font-black text-gray-800 {{ cs.name_size }} break-words">منتج بإسم طويل يمتد لأكثر من سطر واحد</span>
+                <span class="flex-shrink-0 ms-auto font-black text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-md {{ cs.size_size }}">Large</span>
+            </div>
+            <div class="{{ cs.note_size }} text-gray-600 font-bold mt-1">زيادة سكر، بدون كريمة، إضافي شوكولاتة</div>
+            <div class="flex items-start gap-1.5 mt-1.5 bg-amber-100 border border-amber-300 rounded-lg px-2 py-1.5">
+                <i class="fa-solid fa-note-sticky text-amber-600 mt-0.5 text-xs"></i>
+                <span class="{{ cs.note_size }} text-amber-800 font-black">ملاحظة تجريبية لقياس أقصى ارتفاع للعنصر</span>
+            </div>
+        </li>
+    </template>
+
+    <!-- Page navigation — replaces the earlier "everything on one scrolling list" design
+         per the store owner's request. Preserves ?page= across the websocket-triggered
+         auto-reload since location.reload() keeps the current URL as-is. -->
+    {% if paginator.num_pages > 1 %}
+    <div class="flex items-center justify-center gap-1.5 mt-0.5">
+        <a id="kdsPrevPage" href="{% if page_obj.has_previous %}?page={{ page_obj.previous_page_number }}{% else %}#{% endif %}"
+           class="px-3 py-1 rounded-lg font-black text-xs border-2
+                  {% if page_obj.has_previous %}bg-white border-indigo-300 text-indigo-700 hover:bg-indigo-50{% else %}pointer-events-none bg-gray-100 border-gray-200 text-gray-300{% endif %}">
+            السابق <span class="opacity-60">(-)</span>
+        </a>
+        {% for num in paginator.page_range %}
+        <a href="?page={{ num }}"
+           class="w-7 h-7 flex items-center justify-center rounded-lg font-black text-xs border-2
+                  {% if num == page_obj.number %}bg-indigo-600 border-indigo-600 text-white{% else %}bg-white border-gray-200 text-gray-600 hover:bg-gray-50{% endif %}">
+            {{ num }}
+        </a>
+        {% endfor %}
+        <a id="kdsNextPage" href="{% if page_obj.has_next %}?page={{ page_obj.next_page_number }}{% else %}#{% endif %}"
+           class="px-3 py-1 rounded-lg font-black text-xs border-2
+                  {% if page_obj.has_next %}bg-white border-indigo-300 text-indigo-700 hover:bg-indigo-50{% else %}pointer-events-none bg-gray-100 border-gray-200 text-gray-300{% endif %}">
+            التالي <span class="opacity-60">(+)</span>
+        </a>
+    </div>
+    {% endif %}
+
 </div>
 <script>
 function getCookie(name) {
@@ -63,5 +198,187 @@ function setOrderStatus(orderId, status) {
         body: new URLSearchParams({status: status}),
     }).then(r => r.json()).then(d => { if (d.status === 'ok') location.reload(); });
 }
+
+function ackVoidOrder(orderId) {
+    fetch(`/restaurant/kds/order/${orderId}/ack-void/`, {
+        method: 'POST',
+        headers: {'X-CSRFToken': getCookie('csrftoken')},
+    }).then(r => r.json()).then(d => { if (d.status === 'ok') location.reload(); });
+}
+
+function kdsSizeCards() {
+    const grid = document.getElementById('kdsGrid');
+    if (!grid || !grid.children.length) return;
+    const cardCount = grid.querySelectorAll('.kds-card').length;
+    if (!cardCount) return;
+
+    // The dashboard shell's own content wrapper (the ancestor with overflow-y:auto that
+    // scrolls every other page) must never need to scroll here either — otherwise "no
+    // scroll on the kitchen page" isn't actually true, it's just moved up one level.
+    let outer = grid.parentElement;
+    while (outer && outer !== document.body) {
+        if (getComputedStyle(outer).overflowY === 'auto') break;
+        outer = outer.parentElement;
+    }
+    if (!outer || outer === document.body) return;
+
+    const actualCols = getComputedStyle(grid).gridTemplateColumns.split(' ').length || 1;
+    // Size every page's row height off the settings page-size (orders_per_page), not how
+    // many cards happen to be on THIS page — otherwise a near-empty last page (e.g. 1
+    // ticket left over) gets much taller cards than a full page, since fewer cards means
+    // fewer rows to divide the same available height across.
+    const targetPerPage = parseInt(grid.dataset.ordersPerPage, 10) || cardCount;
+    const rows = Math.max(1, Math.ceil(targetPerPage / actualCols));
+    const gapPx = parseFloat(getComputedStyle(grid).rowGap) || 0;
+    const spaceAbove = grid.getBoundingClientRect().top - outer.getBoundingClientRect().top;
+    // Measured off the pagination nav's OWN height, not "outer.bottom - grid.bottom" —
+    // that difference depends on the grid's current rendered height, which on a
+    // near-empty page (e.g. 1 leftover ticket = 1 short row) starts much shorter than
+    // the target `rows` this page is about to be sized to, making it look like there's
+    // far more trailing chrome than there really is and starving the row-height estimate.
+    const pagNav = grid.nextElementSibling;
+    const spaceBelow = pagNav
+        ? pagNav.getBoundingClientRect().height + (parseFloat(getComputedStyle(pagNav).marginTop) || 0)
+        : 0;
+    // Rough first pass, then correct against whatever the browser actually measured —
+    // simpler than hand-summing every ancestor's padding/margin, and self-corrects if the
+    // surrounding chrome (nav height, pagination controls) changes later.
+    let available = outer.clientHeight - spaceAbove - Math.max(spaceBelow, 0);
+    let rowH = (Math.max(200, available) - gapPx * (rows - 1)) / rows;
+    grid.style.setProperty('--kds-card-h', Math.max(120, rowH) + 'px');
+    for (let i = 0; i < 3; i++) {
+        const overflow = outer.scrollHeight - outer.clientHeight;
+        if (overflow <= 1) break;
+        available -= overflow;
+        rowH = (Math.max(200, available) - gapPx * (rows - 1)) / rows;
+        grid.style.setProperty('--kds-card-h', Math.max(120, rowH) + 'px');
+    }
+
+    // Use nearly all the available height (small margin so nothing touches the very
+    // edge) — this is also the hard ceiling: the page must never scroll, so nothing
+    // below can push past it. A ticket that would need more room than this to show its
+    // items now splits into multiple cards server-side (see the CARD_ITEM_BUDGET split
+    // in kds_view) instead of the card growing past the ceiling or scrolling inside.
+    const noScrollCeiling = parseFloat(getComputedStyle(grid).getPropertyValue('--kds-card-h'));
+    let finalH = noScrollCeiling;
+
+    // Best-effort target within that ceiling: try to show KDS_MIN_ITEMS_VISIBLE items
+    // without an inner scroll, measured off the tallest of (a) the actual items on THIS
+    // page and (b) a synthetic worst-case item (long name + modifiers + a note).
+    const KDS_MIN_ITEMS_VISIBLE = 4;
+    const sampleUl = grid.querySelector('.kds-card > ul');
+    const allItems = Array.from(grid.querySelectorAll('.kds-card ul li'));
+    let maxItemH = allItems.reduce((m, li) => Math.max(m, li.getBoundingClientRect().height), 0);
+    const probeTpl = document.getElementById('kdsItemProbe');
+    if (sampleUl && probeTpl) {
+        const probeUl = document.createElement('ul');
+        probeUl.className = sampleUl.className;
+        probeUl.style.cssText = 'position:fixed; left:-9999px; top:0; visibility:hidden; width:' + sampleUl.getBoundingClientRect().width + 'px;';
+        probeUl.appendChild(probeTpl.content.cloneNode(true));
+        document.body.appendChild(probeUl);
+        const probeLi = probeUl.querySelector('li');
+        maxItemH = Math.max(maxItemH, probeLi.getBoundingClientRect().height);
+        probeUl.remove();
+    }
+    if (sampleUl && maxItemH > 0) {
+        const itemGap = parseFloat(getComputedStyle(sampleUl).rowGap) || 0;
+        const itemsBlockH = maxItemH * KDS_MIN_ITEMS_VISIBLE + itemGap * (KDS_MIN_ITEMS_VISIBLE - 1);
+        const sampleCard = grid.querySelector('.kds-card');
+        const chromeH = sampleCard.offsetHeight - sampleUl.clientHeight; // header + button + padding
+        finalH = Math.min(noScrollCeiling, Math.max(finalH, itemsBlockH + chromeH));
+    }
+    grid.style.setProperty('--kds-card-h', Math.max(120, finalH) + 'px');
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    kdsSizeCards();
+    window.addEventListener('load', kdsSizeCards);
+    window.addEventListener('resize', kdsSizeCards);
+    // Ctrl+/- (or pinch-zoom on some mobile browsers) doesn't always fire a plain
+    // `resize` event, but it does change how much CSS-pixel space is actually
+    // available — without recomputing here, cards sized before a zoom change would
+    // either overflow into a scroll or leave a stale gap after it. visualViewport
+    // fires reliably for that case where `resize` alone doesn't.
+    if (window.visualViewport) {
+        window.visualViewport.addEventListener('resize', kdsSizeCards);
+    }
+
+    // Keyboard paging: "+" (or "=", same physical key without Shift) goes to the next
+    // page, "-" goes to the previous one — for a kitchen tablet with a wired keyboard/
+    // numpad instead of touch. Ignored while typing in a real field, and a disabled edge
+    // link (no next/previous page) is simply a no-op, matching its greyed-out look.
+    //
+    // Order-number shortcut: no field to click into — just type digits anywhere on the
+    // page (they build up in #kdsOrderNumReadout) then press Enter to advance that
+    // ticket one kitchen status (new → preparing → ready → served), same as tapping its
+    // card's button. The buffer auto-clears after a pause so a stray digit doesn't sit
+    // around and get accidentally attached to a later number.
+    const orderNumReadout = document.getElementById('kdsOrderNumReadout');
+    const orderNumNotFound = document.getElementById('kdsOrderNumNotFound');
+    let orderNumBuffer = '';
+    let orderNumClearTimer = null;
+    function updateOrderNumReadout() {
+        if (!orderNumReadout) return;
+        orderNumReadout.value = orderNumBuffer;
+    }
+    document.addEventListener('keydown', (e) => {
+        const tag = (e.target.tagName || '').toLowerCase();
+        if (tag === 'input' || tag === 'textarea' || e.target.isContentEditable) return;
+
+        if (e.key >= '0' && e.key <= '9') {
+            orderNumBuffer += e.key;
+            updateOrderNumReadout();
+            clearTimeout(orderNumClearTimer);
+            orderNumClearTimer = setTimeout(() => { orderNumBuffer = ''; updateOrderNumReadout(); }, 4000);
+            return;
+        }
+        if (e.key === 'Backspace' && orderNumBuffer) {
+            orderNumBuffer = orderNumBuffer.slice(0, -1);
+            updateOrderNumReadout();
+            return;
+        }
+        if (e.key === 'Escape' && orderNumBuffer) {
+            orderNumBuffer = '';
+            updateOrderNumReadout();
+            return;
+        }
+        if (e.key === 'Enter' && orderNumBuffer) {
+            e.preventDefault();
+            const orderId = orderNumBuffer;
+            orderNumBuffer = '';
+            updateOrderNumReadout();
+            // A partially-voided order can have BOTH its normal ticket card and a
+            // separate red cancellation-notice card for the same order id at once —
+            // prefer dismissing the cancellation notice, since that's the more urgent,
+            // time-sensitive action when both exist for the same number.
+            const matches = document.querySelectorAll('.kds-card[data-order-id="' + orderId + '"]');
+            const card = Array.from(matches).find(c => c.dataset.cancelled === '1') || matches[0];
+            const btn = card ? card.querySelector('button') : null;
+            if (btn) {
+                btn.click();
+            } else if (orderNumNotFound) {
+                orderNumNotFound.textContent = 'رقم غير موجود: #' + orderId;
+                orderNumNotFound.classList.remove('hidden');
+                setTimeout(() => orderNumNotFound.classList.add('hidden'), 1500);
+            }
+            return;
+        }
+
+        // "+"/"-" page navigation — only once it's clear the user isn't in the middle of
+        // typing an order number (Enter/digits handled above already return early).
+        let link = null;
+        if (e.key === '+' || e.key === '=' || e.code === 'NumpadAdd') {
+            link = document.getElementById('kdsNextPage');
+        } else if (e.key === '-' || e.code === 'NumpadSubtract') {
+            link = document.getElementById('kdsPrevPage');
+        }
+        if (link && !link.classList.contains('pointer-events-none')) {
+            e.preventDefault();
+            window.location.href = link.getAttribute('href');
+        }
+    });
+});
 </script>
+    {% endblock %}
+</main>
 {% endblock %}
