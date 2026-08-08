@@ -2,12 +2,30 @@ from django import forms
 from .models import DailyShift, Transaction, Account
 
 
+class DecimalTextInput(forms.TextInput):
+    """A decimal-entry widget that isn't `type="number"` (see CloseShiftForm below for
+    why) and normalizes ',' to '.' at the point the raw POST value is read — this has to
+    happen here, in `value_from_datadict`, rather than in a `clean_<field>` method, since
+    Django's own DecimalField.to_python() already runs (and rejects an un-normalized
+    comma) before any `clean_<field>` hook gets a chance to see the value.
+    """
+    def value_from_datadict(self, data, files, name):
+        value = super().value_from_datadict(data, files, name)
+        if isinstance(value, str):
+            value = value.strip().replace(',', '.').replace(' ', '')
+            if value.count('.') > 1:
+                head, _, tail = value.rpartition('.')
+                value = head.replace('.', '') + '.' + tail
+        return value
+
+
 class StartShiftForm(forms.ModelForm):
     class Meta:
         model = DailyShift
         fields = ['start_balance', 'opening_notes']
         widgets = {
-            'start_balance': forms.NumberInput(attrs={'class': 'form-control', 'step': 'any'}),
+            # See CloseShiftForm.actual_closing_balance for why this isn't type="number".
+            'start_balance': DecimalTextInput(attrs={'class': 'form-control'}),
             'opening_notes': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
         }
 
@@ -17,9 +35,19 @@ class CloseShiftForm(forms.ModelForm):
         model = DailyShift
         fields = ['actual_closing_balance', 'notes']
         widgets = {
-            'actual_closing_balance': forms.NumberInput(attrs={
+            # type="number" here used to silently corrupt the value under an Arabic
+            # (Windows) locale: some browsers apply the OS locale's decimal separator to
+            # native number inputs, so typing "6796.76" on a US-layout keyboard has the
+            # "." keystroke rejected while the digits after it still go through, turning
+            # "6796.76" into "679676" (exactly x100, no visible error). A cashier who then
+            # tried to close with that value saw the shift's expected/actual wildly
+            # mismatch, and the end-of-shift transfer of the (inflated) "actual" amount
+            # got correctly refused for exceeding the real drawer balance. DecimalTextInput
+            # sidesteps the browser's native number-locale parsing entirely (plain text
+            # input, no locale-aware keystroke filtering) and also normalizes a stray ","
+            # to "." server-side, in case a cashier types e.g. "6,796.76" on purpose.
+            'actual_closing_balance': DecimalTextInput(attrs={
                 'class': 'form-control',
-                'step': 'any',
                 'placeholder': 'أدخل المبلغ الموجود فعلياً في الدرج'
             }),
             'notes': forms.Textarea(attrs={
@@ -157,7 +185,7 @@ class DealDiscountForm(forms.ModelForm):
             'get_products': forms.SelectMultiple(attrs={'class': 'form-select', 'rows': 5, 'id': 'id_get_products'}),
             'is_active': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
         }
-        
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         from products.models import Product
