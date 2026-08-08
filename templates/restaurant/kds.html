@@ -56,10 +56,7 @@
     <div id="kdsGrid" class="grid grid-cols-1 sm:grid-cols-2 {{ cs.gap }}" style="--kds-cols: {{ cs.cols }};" data-orders-per-page="{{ orders_per_page }}">
         {% for ticket in tickets %}
         <div class="kds-card flex flex-col rounded-xl border-2 {{ cs.card_pad }} shadow-sm
-                    {% if ticket.is_cancelled %}bg-red-100 border-red-500
-                    {% elif ticket.status == 'new' %}bg-red-50 border-red-300
-                    {% elif ticket.status == 'preparing' %}bg-amber-50 border-amber-300
-                    {% else %}bg-emerald-50 border-emerald-300{% endif %}" data-order-id="{{ ticket.order.id }}" data-cancelled="{% if ticket.is_cancelled %}1{% else %}0{% endif %}">
+                    {% if ticket.is_cancelled %}bg-red-100 border-red-500{% else %}bg-red-50 border-red-300{% endif %}" data-order-id="{{ ticket.order.id }}" data-cancelled="{% if ticket.is_cancelled %}1{% else %}0{% endif %}">
             <div class="flex items-center justify-between mb-2">
                 <span class="{{ cs.name_size }} font-black text-gray-700">
                     {% if ticket.order.table %}ترابيزة {{ ticket.order.table.number }}{% else %}{{ ticket.order.get_order_type_display }}{% endif %}
@@ -124,12 +121,8 @@
                 <button onclick="ackVoidOrder({{ ticket.order.id }})" class="flex-1 {{ cs.btn_pad }} rounded-lg bg-red-600 hover:bg-red-700 text-white font-black transition-colors">
                     <i class="fa-solid fa-trash"></i> إزالة
                 </button>
-                {% elif ticket.status == 'new' %}
-                <button onclick="setOrderStatus({{ ticket.order.id }}, 'preparing')" class="flex-1 {{ cs.btn_pad }} rounded-lg bg-amber-500 hover:bg-amber-600 text-white font-black transition-colors">بدأ التحضير</button>
-                {% elif ticket.status == 'preparing' %}
-                <button onclick="setOrderStatus({{ ticket.order.id }}, 'ready')" class="flex-1 {{ cs.btn_pad }} rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-black transition-colors">جاهز</button>
                 {% else %}
-                <button onclick="setOrderStatus({{ ticket.order.id }}, 'served')" class="flex-1 {{ cs.btn_pad }} rounded-lg bg-gray-600 hover:bg-gray-700 text-white font-black transition-colors">تم التقديم</button>
+                <button onclick="setOrderStatus({{ ticket.order.id }}, 'served')" class="flex-1 {{ cs.btn_pad }} rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-black transition-colors">تم التحضير</button>
                 {% endif %}
             </div>
         </div>

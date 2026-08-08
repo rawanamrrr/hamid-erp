@@ -747,12 +747,12 @@ def kds_view(request):
             tickets.append(ticket)
         ticket['items'].append(it)
 
-    # A mixed ticket (one item already 'preparing', another still 'new') shows/acts on
-    # its least-advanced item, so the whole ticket always has one obvious next action.
-    status_priority = {OrderItem.KITCHEN_NEW: 0, OrderItem.KITCHEN_PREPARING: 1, OrderItem.KITCHEN_READY: 2}
+    # One-step workflow: a ticket is either still pending or it's done — no more
+    # new/preparing/ready staging. The single "تم التحضير" button on the card marks
+    # every item served at once (see kds_set_order_status), which also drops it off
+    # this screen since the query below excludes served items.
     for ticket in tickets:
-        ticket['status'] = min((it.kitchen_status for it in ticket['items']),
-                               key=lambda s: status_priority.get(s, 0))
+        ticket['status'] = 'pending'
         ticket['is_cancelled'] = False
 
     # A waiter/cashier cancelling an item (or the whole order) AFTER it was already sent
@@ -933,8 +933,11 @@ def kds_set_order_status(request, order_id):
         return JsonResponse({'status': 'error', 'message': 'حالة غير صالحة'}, status=400)
 
     items_qs = order.items.filter(is_void=False).exclude(kitchen_status=OrderItem.KITCHEN_SERVED)
-    if new_status == OrderItem.KITCHEN_READY:
+    if new_status in (OrderItem.KITCHEN_READY, OrderItem.KITCHEN_SERVED):
         # Per-item save (not a bulk .update()) so each one can deduct its own recipe.
+        # The KDS screen is now a single "تم التحضير" button that jumps straight from
+        # new → served (no separate "ready" step anymore) — recipe ingredients still
+        # need deducting right here, or they'd never get deducted at all.
         for item in items_qs.select_related('product', 'variant'):
             item.kitchen_status = new_status
             item.save(update_fields=['kitchen_status'])
