@@ -326,20 +326,15 @@ def user_edit(request, pk):
                 # can_change_unit / can_view_profit are no longer editable from this form
                 # (not useful per-user — profit visibility is governed by the store-wide
                 # 'sales.show_profit_on_invoice' policy instead) — left at their model defaults.
-                prof.allowed_order_types = [
-                    t for t, field in (
-                        (prof.ORDER_TYPE_DINE_IN, 'allowed_order_type_dine_in'),
-                        (prof.ORDER_TYPE_TAKEAWAY, 'allowed_order_type_takeaway'),
-                        (prof.ORDER_TYPE_DELIVERY, 'allowed_order_type_delivery'),
-                    ) if request.POST.get(field) == 'on'
-                ]
+                # allowed_order_types is set per-ROLE only (إضافة/تعديل دور) — no per-user
+                # override field on this form, so it's left untouched here.
                 landing = request.POST.get('default_landing')
                 if landing in dict(prof.LANDING_CHOICES):
                     prof.default_landing = landing
                 prof.save(update_fields=[
                     'max_discount_percent', 'max_discount_amount', 'can_sell_below_cost',
                     'can_edit_price', 'can_sell_below_sale_price', 'can_sell_below_zero_stock',
-                    'allowed_order_types', 'default_landing',
+                    'default_landing',
                 ])
 
             UserActivityLog.objects.create(

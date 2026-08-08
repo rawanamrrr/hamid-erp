@@ -192,7 +192,15 @@ def pos_view(request):
     # Fallback to first available if not selected or invalid
     if not active_warehouse and warehouses.exists():
         active_warehouse = warehouses.first()
-    
+
+    # Dine-in orders placed straight from the cashier (not through the waiter table-map
+    # flow) can now be tagged with a table too — Order.table already exists and is used
+    # by the waiter screens; this just lets the cashier set it directly. Scoped to the
+    # active warehouse since Table.branch → the same products.Warehouse model.
+    from restaurant.models import Table
+    dine_in_tables = (Table.objects.filter(branch=active_warehouse, is_active=True)
+                       .order_by('number') if active_warehouse else Table.objects.none())
+
     # Build customer balance map for POS display. Calls each customer's own
     # get_balance() directly instead of a hand-rolled reimplementation of its formula —
     # a prior duplicate here had drifted out of sync (it predated the COD-shortfall
@@ -261,6 +269,7 @@ def pos_view(request):
                 'visa_paid': float(order.visa_paid),
                 'received_amount': float(order.received_amount),
                 'driver_id': order.driver_id,
+                'table_id': order.table_id,
                 'order_type': order.order_type,
                 # ----------------------------------------------------------------------------------
                 'items': [
@@ -366,8 +375,13 @@ def pos_view(request):
         'can_pos_transfer': has_granular_action(request.user, 'pos', 'transfer', 'products', 'view'),
         'can_bulk_movement': has_permission(request.user, 'products', 'view'),
         'cashier_only_user': cashier_only_user,
+        'dine_in_tables': dine_in_tables,
     }
     context['allowed_order_types_json'] = json.dumps(context['allowed_order_types'])
+    context['dine_in_tables_json'] = json.dumps([
+        {'id': t.id, 'number': t.number, 'status': t.status, 'occupied': t.status != 'free'}
+        for t in dine_in_tables
+    ])
     return render(request, 'sales/pos.html', context)
 
 
@@ -1127,6 +1141,16 @@ def submit_order_ajax(request):
                     from restaurant.models import Driver
                     driver = Driver.objects.filter(id=driver_id, branch=warehouse, is_active=True).first()
 
+                # Dine-in table picked directly at the cashier (Order.table — already used
+                # by the waiter table-map flow, just settable here too now). Scoped to this
+                # order's own warehouse so a stale table_id from a different branch is
+                # silently ignored rather than cross-assigning someone else's table.
+                table = None
+                table_id = data.get('table_id') or None
+                if table_id:
+                    from restaurant.models import Table
+                    table = Table.objects.filter(id=table_id, branch=warehouse, is_active=True).first()
+
                 # Snapshot the store's VAT rate/mode NOW — vat_breakdown() locks onto this
                 # forever, so a later rate change never rewrites this invoice's own VAT.
                 from .services import current_vat_snapshot
@@ -1162,6 +1186,10 @@ def submit_order_ajax(request):
                                 else (data.get('order_type') if data.get('order_type') in
                                       (Order.ORDER_TYPE_DINE_IN, Order.ORDER_TYPE_TAKEAWAY)
                                       else Order.ORDER_TYPE_DINE_IN)),
+                    # Only a dine-in order is ever tied to a physical table — a takeaway/
+                    # delivery order with a stray table_id in the payload just ignores it.
+                    table=(table if not (driver or requires_shipping)
+                           and data.get('order_type') == Order.ORDER_TYPE_DINE_IN else None),
                     driver=driver,
                     # Tailoring (if any)
                     is_tailoring=data.get('is_tailoring', False),
@@ -2640,6 +2668,14 @@ def edit_order_ajax(request):
             # warehouse. Both already resolved above, before the service charge calc.
             order.driver = _edit_driver
             order.order_type = new_order_type
+
+            # Same table handling as submit_order_ajax's create path: only meaningful for
+            # a dine-in order, scoped to its (possibly just-changed) warehouse.
+            if new_order_type == Order.ORDER_TYPE_DINE_IN and data.get('table_id'):
+                from restaurant.models import Table
+                order.table = Table.objects.filter(id=data.get('table_id'), branch=new_wh, is_active=True).first()
+            elif new_order_type != Order.ORDER_TYPE_DINE_IN:
+                order.table = None
 
             order.save()
 

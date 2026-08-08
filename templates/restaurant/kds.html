@@ -42,6 +42,16 @@
         </div>
     </div>
 
+    <!-- Big centered readout of the order number being typed — the small toolbar input
+         (#kdsOrderNumReadout) is easy to miss on a kitchen screen the chef isn't staring
+         at up close; this makes it unmissable from across the pass. Purely visual/
+         non-interactive (pointer-events:none), driven by the same buffer. -->
+    <div id="kdsOrderNumBig" class="hidden fixed inset-0 z-[999] flex items-center justify-center pointer-events-none">
+        <div class="bg-black/80 text-white font-black rounded-3xl px-16 py-10 shadow-2xl" style="font-size: 12vw; line-height: 1;">
+            #<span id="kdsOrderNumBigText"></span>
+        </div>
+    </div>
+
     <style>
         @media (min-width: 768px) {
             #kdsGrid { grid-template-columns: repeat(var(--kds-cols), minmax(0, 1fr)); }
@@ -308,11 +318,14 @@ document.addEventListener('DOMContentLoaded', () => {
     // around and get accidentally attached to a later number.
     const orderNumReadout = document.getElementById('kdsOrderNumReadout');
     const orderNumNotFound = document.getElementById('kdsOrderNumNotFound');
+    const orderNumBig = document.getElementById('kdsOrderNumBig');
+    const orderNumBigText = document.getElementById('kdsOrderNumBigText');
     let orderNumBuffer = '';
     let orderNumClearTimer = null;
     function updateOrderNumReadout() {
-        if (!orderNumReadout) return;
-        orderNumReadout.value = orderNumBuffer;
+        if (orderNumReadout) orderNumReadout.value = orderNumBuffer;
+        if (orderNumBigText) orderNumBigText.textContent = orderNumBuffer;
+        if (orderNumBig) orderNumBig.classList.toggle('hidden', !orderNumBuffer);
     }
     document.addEventListener('keydown', (e) => {
         const tag = (e.target.tagName || '').toLowerCase();
