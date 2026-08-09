@@ -527,8 +527,10 @@ def log_js_error(request):
 
 @login_required
 def system_error_history(request):
-    # Only allow Master account
-    if not hasattr(request.user, 'profile') or not request.user.profile.is_master:
+    # Superuser (developer/admin) only — hidden from the Master (business owner)
+    # account too, since this is a raw technical error log with a "restart the live
+    # server" button, not something an owner needs or should be poking at.
+    if not request.user.is_superuser:
         raise PermissionDenied('لا تمتلك صلاحيات كافية للوصول إلى هذه الصفحة.')
         
     errors = SystemError.objects.all().order_by('-timestamp')
@@ -545,8 +547,8 @@ def system_error_history(request):
 
 @login_required
 def resolve_error(request, pk):
-    # Only allow Master account
-    if not hasattr(request.user, 'profile') or not request.user.profile.is_master:
+    # Superuser only — matches system_error_history's gate.
+    if not request.user.is_superuser:
         raise PermissionDenied('لا تمتلك صلاحيات كافية للوصول إلى هذه الصفحة.')
         
     error = get_object_or_404(SystemError, pk=pk)
@@ -557,8 +559,8 @@ def resolve_error(request, pk):
 
 @login_required
 def restart_gunicorn(request):
-    # Only allow Master account
-    if not hasattr(request.user, 'profile') or not request.user.profile.is_master:
+    # Superuser only — matches system_error_history's gate.
+    if not request.user.is_superuser:
         raise PermissionDenied('لا تمتلك صلاحيات كافية للوصول إلى هذه الصفحة.')
         
     if request.method != 'POST':

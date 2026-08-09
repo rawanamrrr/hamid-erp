@@ -470,7 +470,6 @@ html.fav-only-mode #topnav-items > *:not(.fav-show) { display: none; }
                     {% if request.user|can_access:"sales:manage" or request.user.is_superuser %}
                     <a href="{% url 'approvals_log' %}" class="tnav-sub {% if 'approvals' in request.path %}active{% endif %}"><i class="fas fa-user-shield text-indigo-400 w-4"></i> سجل الاعتمادات</a>
                     {% endif %}
-                    <a href="{% url 'error_history' %}" class="tnav-sub {% if 'error' in request.path %}active{% endif %}"><i class="fas fa-triangle-exclamation text-red-400 w-4"></i> سجل الأخطاء</a>
                     <a href="{% url 'financial:all_transactions' %}" class="tnav-sub {% if 'transactions' in request.path %}active{% endif %}"><i class="fas fa-money-bill-transfer text-green-400 w-4"></i> كل الحركات المالية</a>
                     <a href="{% url 'financial:shift_history' %}" class="tnav-sub {% if 'history' in request.path %}active{% endif %}"><i class="fas fa-clock-rotate-left text-slate-400 w-4"></i> سجل الورديات</a>
                     {% if request.user.is_superuser %}

@@ -58,7 +58,7 @@ def available_quantity(product, warehouse, *, include_expired=False):
 
 def issue_stock(product, warehouse, quantity, *, user=None, reference='', note='',
                 transaction_type='OUT', allow_negative=False, block_expired=True,
-                log=True, unit_price=None):
+                log=True, unit_price=None, discount=None):
     """Remove `quantity` (in main units) from stock using FEFO order.
 
     - FEFO: earliest expiry first, then oldest entry. Expired batches are skipped
@@ -130,6 +130,7 @@ def issue_stock(product, warehouse, quantity, *, user=None, reference='', note='
                 quantity=quantity,
                 unit_price=(unit_price if unit_price is not None else Decimal('0.00')),
                 cost_price=weighted_cost,
+                discount=(discount if discount is not None else Decimal('0.00')),
                 reference_number=reference,
                 note=note,
                 created_by=user,

@@ -491,8 +491,12 @@ def all_transactions(request):
         count_refund=Count('id', filter=Q(transaction_type='REFUND')),
     )
 
-    total_income = stats['total_income'] or 0
-    total_expense = stats['total_expense'] or 0
+    # SQLite's SUM() does its arithmetic in floating point internally, so summing many
+    # DecimalField rows can come back as e.g. Decimal('863201.6300000004') instead of
+    # Decimal('863201.63') — quantize immediately, same fix already applied to the
+    # dashboard's _cash_sum(), or the extra noise digits print verbatim in the template.
+    total_income = Decimal(str(stats['total_income'] or 0)).quantize(Decimal('0.01'))
+    total_expense = Decimal(str(stats['total_expense'] or 0)).quantize(Decimal('0.01'))
     net_flow = total_income - total_expense
 
     paginator = Paginator(transactions, 50)
@@ -543,8 +547,8 @@ def print_all_transactions(request):
         total_expense=Sum('amount', filter=Q(transaction_type__in=['EXPENSE', 'WITHDRAWAL', 'SUPPLIER_PAYMENT', 'REFUND'])),
         count_total=Count('id')
     )
-    total_income = stats['total_income'] or 0
-    total_expense = stats['total_expense'] or 0
+    total_income = Decimal(str(stats['total_income'] or 0)).quantize(Decimal('0.01'))
+    total_expense = Decimal(str(stats['total_expense'] or 0)).quantize(Decimal('0.01'))
     net_flow = total_income - total_expense
 
     style = request.GET.get('style', 'a4')

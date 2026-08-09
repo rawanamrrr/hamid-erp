@@ -254,6 +254,41 @@ def issue_cart_items(order, cart_items, warehouse, user, applied_deal=None, note
     return subtotal, qualified_subtotal
 
 
+def allocate_line_discounts(order, applied_discount, subtotal):
+    """Back-fill StockTransaction.discount for this order's lines, once the order's total
+    discount is known — issue_cart_items() runs BEFORE compute_discount_and_total() (it
+    doesn't need the discount to move stock), so at StockTransaction-creation time there's
+    no discount amount to log yet, and every sale showed "الخصم: 0.00" on
+    products/sales/list/ regardless of whether the order actually had a discount.
+
+    Discount here is order-level, not per-line (no per-line discount field exists on
+    OrderItem), so each line is credited a PROPORTIONAL share of the total discount by its
+    share of the subtotal — e.g. a 10 ج.م discount on a 40/60 split order logs 4/6 ج.م on
+    the two lines. Purely a reporting allocation; doesn't change what was actually charged.
+
+    Matches OrderItem rows to the StockTransaction rows issue_cart_items() just created for
+    them by POSITION (both are created in the same order, one-for-one, inside the same
+    atomic block) rather than by product — a cart can legitimately have the same product on
+    two separate lines (different modifiers/notes), which would make matching by product
+    alone ambiguous.
+    """
+    if not applied_discount or applied_discount <= 0 or not subtotal or subtotal <= 0:
+        return
+    from products.models import StockTransaction
+
+    items = list(order.items.filter(is_void=False).order_by('id'))
+    txns = list(StockTransaction.objects.filter(
+        reference_number=str(order.id), transaction_type='OUT',
+    ).order_by('id'))
+    if len(items) != len(txns):
+        return  # shape mismatch (e.g. a variant/recipe edge case) — skip rather than guess
+
+    for item, txn in zip(items, txns):
+        line_total = item.price * item.quantity
+        txn.discount = (applied_discount * line_total / subtotal).quantize(Decimal('0.01'))
+        txn.save(update_fields=['discount'])
+
+
 def _expand_units(cart_items, product_ids, *, deal_all=False):
     """Expand cart lines into a flat list of per-unit prices, for lines whose product is in
     `product_ids` (or every line when deal_all). Quantities are floored to whole units —

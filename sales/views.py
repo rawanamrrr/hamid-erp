@@ -1232,7 +1232,7 @@ def submit_order_ajax(request):
                     applied_deal = DealDiscount.objects.filter(id=applied_deal_id, is_active=True).first()
 
                 # Process items + compute totals via the shared OrderService (Phase 2.2)
-                from .services import issue_cart_items, compute_discount_and_total
+                from .services import issue_cart_items, compute_discount_and_total, allocate_line_discounts
                 subtotal, qualified_subtotal = issue_cart_items(
                     order, cart_items, warehouse, request.user, applied_deal,
                     note_prefix="فاتورة مبيعات",
@@ -1249,6 +1249,7 @@ def submit_order_ajax(request):
                     vat_rate=order.vat_rate_snapshot, vat_included=order.vat_included_snapshot,
                     cart_items=cart_items,
                 )
+                allocate_line_discounts(order, result['applied_discount'], subtotal)
                 order.discount = result['discount']
                 order.discount_type = result['discount_type']
                 order.applied_deal = result['applied_deal']

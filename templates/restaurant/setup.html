@@ -84,9 +84,19 @@
                         </div>
                         <span class="font-bold text-gray-700 text-sm truncate">{{ s.name }}</span>
                     </div>
-                    <span class="text-[11px] font-black text-indigo-600 bg-indigo-50 border border-indigo-100 rounded-full px-2.5 py-1 flex-shrink-0">
-                        <i class="fa-solid fa-chair text-indigo-300 ml-1"></i>{{ s.tables.count }}
-                    </span>
+                    <div class="flex items-center gap-1.5 flex-shrink-0">
+                        <span class="text-[11px] font-black text-indigo-600 bg-indigo-50 border border-indigo-100 rounded-full px-2.5 py-1">
+                            <i class="fa-solid fa-chair text-indigo-300 ml-1"></i>{{ s.tables.count }}
+                        </span>
+                        <button type="button" onclick="openEditSection({{ s.id }}, '{{ s.name|escapejs }}')"
+                                class="w-7 h-7 flex items-center justify-center text-gray-300 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors">
+                            <i class="fa-solid fa-pen text-[11px]"></i>
+                        </button>
+                        <button type="button" onclick="confirmDeleteSection({{ s.id }}, '{{ s.name|escapejs }}')"
+                                class="w-7 h-7 flex items-center justify-center text-gray-300 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors">
+                            <i class="fa-solid fa-trash text-[11px]"></i>
+                        </button>
+                    </div>
                 </li>
                 {% empty %}
                 <li class="px-5 py-14 text-center">
@@ -144,16 +154,26 @@
                             <p class="text-[10px] text-gray-400 font-bold truncate">{% if t.section %}{{ t.section.name }} · {% endif %}<i class="fa-solid fa-chair text-[8px]"></i> {{ t.seats }}</p>
                         </div>
                     </div>
-                    <span class="text-[11px] font-black rounded-full px-2.5 py-1 flex-shrink-0 flex items-center gap-1
-                        {% if t.status == 'free' %}bg-emerald-50 text-emerald-600
-                        {% elif t.status == 'busy' %}bg-rose-50 text-rose-600
-                        {% else %}bg-amber-50 text-amber-600{% endif %}">
-                        <span class="w-1.5 h-1.5 rounded-full
-                            {% if t.status == 'free' %}bg-emerald-500
-                            {% elif t.status == 'busy' %}bg-rose-500
-                            {% else %}bg-amber-500{% endif %}"></span>
-                        {{ t.get_status_display }}
-                    </span>
+                    <div class="flex items-center gap-1.5 flex-shrink-0">
+                        <span class="text-[11px] font-black rounded-full px-2.5 py-1 flex items-center gap-1
+                            {% if t.status == 'free' %}bg-emerald-50 text-emerald-600
+                            {% elif t.status == 'busy' %}bg-rose-50 text-rose-600
+                            {% else %}bg-amber-50 text-amber-600{% endif %}">
+                            <span class="w-1.5 h-1.5 rounded-full
+                                {% if t.status == 'free' %}bg-emerald-500
+                                {% elif t.status == 'busy' %}bg-rose-500
+                                {% else %}bg-amber-500{% endif %}"></span>
+                            {{ t.get_status_display }}
+                        </span>
+                        <button type="button" onclick="openEditTable({{ t.id }}, '{{ t.number|escapejs }}', {{ t.section_id|default:'null' }}, {{ t.seats }})"
+                                class="w-7 h-7 flex items-center justify-center text-gray-300 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors">
+                            <i class="fa-solid fa-pen text-[11px]"></i>
+                        </button>
+                        <button type="button" onclick="confirmDeleteTable({{ t.id }}, '{{ t.number|escapejs }}')"
+                                class="w-7 h-7 flex items-center justify-center text-gray-300 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors">
+                            <i class="fa-solid fa-trash text-[11px]"></i>
+                        </button>
+                    </div>
                 </li>
                 {% empty %}
                 <li class="px-5 py-14 text-center">
@@ -198,13 +218,23 @@
                         </div>
                         <span class="font-bold text-gray-700 text-sm truncate">{{ d.name }}</span>
                     </div>
-                    {% if d.phone %}
-                    <a href="tel:{{ d.phone }}" class="text-[11px] font-bold text-amber-600 bg-amber-50 rounded-full px-2.5 py-1.5 flex-shrink-0 hover:bg-amber-100 transition-colors flex items-center gap-1.5" dir="ltr">
-                        <i class="fa-solid fa-phone text-[9px]"></i>{{ d.phone }}
-                    </a>
-                    {% else %}
-                    <span class="text-[11px] font-bold text-gray-300 flex-shrink-0">—</span>
-                    {% endif %}
+                    <div class="flex items-center gap-1.5 flex-shrink-0">
+                        {% if d.phone %}
+                        <a href="tel:{{ d.phone }}" class="text-[11px] font-bold text-amber-600 bg-amber-50 rounded-full px-2.5 py-1.5 hover:bg-amber-100 transition-colors flex items-center gap-1.5" dir="ltr">
+                            <i class="fa-solid fa-phone text-[9px]"></i>{{ d.phone }}
+                        </a>
+                        {% else %}
+                        <span class="text-[11px] font-bold text-gray-300">—</span>
+                        {% endif %}
+                        <button type="button" onclick="openEditDriver({{ d.id }}, '{{ d.name|escapejs }}', '{{ d.phone|escapejs }}')"
+                                class="w-7 h-7 flex items-center justify-center text-gray-300 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors">
+                            <i class="fa-solid fa-pen text-[11px]"></i>
+                        </button>
+                        <button type="button" onclick="confirmDeleteDriver({{ d.id }}, '{{ d.name|escapejs }}')"
+                                class="w-7 h-7 flex items-center justify-center text-gray-300 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors">
+                            <i class="fa-solid fa-trash text-[11px]"></i>
+                        </button>
+                    </div>
                 </li>
                 {% empty %}
                 <li class="px-5 py-14 text-center">
@@ -216,5 +246,120 @@
             </ul>
         </div>
     </div>
+
+    <!-- Shared delete form — target/action set by JS before submit -->
+    <form id="deleteForm" method="post" class="hidden">
+        {% csrf_token %}
+        <input type="hidden" name="action" id="deleteFormAction">
+        <input type="hidden" name="id" id="deleteFormId">
+    </form>
+
+    <!-- Edit Section modal -->
+    <div id="editSectionModal" class="hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl">
+            <h3 class="font-black text-gray-800 mb-4">تعديل الصالة</h3>
+            <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="edit_section">
+                <input type="hidden" name="id" id="esId">
+                <input type="text" name="name" id="esName" required
+                       class="w-full border border-gray-200 bg-gray-50 focus:bg-white rounded-xl px-3 py-2.5 text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-400 transition-all mb-4">
+                <div class="flex gap-2">
+                    <button type="submit" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl py-2.5 font-black text-sm transition-all">حفظ</button>
+                    <button type="button" onclick="closeModal('editSectionModal')" class="flex-1 bg-gray-100 hover:bg-gray-200 rounded-xl py-2.5 font-black text-sm text-gray-600 transition-colors">إلغاء</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Edit Table modal -->
+    <div id="editTableModal" class="hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl">
+            <h3 class="font-black text-gray-800 mb-4">تعديل الترابيزة</h3>
+            <form method="post" class="space-y-2">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="edit_table">
+                <input type="hidden" name="id" id="etId">
+                <input type="text" name="number" id="etNumber" placeholder="رقم الترابيزة" required
+                       class="w-full border border-gray-200 bg-gray-50 focus:bg-white rounded-xl px-3 py-2.5 text-sm font-bold outline-none focus:ring-2 focus:ring-emerald-400 transition-all">
+                <div class="flex gap-2">
+                    <select name="section_id" id="etSection"
+                            class="flex-1 min-w-0 border border-gray-200 bg-gray-50 focus:bg-white rounded-xl px-3 py-2.5 text-sm font-bold outline-none focus:ring-2 focus:ring-emerald-400 transition-all">
+                        <option value="">بدون صالة</option>
+                        {% for s in sections %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}
+                    </select>
+                    <input type="number" name="seats" id="etSeats" min="1"
+                           class="w-20 flex-shrink-0 border border-gray-200 bg-gray-50 focus:bg-white rounded-xl px-2 py-2.5 text-sm font-bold text-center outline-none focus:ring-2 focus:ring-emerald-400 transition-all">
+                </div>
+                <div class="flex gap-2 pt-2">
+                    <button type="submit" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl py-2.5 font-black text-sm transition-all">حفظ</button>
+                    <button type="button" onclick="closeModal('editTableModal')" class="flex-1 bg-gray-100 hover:bg-gray-200 rounded-xl py-2.5 font-black text-sm text-gray-600 transition-colors">إلغاء</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Edit Driver modal -->
+    <div id="editDriverModal" class="hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl">
+            <h3 class="font-black text-gray-800 mb-4">تعديل الطيار</h3>
+            <form method="post" class="space-y-2">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="edit_driver">
+                <input type="hidden" name="id" id="edId">
+                <input type="text" name="name" id="edName" placeholder="اسم الطيار" required
+                       class="w-full border border-gray-200 bg-gray-50 focus:bg-white rounded-xl px-3 py-2.5 text-sm font-bold outline-none focus:ring-2 focus:ring-amber-400 transition-all">
+                <input type="text" name="phone" id="edPhone" placeholder="رقم الهاتف"
+                       class="w-full border border-gray-200 bg-gray-50 focus:bg-white rounded-xl px-3 py-2.5 text-sm font-bold outline-none focus:ring-2 focus:ring-amber-400 transition-all" dir="ltr">
+                <div class="flex gap-2 pt-2">
+                    <button type="submit" class="flex-1 bg-amber-500 hover:bg-amber-600 text-white rounded-xl py-2.5 font-black text-sm transition-all">حفظ</button>
+                    <button type="button" onclick="closeModal('editDriverModal')" class="flex-1 bg-gray-100 hover:bg-gray-200 rounded-xl py-2.5 font-black text-sm text-gray-600 transition-colors">إلغاء</button>
+                </div>
+            </form>
+        </div>
+    </div>
 </div>
+
+<script>
+function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+
+function openEditSection(id, name) {
+    document.getElementById('esId').value = id;
+    document.getElementById('esName').value = name;
+    document.getElementById('editSectionModal').classList.remove('hidden');
+}
+function confirmDeleteSection(id, name) {
+    if (!confirm(`حذف الصالة "${name}"؟ لن يتم حذف الترابيزات التابعة لها، فقط الصالة نفسها.`)) return;
+    submitDelete('delete_section', id);
+}
+
+function openEditTable(id, number, sectionId, seats) {
+    document.getElementById('etId').value = id;
+    document.getElementById('etNumber').value = number;
+    document.getElementById('etSection').value = sectionId || '';
+    document.getElementById('etSeats').value = seats;
+    document.getElementById('editTableModal').classList.remove('hidden');
+}
+function confirmDeleteTable(id, number) {
+    if (!confirm(`حذف الترابيزة "${number}"؟`)) return;
+    submitDelete('delete_table', id);
+}
+
+function openEditDriver(id, name, phone) {
+    document.getElementById('edId').value = id;
+    document.getElementById('edName').value = name;
+    document.getElementById('edPhone').value = phone;
+    document.getElementById('editDriverModal').classList.remove('hidden');
+}
+function confirmDeleteDriver(id, name) {
+    if (!confirm(`حذف الطيار "${name}"؟`)) return;
+    submitDelete('delete_driver', id);
+}
+
+function submitDelete(action, id) {
+    document.getElementById('deleteFormAction').value = action;
+    document.getElementById('deleteFormId').value = id;
+    document.getElementById('deleteForm').submit();
+}
+</script>
 {% endblock %}

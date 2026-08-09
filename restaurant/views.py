@@ -103,6 +103,58 @@ def restaurant_setup(request):
             if name:
                 Driver.objects.create(branch=branch, name=name, phone=phone)
                 messages.success(request, f"تمت إضافة الطيار: {name}")
+        elif action == 'edit_section':
+            section = get_object_or_404(Section, id=request.POST.get('id'), branch=branch)
+            name = request.POST.get('name', '').strip()
+            if name:
+                section.name = name
+                section.save(update_fields=['name'])
+                messages.success(request, "تم تعديل الصالة.")
+        elif action == 'delete_section':
+            # Soft-delete (is_active=False), not a hard delete — tables already reference
+            # this section by FK (on_delete=SET_NULL only fires on row deletion, and a
+            # hard delete here would also silently detach every table in it). Every list
+            # already filters is_active=True, so this simply drops it from view.
+            section = get_object_or_404(Section, id=request.POST.get('id'), branch=branch)
+            section.is_active = False
+            section.save(update_fields=['is_active'])
+            messages.success(request, "تم حذف الصالة.")
+        elif action == 'edit_table':
+            table = get_object_or_404(Table, id=request.POST.get('id'), branch=branch)
+            number = request.POST.get('number', '').strip()
+            section_id = request.POST.get('section_id') or None
+            seats = request.POST.get('seats') or table.seats
+            if number:
+                table.number = number
+                table.section = Section.objects.filter(id=section_id, branch=branch).first() if section_id else None
+                try:
+                    table.seats = int(seats)
+                except (TypeError, ValueError):
+                    pass
+                table.save(update_fields=['number', 'section', 'seats'])
+                messages.success(request, "تم تعديل الترابيزة.")
+        elif action == 'delete_table':
+            # Soft-delete — a busy/reserved table (or one with historical orders pointing
+            # at it via Order.table) must not be hard-deleted out from under those orders.
+            table = get_object_or_404(Table, id=request.POST.get('id'), branch=branch)
+            table.is_active = False
+            table.save(update_fields=['is_active'])
+            messages.success(request, "تم حذف الترابيزة.")
+        elif action == 'edit_driver':
+            driver = get_object_or_404(Driver, id=request.POST.get('id'), branch=branch)
+            name = request.POST.get('name', '').strip()
+            phone = request.POST.get('phone', '').strip()
+            if name:
+                driver.name = name
+                driver.phone = phone
+                driver.save(update_fields=['name', 'phone'])
+                messages.success(request, "تم تعديل بيانات الطيار.")
+        elif action == 'delete_driver':
+            # Soft-delete — historical orders/custodies keep a FK to this driver.
+            driver = get_object_or_404(Driver, id=request.POST.get('id'), branch=branch)
+            driver.is_active = False
+            driver.save(update_fields=['is_active'])
+            messages.success(request, "تم حذف الطيار.")
         return redirect(f"{request.path}?branch_id={branch.id}")
 
     sections = Section.objects.filter(branch=branch, is_active=True).prefetch_related('tables')

@@ -201,6 +201,11 @@ class Transaction(models.Model):
                     Account.objects.select_for_update().filter(pk=old.account_id).update(
                         balance=F('balance') + old.amount
                     )
+                    if old.transaction_type == 'WITHDRAWAL':
+                        from .posting import nominal
+                        Account.objects.select_for_update().filter(pk=nominal('OWNER_DRAWINGS').pk).update(
+                            balance=F('balance') - old.amount
+                        )
                 elif old.transaction_type in ['INCOME', 'DEPOSIT', 'SALE']:
                     Account.objects.select_for_update().filter(pk=old.account_id).update(
                         balance=F('balance') - old.amount
@@ -221,6 +226,18 @@ class Transaction(models.Model):
                 Account.objects.select_for_update().filter(pk=self.account_id).update(
                     balance=F('balance') - self.amount
                 )
+                # A withdrawal (سحب مالك) only ever touched the drawer/bank side above —
+                # the dashboard's "مسحوبات المالك" card reads a real Account.balance (see
+                # financial/views.py financial_dashboard), but the OWNER_DRAWINGS nominal
+                # account only ever got a JournalLine from post_cash_transaction() below
+                # (for the trial balance/statements), never this operational balance
+                # field — so it stayed frozen at 0 no matter how many withdrawals were
+                # recorded. Mirror the cash-side update onto it too.
+                if self.transaction_type == 'WITHDRAWAL':
+                    from .posting import nominal
+                    Account.objects.select_for_update().filter(pk=nominal('OWNER_DRAWINGS').pk).update(
+                        balance=F('balance') + self.amount
+                    )
             elif self.transaction_type in ['INCOME', 'DEPOSIT', 'SALE']:
                 Account.objects.select_for_update().filter(pk=self.account_id).update(
                     balance=F('balance') + self.amount
@@ -246,6 +263,11 @@ class Transaction(models.Model):
                 Account.objects.select_for_update().filter(pk=self.account_id).update(
                     balance=F('balance') + self.amount
                 )
+                if self.transaction_type == 'WITHDRAWAL':
+                    from .posting import nominal
+                    Account.objects.select_for_update().filter(pk=nominal('OWNER_DRAWINGS').pk).update(
+                        balance=F('balance') - self.amount
+                    )
             elif self.transaction_type in ['INCOME', 'DEPOSIT', 'SALE']:
                 Account.objects.select_for_update().filter(pk=self.account_id).update(
                     balance=F('balance') - self.amount
