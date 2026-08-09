@@ -29,6 +29,7 @@
         <div class="flex justify-between text-green-700"><span>+ الحوافز / الأوفرتايم</span><span class="font-bold">{{ ps.total_additions|floatformat:2|intcomma }}</span></div>
         <div class="flex justify-between text-red-600"><span>- الخصومات / الجزاءات</span><span class="font-bold">{{ ps.total_deductions|floatformat:2|intcomma }}</span></div>
         <div class="flex justify-between text-red-600"><span>- خصم الغياب ({{ ps.days_absent }} يوم)</span><span class="font-bold">{{ ps.absence_deduction|floatformat:2|intcomma }}</span></div>
+        <div class="flex justify-between text-red-600"><span>- خصم التأخير ({{ ps.late_minutes }} دقيقة)</span><span class="font-bold">{{ ps.lateness_deduction|floatformat:2|intcomma }}</span></div>
         <div class="flex justify-between text-red-600"><span>- خصم السلف</span><span class="font-bold">{{ ps.advance_deducted|floatformat:2|intcomma }}</span></div>
         <div class="flex justify-between border-t pt-2 mt-2 text-lg"><span class="font-black">الصافي</span><span class="font-black text-emerald-600">{{ ps.net|floatformat:2|intcomma }} ج.م</span></div>
     </div>
@@ -64,7 +65,7 @@
         </form>
     </div>
 
-    <!-- Absence + advance refresh + pay -->
+    <!-- Absence + attendance refresh + advance refresh + pay -->
     <div class="grid md:grid-cols-2 gap-4">
         <form method="post" class="bg-white rounded-2xl border p-4 flex items-end gap-2">{% csrf_token %}
             <input type="hidden" name="action" value="set_absence">
@@ -74,6 +75,11 @@
             {% if ps.days_absent %}
             <button type="submit" formnovalidate class="px-3 py-2 bg-red-50 text-red-500 hover:bg-red-100 rounded-lg font-bold" title="مسح أيام الغياب" onclick="this.form.days_absent.value='0';"><i class="fas fa-times"></i></button>
             {% endif %}
+        </form>
+        <form method="post" class="bg-white rounded-2xl border p-4 flex items-end justify-between gap-2">{% csrf_token %}
+            <input type="hidden" name="action" value="refresh_attendance">
+            <span class="text-xs text-gray-500">تحديث الغياب والتأخير من سجلات <a href="{% url 'financial:attendance_daily' %}" class="underline">الغياب والتأخير</a> لهذا الشهر</span>
+            <button class="px-4 py-2 bg-rose-500 text-white rounded-lg font-bold whitespace-nowrap"><i class="fas fa-sync"></i> تحديث الحضور</button>
         </form>
         <form method="post" class="bg-white rounded-2xl border p-4 flex items-end justify-between gap-2">{% csrf_token %}
             <input type="hidden" name="action" value="refresh_advance">

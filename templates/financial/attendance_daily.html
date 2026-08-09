@@ -1,0 +1,127 @@
+{% extends 'base.html' %}
+{% block title %}الغياب والتأخير{% endblock %}
+{% block content %}
+<div class="max-w-7xl mx-auto font-arabic py-8 px-4 sm:px-6 lg:px-8" dir="rtl">
+
+  <div class="mb-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-gradient-to-r from-slate-900 to-slate-800 p-8 rounded-3xl shadow-2xl relative overflow-hidden">
+    <div class="absolute -right-20 -top-20 w-64 h-64 bg-rose-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20"></div>
+    <div class="absolute -left-20 -bottom-20 w-64 h-64 bg-indigo-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20"></div>
+    <div class="relative z-10">
+      <h1 class="text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-rose-200 to-rose-400 mb-2">
+        <i class="fas fa-user-clock me-2"></i>الغياب والتأخير
+      </h1>
+      <p class="text-slate-300 font-medium">سجّل حضور كل موظف يومياً — يُخصم تلقائياً من الراتب عند إصدار قسيمة الراتب حسب <a href="{% url 'financial:attendance_settings' %}" class="underline hover:text-rose-300">إعدادات الحضور والخصومات</a>.</p>
+    </div>
+    <div class="relative z-10">
+      <a href="{% url 'financial:salary_list' %}" class="inline-flex items-center px-5 py-3 bg-white/10 text-white font-bold rounded-2xl ring-1 ring-white/20 hover:bg-white/20 transition-all duration-300">
+        <i class="fas fa-arrow-right me-2"></i> رواتب الموظفين
+      </a>
+    </div>
+  </div>
+
+  {% if messages %}{% for message in messages %}
+  <div class="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-xl mb-4 text-sm">{{ message }}</div>
+  {% endfor %}{% endif %}
+
+  <!-- Date picker + summary strip -->
+  <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 mb-5">
+    <div class="flex flex-wrap items-center justify-between gap-4">
+      <form method="get" class="flex items-center gap-2">
+        <label class="text-sm font-bold text-gray-600">التاريخ:</label>
+        <input type="date" name="date" value="{{ selected_date|date:'Y-m-d' }}" onchange="this.form.submit()"
+               class="border border-gray-200 rounded-xl px-3 py-2 text-sm font-bold outline-none focus:ring-2 focus:ring-rose-400">
+      </form>
+      <div class="flex flex-wrap gap-2 text-xs font-bold">
+        <span class="px-3 py-1.5 rounded-full bg-gray-100 text-gray-600">إجمالي: {{ total_employees }}</span>
+        <span class="px-3 py-1.5 rounded-full bg-emerald-50 text-emerald-700">حاضر: {{ counts.present }}</span>
+        <span class="px-3 py-1.5 rounded-full bg-rose-50 text-rose-700">غياب: {{ counts.absent }}</span>
+        <span class="px-3 py-1.5 rounded-full bg-amber-50 text-amber-700">بعذر: {{ counts.excused }}</span>
+        <span class="px-3 py-1.5 rounded-full bg-indigo-50 text-indigo-700">إجازة: {{ counts.leave }}</span>
+        <span class="px-3 py-1.5 rounded-full bg-sky-50 text-sky-700">عطلة: {{ counts.holiday }}</span>
+        <span class="px-3 py-1.5 rounded-full bg-slate-50 text-slate-700">راحة: {{ counts.day_off }}</span>
+        {% if counts.unmarked %}<span class="px-3 py-1.5 rounded-full bg-orange-50 text-orange-700">لم يُسجَّل: {{ counts.unmarked }}</span>{% endif %}
+      </div>
+    </div>
+    <div class="flex flex-wrap gap-2 mt-4 pt-4 border-t border-gray-100">
+      <span class="text-xs font-bold text-gray-400 self-center ml-1">إجراء جماعي:</span>
+      <button type="button" onclick="bulkSetStatus('present')" class="px-3 py-1.5 text-xs font-bold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-lg transition-colors">تحديد الكل حاضر</button>
+      <button type="button" onclick="bulkSetStatus('day_off')" class="px-3 py-1.5 text-xs font-bold bg-slate-50 text-slate-700 hover:bg-slate-100 rounded-lg transition-colors">تحديد الكل يوم راحة</button>
+      <button type="button" onclick="bulkSetStatus('holiday')" class="px-3 py-1.5 text-xs font-bold bg-sky-50 text-sky-700 hover:bg-sky-100 rounded-lg transition-colors">تحديد الكل عطلة رسمية</button>
+    </div>
+  </div>
+
+  <form method="post" id="attendanceForm">
+    {% csrf_token %}
+    <input type="hidden" name="date" value="{{ selected_date|date:'Y-m-d' }}">
+
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead class="bg-slate-50 text-slate-500 text-xs font-black">
+            <tr>
+              <th class="px-4 py-3 text-right">الموظف</th>
+              <th class="px-4 py-3 text-right">الحالة</th>
+              <th class="px-4 py-3 text-right">وقت الحضور</th>
+              <th class="px-4 py-3 text-right">وقت الانصراف</th>
+              <th class="px-4 py-3 text-right">دقائق التأخير</th>
+              <th class="px-4 py-3 text-right">خصم من الراتب</th>
+              <th class="px-4 py-3 text-right">ملاحظات</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-50">
+            {% for row in rows %}
+            <tr class="hover:bg-gray-50/50 transition-colors" data-emp-row>
+              <td class="px-4 py-3 font-bold text-gray-800 whitespace-nowrap">
+                {{ row.employee.get_full_name|default:row.employee.username }}
+              </td>
+              <td class="px-4 py-3">
+                <select name="status_{{ row.employee.id }}" data-status-select
+                        class="border border-gray-200 rounded-lg px-2 py-1.5 text-xs font-bold outline-none focus:ring-2 focus:ring-rose-400 bg-white">
+                  <option value="">-- لم يُسجَّل --</option>
+                  {% for val, label in status_choices %}
+                  <option value="{{ val }}" {% if row.status == val %}selected{% endif %}>{{ label }}</option>
+                  {% endfor %}
+                </select>
+              </td>
+              <td class="px-4 py-3">
+                <input type="time" name="arrival_{{ row.employee.id }}" value="{{ row.arrival_time }}"
+                       class="border border-gray-200 rounded-lg px-2 py-1.5 text-xs outline-none focus:ring-2 focus:ring-rose-400 w-28" dir="ltr">
+              </td>
+              <td class="px-4 py-3">
+                <input type="time" name="departure_{{ row.employee.id }}" value="{{ row.departure_time }}"
+                       class="border border-gray-200 rounded-lg px-2 py-1.5 text-xs outline-none focus:ring-2 focus:ring-rose-400 w-28" dir="ltr">
+              </td>
+              <td class="px-4 py-3 text-xs font-bold text-amber-600">
+                {% if row.late_minutes %}{{ row.late_minutes }} د{% else %}—{% endif %}
+              </td>
+              <td class="px-4 py-3">
+                <input type="checkbox" name="deduct_{{ row.employee.id }}" {% if row.deduct_salary %}checked{% endif %}
+                       class="w-4 h-4 text-rose-600 rounded">
+              </td>
+              <td class="px-4 py-3">
+                <input type="text" name="note_{{ row.employee.id }}" value="{{ row.note }}" placeholder="ملاحظة..."
+                       class="border border-gray-200 rounded-lg px-2 py-1.5 text-xs outline-none focus:ring-2 focus:ring-rose-400 w-full min-w-[120px]">
+              </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="7" class="px-4 py-10 text-center text-gray-400 text-sm">لا يوجد موظفين لديهم إعداد راتب بعد — أضفهم من صفحة رواتب الموظفين أولاً.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="flex justify-end sticky bottom-4 mt-5">
+      <button type="submit" class="inline-flex items-center gap-2 px-6 py-3 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-sm font-black shadow-lg">
+        <i class="fa-solid fa-floppy-disk"></i> حفظ حضور اليوم
+      </button>
+    </div>
+  </form>
+</div>
+
+<script>
+function bulkSetStatus(status) {
+  document.querySelectorAll('[data-status-select]').forEach(sel => { sel.value = status; });
+}
+</script>
+{% endblock %}

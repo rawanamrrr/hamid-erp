@@ -1022,6 +1022,160 @@ def shift_history(request):
     return render(request, 'financial/shift_history.html', context)
 
 
+def _compute_late_minutes(arrival_time, grace_minutes, work_start_str):
+    """Minutes late = (arrival - work_start - grace), floored at 0. work_start_str is
+    'HH:MM' from the payroll.work_start_time policy; returns 0 on any parse issue
+    (e.g. work_start_time misconfigured) rather than blocking the save."""
+    import datetime
+    if not arrival_time:
+        return 0
+    try:
+        h, m = (int(x) for x in work_start_str.split(':')[:2])
+        work_start = datetime.time(hour=h, minute=m)
+    except Exception:
+        return 0
+    arrival_dt = datetime.datetime.combine(datetime.date.today(), arrival_time)
+    start_dt = datetime.datetime.combine(datetime.date.today(), work_start)
+    late = int((arrival_dt - start_dt).total_seconds() // 60) - int(grace_minutes or 0)
+    return max(0, late)
+
+
+def _compute_early_departure_minutes(departure_time, work_end_str):
+    import datetime
+    if not departure_time:
+        return 0
+    try:
+        h, m = (int(x) for x in work_end_str.split(':')[:2])
+        work_end = datetime.time(hour=h, minute=m)
+    except Exception:
+        return 0
+    departure_dt = datetime.datetime.combine(datetime.date.today(), departure_time)
+    end_dt = datetime.datetime.combine(datetime.date.today(), work_end)
+    early = int((end_dt - departure_dt).total_seconds() // 60)
+    return max(0, early)
+
+
+@login_required
+@require_permission('financial', 'manage')
+def attendance_daily(request):
+    """'الغياب والتأخير' — mark every employee's status for one day. One row per
+    (employee, date) via AttendanceRecord.get_or_create/update — resubmitting the same
+    day just overwrites that day's row, it never stacks duplicate records (see
+    AttendanceRecord's unique_together in financial/payroll_models.py).
+
+    Employees = whoever has an EmployeeSalary config (financial/salaries/) — anyone
+    without one isn't on payroll at all, so there's nothing to mark attendance against.
+    """
+    import datetime
+    from datetime import date as date_cls
+    from .payroll_models import EmployeeSalary, AttendanceRecord
+    from settings.policies import get_policy
+
+    date_str = request.GET.get('date') or request.POST.get('date')
+    try:
+        selected_date = date_cls.fromisoformat(date_str) if date_str else timezone.localdate()
+    except ValueError:
+        selected_date = timezone.localdate()
+
+    salaries = EmployeeSalary.objects.select_related('employee').order_by('employee__first_name', 'employee__username')
+
+    if request.method == 'POST':
+        from .models import PeriodLock
+        if PeriodLock.is_locked(timezone.now()) and not has_permission(request.user, 'financial', 'manage'):
+            messages.error(request, "الفترة المحاسبية الحالية مغلقة، لا يمكن تسجيل حضور.")
+            return redirect(f"{request.path}?date={selected_date.isoformat()}")
+
+        grace_minutes = get_policy('payroll.grace_period_minutes') or 0
+        work_start = get_policy('payroll.work_start_time') or '09:00'
+        work_end = get_policy('payroll.work_end_time') or '17:00'
+
+        saved_count = 0
+        for sal in salaries:
+            emp_id = sal.employee_id
+            status = request.POST.get(f'status_{emp_id}')
+            if not status or status not in dict(AttendanceRecord.STATUS_CHOICES):
+                continue  # employee row wasn't part of this submission (e.g. filtered out client-side)
+
+            arrival_raw = (request.POST.get(f'arrival_{emp_id}') or '').strip()
+            departure_raw = (request.POST.get(f'departure_{emp_id}') or '').strip()
+            note = (request.POST.get(f'note_{emp_id}') or '').strip()[:255]
+            deduct_override = request.POST.get(f'deduct_{emp_id}')
+
+            arrival_time = None
+            departure_time = None
+            try:
+                if arrival_raw:
+                    arrival_time = datetime.datetime.strptime(arrival_raw, '%H:%M').time()
+                if departure_raw:
+                    departure_time = datetime.datetime.strptime(departure_raw, '%H:%M').time()
+            except ValueError:
+                pass
+
+            late_minutes = _compute_late_minutes(arrival_time, grace_minutes, work_start) if status == AttendanceRecord.STATUS_PRESENT else 0
+            early_minutes = _compute_early_departure_minutes(departure_time, work_end) if status == AttendanceRecord.STATUS_PRESENT else 0
+
+            record, created = AttendanceRecord.objects.get_or_create(
+                employee_id=emp_id, date=selected_date,
+                defaults={
+                    'status': status, 'arrival_time': arrival_time, 'departure_time': departure_time,
+                    'late_minutes': late_minutes, 'early_departure_minutes': early_minutes,
+                    'note': note, 'recorded_by': request.user,
+                },
+            )
+            if not created:
+                record.status = status
+                record.arrival_time = arrival_time
+                record.departure_time = departure_time
+                record.late_minutes = late_minutes
+                record.early_departure_minutes = early_minutes
+                record.note = note
+                record.recorded_by = request.user
+            # Explicit checkbox override always wins over the status default (see
+            # AttendanceRecord.save()'s first-save-only auto-default).
+            if deduct_override is not None:
+                record.deduct_salary = (deduct_override == 'on')
+            record.save()
+            saved_count += 1
+
+        messages.success(request, f"تم حفظ حضور {saved_count} موظف ليوم {selected_date.strftime('%Y-%m-%d')}.")
+        return redirect(f"{request.path}?date={selected_date.isoformat()}")
+
+    existing = {
+        r.employee_id: r for r in
+        AttendanceRecord.objects.filter(date=selected_date, employee__in=[s.employee_id for s in salaries])
+    }
+
+    rows = []
+    counts = {k: 0 for k, _ in AttendanceRecord.STATUS_CHOICES}
+    counts['unmarked'] = 0
+    for sal in salaries:
+        rec = existing.get(sal.employee_id)
+        status = rec.status if rec else ''
+        if status:
+            counts[status] = counts.get(status, 0) + 1
+        else:
+            counts['unmarked'] += 1
+        rows.append({
+            'employee': sal.employee,
+            'salary': sal,
+            'record': rec,
+            'status': status,
+            'arrival_time': rec.arrival_time.strftime('%H:%M') if rec and rec.arrival_time else '',
+            'departure_time': rec.departure_time.strftime('%H:%M') if rec and rec.departure_time else '',
+            'late_minutes': rec.late_minutes if rec else 0,
+            'note': rec.note if rec else '',
+            'deduct_salary': rec.deduct_salary if rec else False,
+        })
+
+    return render(request, 'financial/attendance_daily.html', {
+        'selected_date': selected_date,
+        'rows': rows,
+        'counts': counts,
+        'total_employees': len(rows),
+        'status_choices': AttendanceRecord.STATUS_CHOICES,
+    })
+
+
 @login_required
 @require_permission('financial', 'manage')
 def attendance_settings(request):
@@ -1085,16 +1239,29 @@ def attendance_settings(request):
 @login_required
 @require_granular_action('financial', 'payroll', 'financial', 'view')
 def salary_list(request):
-    from .payroll_models import EmployeeSalary
+    from .payroll_models import EmployeeSalary, Payslip
     from decimal import Decimal
     salaries = EmployeeSalary.objects.all().select_related('employee')
+    period = _current_period()
     for sal in salaries:
         pending = sum(
             (a.due_amount() for a in sal.employee.advances.filter(is_settled=False)),
             Decimal('0'),
         )
         sal.pending_advance = pending
-        sal.net_after_advance = max(Decimal('0.00'), sal.net_salary - pending)
+
+        # This month's live الغياب والتأخير deduction — a preview only (nothing is
+        # saved here), computed the exact same way _get_or_create_payslip/payslip_pay
+        # would, so what this card shows matches what صرف الراتب actually pays. Without
+        # this, the card's "الصافي" only ever reflected the سلفة deduction — absence/
+        # lateness were invisible until you opened the full قسيمة راتب page.
+        days_absent, late_minutes = _attendance_totals_for_period(sal.employee, period)
+        preview_ps = Payslip(basic_salary=sal.basic_salary, days_absent=days_absent, late_minutes=late_minutes)
+        sal.attendance_deduction = preview_ps.absence_deduction + preview_ps.lateness_deduction
+        sal.days_absent_preview = days_absent
+        sal.late_minutes_preview = late_minutes
+
+        sal.net_after_advance = max(Decimal('0.00'), sal.net_salary - pending - sal.attendance_deduction)
     # Only real payment sources — a salary is paid out of cash/instapay/vodafone cash,
     # never out of a bookkeeping category (إيرادات/أصول/خصوم...) which just confused the
     # user with a dozen 0.00 options that aren't places money can actually come from.
@@ -1140,19 +1307,22 @@ def salary_edit(request, pk):
 @login_required
 @require_permission('financial', 'manage')
 def salary_pay(request, pk):
+    """Quick one-click "دفع" button on رواتب الموظفين. Used to pay straight off
+    EmployeeSalary.net_salary — a completely separate computation from the قسيمة راتب
+    (Payslip) register flow that never looked at attendance/advances/fixed-deduction
+    adjustments at all. Now unified: this gets-or-creates the SAME Payslip record
+    payslip_generate would (pulling in this month's الغياب والتأخير deductions and
+    advance preview via _get_or_create_payslip) and pays it through the exact same
+    _pay_payslip used by the payslip_detail page — one real payment code path, not two.
+    """
     from .payroll_models import EmployeeSalary
-    from django.utils import timezone
-    from django.db import transaction as db_tx
-    from decimal import Decimal
-    import calendar
+    salary_config = get_object_or_404(EmployeeSalary, pk=pk)
 
     if request.method != 'POST':
         messages.error(request, "طريقة طلب غير صالحة للصرف.")
         return redirect('financial:salary_list')
 
-    salary_config = get_object_or_404(EmployeeSalary, pk=pk)
     account_id = request.POST.get('account_id')
-
     if not account_id:
         messages.error(request, "يرجى تحديد حساب الدفع.")
         return redirect('financial:salary_list')
@@ -1164,63 +1334,17 @@ def salary_pay(request, pk):
 
     payment_account = get_object_or_404(Account, id=account_id)
 
-    # Deduct this period's outstanding سلف installments from the net before paying —
-    # same rule the قسيمة راتب (Payslip) flow already applies (see payslip_pay).
-    plan = []
-    advance_deducted = Decimal('0')
-    for a in salary_config.employee.advances.filter(is_settled=False):
-        due = a.due_amount()
-        if due > 0:
-            plan.append((a, due))
-            advance_deducted += due
-    net_to_pay = max(Decimal('0.00'), salary_config.net_salary - advance_deducted)
-
-    if payment_account.balance < net_to_pay:
-        messages.error(request, f"رصيد حساب {payment_account.name} ({payment_account.balance} ج.م) لا يكفي لصرف المرتب ({net_to_pay} ج.م).")
+    period = _current_period()
+    ps, _created = _get_or_create_payslip(salary_config, period)
+    if ps.status == 'paid':
+        messages.error(request, f"تم صرف راتب {salary_config.employee.username} لشهر {period} بالفعل.")
         return redirect('financial:salary_list')
 
-    # Deduct via Transaction for the current month
-    now = timezone.now()
-    month_name = calendar.month_name[now.month]
-    current_period = f"{month_name} {now.year}"
-
-    # Guard against double-payment: unlike the newer Payslip flow (unique_together on
-    # employee+period), this legacy path has no structural record of "already paid this
-    # period" — a double-click or resubmit would otherwise pay the same salary twice.
-    already_paid = Transaction.objects.filter(
-        transaction_type='EXPENSE',
-        description__startswith=f"صرف راتب {current_period} - {salary_config.employee.username}",
-    ).exists()
-    if already_paid:
-        messages.error(request, f"تم صرف راتب {salary_config.employee.username} لشهر {current_period} بالفعل.")
-        return redirect('financial:salary_list')
-
-    with db_tx.atomic():
-        for a, due in plan:
-            a.apply(due)
-        desc = f"صرف راتب {current_period} - {salary_config.employee.username}"
-        if advance_deducted > 0:
-            desc += f" (بعد خصم سلفة {advance_deducted} ج.م)"
-        Transaction.objects.create(
-            account=payment_account,
-            transaction_type='EXPENSE',
-            amount=net_to_pay,
-            description=desc,
-            created_by=request.user,
-        )
-        # Same cash outflow the Transaction above records, but categorized under
-        # "رواتب موظفين" — so this payout also appears in the position report's
-        # "المصروفات حسب التصنيف" box, which only ever reads sales.Expense and had no
-        # idea payroll payouts existed (they used to only post to the plain
-        # Transaction ledger, uncategorized).
-        from sales.models import Expense
-        Expense.objects.create(
-            title=desc, category='salary', amount=net_to_pay,
-            description=f"صرف راتب {salary_config.employee.username} — {current_period}",
-            user=request.user,
-        )
-
-    messages.success(request, f"تم صرف راتب شهر {current_period} ({net_to_pay} ج.م) بنجاح للموظف {salary_config.employee.username} من حساب {payment_account.name}!")
+    ok, message, net = _pay_payslip(ps, payment_account, request.user)
+    if ok:
+        messages.success(request, message)
+    else:
+        messages.error(request, message)
     return redirect('financial:salary_list')
 
 
@@ -1229,20 +1353,58 @@ def _current_period():
     return timezone.now().strftime('%Y-%m')
 
 
-@login_required
-@require_permission('financial', 'manage')
-def payslip_generate(request, salary_pk):
-    """Create (or open) this period's payslip for an employee, snapshotting their config
-    and previewing the advance installment due."""
-    from .payroll_models import EmployeeSalary, Payslip, PayslipAdjustment
+def _attendance_totals_for_period(employee, period_month):
+    """(days_absent, late_minutes) derived from AttendanceRecord for one employee/month —
+    the actual bridge between الغياب والتأخير (daily facts) and a payslip's deduction.
+    Without this, AttendanceRecord rows just sat there recording history with nothing
+    ever reading them back into the salary math.
+
+    days_absent counts rows flagged deduct_salary=True EXCLUDING 'present' — the
+    خصم من الراتب checkbox is shown for every row regardless of status (so it also
+    applies to e.g. a paid-vs-unpaid leave day), but on a 'present' day it only ever
+    means "dock them for being late", never "count this as a missed day". Without the
+    exclusion, checking that box for a present-but-late employee got them hit with an
+    absence-day deduction on TOP of the lateness deduction below — one late arrival was
+    being charged as if the employee both missed the whole day AND showed up late to it.
+    late_minutes sums 'present' rows only (a day marked absent/leave/etc. doesn't also
+    carry a lateness penalty on top).
+    """
     from decimal import Decimal
-    cfg = get_object_or_404(EmployeeSalary, pk=salary_pk)
-    period = request.POST.get('period') or request.GET.get('period') or _current_period()
+    from .payroll_models import AttendanceRecord
+    year, month = (int(x) for x in period_month.split('-')[:2])
+    qs = AttendanceRecord.objects.filter(employee=employee, date__year=year, date__month=month)
+    days_absent = qs.exclude(status=AttendanceRecord.STATUS_PRESENT).filter(deduct_salary=True).count()
+    late_minutes = 0
+    for r in qs.filter(status=AttendanceRecord.STATUS_PRESENT):
+        late_minutes += r.total_late_minutes
+    return Decimal(days_absent), late_minutes
+
+
+def _get_or_create_payslip(cfg, period):
+    """Create (or fetch) one employee's payslip for `period` ('YYYY-MM') — snapshotting
+    their salary config, pulling that month's absence/lateness from الغياب والتأخير, and
+    previewing the advance installment due. Shared by BOTH the قسيمة راتب register flow
+    (payslip_generate) and the legacy one-click "دفع" button on رواتب الموظفين
+    (salary_pay) — they used to be two separate code paths (the quick "دفع" button paid
+    straight from EmployeeSalary.net_salary and never even looked at attendance,
+    advances-preview, or fixed deductions), which meant a store using the quick button
+    never got absence/lateness deductions applied at all. Now both create/reuse the exact
+    same Payslip row, so there is only one real "what does this employee actually get
+    paid this month" computation in the whole app.
+    Returns (payslip, created).
+    """
+    from .payroll_models import Payslip, PayslipAdjustment
+    from decimal import Decimal
     ps, created = Payslip.objects.get_or_create(
         employee=cfg.employee, period_month=period,
         defaults={'basic_salary': cfg.basic_salary, 'allowances': cfg.allowances},
     )
     if created:
+        days_absent, late_minutes = _attendance_totals_for_period(cfg.employee, period)
+        if days_absent or late_minutes:
+            ps.days_absent = days_absent
+            ps.late_minutes = late_minutes
+            ps.save(update_fields=['days_absent', 'late_minutes'])
         if cfg.deductions and cfg.deductions > 0:
             PayslipAdjustment.objects.create(payslip=ps, kind='deduction',
                                              label='خصومات ثابتة', amount=cfg.deductions)
@@ -1250,6 +1412,74 @@ def payslip_generate(request, salary_pk):
         if due:
             ps.advance_deducted = due
             ps.save(update_fields=['advance_deducted'])
+    return ps, created
+
+
+def _pay_payslip(ps, account, user):
+    """Execute payment of a (not-yet-paid) payslip from `account` — applies due advance
+    installments, posts the EXPENSE Transaction + categorized Expense, and marks the
+    payslip paid. Shared by payslip_pay and salary_pay (see _get_or_create_payslip's
+    docstring for why). Returns (ok: bool, message: str, net: Decimal|None) — never
+    raises for an ordinary "insufficient balance" case, only for real DB errors.
+    """
+    from decimal import Decimal
+    from django.db import transaction as db_tx
+
+    # Same auto-sync as payslip_detail's GET — payment can happen via the quick "دفع"
+    # button without ever viewing the payslip page first, so late_minutes must be
+    # refreshed here too or a payment could go out still showing 0 دقيقة تأخير despite
+    # attendance recording a late arrival.
+    _, live_late_minutes = _attendance_totals_for_period(ps.employee, ps.period_month)
+    if live_late_minutes != ps.late_minutes:
+        ps.late_minutes = live_late_minutes
+
+    plan = []
+    applied_total = Decimal('0')
+    for a in ps.employee.advances.filter(is_settled=False):
+        due = a.due_amount()
+        if due > 0:
+            plan.append((a, due))
+            applied_total += due
+    ps.advance_deducted = applied_total
+    net = ps.net
+    if account.balance < net:
+        return False, f"رصيد {account.name} ({account.balance} ج.م) لا يكفي لصرف الصافي ({net} ج.م).", None
+
+    with db_tx.atomic():
+        for a, due in plan:
+            a.apply(due)
+        desc = f"صرف راتب {ps.period_month} - {ps.employee.username}"
+        Transaction.objects.create(
+            account=account, transaction_type='EXPENSE', amount=net,
+            description=desc,
+            created_by=user,
+        )
+        # Categorized "رواتب موظفين" so this payout also appears in the position
+        # report's "المصروفات حسب التصنيف" box, which only reads sales.Expense.
+        from sales.models import Expense
+        Expense.objects.create(
+            title=desc, category='salary', amount=net,
+            description=f"صرف راتب {ps.employee.username} — {ps.period_month}",
+            user=user,
+        )
+        ps.status = 'paid'
+        ps.paid_at = timezone.now()
+        ps.paid_account = account
+        ps.net_paid = net
+        ps.save()
+    return True, f"تم صرف راتب {ps.period_month} ({net} ج.م) للموظف {ps.employee.username}.", net
+
+
+@login_required
+@require_permission('financial', 'manage')
+def payslip_generate(request, salary_pk):
+    """Create (or open) this period's payslip for an employee — see
+    _get_or_create_payslip for what actually happens."""
+    from .payroll_models import EmployeeSalary
+    cfg = get_object_or_404(EmployeeSalary, pk=salary_pk)
+    period = request.POST.get('period') or request.GET.get('period') or _current_period()
+    ps, created = _get_or_create_payslip(cfg, period)
+    if created:
         messages.success(request, f"تم إنشاء قسيمة راتب {period} للموظف {cfg.employee.username}.")
     return redirect('financial:payslip_detail', pk=ps.pk)
 
@@ -1289,7 +1519,33 @@ def payslip_detail(request, pk):
             due = sum((a.due_amount() for a in ps.employee.advances.filter(is_settled=False)), Decimal('0'))
             ps.advance_deducted = due
             ps.save(update_fields=['advance_deducted'])
+        elif action == 'refresh_attendance':
+            # Re-pull from الغياب والتأخير — needed when attendance for this month gets
+            # entered/edited AFTER the payslip was already generated (the initial pull
+            # only happens once, at creation time, in payslip_generate).
+            days_absent, late_minutes = _attendance_totals_for_period(ps.employee, ps.period_month)
+            ps.days_absent = days_absent
+            ps.late_minutes = late_minutes
+            ps.save(update_fields=['days_absent', 'late_minutes'])
+            messages.success(request, "تم تحديث الغياب والتأخير من سجلات الحضور.")
         return redirect('financial:payslip_detail', pk=pk)
+
+    # Auto-sync late_minutes with الغياب والتأخير on every view of a draft payslip —
+    # the initial pull in _get_or_create_payslip only happens once, at creation time, so
+    # if a payslip gets created early in the month (e.g. from the "دفع" quick-pay button)
+    # and attendance for that employee gets entered afterward, the payslip kept showing
+    # "خصم التأخير (0 دقيقة)" forever unless someone remembered to click "تحديث الحضور".
+    # Only late_minutes auto-syncs here (never days_absent) — days_absent has a manual
+    # override field (action='set_absence') an admin may have deliberately typed over
+    # what attendance says, and silently re-overwriting that on every page load would
+    # defeat the override. late_minutes has no such manual editor, so there's nothing to
+    # clobber — it's always meant to equal what الغياب والتأخير currently says.
+    if ps.status != 'paid':
+        _, live_late_minutes = _attendance_totals_for_period(ps.employee, ps.period_month)
+        if live_late_minutes != ps.late_minutes:
+            ps.late_minutes = live_late_minutes
+            ps.save(update_fields=['late_minutes'])
+
     accounts = _exclude_dead_coded_accounts(Account.objects.filter(is_active=True)).order_by('name')
     return render(request, 'financial/payslip_detail.html', {
         'ps': ps, 'accounts': accounts, 'kinds': PayslipAdjustment.KIND_CHOICES,
@@ -1300,8 +1556,6 @@ def payslip_detail(request, pk):
 @require_permission('financial', 'manage')
 def payslip_pay(request, pk):
     from .payroll_models import Payslip
-    from decimal import Decimal
-    from django.db import transaction as db_tx
     ps = get_object_or_404(Payslip, pk=pk)
     if request.method != 'POST':
         return redirect('financial:payslip_detail', pk=pk)
@@ -1315,45 +1569,11 @@ def payslip_pay(request, pk):
         return redirect('financial:payslip_detail', pk=pk)
 
     account = get_object_or_404(Account, id=request.POST.get('account_id'))
-
-    # Recompute the advance deduction from live balances and plan what to apply.
-    plan = []
-    applied_total = Decimal('0')
-    for a in ps.employee.advances.filter(is_settled=False):
-        due = a.due_amount()
-        if due > 0:
-            plan.append((a, due))
-            applied_total += due
-    ps.advance_deducted = applied_total
-    net = ps.net
-    if account.balance < net:
-        messages.error(request, f"رصيد {account.name} ({account.balance} ج.م) لا يكفي لصرف الصافي ({net} ج.م).")
-        return redirect('financial:payslip_detail', pk=pk)
-
-    with db_tx.atomic():
-        for a, due in plan:
-            a.apply(due)
-        desc = f"صرف راتب {ps.period_month} - {ps.employee.username}"
-        Transaction.objects.create(
-            account=account, transaction_type='EXPENSE', amount=net,
-            description=desc,
-            created_by=request.user,
-        )
-        # Same cash outflow, categorized as "رواتب موظفين" so it shows up in the
-        # position report's "المصروفات حسب التصنيف" box (see salary_pay for the
-        # identical fix on the legacy quick-pay flow).
-        from sales.models import Expense
-        Expense.objects.create(
-            title=desc, category='salary', amount=net,
-            description=f"صرف راتب {ps.employee.username} — {ps.period_month}",
-            user=request.user,
-        )
-        ps.status = 'paid'
-        ps.paid_at = timezone.now()
-        ps.paid_account = account
-        ps.net_paid = net
-        ps.save()
-    messages.success(request, f"تم صرف راتب {ps.period_month} ({net} ج.م) للموظف {ps.employee.username}.")
+    ok, message, net = _pay_payslip(ps, account, request.user)
+    if ok:
+        messages.success(request, message)
+    else:
+        messages.error(request, message)
     return redirect('financial:payslip_detail', pk=pk)
 
 

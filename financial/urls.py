@@ -41,6 +41,7 @@ urlpatterns = [
     path('accounts/<int:pk>/', views.account_detail, name='account_detail'),
 
     # Salaries & Payroll (Normal User Pages)
+    path('salaries/attendance/', views.attendance_daily, name='attendance_daily'),
     path('salaries/attendance-settings/', views.attendance_settings, name='attendance_settings'),
     path('salaries/', views.salary_list, name='salary_list'),
     path('salaries/create/', views.salary_create, name='salary_create'),
