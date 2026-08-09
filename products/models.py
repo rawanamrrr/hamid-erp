@@ -632,9 +632,23 @@ class Product(models.Model):
         first_img = self.images.first()
         return first_img.image_data if first_img else None
 
+    # Units that only make sense for a fabric/clothes store (متر/ياردة/رول) or a
+    # pharmacy (شريط/أمبول) — hidden for market_type='cafe' so a cafe's "وحدة القياس"/
+    # "الوحدة الفرعية" dropdown isn't cluttered with units it will never use. Not
+    # removed from UNIT_CHOICES itself since that list is shared by every market type
+    # this codebase serves (clothes/pharmacy/electronics/grocery stores still need them).
+    _CAFE_IRRELEVANT_UNITS = {'MTR', 'YRD', 'ROLL', 'STRIP', 'AMP'}
+
     @classmethod
     def get_combined_unit_choices(cls):
         choices = list(cls.UNIT_CHOICES)
+        try:
+            from settings.models import SystemSetting
+            settings_obj = SystemSetting.objects.first()
+            if settings_obj and settings_obj.market_type == 'cafe':
+                choices = [(k, v) for k, v in choices if k not in cls._CAFE_IRRELEVANT_UNITS]
+        except Exception:
+            pass
         existing = {k for k, v in choices}
         try:
             from products.models import UnitOfMeasure

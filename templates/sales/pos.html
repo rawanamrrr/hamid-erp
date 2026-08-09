@@ -17,6 +17,16 @@
     .checkout-scrollbar::-webkit-scrollbar-track { background: transparent; }
     .checkout-scrollbar::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 999px; }
     .checkout-scrollbar::-webkit-scrollbar-thumb:hover { background-color: #94a3b8; }
+
+    /* Same idea for the category filter chips row — it scrolls horizontally when there
+       are more categories than fit, but had no visible/draggable scrollbar affordance
+       (no-scrollbar hid it entirely), so a cashier had no hint or way to grab-scroll to
+       the categories off the right edge. */
+    .category-scrollbar { scrollbar-width: thin; scrollbar-color: #cbd5e1 transparent; }
+    .category-scrollbar::-webkit-scrollbar { height: 8px; }
+    .category-scrollbar::-webkit-scrollbar-track { background: transparent; }
+    .category-scrollbar::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 999px; }
+    .category-scrollbar::-webkit-scrollbar-thumb:hover { background-color: #94a3b8; }
 </style>
 {% endblock %}
 
@@ -391,7 +401,7 @@
                             d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
                     </svg>
                 </div>
-                <div class="flex-1 flex gap-1.5 overflow-x-auto items-center no-scrollbar" id="categoryFilters">
+                <div class="flex-1 flex gap-1.5 overflow-x-auto items-center category-scrollbar" id="categoryFilters">
                     <button onclick="filterCategory('all')"
                         class="px-4 py-2 bg-gray-800 text-white rounded-lg text-xs whitespace-nowrap font-bold shadow-sm">الكل</button>
                     {% for category in categories %}
@@ -1490,10 +1500,6 @@
                 <div class="bg-amber-50 border-r-4 border-amber-400 p-4 rounded-l-lg text-sm text-amber-800">
                     <strong><i class="fa-solid fa-lightbulb"></i> نصائح هامة:</strong>
                     <ul class="list-disc list-inside mt-2 space-y-1">
-                        <li>يتم تحديث <strong>السعر المطبق</strong> تلقائياً بناءً على فئة العميل المختار (قطاعي، نص
-                            جملة، جملة).</li>
-                        <li>يتم الحفظ تلقائياً كـ <strong>مسودة</strong> كلما أضفت منتجاً لتجنب فقدان البيانات إذا
-                            انقطعت الكهرباء أو أغلقت الصفحة.</li>
                         <li>يمكنك <strong>تعديل السعر أو الكمية أو إزالة المنتج</strong> من السلة بالضغط على الأزرار
                             الموجودة بجانب كل منتج.</li>
                     </ul>
@@ -4438,13 +4444,25 @@
         }
 
         function openPaymentModal() {
-            // Payment is inline — just validate, sync total, and highlight active method button
+            // Payment is inline — just validate, sync total, and focus the amount field.
+            // Focuses payReceivedInput (not the payBtnCash method button) specifically so
+            // the Enter/Ctrl+Enter "save & print"/"save" shortcuts fire immediately after
+            // F9 — those shortcuts only arm once focus is actually inside one of
+            // payCash/payWallet/payInsta/payReceivedInput (see the keydown handler's
+            // isInPaymentInput check); focusing the button left Enter just re-clicking it
+            // instead of submitting the order.
             dropdownList.classList.add('hidden');
             if (cart.length === 0) {
                 showToast('السلة فارغة!', true);
                 return;
             }
-            document.getElementById('payBtnCash').focus();
+            const receivedInput = document.getElementById('payReceivedInput');
+            if (receivedInput && !receivedInput.closest('.hidden')) {
+                receivedInput.focus();
+                receivedInput.select();
+            } else {
+                document.getElementById('payBtnCash').focus();
+            }
         }
 
         function closePaymentModal() {

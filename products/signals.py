@@ -77,10 +77,25 @@ def create_default_warehouse(sender, **kwargs):
         # 4. Seed default Sizes
         from .models import Size
         if not Size.objects.exists():
-            alpha_sizes = [('S', 0), ('M', 1), ('L', 2), ('XL', 3), ('XXL', 4)]
-            numeric_sizes = [('38', 10), ('40', 11), ('42', 12), ('44', 13), ('46', 14)]
+            # Numeric sizes (38/40/42/44/46) and XL/XXL are shoe/clothing sizes — only
+            # seeded for a clothes store. A cafe/restaurant (or any other market type)
+            # never needs them, and having them pre-seeded just clutters the size picker
+            # on every product. S/M/L stay universal (also used for drink/portion sizes).
+            try:
+                from settings.models import SystemSetting
+                settings_obj = SystemSetting.objects.first()
+                is_clothes = bool(settings_obj and settings_obj.market_type == 'clothes')
+            except Exception:
+                is_clothes = False
+
+            alpha_sizes = [('S', 0), ('M', 1), ('L', 2)]
+            if is_clothes:
+                alpha_sizes += [('XL', 3), ('XXL', 4)]
             for name, order in alpha_sizes:
                 Size.objects.get_or_create(name=name, defaults={'size_type': 'alpha', 'sort_order': order})
-            for name, order in numeric_sizes:
-                Size.objects.get_or_create(name=name, defaults={'size_type': 'numeric', 'sort_order': order})
+
+            if is_clothes:
+                numeric_sizes = [('38', 10), ('40', 11), ('42', 12), ('44', 13), ('46', 14)]
+                for name, order in numeric_sizes:
+                    Size.objects.get_or_create(name=name, defaults={'size_type': 'numeric', 'sort_order': order})
             print("Seeded default Size records")

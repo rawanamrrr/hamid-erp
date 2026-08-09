@@ -17,20 +17,14 @@
       <button onclick="quickAdd('S','alpha')" class="quick-btn">S</button>
       <button onclick="quickAdd('M','alpha')" class="quick-btn">M</button>
       <button onclick="quickAdd('L','alpha')" class="quick-btn">L</button>
-      <button onclick="quickAdd('XL','alpha')" class="quick-btn">XL</button>
-      <button onclick="quickAdd('XXL','alpha')" class="quick-btn">XXL</button>
-      <button onclick="quickAdd('38','numeric')" class="quick-btn">38</button>
-      <button onclick="quickAdd('40','numeric')" class="quick-btn">40</button>
-      <button onclick="quickAdd('42','numeric')" class="quick-btn">42</button>
-      <button onclick="quickAdd('44','numeric')" class="quick-btn">44</button>
-      <button onclick="quickAdd('46','numeric')" class="quick-btn">46</button>
+      <button onclick="quickAdd('Single','custom')" class="quick-btn">Single</button>
+      <button onclick="quickAdd('double','alpha')" class="quick-btn">Double</button>
     </div>
     <form method="post" action="{% url 'size_create' %}" class="flex gap-3">
       {% csrf_token %}
       <input name="name" id="customSizeName" type="text" placeholder="مقاس مخصص..." class="flex-1 px-4 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-200">
       <select name="size_type" class="px-4 py-2 border border-gray-200 rounded-xl text-sm">
         <option value="alpha">حروف</option>
-        <option value="numeric">أرقام</option>
         <option value="custom">مخصص</option>
       </select>
       <button type="submit" class="bg-teal-600 hover:bg-teal-700 text-white px-5 py-2 rounded-xl text-sm font-semibold transition">إضافة</button>
