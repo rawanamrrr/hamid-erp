@@ -14,9 +14,11 @@ urlpatterns = [
     path('waiter/tables/<int:table_id>/unreserve/', views.unreserve_table, name='unreserve_table'),
     path('waiter/tables/<int:table_id>/', views.waiter_order_screen, name='waiter_order'),
     path('waiter/tables/<int:table_id>/add-items/', views.waiter_open_or_append, name='waiter_add_items'),
+    path('waiter/tables/<int:table_id>/ensure-order/', views.waiter_ensure_order, name='waiter_ensure_order'),
     path('waiter/order/new/', views.waiter_new_order_no_table, name='waiter_new_order_no_table'),
     path('waiter/order/<int:order_id>/', views.waiter_order_screen_no_table, name='waiter_order_no_table'),
     path('waiter/order/<int:order_id>/add-items/', views.waiter_add_items_no_table, name='waiter_add_items_no_table'),
+    path('waiter/order/<int:order_id>/set-customer/', views.waiter_set_order_customer, name='waiter_set_order_customer'),
     path('order-item/<int:item_id>/void/', views.void_order_item, name='void_order_item'),
     path('order/<int:order_id>/void/', views.void_order, name='void_order'),
     path('order/<int:order_id>/close/', views.close_check, name='close_check'),
@@ -67,4 +69,5 @@ urlpatterns = [
     path('modifiers/add/', views.modifier_group_create, name='modifier_group_create'),
     path('modifiers/<int:pk>/edit/', views.modifier_group_update, name='modifier_group_update'),
     path('modifiers/<int:pk>/delete/', views.modifier_group_delete, name='modifier_group_delete'),
+    path('modifiers/option/<int:modifier_id>/recipe/', views.modifier_recipe_edit, name='modifier_recipe_edit'),
 ]

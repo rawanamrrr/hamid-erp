@@ -4,6 +4,7 @@ from decimal import Decimal
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db import transaction as db_transaction
+from django.db.models import Exists as _Exists, OuterRef as _OuterRef
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -405,6 +406,14 @@ def _add_items_to_order(request, order, items, branch):
     if new_items and order.kitchen_status in (Order.PREP_READY, Order.PREP_DELIVERED):
         order.kitchen_status = Order.PREP_PENDING
         update_fields.append('kitchen_status')
+    # Whoever is actually adding items owns the "waiter" credit for this order — it was
+    # otherwise locked in forever to whichever waiter first touched the table (even just
+    # to attach a customer via waiter_ensure_order, before any food was ever added), so
+    # e.g. hana taking over a table rawan had only opened/assigned a customer to still
+    # showed the whole order as rawan's on مبيعات كل ويتر. Last waiter to add items wins.
+    if new_items and order.waiter_id != request.user.id:
+        order.waiter = request.user
+        update_fields.append('waiter')
     order.save(update_fields=update_fields)
 
     push_event('kds', branch.id, {
@@ -434,6 +443,34 @@ def waiter_order_screen(request, table_id):
     context = _waiter_menu_context(order)
     context.update({'branch': branch, 'table': table, 'order': order})
     return render(request, 'restaurant/waiter_order.html', context)
+
+
+def _get_or_create_table_order(table, request, branch, shift):
+    """The table's open tab, creating an empty one if none exists yet. Shared by
+    waiter_open_or_append (which then adds items on top) and waiter_ensure_order (called
+    when a waiter wants to attach a customer to a still-empty table, before any item has
+    been ordered — see waiter_order.html's "إضافة عميل" button)."""
+    order = table.open_order
+    created = False
+    if order is None:
+        from sales.services import current_vat_snapshot
+        _vat_rate_snap, _vat_included_snap = current_vat_snapshot()
+        order = Order.objects.create(
+            user=request.user,
+            shift=shift,
+            warehouse=branch,
+            order_type=Order.ORDER_TYPE_DINE_IN,
+            table=table,
+            waiter=request.user,
+            is_open=True,
+            is_completed=False,
+            vat_rate_snapshot=_vat_rate_snap,
+            vat_included_snapshot=_vat_included_snap,
+        )
+        table.status = Table.STATUS_BUSY
+        table.save(update_fields=['status'])
+        created = True
+    return order, created
 
 
 @login_required
@@ -469,31 +506,37 @@ def waiter_open_or_append(request, table_id):
     shift = get_active_shift()
 
     with db_transaction.atomic():
-        order = table.open_order
-        created = False
-        if order is None:
-            from sales.services import current_vat_snapshot
-            _vat_rate_snap, _vat_included_snap = current_vat_snapshot()
-            order = Order.objects.create(
-                user=request.user,
-                shift=shift,
-                warehouse=branch,
-                order_type=Order.ORDER_TYPE_DINE_IN,
-                table=table,
-                waiter=request.user,
-                is_open=True,
-                is_completed=False,
-                vat_rate_snapshot=_vat_rate_snap,
-                vat_included_snapshot=_vat_included_snap,
-            )
-            table.status = Table.STATUS_BUSY
-            table.save(update_fields=['status'])
-            created = True
-
+        order, created = _get_or_create_table_order(table, request, branch, shift)
         _add_items_to_order(request, order, items, branch)
 
     return JsonResponse({'status': 'ok', 'order_id': order.id, 'created': created,
                          'total_amount': float(order.total_amount)})
+
+
+@login_required
+@require_permission('waiter', 'add_customer')
+@require_POST
+def waiter_ensure_order(request, table_id):
+    """Open (or return) this table's empty tab with no items yet — lets a waiter attach a
+    customer to a table BEFORE anything has been ordered (see waiter_order.html's
+    "إضافة عميل" button, which used to only appear once an order already existed).
+    """
+    table = get_object_or_404(Table, pk=table_id)
+    branch = table.branch
+    if not branch:
+        return JsonResponse({'status': 'error', 'message': 'لا يوجد فرع نشط'}, status=400)
+    shift = get_active_shift()
+    with db_transaction.atomic():
+        order, created = _get_or_create_table_order(table, request, branch, shift)
+
+    # Same live-update the item-adding path already fires (_add_items_to_order) — so the
+    # table map (waiter_tables.html), if open in another tab/window, flips this table to
+    # "مشغولة" over the WebSocket immediately, no manual refresh needed anywhere.
+    if created:
+        push_event('waiter', branch.id, {
+            'event': 'table_status', 'table_id': table.id, 'status': table.status,
+        })
+    return JsonResponse({'status': 'ok', 'order_id': order.id, 'created': created})
 
 
 @login_required
@@ -571,6 +614,51 @@ def waiter_add_items_no_table(request, order_id):
 
     return JsonResponse({'status': 'ok', 'order_id': order.id, 'created': False,
                          'total_amount': float(order.total_amount)})
+
+
+@login_required
+@require_permission('waiter', 'add_customer')
+@require_POST
+def waiter_set_order_customer(request, order_id):
+    """Attach a customer to a waiter-taken order — a gated action (صلاحيات ← الويتر ←
+    "إضافة عميل جديد") since not every waiter role should be able to register new
+    customers; a role without it simply never sees the button (see waiter_order.html).
+    The customer itself is created/looked-up via the same crm quick-create/lookup
+    endpoints the cashier's phone-first delivery-client modal already uses — this view
+    just does the last step of linking whichever customer id the waiter ended up with
+    onto the current order.
+    """
+    order = get_object_or_404(Order, pk=order_id)
+    try:
+        data = json.loads(request.body or b'{}')
+    except (ValueError, json.JSONDecodeError):
+        return JsonResponse({'status': 'error', 'message': 'بيانات غير صالحة'}, status=400)
+
+    customer_id = data.get('customer_id')
+    if not customer_id:
+        return JsonResponse({'status': 'error', 'message': 'لم يتم تحديد عميل'}, status=400)
+
+    from crm.models import Customer
+    customer = Customer.objects.filter(pk=customer_id).first()
+    if not customer:
+        return JsonResponse({'status': 'error', 'message': 'العميل غير موجود'}, status=404)
+
+    order.customer = customer
+    order.save(update_fields=['customer'])
+
+    # Notify any open table map (waiter_tables.html) live — covers the case where the
+    # order already existed (waiter_ensure_order's own push only fires when it had to
+    # create a brand new order; re-attaching/changing the customer on an order that was
+    # already there otherwise left every OTHER open tab showing stale table info until
+    # manually refreshed).
+    if order.table_id and order.warehouse_id:
+        push_event('waiter', order.warehouse_id, {
+            'event': 'table_status', 'table_id': order.table_id, 'status': order.table.status,
+        })
+    # Plain name only — Customer.__str__() appends "(قطاعي/جملة/...)", which reads fine
+    # in an admin list but is just noise next to a name on the waiter's own screens.
+    display_name = f"{customer.first_name} {customer.last_name}".strip()
+    return JsonResponse({'status': 'ok', 'customer': {'id': customer.id, 'name': display_name}})
 
 
 def _print_kitchen_tickets(request, order, items):
@@ -945,6 +1033,23 @@ def _deduct_recipe_for_item(item, user):
     recipe = Recipe.for_product(item.product, size_id=item.variant.size_id if item.variant_id else None)
     if recipe:
         _deduct_recipe(recipe, item.quantity, item.order.warehouse, user, item.order, item.product.name)
+
+    # Selected أضافات can carry their own recipe too (e.g. "شوت إضافي" consumes an extra
+    # shot of coffee beans) — deducted alongside the base product's, same trigger point
+    # (kitchen-ready) and same idempotency guard (recipe_deducted below covers both).
+    # item.modifiers is the cart snapshot saved at order time (sales/services.py
+    # issue_cart_items) — each entry only has a modifier `id` if it was picked through a
+    # picker built after this feature shipped; older/legacy entries without an id are
+    # silently skipped rather than erroring.
+    for mod in (item.modifiers or []):
+        mod_id = mod.get('id') if isinstance(mod, dict) else None
+        if not mod_id:
+            continue
+        mod_recipe = Recipe.for_modifier(mod_id)
+        if mod_recipe:
+            _deduct_recipe(mod_recipe, item.quantity, item.order.warehouse, user, item.order,
+                           f"{item.product.name} — {mod.get('option', '')}")
+
     item.recipe_deducted = True
     item.save(update_fields=['recipe_deducted'])
 
@@ -1461,6 +1566,7 @@ def close_check(request, order_id):
 @login_required
 @require_permission('financial', 'view')
 def waiter_sales_report(request):
+    from decimal import Decimal
     from django.db.models import Sum, Count, Q
     branch, _ = _active_branch(request)
     orders_all = Order.objects.exclude(waiter__isnull=True)
@@ -1480,7 +1586,11 @@ def waiter_sales_report(request):
     voided_counts = {v['waiter_id']: v['c'] for v in voided_qs}
 
     for r in rows:
-        r['avg_order_value'] = (r['total_sales'] / r['orders_count']) if r['orders_count'] else 0
+        # SQLite's SUM() does its arithmetic in floating point internally, so a single
+        # order's total (e.g. 226.80) can come back as 226.800000000004 once it's passed
+        # through Sum() — quantize immediately or those noise digits print verbatim.
+        r['total_sales'] = Decimal(str(r['total_sales'] or 0)).quantize(Decimal('0.01'))
+        r['avg_order_value'] = (r['total_sales'] / r['orders_count']).quantize(Decimal('0.01')) if r['orders_count'] else Decimal('0.00')
         r['voided_count'] = voided_counts.get(r['waiter__id'], 0)
     return render(request, 'restaurant/waiter_sales_report.html', {'branch': branch, 'rows': rows})
 
@@ -1786,6 +1896,75 @@ def recipe_edit(request, product_id):
     })
 
 
+@login_required
+@require_permission('products', 'edit')
+def modifier_recipe_edit(request, modifier_id):
+    """Wosfa (raw-material ingredients) for a single الإضافات option — e.g. "شوت إضافي"
+    consumes one extra shot of coffee beans. Reuses Recipe/RecipeItem exactly like a
+    product's recipe_edit above, just without the per-size tabs or sub-recipe rows an
+    add-on option doesn't need. Deducted at kitchen-ready time alongside the base
+    product's own recipe — see _deduct_recipe_for_item.
+    """
+    modifier = get_object_or_404(MenuModifier, pk=modifier_id)
+    recipe = Recipe.objects.filter(modifier=modifier).first()
+
+    if request.method == 'POST':
+        action = request.POST.get('action')
+
+        if action == 'remove_recipe':
+            if recipe:
+                recipe.delete()
+                messages.success(request, "تم إلغاء وصفة الإضافة — لن يُخصم أي خامة عند اختيارها.")
+            return redirect('restaurant:modifier_recipe_edit', modifier_id=modifier.id)
+
+        if recipe is None:
+            recipe = Recipe.objects.create(modifier=modifier)
+
+        recipe.notes = request.POST.get('notes', '').strip()
+        recipe.is_active = request.POST.get('is_active') == 'on'
+        recipe.save(update_fields=['notes', 'is_active'])
+
+        recipe.items.all().delete()
+        ingredient_ids = request.POST.getlist('ingredient_id')
+        quantities = request.POST.getlist('quantity')
+        units = request.POST.getlist('unit')
+        for ing_id, qty, unit in zip(ingredient_ids, quantities, units):
+            if not ing_id or not qty:
+                continue
+            try:
+                qty_val = Decimal(str(qty))
+            except Exception:
+                continue
+            if qty_val <= 0:
+                continue
+            ingredient = Product.objects.filter(id=ing_id).first()
+            if not ingredient:
+                continue
+            valid_units = {u for u, _ in compatible_units(ingredient.unit_measure)}
+            if unit not in valid_units:
+                unit = ingredient.unit_measure
+            RecipeItem.objects.create(recipe=recipe, ingredient=ingredient, quantity=qty_val, unit=unit)
+
+        messages.success(request, "تم حفظ وصفة الإضافة بنجاح.")
+        return redirect('restaurant:modifier_recipe_edit', modifier_id=modifier.id)
+
+    ingredients = (Product.objects.filter(is_active=True, is_raw_material=True)
+                   .order_by('name').only('id', 'name', 'sku', 'unit_measure'))
+    recipe_items = recipe.items.select_related('ingredient').all() if recipe else []
+    ingredient_unit_choices = {
+        ing.id: [{'value': u, 'label': label} for u, label in compatible_units(ing.unit_measure)]
+        for ing in ingredients
+    }
+    ingredient_base_units = {ing.id: ing.unit_measure for ing in ingredients}
+
+    return render(request, 'restaurant/modifier_recipe_edit.html', {
+        'modifier': modifier, 'recipe': recipe, 'recipe_items': recipe_items,
+        'ingredients': ingredients,
+        'ingredient_unit_choices_json': json.dumps(ingredient_unit_choices),
+        'ingredient_base_units_json': json.dumps(ingredient_base_units),
+    })
+
+
 # ─────────────────────────────────────────────
 #  SUB-RECIPES (وصفات فرعية) — reusable batch recipes (e.g. عجينة) pulled into one or
 #  more product recipes as a single line, instead of repeating the same ingredients in
@@ -2002,10 +2181,16 @@ def _modifier_group_form(request, group):
             group.products.set(request.POST.getlist('product_ids'))
             group.categories.set(request.POST.getlist('category_ids'))
 
-            group.options.all().delete()
+            # Update existing options in place (matched by option_id) instead of
+            # delete-all-recreate — recreating them handed out a brand new MenuModifier.id
+            # on every save, which silently orphaned/CASCADE-deleted any Recipe already
+            # linked to that option (see Recipe.modifier) the next time someone just
+            # renamed the group or tweaked another option.
+            ids = request.POST.getlist('option_id')
             names = request.POST.getlist('option_name')
             deltas = request.POST.getlist('option_price_delta')
-            for i, (opt_name, delta) in enumerate(zip(names, deltas)):
+            kept_ids = set()
+            for i, (opt_id, opt_name, delta) in enumerate(zip(ids, names, deltas)):
                 opt_name = opt_name.strip()
                 if not opt_name:
                     continue
@@ -2013,7 +2198,17 @@ def _modifier_group_form(request, group):
                     delta_val = Decimal(str(delta or 0))
                 except (InvalidOperation, TypeError):
                     delta_val = Decimal('0')
-                MenuModifier.objects.create(group=group, name=opt_name, price_delta=delta_val, sort_order=i)
+                existing = group.options.filter(pk=opt_id).first() if opt_id else None
+                if existing:
+                    existing.name = opt_name
+                    existing.price_delta = delta_val
+                    existing.sort_order = i
+                    existing.save(update_fields=['name', 'price_delta', 'sort_order'])
+                    kept_ids.add(existing.pk)
+                else:
+                    new_opt = MenuModifier.objects.create(group=group, name=opt_name, price_delta=delta_val, sort_order=i)
+                    kept_ids.add(new_opt.pk)
+            group.options.exclude(pk__in=kept_ids).delete()
 
             messages.success(request, "تم حفظ مجموعة الاختيارات بنجاح.")
             return redirect('restaurant:modifier_group_list')
@@ -2025,7 +2220,9 @@ def _modifier_group_form(request, group):
         'all_categories': all_categories,
         'selected_product_ids': list(group.products.values_list('id', flat=True)) if group else [],
         'selected_category_ids': list(group.categories.values_list('id', flat=True)) if group else [],
-        'options': list(group.options.order_by('sort_order').values('name', 'price_delta')) if group else [],
+        'options': list(group.options.order_by('sort_order').annotate(
+            has_recipe=_Exists(Recipe.objects.filter(modifier_id=_OuterRef('pk')))
+        ).values('id', 'name', 'price_delta', 'has_recipe')) if group else [],
     })
 
 

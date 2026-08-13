@@ -1,3 +1,4 @@
+{% load rbac_tags %}
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
@@ -85,37 +86,120 @@
             
             <div class="p-6 bg-slate-50 max-h-[60vh] overflow-y-auto">
                 <div class="space-y-3">
-                    <!-- Dashboard Check -->
+                    {% with su=request.user.is_superuser %}
+                    {% if request.user|can_access:"dashboard:view" or su %}
                     <div class="p-4 bg-white rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between">
                         <div class="flex items-center gap-3">
                             <span class="w-8 h-8 bg-blue-100 text-blue-600 rounded-lg flex items-center justify-center"><i class="fas fa-chart-pie"></i></span>
                             <span class="font-bold text-slate-700">لوحة التحكم</span>
                         </div>
-                        <a id="link-dashboard" href="/" class="hidden text-xs bg-indigo-500 text-white px-3 py-1 rounded-lg font-bold hover:bg-indigo-600 transition">دخول</a>
-                        <span id="fail-dashboard" class="text-xs bg-red-50 text-red-500 px-2 py-1 rounded-lg font-bold">مغلق</span>
+                        <a href="{% url 'dashboard' %}" class="text-xs bg-indigo-500 text-white px-3 py-1 rounded-lg font-bold hover:bg-indigo-600 transition">دخول</a>
                     </div>
+                    {% endif %}
 
-                    <!-- POS Check -->
+                    {% if request.user|can_access:"pos:view" or su %}
                     <div class="p-4 bg-white rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between">
                         <div class="flex items-center gap-3">
                             <span class="w-8 h-8 bg-emerald-100 text-emerald-600 rounded-lg flex items-center justify-center"><i class="fas fa-cash-register"></i></span>
-                            <span class="font-bold text-slate-700">نقطة البيع (POS)</span>
+                            <span class="font-bold text-slate-700">نقطة البيع (الكاشير)</span>
                         </div>
-                        <a id="link-pos" href="/sales/pos/" class="hidden text-xs bg-emerald-500 text-white px-3 py-1 rounded-lg font-bold hover:bg-emerald-600 transition">دخول</a>
-                        <span id="fail-pos" class="text-xs bg-red-50 text-red-500 px-2 py-1 rounded-lg font-bold">مغلق</span>
+                        <a href="{% url 'pos_view' %}" class="text-xs bg-emerald-500 text-white px-3 py-1 rounded-lg font-bold hover:bg-emerald-600 transition">دخول</a>
                     </div>
+                    {% endif %}
 
-                    <!-- Products Check -->
+                    {% if request.user|can_access:"waiter:view" or su %}
+                    <div class="p-4 bg-white rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between">
+                        <div class="flex items-center gap-3">
+                            <span class="w-8 h-8 bg-teal-100 text-teal-600 rounded-lg flex items-center justify-center"><i class="fas fa-chair"></i></span>
+                            <span class="font-bold text-slate-700">الويتر</span>
+                        </div>
+                        <a href="{% url 'restaurant:waiter_tables' %}" class="text-xs bg-teal-500 text-white px-3 py-1 rounded-lg font-bold hover:bg-teal-600 transition">دخول</a>
+                    </div>
+                    {% endif %}
+
+                    {% if request.user|can_access:"kitchen:view" or su %}
+                    <div class="p-4 bg-white rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between">
+                        <div class="flex items-center gap-3">
+                            <span class="w-8 h-8 bg-orange-100 text-orange-600 rounded-lg flex items-center justify-center"><i class="fas fa-kitchen-set"></i></span>
+                            <span class="font-bold text-slate-700">المطبخ</span>
+                        </div>
+                        <a href="{% url 'restaurant:kds' %}" class="text-xs bg-orange-500 text-white px-3 py-1 rounded-lg font-bold hover:bg-orange-600 transition">دخول</a>
+                    </div>
+                    {% endif %}
+
+                    {% if request.user|can_access:"delivery:view" or su %}
+                    <div class="p-4 bg-white rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between">
+                        <div class="flex items-center gap-3">
+                            <span class="w-8 h-8 bg-cyan-100 text-cyan-600 rounded-lg flex items-center justify-center"><i class="fas fa-motorcycle"></i></span>
+                            <span class="font-bold text-slate-700">الدليفري</span>
+                        </div>
+                        <a href="{% url 'restaurant:delivery_dashboard' %}" class="text-xs bg-cyan-500 text-white px-3 py-1 rounded-lg font-bold hover:bg-cyan-600 transition">دخول</a>
+                    </div>
+                    {% endif %}
+
+                    {% if request.user|can_access:"products:view" or su %}
                     <div class="p-4 bg-white rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between">
                         <div class="flex items-center gap-3">
                             <span class="w-8 h-8 bg-amber-100 text-amber-600 rounded-lg flex items-center justify-center"><i class="fas fa-boxes"></i></span>
-                            <span class="font-bold text-slate-700">إدارة المخزون</span>
+                            <span class="font-bold text-slate-700">إدارة المنتجات والمخزون</span>
                         </div>
-                        <a id="link-products" href="/products/" class="hidden text-xs bg-amber-500 text-white px-3 py-1 rounded-lg font-bold hover:bg-amber-600 transition">دخول</a>
-                        <span id="fail-products" class="text-xs bg-red-50 text-red-500 px-2 py-1 rounded-lg font-bold">مغلق</span>
+                        <a href="{% url 'product_list' %}" class="text-xs bg-amber-500 text-white px-3 py-1 rounded-lg font-bold hover:bg-amber-600 transition">دخول</a>
                     </div>
-                    
-                    <p class="text-[10px] text-slate-400 text-center mt-4">تقوم هذه القائمة بعرض الوحدات الرئيسية المتاحة لك فقط حسب رتبتك.</p>
+                    {% endif %}
+
+                    {% if request.user|can_access:"financial:view" or su %}
+                    <div class="p-4 bg-white rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between">
+                        <div class="flex items-center gap-3">
+                            <span class="w-8 h-8 bg-violet-100 text-violet-600 rounded-lg flex items-center justify-center"><i class="fas fa-vault"></i></span>
+                            <span class="font-bold text-slate-700">الخزنة والمالية</span>
+                        </div>
+                        <a href="{% url 'financial:dashboard' %}" class="text-xs bg-violet-500 text-white px-3 py-1 rounded-lg font-bold hover:bg-violet-600 transition">دخول</a>
+                    </div>
+                    {% endif %}
+
+                    {% if request.user|can_access:"crm:view" or su %}
+                    <div class="p-4 bg-white rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between">
+                        <div class="flex items-center gap-3">
+                            <span class="w-8 h-8 bg-pink-100 text-pink-600 rounded-lg flex items-center justify-center"><i class="fas fa-users"></i></span>
+                            <span class="font-bold text-slate-700">قاعدة بيانات العملاء</span>
+                        </div>
+                        <a href="{% url 'customer_list' %}" class="text-xs bg-pink-500 text-white px-3 py-1 rounded-lg font-bold hover:bg-pink-600 transition">دخول</a>
+                    </div>
+                    {% endif %}
+
+                    {% if request.user|can_access:"sales:view_all" or su %}
+                    <div class="p-4 bg-white rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between">
+                        <div class="flex items-center gap-3">
+                            <span class="w-8 h-8 bg-indigo-100 text-indigo-600 rounded-lg flex items-center justify-center"><i class="fas fa-file-invoice"></i></span>
+                            <span class="font-bold text-slate-700">فواتير المبيعات</span>
+                        </div>
+                        <a href="{% url 'order_list' %}" class="text-xs bg-indigo-500 text-white px-3 py-1 rounded-lg font-bold hover:bg-indigo-600 transition">دخول</a>
+                    </div>
+                    {% endif %}
+
+                    {% if request.user|can_access:"users:view" or su %}
+                    <div class="p-4 bg-white rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between">
+                        <div class="flex items-center gap-3">
+                            <span class="w-8 h-8 bg-slate-200 text-slate-600 rounded-lg flex items-center justify-center"><i class="fas fa-users-gear"></i></span>
+                            <span class="font-bold text-slate-700">المستخدمين والأدوار</span>
+                        </div>
+                        <a href="{% url 'user_list' %}" class="text-xs bg-slate-600 text-white px-3 py-1 rounded-lg font-bold hover:bg-slate-700 transition">دخول</a>
+                    </div>
+                    {% endif %}
+
+                    {% if request.user|can_access:"settings:view" or su %}
+                    <div class="p-4 bg-white rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between">
+                        <div class="flex items-center gap-3">
+                            <span class="w-8 h-8 bg-gray-200 text-gray-600 rounded-lg flex items-center justify-center"><i class="fas fa-gear"></i></span>
+                            <span class="font-bold text-slate-700">إعدادات النظام</span>
+                        </div>
+                        <a href="{% url 'settings_view' %}" class="text-xs bg-gray-600 text-white px-3 py-1 rounded-lg font-bold hover:bg-gray-700 transition">دخول</a>
+                    </div>
+                    {% endif %}
+                    {% endwith %}
+
+                    <p class="empty-state text-sm text-slate-400 text-center py-6 hidden">لا توجد صلاحيات مفعّلة لحسابك حالياً — تواصل مع الإدارة.</p>
+                    <p class="text-[10px] text-slate-400 text-center mt-4">تعرض هذه القائمة فقط الوحدات المتاحة لك فعلياً حسب رتبتك — لا تظهر أي وحدة غير مصرح لك بها.</p>
                 </div>
             </div>
             
@@ -126,60 +210,17 @@
     </div>
 
     <script>
-        // Check permissions via JS/Template Bridge
-        const userPerms = {
-            is_superuser: {% if request.user.is_superuser %}true{% else %}false{% endif %},
-            can_dashboard: false,
-            can_pos: false,
-            can_products: false
-        };
-
-        {% if request.user.is_authenticated %}
-            {% for role in request.user.profile.roles.all %}
-                {% if role.permissions.dashboard %} userPerms.can_dashboard = true; {% endif %}
-                {% if role.permissions.pos %} userPerms.can_pos = true; {% endif %}
-                {% if role.permissions.products %} userPerms.can_products = true; {% endif %}
-            {% endfor %}
-            if (userPerms.is_superuser) {
-                userPerms.can_dashboard = true;
-                userPerms.can_pos = true;
-                userPerms.can_products = true;
-            }
-        {% endif %}
-
-        function updateModalUI() {
-            // Dashboard
-            if (userPerms.can_dashboard) {
-                document.getElementById('link-dashboard').classList.remove('hidden');
-                document.getElementById('fail-dashboard').classList.add('hidden');
-            } else {
-                document.getElementById('link-dashboard').classList.add('hidden');
-                document.getElementById('fail-dashboard').classList.remove('hidden');
-            }
-
-            // POS
-            if (userPerms.can_pos) {
-                document.getElementById('link-pos').classList.remove('hidden');
-                document.getElementById('fail-pos').classList.add('hidden');
-            } else {
-                document.getElementById('link-pos').classList.add('hidden');
-                document.getElementById('fail-pos').classList.remove('hidden');
-            }
-
-            // Products
-            if (userPerms.can_products) {
-                document.getElementById('link-products').classList.remove('hidden');
-                document.getElementById('fail-products').classList.add('hidden');
-            } else {
-                document.getElementById('link-products').classList.add('hidden');
-                document.getElementById('fail-products').classList.remove('hidden');
-            }
-        }
-
+        // The module list above is now rendered entirely server-side (see {% if
+        // request.user|can_access:"module:view" %} per row) — it only ever contains
+        // modules the signed-in user actually has, never a "locked" placeholder for
+        // modules they don't. This just shows a fallback message if that leaves zero rows.
         function openPermissionsModal() {
             const modal = document.getElementById('permsModal');
             const content = document.getElementById('modalContent');
-            updateModalUI();
+            const container = content.querySelector('.space-y-3');
+            const rows = container.querySelectorAll(':scope > div.bg-white');
+            const emptyState = container.querySelector('.empty-state');
+            if (emptyState) emptyState.classList.toggle('hidden', rows.length > 0);
             modal.classList.remove('hidden');
             setTimeout(() => {
                 content.classList.remove('scale-95', 'opacity-0');

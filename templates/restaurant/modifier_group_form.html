@@ -83,10 +83,17 @@
             <div class="space-y-2">
                 <template x-for="(row, idx) in rows" :key="row.key">
                     <div class="flex gap-2 items-center">
+                        <input type="hidden" name="option_id" :value="row.id">
                         <input type="text" name="option_name" x-model="row.name" placeholder="اسم الخيار (مثال: مظبوط)"
                                class="flex-1 border rounded-lg p-2 text-sm">
                         <input type="number" name="option_price_delta" x-model="row.price_delta" step="0.5" placeholder="فرق السعر (اختياري)"
                                class="w-36 border rounded-lg p-2 text-sm">
+                        <template x-if="row.id">
+                            <a :href="'/restaurant/modifiers/option/' + row.id + '/recipe/'"
+                               class="px-2.5 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap"
+                               :class="row.has_recipe ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-gray-50 text-gray-500 border border-gray-200'"
+                               x-text="row.has_recipe ? '✓ وصفة' : 'وصفة الخامات'"></a>
+                        </template>
                         <button type="button" @click="removeRow(idx)" class="text-red-500 text-sm px-2">حذف</button>
                     </div>
                 </template>
@@ -103,12 +110,12 @@ function modifierGroupForm() {
     return {
         rows: [
             {% for o in options %}
-            {key: {{ forloop.counter }}, name: '{{ o.name|escapejs }}', price_delta: '{{ o.price_delta }}'},
+            {key: {{ forloop.counter }}, id: {{ o.id }}, name: '{{ o.name|escapejs }}', price_delta: '{{ o.price_delta }}', has_recipe: {{ o.has_recipe|yesno:"true,false" }}},
             {% endfor %}
         ],
         nextKey: {{ options|length|add:1 }},
         addRow() {
-            this.rows.push({key: this.nextKey++, name: '', price_delta: ''});
+            this.rows.push({key: this.nextKey++, id: null, name: '', price_delta: '', has_recipe: false});
         },
         removeRow(idx) {
             this.rows.splice(idx, 1);

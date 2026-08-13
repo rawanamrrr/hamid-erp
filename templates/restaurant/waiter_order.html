@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load rbac_tags %}
 {% block title %}{% if table %}ترابيزة {{ table.number }}{% else %}طلب #{{ order.id }} (بدون ترابيزة){% endif %}{% endblock %}
 {% block extra_head %}
 <style>
@@ -36,6 +37,20 @@
             <a href="{% url 'restaurant:waiter_tables' %}" class="px-3.5 py-2.5 rounded-xl border border-gray-200 bg-white text-sm font-bold text-gray-600 hover:bg-gray-50 hover:border-gray-300 flex items-center gap-1.5 transition-colors shadow-sm">
                 <i class="fa-solid fa-arrow-right text-xs"></i> <span class="hidden sm:inline">رجوع للترابيزات</span>
             </a>
+            {% if request.user|can_access:"waiter:add_customer" %}
+            <button @click="wcmOpen()" class="px-3.5 py-2.5 rounded-xl border border-gray-200 bg-white text-sm font-bold text-gray-600 hover:bg-gray-50 hover:border-gray-300 flex items-center gap-1.5 transition-colors shadow-sm">
+                <i class="fa-solid fa-user-plus text-xs"></i>
+                <span class="hidden sm:inline" x-text="headerCustomerName ? headerCustomerName : 'إضافة عميل'"></span>
+            </button>
+            {% elif order.customer %}
+            <!-- Read-only for a waiter without waiter:add_customer — they can see WHO the
+                 table is busy for, but there's nothing clickable here to add/change/remove
+                 the customer (that whole action is only in the button above). -->
+            <div class="px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-100 text-sm font-bold text-gray-500 flex items-center gap-1.5">
+                <i class="fa-solid fa-user text-xs"></i>
+                <span class="hidden sm:inline">{{ order.customer.first_name }} {{ order.customer.last_name }}</span>
+            </div>
+            {% endif %}
             <template x-if="orderId">
                 <a :href="'/restaurant/order/' + orderId + '/ticket/'" target="_blank" class="px-3.5 py-2.5 rounded-xl border border-gray-200 bg-white text-sm font-bold text-gray-600 hover:bg-gray-50 hover:border-gray-300 flex items-center gap-1.5 transition-colors shadow-sm">
                     <i class="fa-solid fa-print text-xs"></i> <span class="hidden sm:inline">تذكرة المطبخ</span>
@@ -343,12 +358,55 @@
             </button>
         </div>
     </div>
+
+    <!-- Quick add-customer modal (name + mobile only) — gated by صلاحيات: waiter:add_customer -->
+    <div x-show="wcm.open" x-cloak class="fixed inset-0 bg-black/50 backdrop-blur-[2px] flex items-center justify-center z-50 p-4" @click.self="wcmClose()">
+        <div class="bg-white rounded-3xl p-5 w-full max-w-sm shadow-2xl wo-pop-in">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="font-black text-gray-900 flex items-center gap-2"><i class="fa-solid fa-user-plus text-emerald-500"></i> إضافة عميل للطلب</h3>
+                <button @click="wcmClose()" class="w-8 h-8 rounded-xl bg-gray-50 text-gray-400 hover:bg-gray-100 flex items-center justify-center"><i class="fa-solid fa-xmark text-xs"></i></button>
+            </div>
+
+            <template x-if="wcm.step === 'phone'">
+                <div class="space-y-3">
+                    <label class="block text-xs font-bold text-gray-500">رقم الموبايل</label>
+                    <input type="tel" x-model="wcm.phone" @keydown.enter="wcmLookupPhone()" dir="ltr"
+                           placeholder="01xxxxxxxxx" autofocus
+                           class="w-full border border-gray-200 rounded-xl p-3 text-sm focus:border-emerald-400 outline-none">
+                    <button @click="wcmLookupPhone()" class="w-full py-3 rounded-2xl bg-gradient-to-l from-emerald-600 to-emerald-500 text-white font-black transition-all shadow-md shadow-emerald-100">
+                        متابعة
+                    </button>
+                </div>
+            </template>
+
+            <template x-if="wcm.step === 'new'">
+                <div class="space-y-3">
+                    <p class="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">مفيش عميل مسجل بالرقم ده — أضف اسمه فقط.</p>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 mb-1">رقم الموبايل</label>
+                        <input type="tel" x-model="wcm.phone" dir="ltr" class="w-full border border-gray-200 rounded-xl p-3 text-sm bg-gray-50" disabled>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 mb-1">اسم العميل</label>
+                        <input type="text" x-model="wcm.name" @keydown.enter="wcmCreateClient()" autofocus
+                               class="w-full border border-gray-200 rounded-xl p-3 text-sm focus:border-emerald-400 outline-none">
+                    </div>
+                    <p x-show="wcm.error" x-text="wcm.error" class="text-red-600 text-xs font-bold bg-red-50 rounded-lg px-3 py-2"></p>
+                    <div class="flex gap-2">
+                        <button @click="wcm.step='phone'" class="flex-1 py-3 rounded-2xl border border-gray-200 text-gray-600 font-bold">رجوع</button>
+                        <button @click="wcmCreateClient()" class="flex-1 py-3 rounded-2xl bg-gradient-to-l from-emerald-600 to-emerald-500 text-white font-black shadow-md shadow-emerald-100">حفظ وإضافة</button>
+                    </div>
+                </div>
+            </template>
+        </div>
+    </div>
 </div>
 
 <script>
 function waiterOrder() {
     return {
         orderId: {{ order.id|default:"null" }},
+        tableId: {{ table.id|default:"null" }},
         addItemsUrl: {% if table %}"{% url 'restaurant:waiter_add_items' table.id %}"{% else %}"{% url 'restaurant:waiter_add_items_no_table' order.id %}"{% endif %},
         order: {{ order_json|default:"null"|safe }},
         modifierMap: {{ modifier_map_json|default:"{}"|safe }},
@@ -359,6 +417,88 @@ function waiterOrder() {
         customers: {{ customers_json|default:"[]"|safe }},
         customerId: '',
         customerSearch: '',
+        headerCustomerName: {% if order.customer %}'{{ order.customer.first_name|escapejs }} {{ order.customer.last_name|escapejs }}'{% else %}''{% endif %},
+        wcm: {open: false, step: 'phone', phone: '', name: '', found: null, error: ''},
+        wcmOpen() {
+            this.wcm = {open: true, step: 'phone', phone: '', name: '', found: null, error: ''};
+        },
+        wcmClose() { this.wcm.open = false; },
+        wcmLookupPhone() {
+            const phone = this.wcm.phone.trim();
+            if (!phone) return;
+            fetch(`/crm/api/customer-lookup/?phone=${encodeURIComponent(phone)}`)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.found) {
+                        this.wcm.found = data.customer;
+                        this.wcmAttach(data.customer.id, data.customer.name);
+                    } else {
+                        this.wcm.found = null;
+                        this.wcm.step = 'new';
+                    }
+                });
+        },
+        wcmCreateClient() {
+            const phone = this.wcm.phone.trim();
+            const name = this.wcm.name.trim();
+            if (!name) { this.wcm.error = 'من فضلك أدخل اسم العميل'; return; }
+            fetch(`/crm/api/customer-quick-create/`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
+                body: JSON.stringify({ phone, name }),
+            })
+            .then(r => r.json())
+            .then(res => {
+                if (res.status === 'ok') {
+                    this.wcmAttach(res.customer.id, res.customer.name);
+                } else {
+                    this.wcm.error = res.message || 'حدث خطأ';
+                }
+            });
+        },
+        wcmAttach(customerId, name) {
+            // A fresh table has no order yet (nothing's been added to the cart) — open an
+            // empty tab first so there's something to attach the customer to, instead of
+            // hiding the button until an item exists.
+            if (!this.orderId) {
+                if (!this.tableId) { this.wcmClose(); return; }
+                fetch(`/restaurant/waiter/tables/${this.tableId}/ensure-order/`, {
+                    method: 'POST',
+                    headers: { 'X-CSRFToken': '{{ csrf_token }}' },
+                    // Survives the page unloading mid-request — e.g. the waiter clicks
+                    // "رجوع للترابيزات" right after this fires, before the response comes
+                    // back. Without keepalive, navigating away can abort the request
+                    // entirely, leaving the table's status update lost (not just delayed).
+                    keepalive: true,
+                }).then(r => r.json()).then(res => {
+                    if (res.status === 'ok') {
+                        this.orderId = res.order_id;
+                        this._wcmAttachToOrder(customerId, name);
+                    } else {
+                        this.wcm.error = res.message || 'حدث خطأ';
+                    }
+                });
+                return;
+            }
+            this._wcmAttachToOrder(customerId, name);
+        },
+        _wcmAttachToOrder(customerId, name) {
+            fetch(`/restaurant/waiter/order/${this.orderId}/set-customer/`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
+                body: JSON.stringify({ customer_id: customerId }),
+                keepalive: true,
+            })
+            .then(r => r.json())
+            .then(res => {
+                if (res.status === 'ok') {
+                    this.headerCustomerName = name;
+                    this.wcmClose();
+                } else {
+                    this.wcm.error = res.message || 'حدث خطأ';
+                }
+            });
+        },
         showPartialPay: false,
         receivedAmount: '',
         pendingCart: [],
@@ -369,6 +509,11 @@ function waiterOrder() {
         picker: {open: false, productId: null, name: '', groups: [], selected: [], variantId: null, variantLabel: '', error: ''},
         sizePicker: {open: false, productId: null, name: '', variants: []},
         init() {
+            // Same bfcache guard as waiter_tables.html — a back-button return to this
+            // page must never show a stale cart/order snapshot from before a customer
+            // was added or items were sent to the kitchen.
+            window.addEventListener('pageshow', (e) => { if (e.persisted) location.reload(); });
+
             const dataEl = document.getElementById('menu-categories-data');
             if (dataEl) { try { this.categoriesData = JSON.parse(dataEl.textContent); } catch (e) { this.categoriesData = []; } }
             if (!this.branchId) return;
@@ -489,7 +634,7 @@ function waiterOrder() {
                 event.target.checked = false;
                 this.picker.selected = this.picker.selected.filter(m => m.group !== group.group);
                 if (!alreadySelected) {
-                    this.picker.selected.push({group: group.group, option: opt.name, price_delta: opt.price_delta, show_on_receipt: group.show_on_receipt !== false});
+                    this.picker.selected.push({id: opt.id, group: group.group, option: opt.name, price_delta: opt.price_delta, show_on_receipt: group.show_on_receipt !== false});
                 }
                 return;
             }
@@ -502,7 +647,7 @@ function waiterOrder() {
             this.picker.selected = this.picker.selected.filter(m => !(m.group === group.group && m.option === opt.name));
             if (checked) {
                 this.picker.error = '';
-                this.picker.selected.push({group: group.group, option: opt.name, price_delta: opt.price_delta, show_on_receipt: group.show_on_receipt !== false});
+                this.picker.selected.push({id: opt.id, group: group.group, option: opt.name, price_delta: opt.price_delta, show_on_receipt: group.show_on_receipt !== false});
             }
         },
         confirmModifiers() {

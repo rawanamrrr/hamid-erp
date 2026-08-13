@@ -133,8 +133,14 @@ class Recipe(models.Model):
     one's. `size=None` is the item's single/base recipe (no sizes, or "applies to
     every size" when nothing more specific exists) — see `Recipe.for_product`.
     """
-    product = models.ForeignKey('products.Product', on_delete=models.CASCADE,
+    # Nullable so the same model/RecipeItem machinery can also back a MenuModifier's
+    # ingredients (e.g. "شوت إضافي" consumes an extra shot of coffee beans) — exactly one
+    # of product/modifier is set, enforced below. Modifier recipes don't need a `size`
+    # (an add-on isn't sold in sizes), so `size` only ever applies to the product case.
+    product = models.ForeignKey('products.Product', on_delete=models.CASCADE, null=True, blank=True,
                                 related_name='recipes', verbose_name="الصنف")
+    modifier = models.OneToOneField('MenuModifier', on_delete=models.CASCADE, null=True, blank=True,
+                                    related_name='recipe', verbose_name="الإضافة")
     size = models.ForeignKey('products.Size', on_delete=models.CASCADE, null=True, blank=True,
                              related_name='+', verbose_name="الحجم")
     notes = models.TextField(blank=True, verbose_name="ملاحظات التحضير")
@@ -145,8 +151,19 @@ class Recipe(models.Model):
         verbose_name = "وصفة تحضير"
         verbose_name_plural = "وصفات التحضير"
         unique_together = ('product', 'size')
+        constraints = [
+            models.CheckConstraint(
+                condition=(
+                    models.Q(product__isnull=False, modifier__isnull=True) |
+                    models.Q(product__isnull=True, modifier__isnull=False)
+                ),
+                name='recipe_exactly_one_of_product_or_modifier',
+            ),
+        ]
 
     def __str__(self):
+        if self.modifier_id:
+            return f"وصفة إضافة: {self.modifier.name}"
         return f"وصفة: {self.product.name}" + (f" ({self.size.name})" if self.size_id else "")
 
     @classmethod
@@ -161,6 +178,10 @@ class Recipe(models.Model):
             if exact:
                 return exact
         return qs.filter(size__isnull=True).first()
+
+    @classmethod
+    def for_modifier(cls, modifier_id):
+        return cls.objects.filter(modifier_id=modifier_id, is_active=True).first()
 
 
 # Conversion factor FROM the key unit TO the value unit's family base, e.g. 1 G = 0.001 KG.

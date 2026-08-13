@@ -76,7 +76,7 @@
         // for those screens directly, so a role can be granted e.g. kitchen access without
         // also getting the waiter's void/close-check ability or the delivery dashboard.
         { id: 'pos', name: 'الكاشير (نقطة البيع)', actions: ['view', 'create', 'edit'] },
-        { id: 'waiter', name: 'الويتر', actions: ['view', 'create', 'edit', 'void'] },
+        { id: 'waiter', name: 'الويتر', actions: ['view', 'create', 'edit', 'void', 'add_customer'] },
         { id: 'kitchen', name: 'المطبخ', actions: ['view', 'edit'] },
         { id: 'delivery', name: 'الدليفري', actions: ['view', 'edit'] },
         { id: 'products', name: 'المنتجات والمخزن', actions: ['view', 'create', 'edit', 'delete'] },
@@ -140,7 +140,8 @@
                                 act === 'view_sensitive_money' ? 'رؤية الخزنة والأرباح' :
                                 act === 'void' ? 'إلغاء / إبطال الفاتورة' :
                                 act === 'manage' ? 'إدارة كاملة (اعتماد ومراجعة)' :
-                                act === 'view_all' ? 'رؤية كل الفواتير (وليس فواتيره فقط)' : act;
+                                act === 'view_all' ? 'رؤية كل الفواتير (وليس فواتيره فقط)' :
+                                act === 'add_customer' ? 'إضافة عميل جديد (بالاسم ورقم الموبايل)' : act;
                                 
             html += `
                 <label class="flex items-center gap-2 cursor-pointer hover:bg-gray-50 p-2 rounded-lg transition border border-transparent hover:border-gray-100">

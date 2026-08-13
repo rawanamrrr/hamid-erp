@@ -203,17 +203,21 @@ html.fav-only-mode #topnav-items > *:not(.fav-show) { display: none; }
     <div class="flex items-start px-3 py-1.5 gap-1 min-h-12 bg-slate-900">
         <div class="flex items-center flex-nowrap gap-0.5 flex-1 py-1 overflow-x-auto no-scrollbar" id="topnav-items">
 
+            {% if request.user|can_access:"dashboard:view" or request.user.is_superuser %}
             <!-- الرئيسية -->
             <a href="{% url 'dashboard' %}" class="tnav-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">
                 <i class="fas fa-th-large text-xs"></i>
                 <span>الرئيسية</span>
             </a>
+            {% endif %}
 
+            {% if request.user|can_access:"pos:view" or request.user.is_superuser %}
             <!-- الكاشير -->
             <a href="{% url 'pos_view' %}" class="tnav-link {% if '/sales/pos/' in request.path %}active{% endif %}">
                 <i class="fas fa-calculator text-xs"></i>
                 <span>الكاشير</span>
             </a>
+            {% endif %}
 
             {% if request.user|can_access:"waiter:view" or request.user.is_superuser %}
             <!-- شاشة الويتر -->
@@ -292,8 +296,11 @@ html.fav-only-mode #topnav-items > *:not(.fav-show) { display: none; }
             </div>
             {% endif %}
 
-            {% if request.user|can_access:"sales:view" or request.user.is_superuser %}
-            <!-- المبيعات dropdown -->
+            {% if request.user|can_access:"sales:view_all" or request.user.is_superuser %}
+            <!-- المبيعات dropdown. Gate key was "sales:view" — not a real checkbox action
+                 (the 'sales' module only offers view_all/edit/delete/manage on صلاحيات),
+                 so this was silently unmatchable for every non-superuser role and the
+                 whole dropdown never showed no matter what was actually granted. -->
             <div class="tnav-dropdown" id="dd-sales">
                 {% with vn=request.resolver_match.view_name %}
                 <button type="button" class="tnav-link {% if '/sales/' in request.path and '/sales/pos/' not in request.path %}active{% endif %}" onclick="toggleDd('dd-sales')">
@@ -313,8 +320,13 @@ html.fav-only-mode #topnav-items > *:not(.fav-show) { display: none; }
                 </div>
                 {% endwith %}
             </div>
+            {% endif %}
 
-            <!-- التقارير dropdown -->
+            {% if request.user|can_access:"financial:view" or request.user.is_superuser %}
+            <!-- التقارير dropdown — رواتب/سلف/تقارير مالية, all financial:* pages. Used to
+                 be nested inside the "المبيعات" if-block above (sharing its closing
+                 endif) even though none of its content is sales-gated — a role with
+                 financial:view but not sales access never saw it at all, and vice versa. -->
             <div class="tnav-dropdown" id="dd-reports">
                 {% with vn=request.resolver_match.view_name %}
                 <button type="button" class="tnav-link {% if vn == 'financial:salary_list' or vn == 'financial:advance_list' or vn == 'financial:deal_list' or vn == 'financial:daily_summary' or vn == 'financial:profitability' or vn == 'financial:sales_analytics' or vn == 'financial:financial_position' or vn == 'financial:income_statement' or vn == 'financial:trial_balance' or vn == 'financial:vat_report' %}active{% endif %}" onclick="toggleDd('dd-reports')">

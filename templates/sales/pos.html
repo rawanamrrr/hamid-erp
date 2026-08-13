@@ -2764,8 +2764,8 @@
                     ${g.options.map(o => `
                         <label style="display:flex;justify-content:space-between;align-items:center;padding:7px 4px;font-size:14px;cursor:pointer;border-bottom:1px solid #f1f5f9">
                             <span><input type="${single ? 'radio' : 'checkbox'}" name="modgrp-${gIdx}" style="margin-left:8px" data-modgroup="${gIdx}" data-max="${g.max_select || 1}" ${single
-                                ? `onclick="handleModifierRadioClick(this,'${g.group.replace(/'/g, "\\'")}','${o.name.replace(/'/g, "\\'")}',${o.price_delta},${g.show_on_receipt !== false})"`
-                                : `onchange="toggleModifierOption('${g.group.replace(/'/g, "\\'")}','${o.name.replace(/'/g, "\\'")}',${o.price_delta},this.checked,${g.show_on_receipt !== false},this)"`
+                                ? `onclick="handleModifierRadioClick(this,'${g.group.replace(/'/g, "\\'")}','${o.name.replace(/'/g, "\\'")}',${o.price_delta},${g.show_on_receipt !== false},${o.id})"`
+                                : `onchange="toggleModifierOption('${g.group.replace(/'/g, "\\'")}','${o.name.replace(/'/g, "\\'")}',${o.price_delta},this.checked,${g.show_on_receipt !== false},this,${o.id})"`
                             }> ${o.name}</span>
                             <span style="color:#94a3b8">${o.price_delta ? '+' + o.price_delta : ''}</span>
                         </label>
@@ -2804,7 +2804,7 @@
         // Single-choice (max_select=1) groups use radios rendered via handleModifierRadioClick
         // instead — a plain radio can't be unchecked by clicking it again, so that's handled
         // with a click listener that toggles based on prior selection state.
-        function handleModifierRadioClick(el, group, option, priceDelta, showOnReceipt) {
+        function handleModifierRadioClick(el, group, option, priceDelta, showOnReceipt, id = null) {
             const wasSelected = el.dataset.wasSelected === 'true';
             document.querySelectorAll(`input[name="${el.name}"]`).forEach(r => { r.dataset.wasSelected = 'false'; });
             if (wasSelected) {
@@ -2814,10 +2814,10 @@
             }
             el.dataset.wasSelected = 'true';
             modifierPickerState.selected = modifierPickerState.selected.filter(m => m.group !== group);
-            modifierPickerState.selected.push({group, option, price_delta: priceDelta, show_on_receipt: showOnReceipt});
+            modifierPickerState.selected.push({id, group, option, price_delta: priceDelta, show_on_receipt: showOnReceipt});
         }
 
-        function toggleModifierOption(group, option, priceDelta, checked, showOnReceipt = true, el = null) {
+        function toggleModifierOption(group, option, priceDelta, checked, showOnReceipt = true, el = null, id = null) {
             // Checkbox group with max_select > 1 — block picking beyond the limit instead
             // of silently letting extra choices through.
             if (checked && el) {
@@ -2830,7 +2830,7 @@
                 }
             }
             modifierPickerState.selected = modifierPickerState.selected.filter(m => !(m.group === group && m.option === option));
-            if (checked) modifierPickerState.selected.push({group, option, price_delta: priceDelta, show_on_receipt: showOnReceipt});
+            if (checked) modifierPickerState.selected.push({id, group, option, price_delta: priceDelta, show_on_receipt: showOnReceipt});
         }
 
         function confirmModifierPicker() {
