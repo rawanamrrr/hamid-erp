@@ -1559,6 +1559,78 @@ def close_check(request, order_id):
     return JsonResponse({'status': 'ok'})
 
 
+@login_required
+@require_permission('waiter', 'edit')
+@require_POST
+def free_table(request, table_id):
+    """Manually free a table that was marked busy by a cashier ringing up a dine-in
+    order at POS and paying in full immediately — that flow has no "open tab" to close
+    (payment already posted at checkout, see sales.views.submit_order_ajax), so there's
+    nothing for close_check to do. Refuses to touch a table that still has a genuine open
+    tab (table.open_order) — that one must go through close_check so payment is recorded.
+    """
+    table = get_object_or_404(Table, pk=table_id)
+    if table.open_order:
+        return JsonResponse({'status': 'error', 'message': 'الترابيزة عليها شيك مفتوح — يجب إقفاله أولاً'}, status=400)
+    table.status = Table.STATUS_FREE
+    table.save(update_fields=['status'])
+    if table.branch_id:
+        push_event('waiter', table.branch_id, {
+            'event': 'table_status', 'table_id': table.id, 'status': Table.STATUS_FREE,
+        })
+    return JsonResponse({'status': 'ok'})
+
+
+@login_required
+@require_permission('waiter', 'edit')
+@require_POST
+def split_order_pay(request, order_id):
+    """تقسيم الفاتورة — pay for a subset of an order's items now (e.g. تشاي only),
+    leaving the rest open on the original check for later. Same permission gate as
+    close_check (waiter:edit) — available to both the waiter and cashier screens, since
+    both render this same order screen for a dine-in/takeaway ticket.
+
+    Payload: {"item_ids": [1,2,...], "payments": {"cash": "10.00", "visa": "0", ...}}
+    """
+    from decimal import Decimal, InvalidOperation
+    from sales.services import split_order_and_pay
+
+    order = get_object_or_404(Order, pk=order_id)
+    try:
+        data = json.loads(request.body or b'{}')
+    except (ValueError, json.JSONDecodeError):
+        return JsonResponse({'status': 'error', 'message': 'بيانات غير صالحة'}, status=400)
+
+    item_ids = data.get('item_ids') or []
+    try:
+        item_ids = [int(i) for i in item_ids]
+    except (TypeError, ValueError):
+        return JsonResponse({'status': 'error', 'message': 'أصناف غير صالحة'}, status=400)
+
+    raw_payments = data.get('payments') or {}
+    payments = {}
+    for method in ('cash', 'wallet', 'instapay', 'visa'):
+        try:
+            payments[method] = Decimal(str(raw_payments.get(method) or 0))
+        except InvalidOperation:
+            return JsonResponse({'status': 'error', 'message': 'مبلغ غير صالح'}, status=400)
+
+    try:
+        with db_transaction.atomic():
+            new_order = split_order_and_pay(order, item_ids, payments, request.user)
+    except ValueError as e:
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
+
+    return JsonResponse({
+        'status': 'ok',
+        'split_order_id': new_order.id,
+        'split_invoice_number': new_order.display_number,
+        'remaining_total': float(order.total_amount),
+        'remaining_items_count': order.items.filter(is_void=False).count(),
+        'order_still_open': order.is_open,
+    })
+
+
 # ─────────────────────────────────────────────
 #  Reports: sales per waiter / per driver EOD owed
 # ─────────────────────────────────────────────

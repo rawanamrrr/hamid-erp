@@ -200,6 +200,16 @@ class Order(models.Model):
     voided_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='voided_orders', verbose_name="ألغاها")
     void_reason = models.TextField(blank=True, verbose_name="سبب الإلغاء")
 
+    # Receipt splitting (تقسيم الفاتورة) — paying for a subset of an open order's items
+    # (e.g. the tea) while the rest (the coffee) stays open on the original check. Each
+    # split-off subset becomes its OWN real Order (own invoice number, own VAT/service
+    # breakdown computed only from its items, own receipt) rather than a sub-record of
+    # the original — see sales.services.split_order_and_pay. split_from links a split
+    # invoice back to the check it was carved out of; the original order's own items are
+    # simply whatever's left after the split items were reassigned onto the new Order.
+    split_from = models.ForeignKey('self', on_delete=models.SET_NULL, null=True, blank=True,
+                                   related_name='split_invoices', verbose_name="مقسمة من فاتورة")
+
     objects = OrderManager()
 
     @property

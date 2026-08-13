@@ -46,4 +46,12 @@
         <i class="fa-solid fa-user text-[8px]"></i> {{ table.open_order.customer.first_name }} {{ table.open_order.customer.last_name }}
     </div>
     {% endif %}
+    {% if table.status == 'busy' and not table.open_order and request.user|can_access:"waiter:edit" %}
+    <!-- Only for a table busied by a cashier's already-paid POS sale (no live open tab) —
+         a real open tab must go through close_check instead, so it isn't offered here. -->
+    <button onclick="event.preventDefault(); event.stopPropagation(); freeTable({{ table.id }});"
+            class="free-table-btn mt-2 w-full h-9 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black flex items-center justify-center gap-1.5 shadow-md shadow-emerald-200 animate-pulse" title="تحرير الترابيزة">
+        <i class="fa-solid fa-broom text-sm"></i> تحرير الترابيزة
+    </button>
+    {% endif %}
 </a>

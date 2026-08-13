@@ -517,3 +517,179 @@ def collect_tailoring_payment(order, amount, user, *, note=''):
         created_by=user,
         order=order,
     )
+
+
+def split_order_and_pay(order, item_ids, payments, user):
+    """تقسيم الفاتورة — pay for a subset of an open order's items now (e.g. the tea)
+    while the rest (the coffee) stays on the original check, still unpaid, for later.
+
+    The split-off items become a brand new, fully independent Order — its own invoice
+    number, its own receipt, its own VAT/service-charge breakdown computed from ONLY
+    those items via the exact same compute_discount_and_total() every normal checkout
+    uses (so a split invoice's tax math is provably the same code path as a regular
+    sale, not a parallel reimplementation of it). The original order keeps whatever
+    items weren't selected, with its own totals recomputed the same way.
+
+    Any order-level discount already locked in on `order` (whether typed in by hand or
+    normalized from a promo at checkout — compute_discount_and_total always reduces a
+    deal to a plain currency amount on Order.discount) is divided between the two sides
+    PROPORTIONALLY by each side's share of the subtotal — a 10 ج.م discount on a 40/60
+    item split becomes 4/6 ج.م. Same treatment for delivery_cost/tailoring_cost, even
+    though both are normally 0 for a dine-in split.
+
+    `payments` = {'cash': Decimal, 'wallet': Decimal, 'instapay': Decimal, 'visa': Decimal}
+    — must sum to (at least) the split invoice's total; the split invoice is always
+    fully paid, matching "processed normally as an independent invoice" — partial
+    payment on a split-off invoice isn't supported (split it further instead).
+
+    Returns the new split Order. Raises ValueError on any validation failure — callers
+    run this inside their own db_transaction.atomic() and translate the message to the
+    request's error response.
+    """
+    from .models import Order, OrderItem, DocumentSequence
+    from financial.posting import post_sale
+    from .utils import record_sale_transaction, get_active_shift
+
+    if order.is_void:
+        raise ValueError("لا يمكن تقسيم فاتورة ملغاة.")
+
+    all_items = list(order.items.filter(is_void=False).select_related('product'))
+    split_items = [it for it in all_items if it.id in set(item_ids)]
+    if not split_items:
+        raise ValueError("لم يتم اختيار أي أصناف للتقسيم.")
+    # Selecting every remaining item is allowed — it's the natural way an order that's
+    # been split down piece by piece (تاي paid earlier, قهوة now) eventually finishes:
+    # the last split invoice pays it off entirely and the original auto-closes below.
+    remaining_items = [it for it in all_items if it.id not in set(item_ids)]
+
+    subtotal = order.subtotal_amount or Decimal('0')
+    split_subtotal = sum((it.price * it.quantity for it in split_items), Decimal('0'))
+    remaining_subtotal = subtotal - split_subtotal
+
+    # The order's stored discount/discount_type is already the NORMALIZED result of
+    # whatever was applied at checkout (manual or a resolved deal) — reduce it to one
+    # plain currency amount here, then prorate that amount, rather than re-running deal
+    # logic against a subset of items (which could fail a deal's minimum_order_value on
+    # the smaller half for no good reason — the discount was already earned).
+    if order.discount_type == 'percent':
+        applied_discount = (subtotal * order.discount / Decimal('100')) if subtotal > 0 else Decimal('0')
+    else:
+        applied_discount = order.discount or Decimal('0')
+    applied_discount = min(applied_discount, subtotal) if subtotal > 0 else Decimal('0')
+
+    share = (split_subtotal / subtotal) if subtotal > 0 else Decimal('0')
+    split_discount = (applied_discount * share).quantize(Decimal('0.01'))
+    remaining_discount = (applied_discount - split_discount).quantize(Decimal('0.01'))
+
+    split_delivery = ((order.delivery_cost or Decimal('0')) * share).quantize(Decimal('0.01'))
+    remaining_delivery = (order.delivery_cost or Decimal('0')) - split_delivery
+    split_tailoring = ((order.tailoring_cost or Decimal('0')) * share).quantize(Decimal('0.01'))
+    remaining_tailoring = (order.tailoring_cost or Decimal('0')) - split_tailoring
+
+    split_result = compute_discount_and_total(
+        split_subtotal, split_subtotal,
+        discount=split_discount, discount_type='fixed', applied_deal=None,
+        delivery_cost=split_delivery, tailoring_cost=split_tailoring,
+        order_type=order.order_type,
+        vat_rate=order.vat_rate_snapshot, vat_included=order.vat_included_snapshot,
+    )
+    remaining_result = compute_discount_and_total(
+        remaining_subtotal, remaining_subtotal,
+        discount=remaining_discount, discount_type='fixed', applied_deal=None,
+        delivery_cost=remaining_delivery, tailoring_cost=remaining_tailoring,
+        order_type=order.order_type,
+        vat_rate=order.vat_rate_snapshot, vat_included=order.vat_included_snapshot,
+    )
+
+    split_total = split_result['total']
+    payments = {k: _to_decimal(v) for k, v in (payments or {}).items()}
+    paid_total = sum(payments.values(), Decimal('0'))
+    if paid_total + Decimal('0.01') < split_total:
+        raise ValueError(f"المبلغ المدفوع ({paid_total} ج.م) أقل من إجمالي الفاتورة المقسّمة ({split_total} ج.م).")
+
+    cash = payments.get('cash', Decimal('0'))
+    wallet = payments.get('wallet', Decimal('0'))
+    instapay = payments.get('instapay', Decimal('0'))
+    visa = payments.get('visa', Decimal('0'))
+    if cash > 0:
+        dominant_method, close_type = 'cash', Order.CLOSE_TYPE_CASH
+    elif visa > 0:
+        dominant_method, close_type = 'visa', Order.CLOSE_TYPE_VISA
+    elif wallet > 0:
+        dominant_method, close_type = 'wallet', Order.CLOSE_TYPE_WALLET
+    elif instapay > 0:
+        dominant_method, close_type = 'instapay', Order.CLOSE_TYPE_INSTAPAY
+    else:
+        dominant_method, close_type = 'cash', Order.CLOSE_TYPE_CASH
+
+    new_order = Order.objects.create(
+        user=user, waiter=order.waiter, shift=get_active_shift(),
+        customer=order.customer, warehouse=order.warehouse,
+        order_type=order.order_type, table=order.table,
+        is_open=False, is_completed=True,
+        split_from=order,
+        subtotal_amount=split_subtotal,
+        discount=split_discount, discount_type='fixed',
+        delivery_cost=split_delivery, tailoring_cost=split_tailoring,
+        service_charge=split_result['service_charge'],
+        vat_amount=split_result['vat_amount'],
+        total_amount=split_total,
+        vat_rate_snapshot=order.vat_rate_snapshot,
+        vat_included_snapshot=order.vat_included_snapshot,
+        cash_paid=cash, wallet_paid=wallet, instapay_paid=instapay, visa_paid=visa,
+        received_amount=paid_total,
+        payment_method=dominant_method, close_type=close_type,
+        kitchen_status=order.kitchen_status,
+    )
+    new_order.invoice_number = DocumentSequence.next_number('INV')
+    new_order.save(update_fields=['invoice_number'])
+
+    OrderItem.objects.filter(id__in=[it.id for it in split_items]).update(order=new_order)
+
+    order.subtotal_amount = remaining_subtotal
+    order.discount = remaining_discount
+    order.discount_type = 'fixed'
+    order.applied_deal = None
+    order.delivery_cost = remaining_delivery
+    order.tailoring_cost = remaining_tailoring
+    order.service_charge = remaining_result['service_charge']
+    order.vat_amount = remaining_result['vat_amount']
+    order.total_amount = remaining_result['total']
+    update_fields = ['subtotal_amount', 'discount', 'discount_type', 'applied_deal',
+                     'delivery_cost', 'tailoring_cost', 'service_charge', 'vat_amount', 'total_amount']
+
+    table_freed = False
+    if not remaining_items:
+        # Nothing left unpaid on the original check — auto-close it (nothing owed, no
+        # cash was collected FOR IT directly since that all belongs to the split
+        # invoice) and free the table, same as a normal close_check.
+        order.is_open = False
+        order.is_completed = True
+        update_fields += ['is_open', 'is_completed']
+        if order.table_id:
+            from restaurant.models import Table
+            Table.objects.filter(pk=order.table_id).update(status=Table.STATUS_FREE)
+            table_freed = True
+
+    order.save(update_fields=update_fields)
+
+    # Financial posting: the split invoice is a real new sale — post its Transaction(s)
+    # (drawer/wallet/bank impact) and its own journal entry. The original order's
+    # journal entry (posted in full at creation, since a dine-in order is posted
+    # unpaid/AR immediately — see post_sale) must be re-posted too, now reflecting only
+    # the remaining items/total — post_sale is idempotent per reference_number
+    # (SALE-{order.id}), so this replaces rather than duplicates it.
+    record_sale_transaction(new_order, user)
+    post_sale(order)
+
+    if order.warehouse_id:
+        from restaurant.consumers import push_event
+        push_event('kds', order.warehouse_id, {'event': 'order_updated', 'order_id': order.id})
+        push_event('cashier', order.warehouse_id, {'event': 'order_updated', 'order_id': order.id})
+        if order.table_id:
+            push_event('waiter', order.warehouse_id, {
+                'event': 'table_status', 'table_id': order.table_id,
+                'status': 'free' if table_freed else order.table.status,
+            })
+
+    return new_order

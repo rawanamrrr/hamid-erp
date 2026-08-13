@@ -1,6 +1,6 @@
 <header class="flex items-center justify-between px-6 py-3 bg-white border-b border-gray-200">
     <div class="flex items-center gap-3">
-        <h1 class="text-xl font-semibold text-gray-800">{{ title|default:"نظام الإدارة" }}</h1>
+        <h1 class="text-xl font-semibold text-gray-800">{{ title }}</h1>
         {% if cashier_only_user %}
         <!-- A cashier-only account (see cashier_only_user in sales/views.py pos_view)
              has no top navbar on this page and so no other way to log out — put it right

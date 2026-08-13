@@ -348,5 +348,14 @@ function cancelReservation(tableId) {
         else alert(data.message || 'حدث خطأ');
     });
 }
+function freeTable(tableId) {
+    if (!confirm('تأكيد تحرير الترابيزة؟')) return;
+    fetch(`/restaurant/waiter/tables/${tableId}/free/`, {
+        method: 'POST', headers: {'X-CSRFToken': getCookie('csrftoken')},
+    }).then(r => r.json()).then(data => {
+        if (data.status === 'ok') location.reload();
+        else alert(data.message || 'حدث خطأ');
+    });
+}
 </script>
 {% endblock %}

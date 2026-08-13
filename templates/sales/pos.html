@@ -300,6 +300,29 @@
             </div>
             <script>
                 const DINE_IN_TABLES = {{ dine_in_tables_json|default:'[]'|safe }};
+
+                // DINE_IN_TABLES is only rendered once at page load, so a table a cashier
+                // (or a waiter, on another screen) just busied/freed used to stay stale in
+                // this picker until a manual refresh — same live-update wiring already used
+                // on the waiter table map (restaurant/consumers.py push_event('waiter', ...)).
+                {% if active_warehouse %}
+                (function() {
+                    const ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') +
+                        location.host + '/ws/waiter/{{ active_warehouse.id }}/');
+                    ws.onmessage = (e) => {
+                        const data = JSON.parse(e.data);
+                        if (data.event !== 'table_status') return;
+                        const t = DINE_IN_TABLES.find(tb => String(tb.id) === String(data.table_id));
+                        if (!t) return;
+                        t.status = data.status;
+                        t.occupied = data.status !== 'free';
+                        const panel = document.getElementById('dineInTablePanel');
+                        if (panel && !panel.classList.contains('hidden') && typeof renderTablePickerList === 'function') {
+                            renderTablePickerList();
+                        }
+                    };
+                })();
+                {% endif %}
             </script>
             {% endif %}
 

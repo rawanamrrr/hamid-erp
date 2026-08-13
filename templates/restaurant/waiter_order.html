@@ -253,6 +253,12 @@
                      already has a real Order row (created up front, unlike a table's tab
                      which is only created on its first send), so gating on just "order"
                      showed كاش/فيزا/آجل before there was anything to pay for. -->
+                <template x-if="order && order.items.filter(i => !i.is_void).length > 1">
+                    <button @click="splitOpen()" class="w-full py-2.5 rounded-xl bg-white border-2 border-indigo-200 text-indigo-700 text-xs font-black hover:bg-indigo-50 transition-colors flex items-center justify-center gap-1.5">
+                        <i class="fa-solid fa-scissors"></i> تقسيم الفاتورة (دفع صنف بمفرده)
+                    </button>
+                </template>
+
                 <template x-if="order && order.items.length">
                     <div class="space-y-2">
                         <!-- Customer + partial-payment panel: a شيك closed آجل, or with less
@@ -400,6 +406,55 @@
             </template>
         </div>
     </div>
+
+    <!-- Split-receipt modal (تقسيم الفاتورة) — pay for a subset of items now, leave the
+         rest open on this same check for later. See restaurant:split_order_pay. -->
+    <div x-show="split.open" x-cloak class="fixed inset-0 bg-black/50 backdrop-blur-[2px] flex items-center justify-center z-50 p-4" @click.self="splitClose()">
+        <div class="bg-white rounded-3xl p-5 w-full max-w-sm max-h-[85vh] overflow-y-auto shadow-2xl wo-pop-in wo-scrollbar">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="font-black text-gray-900 flex items-center gap-2"><i class="fa-solid fa-scissors text-indigo-500"></i> تقسيم الفاتورة</h3>
+                <button @click="splitClose()" class="w-8 h-8 rounded-xl bg-gray-50 text-gray-400 hover:bg-gray-100 flex items-center justify-center"><i class="fa-solid fa-xmark text-xs"></i></button>
+            </div>
+
+            <p class="text-xs text-gray-500 bg-gray-50 border border-gray-100 rounded-xl px-3 py-2 mb-3">
+                حدّد الأصناف اللي هتتدفع دلوقتي — هتتحول لفاتورة منفصلة وتُدفع بالكامل. الباقي هيفضل على نفس الشيك مفتوح.
+            </p>
+
+            <div class="space-y-1.5 mb-4">
+                <template x-for="it in (order ? order.items.filter(i => !i.is_void) : [])" :key="it.id">
+                    <label class="flex items-center justify-between gap-2 p-2.5 rounded-xl border cursor-pointer transition-colors"
+                           :class="split.selected.includes(it.id) ? 'border-indigo-300 bg-indigo-50/60' : 'border-gray-100 hover:bg-gray-50'">
+                        <span class="flex items-center gap-2 min-w-0">
+                            <input type="checkbox" :checked="split.selected.includes(it.id)" @change="splitToggle(it.id)" class="accent-indigo-600 shrink-0">
+                            <span class="text-sm font-bold truncate" x-text="it.product_name + (it.variant_label ? ' (' + it.variant_label + ')' : '') + ' × ' + it.quantity"></span>
+                        </span>
+                        <span class="text-xs font-black text-gray-600 shrink-0" x-text="it.subtotal.toFixed(2)"></span>
+                    </label>
+                </template>
+            </div>
+
+            <div class="flex justify-between items-center text-sm font-bold text-gray-600 border-t border-gray-100 pt-3 mb-1">
+                <span>إجمالي المحدد (تقريبي، شامل الضريبة/الخدمة بالتناسب)</span>
+                <span x-text="splitEstimatedTotal().toFixed(2) + ' ج.م'" class="text-indigo-700"></span>
+            </div>
+            <p class="text-[10px] text-gray-400 mb-3">المبلغ النهائي بيتحسب بدقة على السيرفر وقت التأكيد.</p>
+
+            <div class="grid grid-cols-2 gap-2 mb-2">
+                <label class="flex items-center gap-1.5 text-xs font-bold text-gray-600"><input type="radio" name="splitMethod" value="cash" x-model="split.method" class="accent-blue-600"> كاش</label>
+                <label class="flex items-center gap-1.5 text-xs font-bold text-gray-600"><input type="radio" name="splitMethod" value="visa" x-model="split.method" class="accent-indigo-600"> فيزا</label>
+                <label class="flex items-center gap-1.5 text-xs font-bold text-gray-600"><input type="radio" name="splitMethod" value="wallet" x-model="split.method" class="accent-rose-600"> محفظة</label>
+                <label class="flex items-center gap-1.5 text-xs font-bold text-gray-600"><input type="radio" name="splitMethod" value="instapay" x-model="split.method" class="accent-teal-600"> إنستا باي</label>
+            </div>
+
+            <p x-show="split.error" x-text="split.error" class="text-red-600 text-xs font-bold bg-red-50 rounded-lg px-3 py-2 mb-2"></p>
+
+            <button @click="splitSubmit()" :disabled="split.submitting || !split.selected.length"
+                    :class="(split.submitting || !split.selected.length) ? 'opacity-60 cursor-not-allowed' : ''"
+                    class="w-full py-3 rounded-2xl bg-gradient-to-l from-indigo-600 to-indigo-500 text-white font-black transition-all shadow-md shadow-indigo-100">
+                <span x-text="split.submitting ? 'جارٍ الدفع...' : 'دفع الأصناف المحددة'"></span>
+            </button>
+        </div>
+    </div>
 </div>
 
 <script>
@@ -418,6 +473,62 @@ function waiterOrder() {
         customerId: '',
         customerSearch: '',
         headerCustomerName: {% if order.customer %}'{{ order.customer.first_name|escapejs }} {{ order.customer.last_name|escapejs }}'{% else %}''{% endif %},
+        split: {open: false, selected: [], method: 'cash', error: '', submitting: false},
+        splitOpen() {
+            this.split = {open: true, selected: [], method: 'cash', error: '', submitting: false};
+        },
+        splitClose() { this.split.open = false; },
+        splitToggle(itemId) {
+            const idx = this.split.selected.indexOf(itemId);
+            if (idx === -1) this.split.selected.push(itemId);
+            else this.split.selected.splice(idx, 1);
+        },
+        splitEstimatedTotal() {
+            // Client-side estimate only, for the modal's live total — proportionally
+            // scales the order's ALREADY-COMPUTED service charge/VAT by the selected
+            // items' share of the subtotal, same ratio the server applies for real in
+            // sales.services.split_order_and_pay. Never trust this for the actual
+            // charge; the server recomputes it precisely from scratch on submit.
+            if (!this.order || !this.order.subtotal_amount) return 0;
+            const items = this.order.items.filter(i => !i.is_void);
+            const selectedSubtotal = items.filter(i => this.split.selected.includes(i.id))
+                .reduce((sum, i) => sum + i.subtotal, 0);
+            const share = selectedSubtotal / this.order.subtotal_amount;
+            return selectedSubtotal + (this.order.service_charge * share) + (this.order.vat_amount * share);
+        },
+        splitSubmit() {
+            if (!this.split.selected.length) return;
+            this.split.submitting = true;
+            this.split.error = '';
+            const amount = this.splitEstimatedTotal();
+            const payments = {cash: 0, wallet: 0, instapay: 0, visa: 0};
+            payments[this.split.method] = amount.toFixed(2);
+            fetch(`/restaurant/order/${this.orderId}/split-pay/`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken')},
+                body: JSON.stringify({item_ids: this.split.selected, payments}),
+            })
+            .then(r => r.json())
+            .then(res => {
+                this.split.submitting = false;
+                if (res.status === 'ok') {
+                    this.splitClose();
+                    // Print the new split invoice's own receipt, then reload this page —
+                    // the cart/order data here is a server-rendered snapshot from page
+                    // load, and after a split it must reflect only whatever items are
+                    // still actually on this check (same reasoning as the bfcache guard
+                    // above: never leave a stale item list showing after a real change).
+                    window.open(`/sales/invoice/${res.split_order_id}/?style=thermal`, '_blank');
+                    location.reload();
+                } else {
+                    this.split.error = res.message || 'حدث خطأ';
+                }
+            })
+            .catch(() => {
+                this.split.submitting = false;
+                this.split.error = 'تعذر الاتصال بالسيرفر';
+            });
+        },
         wcm: {open: false, step: 'phone', phone: '', name: '', found: null, error: ''},
         wcmOpen() {
             this.wcm = {open: true, step: 'phone', phone: '', name: '', found: null, error: ''};

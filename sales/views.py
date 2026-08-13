@@ -1317,6 +1317,21 @@ def submit_order_ajax(request):
                 # --- Financial Integration: Record Sale Transaction ---
                 record_sale_transaction(order, request.user)
 
+                # A cashier who picked a table for this order (already paid in full above,
+                # unlike the waiter's deferred-payment tab) still occupies that table until
+                # customers leave — mark it busy and push a live update so the table map/
+                # waiter screen reflect it immediately, same as the waiter-opened-tab flow.
+                # Freed later via restaurant.views.free_table (not close_check — there's no
+                # unpaid balance left to collect, so close_check's re-posting would double
+                # the drawer/journal entry for this same sale).
+                if order.table_id:
+                    from restaurant.models import Table as _Table
+                    from restaurant.consumers import push_event as _push_event
+                    _Table.objects.filter(pk=order.table_id).update(status=_Table.STATUS_BUSY)
+                    _push_event('waiter', warehouse.id, {
+                        'event': 'table_status', 'table_id': order.table_id, 'status': _Table.STATUS_BUSY,
+                    })
+
                 # A cashier ringing up a cafe menu item directly (not through the waiter
                 # screen) must still send it to the kitchen — otherwise the drink/food
                 # never reaches the KDS or gets a prep ticket printed.
