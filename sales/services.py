@@ -553,7 +553,16 @@ def split_order_and_pay(order, item_ids, payments, user):
     if order.is_void:
         raise ValueError("لا يمكن تقسيم فاتورة ملغاة.")
 
-    all_items = list(order.items.filter(is_void=False).select_related('product'))
+    # Whether the original order already had a real "SALE-{id}" journal entry sitting
+    # in the books — true only if it had already been closed once (close_check sets
+    # close_type and posts it). A still-open, never-closed tab has NEVER been posted
+    # (see restaurant.views._get_or_create_table_order / close_check — a dine-in tab is
+    # only posted when it's actually closed, not at creation), so there is nothing to
+    # "correct" for it below; posting one now would recognize revenue/AR for the
+    # remaining, still-unpaid items before any money for them has actually been received.
+    was_already_posted = bool(order.close_type)
+
+    all_items = list(order.items.filter(is_void=False).select_related('product').order_by('id'))
     split_items = [it for it in all_items if it.id in set(item_ids)]
     if not split_items:
         raise ValueError("لم يتم اختيار أي أصناف للتقسيم.")
@@ -646,6 +655,48 @@ def split_order_and_pay(order, item_ids, payments, user):
 
     OrderItem.objects.filter(id__in=[it.id for it in split_items]).update(order=new_order)
 
+    # StockTransaction has no FK to OrderItem/Order — issue_cart_items() stamps each line's
+    # stock-out row with reference_number=str(order.id) at the moment it's added, and that's
+    # the ONLY link dashboard/revenue widgets have back to "which order is this sale worth
+    # counting under" (see dashboard.views._exclude_unpaid_orders_q). Moving the OrderItem
+    # to new_order above does nothing to that stamp — left alone, a split-and-paid item's
+    # revenue stays filed under the ORIGINAL order, which (if anything's still left on it)
+    # is still is_completed=False and gets excluded as "unpaid", so a partial split showed
+    # only the split invoice's service_charge and none of its actual item revenue. Re-stamp
+    # the matching rows onto new_order.
+    from products.models import StockTransaction
+    original_txns = list(StockTransaction.objects.filter(
+        reference_number=str(order.id), transaction_type='OUT',
+    ).order_by('id'))
+    split_ids = {si.id for si in split_items}
+    moved_txn_ids = []
+
+    # Primary match: one OUT row per OrderItem EVER added to this order, created together
+    # at add-time — including items later voided (void_order_item only flags the item, it
+    # never touches the StockTransaction), so voided items must stay in this list too or
+    # every item after one gets matched one position off. This must line up exactly for a
+    # normal order; a shape mismatch below only happens for edge cases issue_cart_items
+    # itself calls out (e.g. a variant line whose stock move takes a different path).
+    all_items_ever = list(order.items.all().order_by('id'))
+    if len(original_txns) == len(all_items_ever):
+        moved_txn_ids = [txn.id for item, txn in zip(all_items_ever, original_txns) if item.id in split_ids]
+    else:
+        # Fallback: match by (product, quantity, unit price) instead of position — each
+        # split item claims one still-unclaimed same-product/qty/price row. Ambiguous only
+        # when two lines share the exact same product+qty+price (then it doesn't matter
+        # which specific row is claimed — they're financially identical either way).
+        unclaimed = list(original_txns)
+        for it in split_items:
+            for txn in unclaimed:
+                if (txn.product_id == it.product_id and Decimal(str(txn.quantity)) == Decimal(str(it.quantity))
+                        and Decimal(str(txn.unit_price or 0)) == Decimal(str(it.price or 0))):
+                    moved_txn_ids.append(txn.id)
+                    unclaimed.remove(txn)
+                    break
+
+    if moved_txn_ids:
+        StockTransaction.objects.filter(id__in=moved_txn_ids).update(reference_number=str(new_order.id))
+
     order.subtotal_amount = remaining_subtotal
     order.discount = remaining_discount
     order.discount_type = 'fixed'
@@ -674,13 +725,15 @@ def split_order_and_pay(order, item_ids, payments, user):
     order.save(update_fields=update_fields)
 
     # Financial posting: the split invoice is a real new sale — post its Transaction(s)
-    # (drawer/wallet/bank impact) and its own journal entry. The original order's
-    # journal entry (posted in full at creation, since a dine-in order is posted
-    # unpaid/AR immediately — see post_sale) must be re-posted too, now reflecting only
-    # the remaining items/total — post_sale is idempotent per reference_number
-    # (SALE-{order.id}), so this replaces rather than duplicates it.
+    # (drawer/wallet/bank impact) and its own journal entry. The original order is only
+    # re-posted (post_sale is idempotent per reference_number "SALE-{order.id}", so this
+    # replaces rather than duplicates its entry) if it already had one to correct — i.e.
+    # it was already closed before this split (was_already_posted), or it just auto-
+    # closed above because nothing remains unpaid on it (table_freed). A still-open
+    # remaining tab stays exactly as unposted as any other open tab, same as before.
     record_sale_transaction(new_order, user)
-    post_sale(order)
+    if was_already_posted or not remaining_items:
+        post_sale(order)
 
     if order.warehouse_id:
         from restaurant.consumers import push_event
