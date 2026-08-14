@@ -1,9 +1,11 @@
 {% extends 'base.html' %}
 {% load rbac_tags %}
 {% block title %}شاشة الويتر - الترابيزات{% endblock %}
+{% block page_nav %}{% if not waiter_only_user %}{% include 'includes/sidebar.html' %}{% endif %}{% endblock %}
+{% block page_header %}{% if not waiter_only_user %}{% include 'includes/header.html' %}{% endif %}{% endblock %}
 {% block content %}
 <div class="p-3 md:p-4" x-data="waiterTables({{ branch.id }})" x-init="init()">
-    <div id="ready-toasts" class="fixed bottom-4 left-4 z-50 w-72"></div>
+    <div id="ready-toasts" class="fixed top-4 left-1/2 -translate-x-1/2 z-50 w-full max-w-md px-3 space-y-2"></div>
 
     <!-- Header -->
     <div class="flex flex-wrap items-center justify-between gap-3 mb-5">
@@ -12,7 +14,17 @@
                 <i class="fa-solid fa-chair"></i>
             </div>
             <div>
-                <h1 class="text-xl font-black text-gray-900 leading-tight">شاشة الويتر</h1>
+                <h1 class="text-xl font-black text-gray-900 leading-tight flex items-center gap-2">
+                    شاشة الويتر
+                    {% if waiter_only_user %}
+                    <!-- No navbar/header on this page for a waiter-only account (see
+                         page_nav/page_header overrides above) — no other way to log
+                         out, so put it right next to the title where it's visible. -->
+                    <a href="{% url 'logout' %}" class="flex items-center gap-1 text-[11px] font-black text-gray-400 hover:text-red-600 border border-gray-200 hover:border-red-300 rounded-lg px-2 py-1 transition-colors">
+                        <i class="fa-solid fa-right-from-bracket"></i> تسجيل الخروج
+                    </a>
+                    {% endif %}
+                </h1>
                 <p class="text-xs text-gray-400">{{ branch.name }}</p>
             </div>
         </div>
@@ -259,6 +271,19 @@ function waiterTables(branchId) {
             // rendered, so it's always showing current status, not a screenshot.
             window.addEventListener('pageshow', (e) => { if (e.persisted) location.reload(); });
 
+            // The "طلب جاهز" banner used to be pure in-memory JS state — a websocket
+            // push appended a <div> that vanished on the next navigation/refresh even
+            // if the waiter never actually closed it, on a page where nearly every
+            // click reloads. The server now renders one banner per order that's
+            // STILL kitchen-ready (see ready_orders_json in waiter_table_map) on every
+            // load; this only skips ones the waiter has explicitly dismissed
+            // (tracked in localStorage, which is what actually makes "closed by the
+            // waiter" durable across page loads instead of "closed until next reload").
+            const readyOrders = {{ ready_orders_json|default:"[]"|safe }};
+            readyOrders.forEach(o => {
+                if (!this.isReadyOrderDismissed(o.order_id)) this.showReadyToast(o, {skipSoundAndPopup: true});
+            });
+
             this.recomputeCounts();
             if (!this.branchId) return;
             const ws = new WebSocket((location.protocol==='https:'?'wss://':'ws://') + location.host + '/ws/waiter/' + this.branchId + '/');
@@ -269,6 +294,11 @@ function waiterTables(branchId) {
                     if (el) { el.dataset.status = data.status; this.updateTableCard(el, data.status); this.recomputeCounts(); }
                 } else if (data.event === 'order_ready') {
                     this.showReadyToast(data);
+                    if (data.table_id) {
+                        const card = document.querySelector('[data-table-id="' + data.table_id + '"]');
+                        const ribbon = card && card.querySelector('.kitchen-ready-ribbon');
+                        if (ribbon) { card.dataset.kitchenReady = '1'; ribbon.classList.remove('hidden'); }
+                    }
                 }
             };
         },
@@ -282,18 +312,85 @@ function waiterTables(branchId) {
             this.counts = c;
             this.totalTables = cards.length;
         },
-        showReadyToast(data) {
-            const sound = document.getElementById('notification-sound');
-            if (sound) { try { sound.currentTime = 0; sound.play(); } catch (err) {} }
+        // localStorage (not sessionStorage/in-memory) so "closed by the waiter" survives
+        // not just a reload but a full navigation away and back — the whole point of
+        // this fix. Keyed per order id; cleared once that order actually leaves the
+        // ready set (see the table_status/order cleared-up branches below), so the set
+        // can't grow forever with orders that were served and forgotten about.
+        _dismissedKey() { return 'waiter_dismissed_ready_orders'; },
+        _readDismissed() {
+            try { return JSON.parse(localStorage.getItem(this._dismissedKey()) || '[]'); }
+            catch (e) { return []; }
+        },
+        isReadyOrderDismissed(orderId) { return this._readDismissed().includes(orderId); },
+        dismissReadyOrder(orderId) {
+            let set = this._readDismissed();
+            if (!set.includes(orderId)) {
+                set.push(orderId);
+                // Order ids only ever grow and are never reused, so this set would
+                // otherwise accumulate one entry forever, for the life of the browser
+                // profile — cap it well past any realistic number of orders still
+                // "ready" at once, dropping the oldest first.
+                if (set.length > 200) set = set.slice(set.length - 200);
+                localStorage.setItem(this._dismissedKey(), JSON.stringify(set));
+            }
+        },
+        showReadyToast(data, opts) {
+            opts = opts || {};
+            // Belt-and-suspenders dedup: whatever the exact cause (more than one live
+            // websocket connection for this tab, a stray reconnect, a backend re-push),
+            // never show a second banner/sound/native popup for an order that's already
+            // sitting on screen — the DOM itself is the source of truth for "already
+            // shown", not a counter that could get out of sync.
+            const existingBox = document.getElementById('ready-toasts');
+            if (existingBox && existingBox.querySelector('[data-order-id="' + data.order_id + '"]')) return;
+
+            const text = 'طلب #' + data.order_id + (data.table ? ' - ترابيزة ' + data.table : '') + ' جاهز للاستلام';
+
+            // Re-rendering banners the server already told us are still ready (on page
+            // load) is a REPLAY, not a new event — the waiter already heard/saw it the
+            // first time, or it happened while they weren't even on this page. Only a
+            // genuinely new websocket push should sound/pop.
+            if (!opts.skipSoundAndPopup) {
+                if (window.playNotificationSound) window.playNotificationSound();
+                // Native OS-level popup — fires even if this tab is in the background/
+                // minimized (as long as the browser itself is still running).
+                // Silently does nothing if the waiter never granted permission.
+                if ('Notification' in window && Notification.permission === 'granted') {
+                    try {
+                        const n = new Notification('طلب جاهز', { body: text, tag: 'order-ready-' + data.order_id });
+                        n.onclick = () => { window.focus(); n.close(); };
+                    } catch (err) {}
+                }
+            }
+
             const box = document.getElementById('ready-toasts');
             if (!box) return;
             const div = document.createElement('div');
-            div.className = 'bg-emerald-600 text-white px-4 py-3 rounded-lg shadow-lg mb-2 animate-fade-in-up';
-            div.textContent = 'طلب #' + data.order_id + (data.table ? ' - ترابيزة ' + data.table : '') + ' جاهز للاستلام';
+            div.dataset.orderId = data.order_id;
+            // No auto-dismiss — stays on screen (and now survives navigation/refresh
+            // too, see init()) until the waiter closes it themselves.
+            div.className = 'bg-emerald-600 text-white px-4 py-3 rounded-xl shadow-lg flex items-center justify-between gap-3 animate-fade-in-up';
+            const span = document.createElement('span');
+            span.className = 'font-bold text-sm';
+            span.textContent = text;
+            const closeBtn = document.createElement('button');
+            closeBtn.className = 'shrink-0 w-6 h-6 rounded-lg hover:bg-white/20 flex items-center justify-center text-lg leading-none';
+            closeBtn.textContent = '×';
+            closeBtn.onclick = () => { this.dismissReadyOrder(data.order_id); div.remove(); };
+            div.appendChild(span);
+            div.appendChild(closeBtn);
             box.appendChild(div);
-            setTimeout(() => div.remove(), 8000);
         },
         updateTableCard(el, status) {
+            // A table only ever goes free/reserved after its order is closed/voided —
+            // the "ready" ribbon is meaningless once that happens, and would otherwise
+            // stay stuck showing for whichever NEXT party gets seated there.
+            if (status !== 'busy') {
+                el.dataset.kitchenReady = '0';
+                const ribbon = el.querySelector('.kitchen-ready-ribbon');
+                if (ribbon) ribbon.classList.add('hidden');
+            }
             el.classList.remove('bg-emerald-50/80', 'border-emerald-200', 'bg-red-50/80', 'border-red-200', 'bg-amber-50/80', 'border-amber-200');
             const dot = el.querySelector('.status-dot');
             const label = el.querySelector('.status-label');

@@ -1,10 +1,20 @@
 {% load rbac_tags %}
 <a href="{% url 'restaurant:waiter_order' table.id %}"
    data-table-id="{{ table.id }}" data-status="{{ table.status }}"
+   data-kitchen-ready="{% if table.status == 'busy' and table.open_order.kitchen_status == 'ready' %}1{% else %}0{% endif %}"
    class="table-card relative block rounded-2xl border-2 p-4 text-center shadow-sm hover:shadow-md transition-all
           {% if table.status == 'busy' %}bg-red-50/80 border-red-200
           {% elif table.status == 'reserved' %}bg-amber-50/80 border-amber-200
           {% else %}bg-emerald-50/80 border-emerald-200{% endif %}">
+    <!-- Big, unmissable marker that the kitchen has finished this table's order —
+         toggled both server-side (on initial render/refresh) and live via the
+         'order_ready' websocket event (see waiter_tables.html init()), so a waiter
+         sees it whether they were already looking at the grid or just opened it. -->
+    <div class="kitchen-ready-ribbon {% if table.status != 'busy' or table.open_order.kitchen_status != 'ready' %}hidden{% endif %} absolute inset-x-0 -top-2 flex justify-center z-10">
+        <span class="px-2.5 py-1 rounded-full bg-emerald-600 text-white text-[10px] font-black shadow-md shadow-emerald-300 flex items-center gap-1 animate-pulse">
+            <i class="fa-solid fa-bell text-[9px]"></i> الطلب جاهز
+        </span>
+    </div>
     <span class="status-dot absolute top-2.5 left-2.5 w-2.5 h-2.5 rounded-full
                  {% if table.status == 'busy' %}bg-red-500
                  {% elif table.status == 'reserved' %}bg-amber-500

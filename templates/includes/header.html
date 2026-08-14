@@ -1,11 +1,12 @@
 <header class="flex items-center justify-between px-6 py-3 bg-white border-b border-gray-200">
     <div class="flex items-center gap-3">
         <h1 class="text-xl font-semibold text-gray-800">{{ title }}</h1>
-        {% if cashier_only_user %}
-        <!-- A cashier-only account (see cashier_only_user in sales/views.py pos_view)
-             has no top navbar on this page and so no other way to log out — put it right
-             next to the page title where it's actually visible, instead of buried in the
-             toolbar. Only this page sets cashier_only_user, so it's a no-op elsewhere. -->
+        {% if cashier_only_user or waiter_only_user %}
+        <!-- A cashier-only account (see cashier_only_user in sales/views.py pos_view) or
+             a waiter-only account (see _waiter_only_user in restaurant/views.py) has no
+             top navbar/sidebar on this page and so no other way to log out — put it
+             right next to the page title where it's actually visible, instead of buried
+             in the toolbar. Only these pages set these flags, so it's a no-op elsewhere. -->
         <a href="{% url 'logout' %}" class="flex items-center gap-1.5 text-xs font-black text-gray-500 hover:text-red-600 border border-gray-300 hover:border-red-300 rounded-lg px-2.5 py-1.5 transition-colors">
             <i class="fa-solid fa-right-from-bracket"></i> تسجيل الخروج
         </a>
@@ -22,10 +23,8 @@
     // sound for notifications already seen earlier in this session.
     let lastUnreadCount = parseInt(sessionStorage.getItem('notif_last_count') || '-1', 10);
     let lastLatestId = parseInt(sessionStorage.getItem('notif_last_id') || '-1', 10);
-    const sound = document.getElementById('notification-sound');
 
-    // Request Notification Permission (no audio "unlock" trick — it caused an
-    // audible blip on the first click of every page load in this multi-page app).
+    // Request Notification Permission.
     function enableAudioOnInteraction() {
         if ("Notification" in window && Notification.permission === "default") {
             Notification.requestPermission();
@@ -72,8 +71,6 @@
                 // notifications — never on the first check of a session (that would
                 // just be replaying the existing unread backlog).
                 if (!isFirstCheckThisSession && (checkData.unread_count > lastUnreadCount || checkData.latest_id > lastLatestId)) {
-                    playNotificationSound();
-
                     // Show Native Notification for the newest one
                     if (data.notifications && data.notifications.length > 0) {
                         showNativeNotification(data.notifications[0]);
@@ -102,20 +99,6 @@
                 markReadAndRedirect(notif.id, notif.link);
             };
         }
-    }
-
-    function playNotificationSound() {
-        if (!sound) return;
-        try {
-            sound.currentTime = 0;
-            const playPromise = sound.play();
-            if (playPromise !== undefined) {
-                playPromise.catch(e => {
-                    // Normal behavior if user hasn't clicked yet
-                    console.log("Audio play deferred.");
-                });
-            }
-        } catch(e) { /* ignore */ }
     }
 
     // Update UI

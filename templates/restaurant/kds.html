@@ -6,12 +6,16 @@
 <main class="w-full grow p-0.5">
     {% block content %}
 <div class="p-0.5" x-data="{ branchId: {{ branch.id }} }" x-init="
-    let ws = new WebSocket((location.protocol==='https:'?'wss://':'ws://') + location.host + '/ws/kds/' + branchId + '/');
-    ws.onmessage = (e) => {
-        const sound = document.getElementById('notification-sound');
-        if (sound) { try { sound.currentTime = 0; sound.play(); } catch (err) {} }
-        setTimeout(() => location.reload(), 400);
-    };
+    // A new order pushes a 'kds' event and this reloads to show it — but a websocket
+    // that silently drops (network blip, phone switching wifi/data, server restart)
+    // has no retry, so the kitchen screen goes stale until someone happens to refresh
+    // it by hand. Auto-reconnect with backoff so a dropped connection recovers itself
+    // instead of the page needing a manual refresh to start receiving new orders again.
+    (function connect() {
+        const ws = new WebSocket((location.protocol==='https:'?'wss://':'ws://') + location.host + '/ws/kds/' + branchId + '/');
+        ws.onmessage = (e) => { setTimeout(() => location.reload(), 400); };
+        ws.onclose = () => { setTimeout(connect, 2000); };
+    })();
 ">
     <div class="flex items-center justify-between mb-0.5 flex-wrap gap-2">
         <h1 class="text-sm font-bold">شاشة المطبخ — {{ branch.name }}</h1>

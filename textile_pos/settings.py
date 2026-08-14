@@ -55,7 +55,7 @@ DEBUG = _env_bool('DJANGO_DEBUG', True)
 
 ALLOWED_HOSTS = _env_list(
     'DJANGO_ALLOWED_HOSTS',
-    ['167.86.71.246', 'mekawyerp.shop', 'www.mekawyerp.shop', 'localhost', '127.0.0.1'],
+    ['167.86.71.246', 'mekawyerp.shop', 'www.mekawyerp.shop', 'localhost', '127.0.0.1', '192.168.1.8'],
 )
 
 # CSRF trusted origins for the production domains (needed once DEBUG=False behind HTTPS).

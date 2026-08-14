@@ -175,6 +175,21 @@ def restaurant_setup(request):
 #  WAITER SCREEN — table map
 # ─────────────────────────────────────────────
 
+def _waiter_only_user(user):
+    """A user whose access is limited to the waiter module (no other module) has no
+    use for the top navbar/sidebar — they can never navigate anywhere else with it
+    anyway — so hiding it gives the tables grid / order screen the extra room. Same
+    treatment as kitchen_only_user (kds_view below) and cashier_only_user
+    (sales/views.py pos_view). Master/superuser always keep the normal chrome even if
+    their profile has no explicit role permissions recorded.
+    """
+    prof = getattr(user, 'profile', None)
+    if user.is_superuser or getattr(prof, 'is_master', False) or prof is None:
+        return False
+    granted_modules = {m for m, actions in prof.get_all_permissions().items() if actions}
+    return granted_modules == {'waiter'}
+
+
 @login_required
 @require_permission('waiter', 'view')
 def waiter_table_map(request):
@@ -192,12 +207,31 @@ def waiter_table_map(request):
     no_table_orders = (Order.objects.filter(warehouse=branch, table__isnull=True, is_open=True)
                        .exclude(status='void').select_related('waiter').order_by('-created_at'))
 
+    # Orders the kitchen has already finished, still sitting there unpicked-up — the
+    # "طلب جاهز" banner used to be pure in-memory JS state (a websocket push appends a
+    # <div>), so it vanished on every navigation/refresh even if the waiter never
+    # actually dismissed it, on a page where nearly every click reloads. Rendering the
+    # SAME banners server-side from the real kitchen_status here means the banner
+    # survives navigation exactly like the table-card ribbon already does — it only
+    # goes away when the waiter closes it (tracked client-side, see waiter_tables.html)
+    # or the order stops being "ready" (served/closed).
+    ready_orders = list(
+        Order.objects.filter(warehouse=branch, kitchen_status=Order.PREP_READY)
+        .exclude(status='void').select_related('table').order_by('ready_at')
+    )
+    ready_orders_json = json.dumps([
+        {'order_id': o.id, 'table': o.table.number if o.table_id else None}
+        for o in ready_orders
+    ])
+
     return render(request, 'restaurant/waiter_tables.html', {
         'branch': branch,
         'warehouses': warehouses,
         'sections': sections,
         'tables': tables,
+        'waiter_only_user': _waiter_only_user(request.user),
         'no_table_orders': no_table_orders,
+        'ready_orders_json': ready_orders_json,
     })
 
 
@@ -462,7 +496,8 @@ def waiter_order_screen(request, table_id):
     order = table.open_order
 
     context = _waiter_menu_context(order)
-    context.update({'branch': branch, 'table': table, 'order': order})
+    context.update({'branch': branch, 'table': table, 'order': order,
+                    'waiter_only_user': _waiter_only_user(request.user)})
     return render(request, 'restaurant/waiter_order.html', context)
 
 
@@ -605,7 +640,8 @@ def waiter_order_screen_no_table(request, order_id):
     order = get_object_or_404(Order, pk=order_id, table__isnull=True)
 
     context = _waiter_menu_context(order)
-    context.update({'branch': branch, 'table': None, 'order': order})
+    context.update({'branch': branch, 'table': None, 'order': order,
+                    'waiter_only_user': _waiter_only_user(request.user)})
     return render(request, 'restaurant/waiter_order.html', context)
 
 
@@ -1113,6 +1149,14 @@ def kds_set_order_status(request, order_id):
     if new_status not in valid:
         return JsonResponse({'status': 'error', 'message': 'حالة غير صالحة'}, status=400)
 
+    # Captured BEFORE mutating anything below — used to tell "this call just finished
+    # the order" apart from "the order was already finished and this call changed
+    # nothing" (e.g. a double-click, or the same order appearing on more than one
+    # per-station KDS ticket and getting marked done from each one). Without this, every
+    # redundant call would re-push the waiter notification for an order that was
+    # already ready, which is exactly why it was showing up twice.
+    was_already_ready = order.kitchen_status in (Order.PREP_READY, Order.PREP_DELIVERED)
+
     items_qs = order.items.filter(is_void=False).exclude(kitchen_status=OrderItem.KITCHEN_SERVED)
     if new_status in (OrderItem.KITCHEN_READY, OrderItem.KITCHEN_SERVED):
         # Per-item save (not a bulk .update()) so each one can deduct its own recipe.
@@ -1130,6 +1174,30 @@ def kds_set_order_status(request, order_id):
         push_event('kds', order.warehouse_id, {
             'event': 'order_items_status', 'order_id': order.id, 'status': new_status,
         })
+
+        # The KDS screen (this view) and the waiter's table screen/grid track kitchen
+        # progress in two SEPARATE fields — OrderItem.kitchen_status (per line, what
+        # this view sets above) and Order.kitchen_status (ticket-wide, what the waiter
+        # screen/table grid reads). Nothing synced them before, so a kitchen finishing a
+        # table's order here never showed up for the waiter at all. Mirror the
+        # ticket-wide status onto Order.kitchen_status the moment every item is served,
+        # and notify the waiter exactly like cashier_set_order_status already does for
+        # its own (separate, less-used) queue.
+        if (new_status == OrderItem.KITCHEN_SERVED and not was_already_ready
+                and not order.items.filter(is_void=False).exclude(
+                    kitchen_status=OrderItem.KITCHEN_SERVED).exists()):
+            from django.utils import timezone as _tz
+            order.kitchen_status = Order.PREP_READY
+            order.ready_at = _tz.now()
+            order.save(update_fields=['kitchen_status', 'ready_at'])
+            push_event('cashier', order.warehouse_id, {
+                'event': 'order_status', 'order_id': order.id, 'status': Order.PREP_READY,
+            })
+            push_event('waiter', order.warehouse_id, {
+                'event': 'order_ready', 'order_id': order.id,
+                'table': order.table.number if order.table_id else None,
+                'table_id': order.table_id,
+            })
 
     return JsonResponse({'status': 'ok'})
 

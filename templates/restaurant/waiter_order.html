@@ -1,6 +1,7 @@
 {% extends 'base.html' %}
 {% load rbac_tags %}
 {% block title %}{% if table %}ترابيزة {{ table.number }}{% else %}طلب #{{ order.id }} (بدون ترابيزة){% endif %}{% endblock %}
+{% block page_nav %}{% if not waiter_only_user %}{% include 'includes/sidebar.html' %}{% endif %}{% endblock %}
 {% block extra_head %}
 <style>
     [x-cloak] { display: none !important; }
@@ -669,8 +670,6 @@ function waiterOrder() {
             ws.onmessage = (e) => {
                 const data = JSON.parse(e.data);
                 if (data.event === 'order_ready') {
-                    const sound = document.getElementById('notification-sound');
-                    if (sound) { try { sound.currentTime = 0; sound.play(); } catch (err) {} }
                     const box = document.getElementById('ready-toasts');
                     if (!box) return;
                     const div = document.createElement('div');
