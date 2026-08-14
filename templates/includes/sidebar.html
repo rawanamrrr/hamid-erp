@@ -322,7 +322,7 @@ html.fav-only-mode #topnav-items > *:not(.fav-show) { display: none; }
             </div>
             {% endif %}
 
-            {% if request.user|can_access:"financial:view" or request.user.is_superuser %}
+            {% if request.user|can_access:"financial:view" or request.user|can_access:"financial:salaries" or request.user|can_access:"financial:advances" or request.user.is_superuser %}
             <!-- التقارير dropdown — رواتب/سلف/تقارير مالية, all financial:* pages. Used to
                  be nested inside the "المبيعات" if-block above (sharing its closing
                  endif) even though none of its content is sales-gated — a role with
@@ -335,9 +335,16 @@ html.fav-only-mode #topnav-items > *:not(.fav-show) { display: none; }
                     <i class="fas fa-chevron-down text-[9px] opacity-50"></i>
                 </button>
                 <div class="tnav-dropdown-menu" style="min-width:240px; max-height:70vh; overflow-y:auto;">
+                    {% if request.user|can_access:"financial:view" or request.user|can_access:"financial:salaries" or request.user|can_access:"financial:advances" or request.user.is_superuser %}
                     <p class="tnav-section-label">الموظفون</p>
+                    {% if request.user|can_access:"financial:view" or request.user|can_access:"financial:salaries" or request.user.is_superuser %}
                     <a href="{% url 'financial:salary_list' %}" class="tnav-sub {% if vn == 'financial:salary_list' %}active{% endif %}"><i class="fas fa-money-bill-wave text-green-400 w-4"></i> رواتب الموظفين</a>
+                    {% endif %}
+                    {% if request.user|can_access:"financial:view" or request.user|can_access:"financial:advances" or request.user.is_superuser %}
                     <a href="{% url 'financial:advance_list' %}" class="tnav-sub {% if vn == 'financial:advance_list' %}active{% endif %}"><i class="fas fa-hand-holding-dollar text-green-400 w-4"></i> السلف</a>
+                    {% endif %}
+                    {% endif %}
+                    {% if request.user|can_access:"financial:view" or request.user.is_superuser %}
                     <a href="{% url 'financial:deal_list' %}" class="tnav-sub {% if vn == 'financial:deal_list' %}active{% endif %}"><i class="fas fa-tags text-purple-400 w-4"></i> العروض والخصومات</a>
 
                     <p class="tnav-section-label">التقارير المالية</p>
@@ -348,6 +355,7 @@ html.fav-only-mode #topnav-items > *:not(.fav-show) { display: none; }
                     <a href="{% url 'financial:income_statement' %}" class="tnav-sub {% if vn == 'financial:income_statement' %}active{% endif %}"><i class="fas fa-chart-pie text-fuchsia-400 w-4"></i> قائمة الدخل</a>
                     <a href="{% url 'financial:trial_balance' %}" class="tnav-sub {% if vn == 'financial:trial_balance' %}active{% endif %}"><i class="fas fa-balance-scale text-slate-400 w-4"></i> ميزان المراجعة</a>
                     <a href="{% url 'financial:vat_report' %}" class="tnav-sub {% if vn == 'financial:vat_report' %}active{% endif %}"><i class="fas fa-percent text-amber-400 w-4"></i> تقرير ضريبة القيمة المضافة</a>
+                    {% endif %}
                 </div>
                 {% endwith %}
             </div>

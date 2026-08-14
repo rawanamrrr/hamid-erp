@@ -235,6 +235,7 @@ class ApprovalRequest(models.Model):
         ('change_unit',       'تغيير وحدة البيع'),
         ('below_zero_stock',  'البيع برصيد سالب'),
         ('over_credit_limit', 'تجاوز حد ائتمان العميل'),
+        ('over_expense_limit', 'تجاوز حد اعتماد المصروف اليومي'),
     ]
     STATUS_CHOICES = [
         ('pending',  'بانتظار الموافقة'),

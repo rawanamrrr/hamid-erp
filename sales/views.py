@@ -2080,40 +2080,98 @@ def refund_view(request):
 @login_required
 @require_granular_action('sales', 'expenses', 'financial', 'view')
 def expense_list(request):
-    expenses = Expense.objects.all().order_by('-date')
+    """مصاريف يومية — small operational purchases with no product/order behind them
+    (cleaning supplies, maintenance items, ...). Posts a real EXPENSE Transaction
+    against whichever Account the chosen payment method maps to (same account
+    resolution `financial.posting.cash_account` uses everywhere else), so it correctly
+    affects that account's balance and — when paid in cash — the active shift's cash
+    reconciliation, exactly like any other cash-drawer movement.
+    """
+    from financial.models import PeriodLock
+    from financial.posting import cash_account
+    from accounts import approvals as _appr
+
+    # The date-range filter form/`total_expenses` figure already existed in this page's
+    # template, but this view never actually read date_from/date_to or computed a
+    # total — the filter silently did nothing. Wired up for real now, since a running
+    # total for the selected range is exactly what a "daily expenses" screen needs.
+    expenses = Expense.objects.select_related('user', 'approved_by').order_by('-date', '-id')
+    filter_date_from = request.GET.get('date_from')
+    filter_date_to = request.GET.get('date_to')
+    if filter_date_from:
+        expenses = expenses.filter(date__gte=filter_date_from)
+    if filter_date_to:
+        expenses = expenses.filter(date__lte=filter_date_to)
+    total_expenses = expenses.aggregate(total=Sum('amount'))['total'] or Decimal('0')
+
     if request.method == 'POST':
-        form = ExpenseForm(request.POST)
+        form = ExpenseForm(request.POST, request.FILES)
         if form.is_valid():
             exp = form.save(commit=False)
+
+            if PeriodLock.is_locked(exp.date) and not has_permission(request.user, 'financial', 'manage'):
+                messages.error(request, "الفترة المحاسبية لهذا التاريخ مغلقة، لا يمكن تسجيل مصروف بتاريخها.")
+                return render(request, 'sales/expense_list.html', {
+                    'expenses': expenses, 'form': form, 'total_expenses': total_expenses,
+                })
+
+            # Amounts over the configurable threshold (ثوابت النظام → المصاريف
+            # اليومية) need a manager's inline sign-off, same mechanism already used
+            # for checkout discount/credit-limit overrides — never a NEW workflow.
+            threshold = Decimal(str(get_policy('expenses.approval_threshold') or 0))
+            approver = None
+            if threshold > 0 and exp.amount > threshold and not _appr.is_authorizer(request.user):
+                approver = _appr.authorize_inline(
+                    request.POST.get('approver_username'), request.POST.get('approver_password'), request.user)
+                if approver is None:
+                    reason = _appr.describe_authorize_failure(
+                        request.POST.get('approver_username'), request.POST.get('approver_password'), request.user)
+                    approval_error = {
+                        'missing': 'هذا المصروف يتجاوز حد الاعتماد ({} ج.م) — يلزم اعتماد مدير.'.format(threshold),
+                        'bad_credentials': 'بيانات المدير غير صحيحة.',
+                        'self_approval': 'لا يمكن اعتماد المصروف بحساب المستخدم نفسه.',
+                        'not_authorizer': 'هذا الحساب لا يملك صلاحية الاعتماد.',
+                    }.get(reason, 'يلزم اعتماد مدير لهذا المصروف.')
+                    return render(request, 'sales/expense_list.html', {
+                        'expenses': expenses, 'form': form, 'total_expenses': total_expenses,
+                        'approval_error': approval_error, 'approval_threshold': threshold,
+                    })
+
             exp.user = request.user
+            if approver is not None:
+                exp.approved_by = approver
+                _appr.record_approvals(request.user, approver, [{
+                    'kind': _appr.OVER_EXPENSE_LIMIT,
+                    'message': f'مصروف "{exp.title}" بقيمة {exp.amount} ج.م تجاوز حد الاعتماد ({threshold} ج.م)',
+                    'detail': {'amount': float(exp.amount), 'threshold': float(threshold), 'category': exp.category},
+                }])
             exp.save()
-            
-            # --- Financial Integration: Record Expense Transaction ---
+
             try:
-                # Deduct from Cash Drawer (Or select account?) 
-                # Ideally expense form should let you pick account, but for now default to CASH_DRAWER to fix "0 balance"
-                account, _ = Account.objects.get_or_create(
-                    account_type='CASH_DRAWER', 
-                    defaults={'name': 'درج الكاشير', 'balance': 0}
-                )
-                
-                current_shift = get_active_shift()  # FIX #4: global shift
-                Transaction.objects.create(
-                    shift=current_shift,
+                account = cash_account(exp.payment_method)
+                txn = Transaction.objects.create(
+                    shift=get_active_shift(),
                     account=account,
                     transaction_type='EXPENSE',
                     amount=exp.amount,
-                    description=f"مصروف: {exp.description or exp.category}",
-                    created_by=request.user
+                    description=f"مصروف: {exp.title}" + (f" — {exp.description}" if exp.description else ""),
+                    created_by=request.user,
+                    expense=exp,
                 )
-            except Exception as e:
-                print(f"Error creating financial transaction for expense: {e}")
+            except Exception:
+                logger.exception("Failed to post financial transaction for expense %s", exp.pk)
+                messages.warning(request, "تم حفظ المصروف، لكن حدث خطأ أثناء ترحيله للحسابات — راجع الإدارة.")
 
+            messages.success(request, "تم تسجيل المصروف بنجاح.")
             return redirect('expense_list')
     else:
-        form = ExpenseForm()
-    
-    return render(request, 'sales/expense_list.html', {'expenses': expenses, 'form': form})
+        form = ExpenseForm(initial={'date': timezone.localdate()})
+
+    threshold = Decimal(str(get_policy('expenses.approval_threshold') or 0))
+    return render(request, 'sales/expense_list.html', {
+        'expenses': expenses, 'form': form, 'total_expenses': total_expenses,
+        'approval_threshold': threshold,
+    })
 
 @login_required
 def expense_invoice(request, pk):

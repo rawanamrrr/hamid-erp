@@ -884,17 +884,26 @@ function waiterOrder() {
                 if (this.customerId) params.customer_id = this.customerId;
             }
             if (!confirm('تأكيد قفل الشيك؟')) return;
+            // Opened HERE, synchronously, still inside the click handler — a
+            // window.open() called later from inside the fetch's .then() (after an
+            // await/microtask boundary) is no longer reliably treated as originating
+            // from a user gesture and gets silently blocked by mobile popup blockers
+            // (this is exactly why nothing appeared to print for the waiter before).
+            // Navigated to the real receipt once the close actually succeeds below.
+            const receiptWin = window.open('', '_blank');
             const body = new URLSearchParams(params);
             fetch(`/restaurant/order/${this.orderId}/close/`, {
                 method: 'POST', headers: {'X-CSRFToken': getCookie('csrftoken'), 'Content-Type': 'application/x-www-form-urlencoded'},
                 body: body,
             }).then(r => r.json()).then(data => {
                 if (data.status === 'ok') {
-                    // Same receipt the cashier POS opens right after "دفع وطباعة" — a new
-                    // tab with the printable invoice, ready for the waiter to print.
-                    window.open(`/sales/invoice/${this.orderId}/?style=thermal`, '_blank');
+                    // autoprint=1 — the same printable invoice the cashier POS opens
+                    // after "دفع وطباعة", but triggers the print dialog itself instead
+                    // of leaving the waiter to find and tap the print button manually.
+                    if (receiptWin) receiptWin.location.href = `/sales/invoice/${this.orderId}/?style=thermal&autoprint=1`;
                     window.location.href = "{% url 'restaurant:waiter_tables' %}";
                 } else {
+                    if (receiptWin) receiptWin.close();
                     alert(data.message || 'حدث خطأ');
                 }
             });

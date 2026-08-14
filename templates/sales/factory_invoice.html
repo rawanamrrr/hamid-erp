@@ -61,7 +61,7 @@
             <img src="{{ sys_settings.logo_base64 }}" class="mx-auto h-16 mb-2 grayscale object-contain" alt="Logo">
             {% endif %}
             <h1 class="text-xl font-bold mb-1 leading-tight">{{ sys_settings.shop_name }}</h1>
-            <p class="text-[10px]">{{ sys_settings.address }}</p>
+            {% if sys_settings.address %}<p class="text-[10px]">{{ sys_settings.address }}</p>{% endif %}
             <p class="text-[10px] font-mono font-bold">{{ sys_settings.phone }}</p>
         </div>
 

@@ -8,9 +8,17 @@
     html { background: #e5e7eb; }
     body { font-family: 'Courier New', monospace; width: 280px; margin: 16px auto; padding: 8px;
            background: #fff; box-shadow: 0 1px 6px rgba(0,0,0,0.15); }
+    /* Page size matches the ticket's own content width (thermal-receipt width) instead
+       of the browser's A4/Letter default — without this, the ticket prints as a small
+       strip pasted in the corner of a full blank page, with a huge empty margin around
+       it (see the photo this was reported from). This does NOT remove the browser's own
+       "Headers and Footers" print option (the URL/date/page-number line) — that's a
+       checkbox in the print dialog itself, outside any webpage's control; uncheck it
+       there (or in the thermal printer's driver settings) to get rid of it. */
+    @page { size: 80mm auto; margin: 0; }
     @media print {
         html { background: none; }
-        body { margin: 0 auto; box-shadow: none; }
+        body { width: 80mm; margin: 0 auto; padding: 4px; box-shadow: none; }
     }
     h2 { text-align: center; margin: 0 0 4px; font-size: 16px; }
     .meta { text-align: center; font-size: 12px; margin-bottom: 8px; border-bottom: 1px dashed #000; padding-bottom: 6px; }
@@ -19,7 +27,7 @@
     .footer { text-align: center; font-size: 11px; margin-top: 8px; border-top: 1px dashed #000; padding-top: 4px; }
 </style>
 </head>
-<body>
+<body onload="window.print()">
     <h2>{{ station.name }}</h2>
     <div class="meta">
         {% if order.table %}ترابيزة {{ order.table.number }}{% else %}{{ order.get_order_type_display }}{% endif %}

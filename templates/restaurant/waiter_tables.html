@@ -299,6 +299,18 @@ function waiterTables(branchId) {
                         const ribbon = card && card.querySelector('.kitchen-ready-ribbon');
                         if (ribbon) { card.dataset.kitchenReady = '1'; ribbon.classList.remove('hidden'); }
                     }
+                } else if (data.event === 'order_delivered') {
+                    // Someone (possibly another waiter, another tab) already pressed
+                    // "استلمت الطلب" for this order — clear it here too instead of
+                    // leaving a stale banner/ribbon for an order that's no longer ready.
+                    this.dismissReadyOrder(data.order_id);
+                    const toast = document.querySelector('#ready-toasts [data-order-id="' + data.order_id + '"]');
+                    if (toast) toast.remove();
+                    if (data.table_id) {
+                        const card = document.querySelector('[data-table-id="' + data.table_id + '"]');
+                        const ribbon = card && card.querySelector('.kitchen-ready-ribbon');
+                        if (ribbon) { card.dataset.kitchenReady = '0'; ribbon.classList.add('hidden'); }
+                    }
                 }
             };
         },
@@ -374,11 +386,32 @@ function waiterTables(branchId) {
             const span = document.createElement('span');
             span.className = 'font-bold text-sm';
             span.textContent = text;
+
+            // "استلمت الطلب" — advances Order.kitchen_status past 'ready' server-side
+            // (see restaurant.views.mark_order_delivered), which is the actual root fix
+            // for the ready-order pile-up we cleaned up manually before: without this,
+            // nothing in the app ever moved an order past 'ready' at all.
+            const pickupBtn = document.createElement('button');
+            pickupBtn.className = 'shrink-0 px-2.5 py-1 rounded-lg bg-white/15 hover:bg-white/25 text-xs font-black whitespace-nowrap';
+            pickupBtn.textContent = 'استلمت الطلب';
+            pickupBtn.onclick = () => {
+                pickupBtn.disabled = true;
+                fetch(`/restaurant/order/${data.order_id}/mark-delivered/`, {
+                    method: 'POST', headers: {'X-CSRFToken': getCookie('csrftoken')},
+                }).then(r => r.json()).then(res => {
+                    if (res.status === 'ok') { this.dismissReadyOrder(data.order_id); div.remove(); }
+                    else { pickupBtn.disabled = false; alert(res.message || 'حدث خطأ'); }
+                }).catch(() => { pickupBtn.disabled = false; });
+            };
+
             const closeBtn = document.createElement('button');
             closeBtn.className = 'shrink-0 w-6 h-6 rounded-lg hover:bg-white/20 flex items-center justify-center text-lg leading-none';
             closeBtn.textContent = '×';
+            closeBtn.title = 'إخفاء فقط — لن يعلّم الطلب كمُستلم';
             closeBtn.onclick = () => { this.dismissReadyOrder(data.order_id); div.remove(); };
+
             div.appendChild(span);
+            div.appendChild(pickupBtn);
             div.appendChild(closeBtn);
             box.appendChild(div);
         },

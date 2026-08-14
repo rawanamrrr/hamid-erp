@@ -460,7 +460,7 @@
             <div class="header">
                 <div class="header-col header-info">
                     <h1 class="shop-name">{{ sys_settings.shop_name }}</h1>
-                    <p class="shop-addr">{{ sys_settings.address }}</p>
+                    {% if sys_settings.address %}<p class="shop-addr">{{ sys_settings.address }}</p>{% endif %}
                     <div class="mt-2">
                         <span class="badge">Tel</span>
                         <span class="num font-bold" style="font-size:1.1rem; margin-right:5px;">{{ sys_settings.phone }}</span>
@@ -683,8 +683,8 @@
                         <div><span class="font-bold" style="color:black;">الوقت: </span><span class="num">{% now "H:i" %}</span></div>
                     </div>
                     <div class="flex justify-between items-end mt-4">
-                        {% if sys_settings.show_qr %}
-                        <img src="https://api.qrserver.com/v1/create-qr-code/?size=90x90&data={{ sys_settings.qr_link|default:order.id }}"
+                        {% if sys_settings.show_qr and sys_settings.qr_link %}
+                        <img src="https://api.qrserver.com/v1/create-qr-code/?size=90x90&data={{ sys_settings.qr_link }}"
                             class="qr-img" alt="QR">
                         {% endif %}
                         <div class="text-center" style="flex:1;">
@@ -731,8 +731,8 @@
                     {% endif %}
                     <p class="text-xs" style="color:#6b7280; line-height:1.4;">{{ sys_settings.return_policy }}</p>
                     <div class="flex justify-between items-end mt-4">
-                        {% if sys_settings.show_qr %}
-                        <img src="https://api.qrserver.com/v1/create-qr-code/?size=90x90&data={{ sys_settings.qr_link|default:order.id }}"
+                        {% if sys_settings.show_qr and sys_settings.qr_link %}
+                        <img src="https://api.qrserver.com/v1/create-qr-code/?size=90x90&data={{ sys_settings.qr_link }}"
                             class="qr-img" alt="QR">
                         {% endif %}
                         <div style="margin-left: 15px;"><span class="font-bold" style="color:black;">الدفع: </span>{{ order.payment_details_display }}</div>

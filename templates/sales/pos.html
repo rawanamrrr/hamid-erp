@@ -346,7 +346,7 @@
                          delivery-only cashier with no products access at all) — matches
                          the exact permission each button's own endpoint enforces, so this
                          isn't just cosmetic, it's not shown when it would 403 anyway. -->
-                    {% if can_pos_transfer or can_bulk_movement %}
+                    {% if can_pos_transfer or can_bulk_movement or request.user|can_access:"sales:expenses" or request.user.is_superuser %}
                     <div class="grid grid-cols-2 gap-1.5 px-1">
                         {% if can_pos_transfer %}
                         <button type="button" onclick="openTransferModal()"
@@ -359,6 +359,18 @@
                             class="h-9 flex items-center justify-center gap-1.5 bg-gray-50 text-gray-700 border border-gray-200 hover:bg-gray-100 rounded-lg text-xs font-bold whitespace-nowrap">
                             <i class="fa-solid fa-layer-group text-emerald-500"></i> تعديل كمية
                         </button>
+                        {% endif %}
+                        {% if request.user|can_access:"sales:expenses" or request.user.is_superuser %}
+                        <!-- مصاريف يومية — same 'sales:expenses' granular action the page
+                             itself enforces (sales.views.expense_list), selectable
+                             per-role in الأدوار والصلاحيات → فواتير المبيعات. Lives here
+                             (not a standalone toolbar chip) — the always-visible row was
+                             already at capacity and started clipping the "المزيد" button
+                             itself off the edge of the screen. -->
+                        <a href="{% url 'expense_list' %}"
+                            class="h-9 flex items-center justify-center gap-1.5 bg-gray-50 text-gray-700 border border-gray-200 hover:bg-gray-100 rounded-lg text-xs font-bold whitespace-nowrap">
+                            <i class="fa-solid fa-receipt text-orange-500"></i> مصاريف
+                        </a>
                         {% endif %}
                     </div>
                     {% endif %}

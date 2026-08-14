@@ -1652,6 +1652,38 @@ def close_check(request, order_id):
 @login_required
 @require_permission('waiter', 'edit')
 @require_POST
+def mark_order_delivered(request, order_id):
+    """"استلمت الطلب" — a waiter acknowledging they've picked up a kitchen-ready order
+    from the pass. Order.kitchen_status otherwise sits at PREP_READY forever once the
+    kitchen sets it (there was previously no "waiter picked it up" step anywhere in the
+    app), which is exactly how the ready-order banner list on the tables screen ends up
+    silently piling up real orders indefinitely — see waiter_table_map's ready_orders
+    query. Same permission gate as close_check/split_order_pay (waiter:edit) since this
+    is a normal part of running a ticket, not a kitchen-side or admin action.
+    """
+    from django.utils import timezone as _tz
+    order = get_object_or_404(Order, pk=order_id)
+    if order.kitchen_status != Order.PREP_READY:
+        return JsonResponse({'status': 'error', 'message': 'الطلب ليس في حالة "جاهز" حالياً'}, status=400)
+
+    order.kitchen_status = Order.PREP_DELIVERED
+    order.delivered_at = _tz.now()
+    order.save(update_fields=['kitchen_status', 'delivered_at'])
+
+    if order.warehouse_id:
+        push_event('cashier', order.warehouse_id, {
+            'event': 'order_status', 'order_id': order.id, 'status': Order.PREP_DELIVERED,
+        })
+        push_event('waiter', order.warehouse_id, {
+            'event': 'order_delivered', 'order_id': order.id, 'table_id': order.table_id,
+        })
+
+    return JsonResponse({'status': 'ok'})
+
+
+@login_required
+@require_permission('waiter', 'edit')
+@require_POST
 def free_table(request, table_id):
     """Manually free a table that was marked busy by a cashier ringing up a dine-in
     order at POS and paying in full immediately — that flow has no "open tab" to close
@@ -1861,33 +1893,51 @@ def waiter_orders_detail(request, waiter_id):
 @login_required
 @require_permission('financial', 'view')
 def product_sales_report(request):
-    """Per-product sales for a period (today/week/month/all) — quantity sold, revenue,
-    and a best-sellers ranking, as distinct from category_sales_report's rollup by category.
+    """Per-product sales for a period (today/yesterday/week/month/all/custom) — quantity
+    sold, revenue, and a best-sellers ranking, as distinct from category_sales_report's
+    rollup by category. Same period-filter convention as that page (see its docstring).
     """
     from datetime import timedelta
     from django.utils import timezone
 
     branch, _ = _active_branch(request)
-    period = request.GET.get('period', 'today')
     today = timezone.localdate()
-    if period == 'week':
-        date_from = today - timedelta(days=7)
+    period = request.GET.get('period', 'today')
+    date_from = date_to = None
+
+    if period == 'today':
+        date_from = date_to = today
+    elif period == 'yesterday':
+        date_from = date_to = today - timedelta(days=1)
+    elif period == 'week':
+        date_from, date_to = today - timedelta(days=7), today
     elif period == 'month':
-        date_from = today - timedelta(days=30)
-    elif period == 'all':
-        date_from = None
+        date_from, date_to = today - timedelta(days=30), today
+    elif period == 'custom':
+        raw_from = request.GET.get('date_from')
+        raw_to = request.GET.get('date_to')
+        try:
+            date_from = timezone.datetime.strptime(raw_from, '%Y-%m-%d').date() if raw_from else None
+            date_to = timezone.datetime.strptime(raw_to, '%Y-%m-%d').date() if raw_to else None
+        except ValueError:
+            date_from = date_to = None
+        if date_from is None and date_to is None:
+            period = 'today'
+            date_from = date_to = today
     else:
-        period = 'today'
-        date_from = today
+        period = 'all'
+        date_from = date_to = None
 
     items = (OrderItem.objects
              .filter(is_void=False)
              .exclude(order__status='void')
-             .select_related('product', 'variant__size'))
+             .select_related('product', 'product__category', 'variant__size'))
     if branch:
         items = items.filter(order__warehouse=branch)
     if date_from:
         items = items.filter(order__created_at__date__gte=date_from)
+    if date_to:
+        items = items.filter(order__created_at__date__lte=date_to)
 
     # Group by (product, variant/size) — size is a primary dimension in reporting.
     rows_by_key = {}
@@ -1905,10 +1955,27 @@ def product_sales_report(request):
         row['quantity'] += it.quantity
         row['revenue'] += it.subtotal
 
-    rows = sorted(rows_by_key.values(), key=lambda r: r['revenue'], reverse=True)
+    # Grouped by category for the page, not just one flat best-sellers list — each
+    # category's own rows are still ranked by revenue internally, categories
+    # themselves ordered by their own total revenue (busiest section first).
+    cats_by_id = {}
+    for row in rows_by_key.values():
+        cat = row['product'].category
+        key = cat.id if cat else 0
+        bucket = cats_by_id.setdefault(key, {
+            'category': cat, 'name': cat.name if cat else 'بدون قسم',
+            'rows': [], 'total_revenue': Decimal('0'),
+        })
+        bucket['rows'].append(row)
+        bucket['total_revenue'] += row['revenue']
+
+    categories = sorted(cats_by_id.values(), key=lambda c: c['total_revenue'], reverse=True)
+    for cat in categories:
+        cat['rows'].sort(key=lambda r: r['revenue'], reverse=True)
 
     return render(request, 'restaurant/product_sales_report.html', {
-        'branch': branch, 'rows': rows, 'period': period,
+        'branch': branch, 'categories': categories, 'period': period,
+        'date_from': date_from, 'date_to': date_to,
     })
 
 
@@ -1928,15 +1995,55 @@ def category_sales_report(request):
     reserved code range (e.g. عصائر = 1-1000) is shown alongside for reference — items
     are expected to be coded within their category's range, but grouping here still
     uses the FK, since that's what OrderItem actually links.
+
+    Period filter — same today/week/month/all convention as product_sales_report, plus
+    'yesterday' (a single day, not just "everything from N days ago") and an explicit
+    'custom' range via ?date_from=&date_to= for anything those presets don't cover.
     """
+    from datetime import timedelta
+    from django.utils import timezone
 
     branch, _ = _active_branch(request)
+    today = timezone.localdate()
+    period = request.GET.get('period', 'today')
+    date_from = date_to = None
+
+    if period == 'today':
+        date_from = date_to = today
+    elif period == 'yesterday':
+        date_from = date_to = today - timedelta(days=1)
+    elif period == 'week':
+        date_from, date_to = today - timedelta(days=7), today
+    elif period == 'month':
+        date_from, date_to = today - timedelta(days=30), today
+    elif period == 'custom':
+        raw_from = request.GET.get('date_from')
+        raw_to = request.GET.get('date_to')
+        try:
+            date_from = timezone.datetime.strptime(raw_from, '%Y-%m-%d').date() if raw_from else None
+            date_to = timezone.datetime.strptime(raw_to, '%Y-%m-%d').date() if raw_to else None
+        except ValueError:
+            date_from = date_to = None
+        # A custom range with neither bound actually filled in isn't really "custom" —
+        # falls back to today so the page still shows something instead of "كل الفترة"
+        # by silent accident.
+        if date_from is None and date_to is None:
+            period = 'today'
+            date_from = date_to = today
+    else:
+        period = 'all'
+        date_from = date_to = None
+
     items = (OrderItem.objects
              .filter(is_void=False)
              .exclude(order__status='void')
              .select_related('product', 'product__category'))
     if branch:
         items = items.filter(order__warehouse=branch)
+    if date_from:
+        items = items.filter(order__created_at__date__gte=date_from)
+    if date_to:
+        items = items.filter(order__created_at__date__lte=date_to)
 
     categories = Category.objects.filter(is_active=True).order_by('name')
     rows = []
@@ -1954,7 +2061,10 @@ def category_sales_report(request):
         })
     rows.sort(key=lambda r: r['revenue'], reverse=True)
 
-    return render(request, 'restaurant/category_sales_report.html', {'branch': branch, 'rows': rows})
+    return render(request, 'restaurant/category_sales_report.html', {
+        'branch': branch, 'rows': rows, 'period': period,
+        'date_from': date_from, 'date_to': date_to,
+    })
 
 
 # ─────────────────────────────────────────────

@@ -106,7 +106,7 @@
             {% else %}
                 <div class="company-name">{{ sys_settings.shop_name }}</div>
             {% endif %}
-            <div style="font-size:12px; color:#777;">{{ sys_settings.address }}</div>
+            {% if sys_settings.address %}<div style="font-size:12px; color:#777;">{{ sys_settings.address }}</div>{% endif %}
             <div style="font-size:12px; color:#777;">{{ sys_settings.phone }}</div>
         </div>
         <div class="text-center">

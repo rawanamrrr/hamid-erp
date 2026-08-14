@@ -83,14 +83,23 @@
         { id: 'categories', name: 'التصنيفات', actions: ['view', 'create', 'edit', 'delete'] },
         // 'manage' is financial's own "full access" action (approvals, closing shifts,
         // overriding credit limits...) — heavily used across financial/sales/restaurant
-        // views but previously had no checkbox at all.
-        { id: 'financial', name: 'المالية والخزنة', actions: ['view', 'create', 'edit', 'manage'] },
+        // views but previously had no checkbox at all. 'salaries' and 'advances' are each
+        // narrower than 'view' on purpose and independent of each other — salary_list
+        // accepts 'salaries' (financial.views, require_granular_action('financial',
+        // 'salaries','financial','view')) and advance_list accepts 'advances' the same
+        // way, so a role can be given رواتب الموظفين without السلف or vice versa,
+        // without either one also exposing every other financial report (VAT, trial
+        // balance, income statement...) that plain 'view' would.
+        { id: 'financial', name: 'المالية والخزنة', actions: ['view', 'create', 'edit', 'manage', 'salaries', 'advances'] },
         { id: 'crm', name: 'العملاء (CRM)', actions: ['view', 'create', 'edit', 'delete'] },
         // Replaces the old unused 'sales_orders' entry (view/delete only, never actually
         // checked anywhere in code) with the module name really enforced in sales/views.py
         // and accounts/approvals.py: 'sales' — seeing all invoices, editing/deleting a
-        // posted invoice, and the manager-level 'manage' used for approvals.
-        { id: 'sales', name: 'فواتير المبيعات', actions: ['view_all', 'edit', 'delete', 'manage'] },
+        // posted invoice, and the manager-level 'manage' used for approvals. 'expenses'
+        // already existed as an enforced granular action (sales.views.expense_list —
+        // مصاريف يومية) but had no checkbox anywhere to actually grant it from a role;
+        // it fell back to plain financial:view for anyone without an explicit override.
+        { id: 'sales', name: 'فواتير المبيعات', actions: ['view_all', 'edit', 'delete', 'manage', 'expenses'] },
         { id: 'users', name: 'إدارة المستخدمين والأدوار', actions: ['view', 'create', 'edit', 'delete'] },
         // Previously had no entry at all — store settings/policies pages were unreachable
         // for any role without superuser/master status.
@@ -141,7 +150,10 @@
                                 act === 'void' ? 'إلغاء / إبطال الفاتورة' :
                                 act === 'manage' ? 'إدارة كاملة (اعتماد ومراجعة)' :
                                 act === 'view_all' ? 'رؤية كل الفواتير (وليس فواتيره فقط)' :
-                                act === 'add_customer' ? 'إضافة عميل جديد (بالاسم ورقم الموبايل)' : act;
+                                act === 'add_customer' ? 'إضافة عميل جديد (بالاسم ورقم الموبايل)' :
+                                act === 'salaries' ? 'رواتب الموظفين' :
+                                act === 'advances' ? 'السلف' :
+                                act === 'expenses' ? 'مصاريف يومية' : act;
                                 
             html += `
                 <label class="flex items-center gap-2 cursor-pointer hover:bg-gray-50 p-2 rounded-lg transition border border-transparent hover:border-gray-100">

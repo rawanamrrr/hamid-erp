@@ -2,7 +2,23 @@
 {% block title %}ريبورت المبيعات بالقسم{% endblock %}
 {% block content %}
 <div class="p-4">
-    <h1 class="text-2xl font-bold mb-4">مبيعات كل قسم{% if branch %} — {{ branch.name }}{% endif %}</h1>
+    <div class="flex items-center justify-between mb-4 flex-wrap gap-3">
+        <h1 class="text-2xl font-bold">مبيعات كل قسم{% if branch %} — {{ branch.name }}{% endif %}</h1>
+        <div class="flex items-center gap-2 text-sm flex-wrap">
+            <a href="?period=today" class="px-3 py-2 rounded-lg border {% if period == 'today' %}bg-emerald-600 text-white border-emerald-600{% endif %}">اليوم</a>
+            <a href="?period=yesterday" class="px-3 py-2 rounded-lg border {% if period == 'yesterday' %}bg-emerald-600 text-white border-emerald-600{% endif %}">أمس</a>
+            <a href="?period=week" class="px-3 py-2 rounded-lg border {% if period == 'week' %}bg-emerald-600 text-white border-emerald-600{% endif %}">آخر أسبوع</a>
+            <a href="?period=month" class="px-3 py-2 rounded-lg border {% if period == 'month' %}bg-emerald-600 text-white border-emerald-600{% endif %}">آخر شهر</a>
+            <a href="?period=all" class="px-3 py-2 rounded-lg border {% if period == 'all' %}bg-emerald-600 text-white border-emerald-600{% endif %}">كل الفترة</a>
+            <form method="get" class="flex items-center gap-1.5 border rounded-lg px-2 py-1 {% if period == 'custom' %}border-emerald-600 bg-emerald-50{% endif %}">
+                <input type="hidden" name="period" value="custom">
+                <input type="date" name="date_from" value="{{ date_from|date:'Y-m-d' }}" class="text-xs outline-none bg-transparent">
+                <span class="text-gray-400 text-xs">إلى</span>
+                <input type="date" name="date_to" value="{{ date_to|date:'Y-m-d' }}" class="text-xs outline-none bg-transparent">
+                <button type="submit" class="px-2 py-1 rounded-md bg-gray-800 text-white text-xs font-bold">تطبيق</button>
+            </form>
+        </div>
+    </div>
     <table class="w-full bg-white rounded-xl border overflow-hidden">
         <thead class="bg-gray-50 text-sm text-gray-600">
             <tr>
@@ -21,7 +37,7 @@
                 <td class="p-3 font-bold">{{ r.revenue }}</td>
             </tr>
             {% empty %}
-            <tr><td colspan="4" class="p-4 text-center text-gray-500">لا توجد بيانات مبيعات بعد.</td></tr>
+            <tr><td colspan="4" class="p-4 text-center text-gray-500">لا توجد بيانات مبيعات في هذه الفترة.</td></tr>
             {% endfor %}
         </tbody>
     </table>

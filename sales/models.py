@@ -1,5 +1,6 @@
 from django.db import models, transaction as db_transaction
 from django.contrib.auth.models import User
+from django.utils import timezone
 from decimal import Decimal
 
 
@@ -589,17 +590,39 @@ class Expense(models.Model):
         ('electricity', 'كهرباء/مياه/غاز'),
         ('internet', 'إنترنت وتليفون'),
         ('maintenance', 'صيانة وإصلاحات'),
+        ('cleaning', 'تنظيف ومستلزمات'),
         ('goods', 'نقل ومشال'),
         ('hospitality', 'ضيافة وبوفيه'),
         ('marketing', 'دعاية وإعلان'),
         ('other', 'نثريات / أخرى')
     ]
+    PAYMENT_METHODS = [
+        ('cash', 'كاش'),
+        ('bank', 'تحويل بنكي'),
+        ('wallet', 'محفظة إلكترونية'),
+        ('instapay', 'إنستاباي'),
+    ]
     title = models.CharField(max_length=200, verbose_name="بند الصرف")
     category = models.CharField(max_length=50, choices=EXPENSE_CATEGORIES, verbose_name="التصنيف")
     amount = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="المبلغ")
     description = models.TextField(blank=True, verbose_name="التفاصيل")
-    date = models.DateField(auto_now_add=True, verbose_name="التاريخ")
+    # Was auto_now_add (never editable, always "right now") — a daily-expense entry
+    # needs to be backdateable (e.g. logging yesterday's receipt today), so this is now
+    # a plain editable field defaulting to today rather than silently overwritten on save.
+    date = models.DateField(default=timezone.localdate, verbose_name="التاريخ")
+    payment_method = models.CharField(max_length=20, choices=PAYMENT_METHODS, default='cash',
+                                      verbose_name="طريقة الدفع")
+    # Optional photo of the receipt — no existing attachment convention elsewhere in this
+    # codebase to match beyond the plain ImageField pattern already used for profile
+    # photos/logo (accounts.UserProfile.profile_photo / settings.SystemSetting).
+    receipt = models.ImageField(upload_to='expenses/receipts/', blank=True, null=True,
+                                verbose_name="صورة الإيصال")
     user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, verbose_name="المسؤول")
+    # Set only when the amount exceeded settings.policies 'expenses.approval_threshold'
+    # and a manager authorized it inline (see accounts.approvals) — null for every
+    # expense under the threshold, which is the common case and needs no approver at all.
+    approved_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True,
+                                    related_name='approved_expenses', verbose_name="اعتمده")
 
 class ReturnInvoice(models.Model):
     REFUND_METHOD_CHOICES = [

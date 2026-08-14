@@ -23,6 +23,7 @@ urlpatterns = [
     path('order-item/<int:item_id>/void/', views.void_order_item, name='void_order_item'),
     path('order/<int:order_id>/void/', views.void_order, name='void_order'),
     path('order/<int:order_id>/close/', views.close_check, name='close_check'),
+    path('order/<int:order_id>/mark-delivered/', views.mark_order_delivered, name='mark_order_delivered'),
     path('waiter/tables/<int:table_id>/free/', views.free_table, name='free_table'),
     path('order/<int:order_id>/split-pay/', views.split_order_pay, name='split_order_pay'),
 

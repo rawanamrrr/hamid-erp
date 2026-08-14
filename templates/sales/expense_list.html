@@ -19,7 +19,12 @@
         <div class="lg:col-span-1">
             <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200 sticky top-4">
                 <h3 class="font-bold text-gray-800 mb-4 pb-2 border-b">تسجيل مصروف جديد</h3>
-                <form method="post" class="space-y-4">
+                {% if approval_error %}
+                <div class="mb-4 px-3 py-2.5 rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs font-bold">
+                    {{ approval_error }}
+                </div>
+                {% endif %}
+                <form method="post" enctype="multipart/form-data" class="space-y-4">
                     {% csrf_token %}
                     <div>
                         <label class="block text-xs font-bold text-gray-500 mb-1">بند الصرف</label>
@@ -29,14 +34,43 @@
                         <label class="block text-xs font-bold text-gray-500 mb-1">التصنيف</label>
                         {{ form.category }}
                     </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-bold text-gray-500 mb-1">المبلغ</label>
+                            {{ form.amount }}
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-500 mb-1">التاريخ</label>
+                            {{ form.date }}
+                        </div>
+                    </div>
                     <div>
-                        <label class="block text-xs font-bold text-gray-500 mb-1">المبلغ</label>
-                        {{ form.amount }}
+                        <label class="block text-xs font-bold text-gray-500 mb-1">طريقة الدفع</label>
+                        {{ form.payment_method }}
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 mb-1">صورة الإيصال (اختياري)</label>
+                        {{ form.receipt }}
                     </div>
                     <div>
                         <label class="block text-xs font-bold text-gray-500 mb-1">ملاحظات</label>
                         {{ form.description }}
                     </div>
+
+                    {% if approval_threshold %}
+                    <!-- Only relevant once amount > approval_threshold — kept visible always
+                         (rather than JS-toggled) so it's never a surprise mid-submit; a
+                         non-authorizer just leaves it blank when it doesn't apply and the
+                         server-side check is what actually decides whether it was needed. -->
+                    <div class="border-t pt-3 mt-1">
+                        <p class="text-[11px] text-gray-400 mb-2">مصروف أكبر من {{ approval_threshold|floatformat:0 }} ج.م يحتاج اعتماد مدير:</p>
+                        <div class="grid grid-cols-2 gap-2">
+                            <input type="text" name="approver_username" placeholder="اسم مستخدم المدير" class="w-full p-2 border rounded text-xs" autocomplete="off">
+                            <input type="password" name="approver_password" placeholder="كلمة المرور" class="w-full p-2 border rounded text-xs" autocomplete="off">
+                        </div>
+                    </div>
+                    {% endif %}
+
                     <button type="submit" class="w-full py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-bold shadow-sm transition">حفظ المصروف</button>
                 </form>
             </div>
@@ -88,7 +122,10 @@
                             <th class="p-4">البند</th>
                             <th class="p-4">التصنيف</th>
                             <th class="p-4">المبلغ</th>
+                            <th class="p-4">طريقة الدفع</th>
                             <th class="p-4">التاريخ</th>
+                            <th class="p-4">بواسطة</th>
+                            <th class="p-4">إيصال</th>
                             <th class="p-4">طباعة</th>
                         </tr>
                     </thead>
@@ -98,7 +135,23 @@
                             <td class="p-4 font-bold text-gray-800">{{ expense.title }}</td>
                             <td class="p-4"><span class="bg-gray-100 text-gray-600 px-2 py-1 rounded text-xs">{{ expense.get_category_display }}</span></td>
                             <td class="p-4 font-bold text-red-600">{{ expense.amount }}</td>
+                            <td class="p-4 text-gray-500 text-xs">{{ expense.get_payment_method_display }}</td>
                             <td class="p-4 text-gray-500">{{ expense.date|date:"Y-m-d" }}</td>
+                            <td class="p-4 text-xs text-gray-500">
+                                {{ expense.user.get_full_name|default:expense.user.username }}
+                                {% if expense.approved_by %}
+                                <div class="text-amber-600 font-bold mt-0.5" title="اعتمده"><i class="fas fa-shield-halved text-[9px]"></i> {{ expense.approved_by.get_full_name|default:expense.approved_by.username }}</div>
+                                {% endif %}
+                            </td>
+                            <td class="p-4">
+                                {% if expense.receipt %}
+                                <a href="{{ expense.receipt.url }}" target="_blank" class="text-emerald-600 hover:text-emerald-800" title="عرض الإيصال">
+                                    <i class="fas fa-receipt"></i>
+                                </a>
+                                {% else %}
+                                <span class="text-gray-300">—</span>
+                                {% endif %}
+                            </td>
                             <td class="p-4">
                                 <a href="{% url 'expense_invoice' expense.id %}" class="text-blue-600 hover:text-blue-800">
                                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
@@ -106,7 +159,7 @@
                             </td>
                         </tr>
                         {% empty %}
-                        <tr><td colspan="5" class="p-8 text-center text-gray-400">لا توجد مصروفات مسجلة</td></tr>
+                        <tr><td colspan="8" class="p-8 text-center text-gray-400">لا توجد مصروفات مسجلة</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>
@@ -114,4 +167,39 @@
         </div>
     </div>
 </div>
+<script>
+// Quick-range buttons (اليوم/أمس/7 أيام/الشهر) — fills the two date inputs and submits
+// the same filter form the manual date pickers already use.
+function setRange(kind) {
+    // NOT toISOString() — that converts to UTC first, which rolls back to the previous
+    // day for any timezone ahead of UTC (e.g. Egypt, UTC+2/+3) whenever local time is
+    // before UTC's own midnight — exactly the "اليوم shows yesterday" bug reported.
+    // Build the string from the Date object's own LOCAL year/month/day instead.
+    const fmt = (d) => {
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+    };
+    const today = new Date();
+    let from, to;
+    if (kind === 'today') {
+        from = to = today;
+    } else if (kind === 'yesterday') {
+        const y = new Date(today); y.setDate(y.getDate() - 1);
+        from = to = y;
+    } else if (kind === '7days') {
+        const s = new Date(today); s.setDate(s.getDate() - 7);
+        from = s; to = today;
+    } else if (kind === 'thisMonth') {
+        from = new Date(today.getFullYear(), today.getMonth(), 1);
+        to = today;
+    } else {
+        return;
+    }
+    document.getElementById('date_from').value = fmt(from);
+    document.getElementById('date_to').value = fmt(to);
+    document.getElementById('filterForm').submit();
+}
+</script>
 {% endblock %}

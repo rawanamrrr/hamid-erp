@@ -74,9 +74,11 @@
     </div>
     {% endif %}
 
+    {% if sys_settings.address %}
     <div style="text-align:center; margin-top:10px; border-top:1px dashed #000; padding-top:5px;">
         {{ sys_settings.address }}
     </div>
+    {% endif %}
 </div>
 
 {% else %}
@@ -85,7 +87,7 @@
     <div class="header">
         <div>
             <h1>{{ sys_settings.shop_name }}</h1>
-            <p>{{ sys_settings.address }}</p>
+            {% if sys_settings.address %}<p>{{ sys_settings.address }}</p>{% endif %}
             <p>{{ sys_settings.phone }}</p>
         </div>
         <div style="text-align:left;">

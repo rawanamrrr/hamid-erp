@@ -18,6 +18,7 @@ BELOW_SALE_PRICE = 'below_sale_price'
 CHANGE_UNIT = 'change_unit'
 BELOW_ZERO_STOCK = 'below_zero_stock'
 OVER_CREDIT_LIMIT = 'over_credit_limit'
+OVER_EXPENSE_LIMIT = 'over_expense_limit'
 
 
 def is_authorizer(user):

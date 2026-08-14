@@ -35,6 +35,7 @@ POLICY_GROUPS = {
     'receipts':  'الإيصالات والفواتير',
     'shifts':    'الورديات والخزنة',
     'kitchen':   'شاشة المطبخ',
+    'expenses':  'المصاريف اليومية',
 }
 
 # Each policy: key -> dict(group, label, help, type, default, [choices]).
@@ -149,6 +150,12 @@ POLICY_REGISTRY = {
         group='shifts', type='bool', default=True,
         label='السماح للكاشير بإغلاق وردية',
         help='عند التفعيل يظهر للكاشير زر إغلاق الوردية في شاشة الكاشير (تحدّه أيضاً صلاحية المستخدم). عند الإيقاف لا يظهر لأي كاشير، ويبقى إغلاق الوردية متاحاً للمالك/الأدمن دائماً.'),
+
+    # ── Daily Expenses (مصاريف يومية) ─────────────────────────────────────────
+    'expenses.approval_threshold': dict(
+        group='expenses', type='decimal', default='200',
+        label='حد اعتماد المصاريف اليومية (ج.م)',
+        help='أي مصروف يومي بمبلغ أكبر من هذا الحد يتطلب اعتماد مدير (نفس نظام اعتماد الخصومات) قبل حفظه — 0 يعني بدون حد.'),
 
     # ── Kitchen (KDS) ──────────────────────────────────────────────────────
     'kitchen.orders_per_page': dict(

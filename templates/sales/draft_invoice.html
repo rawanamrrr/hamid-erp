@@ -76,7 +76,7 @@
             {% else %}
                 <h2 class="company-name">{{ sys_settings.shop_name }}</h2>
             {% endif %}
-            <div class="f-12 muted">{{ sys_settings.address }}</div>
+            {% if sys_settings.address %}<div class="f-12 muted">{{ sys_settings.address }}</div>{% endif %}
             <div class="f-12 muted" dir="ltr">{{ sys_settings.phone }}</div>
         </div>
         

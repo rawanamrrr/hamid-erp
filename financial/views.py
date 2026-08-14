@@ -1241,7 +1241,7 @@ def attendance_settings(request):
 
 # User-Facing Salaries Views
 @login_required
-@require_granular_action('financial', 'payroll', 'financial', 'view')
+@require_granular_action('financial', 'salaries', 'financial', 'view')
 def salary_list(request):
     from .payroll_models import EmployeeSalary, Payslip
     from decimal import Decimal
@@ -1276,7 +1276,7 @@ def salary_list(request):
 
 
 @login_required
-@require_permission('financial', 'manage')
+@require_granular_action('financial', 'salaries', 'financial', 'manage')
 def salary_create(request):
     from .payroll_models import EmployeeSalary
     from .forms import EmployeeSalaryForm
@@ -1292,7 +1292,7 @@ def salary_create(request):
 
 
 @login_required
-@require_permission('financial', 'manage')
+@require_granular_action('financial', 'salaries', 'financial', 'manage')
 def salary_edit(request, pk):
     from .payroll_models import EmployeeSalary
     from .forms import EmployeeSalaryForm
@@ -1309,7 +1309,7 @@ def salary_edit(request, pk):
 
 
 @login_required
-@require_permission('financial', 'manage')
+@require_granular_action('financial', 'salaries', 'financial', 'manage')
 def salary_pay(request, pk):
     """Quick one-click "دفع" button on رواتب الموظفين. Used to pay straight off
     EmployeeSalary.net_salary — a completely separate computation from the قسيمة راتب
@@ -1475,7 +1475,7 @@ def _pay_payslip(ps, account, user):
 
 
 @login_required
-@require_permission('financial', 'manage')
+@require_granular_action('financial', 'salaries', 'financial', 'manage')
 def payslip_generate(request, salary_pk):
     """Create (or open) this period's payslip for an employee — see
     _get_or_create_payslip for what actually happens."""
@@ -1489,7 +1489,7 @@ def payslip_generate(request, salary_pk):
 
 
 @login_required
-@require_permission('financial', 'view')
+@require_granular_action('financial', 'salaries', 'financial', 'view')
 def payslip_detail(request, pk):
     from .payroll_models import Payslip, PayslipAdjustment
     from decimal import Decimal
@@ -1557,7 +1557,7 @@ def payslip_detail(request, pk):
 
 
 @login_required
-@require_permission('financial', 'manage')
+@require_granular_action('financial', 'salaries', 'financial', 'manage')
 def payslip_pay(request, pk):
     from .payroll_models import Payslip
     ps = get_object_or_404(Payslip, pk=pk)
@@ -1582,7 +1582,7 @@ def payslip_pay(request, pk):
 
 
 @login_required
-@require_permission('financial', 'view')
+@require_granular_action('financial', 'salaries', 'financial', 'view')
 def payslip_print(request, pk):
     from .payroll_models import Payslip
     ps = get_object_or_404(Payslip, pk=pk)
@@ -1590,7 +1590,7 @@ def payslip_print(request, pk):
 
 
 @login_required
-@require_granular_action('financial', 'payroll', 'financial', 'view')
+@require_granular_action('financial', 'advances', 'financial', 'view')
 def advance_list(request):
     from .payroll_models import EmployeeAdvance
     advances = EmployeeAdvance.objects.select_related('employee').all()
@@ -1598,7 +1598,7 @@ def advance_list(request):
 
 
 @login_required
-@require_permission('financial', 'manage')
+@require_granular_action('financial', 'advances', 'financial', 'manage')
 def advance_create(request):
     from .payroll_models import EmployeeAdvance
     from decimal import Decimal
@@ -1621,7 +1621,7 @@ def advance_create(request):
 
 
 @login_required
-@require_permission('financial', 'manage')
+@require_granular_action('financial', 'advances', 'financial', 'manage')
 def advance_edit(request, pk):
     from .payroll_models import EmployeeAdvance
     from decimal import Decimal

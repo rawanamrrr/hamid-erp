@@ -7,7 +7,10 @@ class SystemSetting(models.Model):
     MARKET_TYPE_CHOICES = _MARKET_TYPE_CHOICES
 
     shop_name = models.CharField(max_length=200, default="Wholesale POS System", verbose_name="اسم المحل")
-    address = models.TextField(blank=True, default="العنوان الافتراضي", verbose_name="العنوان")
+    # No placeholder default — an unset address must print as nothing on receipts, not
+    # a literal "العنوان الافتراضي" line nobody actually typed in (see the receipt
+    # templates, which now only render this paragraph when it's non-blank).
+    address = models.TextField(blank=True, default="", verbose_name="العنوان")
     phone = models.CharField(max_length=50, blank=True, default="01000000000", verbose_name="أرقام الهاتف")
     
     # Market Type (NEW)

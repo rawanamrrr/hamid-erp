@@ -84,7 +84,7 @@
                 {% else %}
                     <h2 class="company-name">{{ sys_settings.shop_name }}</h2>
                 {% endif %}
-                <div class="meta">{{ sys_settings.address }}</div>
+                {% if sys_settings.address %}<div class="meta">{{ sys_settings.address }}</div>{% endif %}
                 <div class="meta" dir="ltr">{{ sys_settings.phone }}</div>
             </div>
             <div class="meta meta-group">

@@ -2,46 +2,65 @@
 {% block title %}ريبورت مبيعات الأصناف{% endblock %}
 {% block content %}
 <div class="p-4">
-    <div class="flex items-center justify-between mb-4">
+    <div class="flex items-center justify-between mb-4 flex-wrap gap-3">
         <h1 class="text-2xl font-bold">أفضل الأصناف مبيعاً{% if branch %} — {{ branch.name }}{% endif %}</h1>
-        <div class="flex gap-2 text-sm">
-            <a href="?period=today" class="px-3 py-2 rounded-lg border {% if period == 'today' %}bg-emerald-600 text-white{% endif %}">اليوم</a>
-            <a href="?period=week" class="px-3 py-2 rounded-lg border {% if period == 'week' %}bg-emerald-600 text-white{% endif %}">آخر أسبوع</a>
-            <a href="?period=month" class="px-3 py-2 rounded-lg border {% if period == 'month' %}bg-emerald-600 text-white{% endif %}">آخر شهر</a>
-            <a href="?period=all" class="px-3 py-2 rounded-lg border {% if period == 'all' %}bg-emerald-600 text-white{% endif %}">كل الفترة</a>
+        <div class="flex items-center gap-2 text-sm flex-wrap">
+            <a href="?period=today" class="px-3 py-2 rounded-lg border {% if period == 'today' %}bg-emerald-600 text-white border-emerald-600{% endif %}">اليوم</a>
+            <a href="?period=yesterday" class="px-3 py-2 rounded-lg border {% if period == 'yesterday' %}bg-emerald-600 text-white border-emerald-600{% endif %}">أمس</a>
+            <a href="?period=week" class="px-3 py-2 rounded-lg border {% if period == 'week' %}bg-emerald-600 text-white border-emerald-600{% endif %}">آخر أسبوع</a>
+            <a href="?period=month" class="px-3 py-2 rounded-lg border {% if period == 'month' %}bg-emerald-600 text-white border-emerald-600{% endif %}">آخر شهر</a>
+            <a href="?period=all" class="px-3 py-2 rounded-lg border {% if period == 'all' %}bg-emerald-600 text-white border-emerald-600{% endif %}">كل الفترة</a>
+            <form method="get" class="flex items-center gap-1.5 border rounded-lg px-2 py-1 {% if period == 'custom' %}border-emerald-600 bg-emerald-50{% endif %}">
+                <input type="hidden" name="period" value="custom">
+                <input type="date" name="date_from" value="{{ date_from|date:'Y-m-d' }}" class="text-xs outline-none bg-transparent">
+                <span class="text-gray-400 text-xs">إلى</span>
+                <input type="date" name="date_to" value="{{ date_to|date:'Y-m-d' }}" class="text-xs outline-none bg-transparent">
+                <button type="submit" class="px-2 py-1 rounded-md bg-gray-800 text-white text-xs font-bold">تطبيق</button>
+            </form>
         </div>
     </div>
-    <table class="w-full bg-white rounded-xl border overflow-hidden">
-        <thead class="bg-gray-50 text-sm text-gray-600">
-            <tr>
-                <th class="p-3 text-right">#</th>
-                <th class="p-3 text-right">الصنف</th>
-                <th class="p-3 text-right">الحجم / المقاس</th>
-                <th class="p-3 text-right">الكمية المباعة</th>
-                <th class="p-3 text-right">إجمالي المبيعات</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for r in rows %}
-            <tr class="border-t text-sm">
-                <td class="p-3 text-gray-400">{{ forloop.counter }}</td>
-                <td class="p-3 font-semibold">{{ r.product.name }}</td>
-                <td class="p-3">
-                    {% if r.size_label %}
-                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-100 text-indigo-700 border border-indigo-200">
-                        {{ r.size_label }}
-                    </span>
-                    {% else %}
-                    <span class="text-gray-400 text-xs">—</span>
-                    {% endif %}
-                </td>
-                <td class="p-3">{{ r.quantity|floatformat:0 }}</td>
-                <td class="p-3 font-bold text-emerald-700">{{ r.revenue|floatformat:2 }} ج.م</td>
-            </tr>
-            {% empty %}
-            <tr><td colspan="5" class="p-4 text-center text-gray-500">لا توجد بيانات مبيعات في هذه الفترة.</td></tr>
-            {% endfor %}
-        </tbody>
-    </table>
+    {% for cat in categories %}
+    <div class="mb-5">
+        <div class="flex items-center justify-between px-1 mb-2">
+            <h2 class="text-base font-black text-gray-800 flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+                {{ cat.name }}
+            </h2>
+            <span class="text-xs font-bold text-gray-400">إجمالي القسم: <span class="text-emerald-700">{{ cat.total_revenue|floatformat:2 }} ج.م</span></span>
+        </div>
+        <table class="w-full bg-white rounded-xl border overflow-hidden">
+            <thead class="bg-gray-50 text-sm text-gray-600">
+                <tr>
+                    <th class="p-3 text-right">#</th>
+                    <th class="p-3 text-right">الصنف</th>
+                    <th class="p-3 text-right">الحجم / المقاس</th>
+                    <th class="p-3 text-right">الكمية المباعة</th>
+                    <th class="p-3 text-right">إجمالي المبيعات</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for r in cat.rows %}
+                <tr class="border-t text-sm">
+                    <td class="p-3 text-gray-400">{{ forloop.counter }}</td>
+                    <td class="p-3 font-semibold">{{ r.product.name }}</td>
+                    <td class="p-3">
+                        {% if r.size_label %}
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-100 text-indigo-700 border border-indigo-200">
+                            {{ r.size_label }}
+                        </span>
+                        {% else %}
+                        <span class="text-gray-400 text-xs">—</span>
+                        {% endif %}
+                    </td>
+                    <td class="p-3">{{ r.quantity|floatformat:0 }}</td>
+                    <td class="p-3 font-bold text-emerald-700">{{ r.revenue|floatformat:2 }} ج.م</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% empty %}
+    <div class="p-6 text-center text-gray-500 bg-white rounded-xl border">لا توجد بيانات مبيعات في هذه الفترة.</div>
+    {% endfor %}
 </div>
 {% endblock %}
