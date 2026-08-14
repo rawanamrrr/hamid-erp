@@ -832,7 +832,7 @@ function waiterOrder() {
                 headers: {'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken')},
                 body: JSON.stringify(payload),
             }).then(r => r.json()).then(data => {
-                if (data.status === 'ok') { location.reload(); return; }
+                if (data.status === 'ok') { window.location.href = "{% url 'restaurant:waiter_tables' %}"; return; }
                 alert(data.message || 'حدث خطأ');
                 this.sendingToKitchen = false;
             }).catch(() => { this.sendingToKitchen = false; });
