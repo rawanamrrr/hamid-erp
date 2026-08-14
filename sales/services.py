@@ -635,6 +635,7 @@ def split_order_and_pay(order, item_ids, payments, user):
         user=user, waiter=order.waiter, shift=get_active_shift(),
         customer=order.customer, warehouse=order.warehouse,
         order_type=order.order_type, table=order.table,
+        table_seats_snapshot=order.table_seats_snapshot,
         is_open=False, is_completed=True,
         split_from=order,
         subtotal_amount=split_subtotal,

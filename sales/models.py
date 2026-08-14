@@ -82,6 +82,14 @@ class Order(models.Model):
                                   db_index=True, verbose_name="نوع الطلب")
     table = models.ForeignKey('restaurant.Table', on_delete=models.SET_NULL, null=True, blank=True,
                               related_name='orders', verbose_name="الترابيزة")
+    # Snapshot of Table.seats at the moment THIS order opened — Table.seats is a live,
+    # editable count (see restaurant.views.set_table_seats' +/- stepper), so without this
+    # every past order's "chairs" would silently change to whatever the table is set to
+    # NOW instead of what it actually was when that order was taken (e.g. a 1-chair order
+    # followed later by a 3-chair order on the same table must keep showing 1 and 3, not
+    # both showing whatever the table happens to be set to today).
+    table_seats_snapshot = models.PositiveIntegerField(null=True, blank=True,
+                                                        verbose_name="عدد الكراسي وقت الطلب")
     waiter = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True,
                                related_name='waiter_orders', verbose_name="الويتر")
     driver = models.ForeignKey('restaurant.Driver', on_delete=models.SET_NULL, null=True, blank=True,

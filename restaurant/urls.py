@@ -13,6 +13,7 @@ urlpatterns = [
     path('waiter/tables/<int:table_id>/reserve/', views.reserve_table, name='reserve_table'),
     path('waiter/tables/<int:table_id>/unreserve/', views.unreserve_table, name='unreserve_table'),
     path('waiter/tables/<int:table_id>/', views.waiter_order_screen, name='waiter_order'),
+    path('waiter/tables/<int:table_id>/seats/', views.set_table_seats, name='set_table_seats'),
     path('waiter/tables/<int:table_id>/add-items/', views.waiter_open_or_append, name='waiter_add_items'),
     path('waiter/tables/<int:table_id>/ensure-order/', views.waiter_ensure_order, name='waiter_ensure_order'),
     path('waiter/order/new/', views.waiter_new_order_no_table, name='waiter_new_order_no_table'),
@@ -52,6 +53,7 @@ urlpatterns = [
     # Reports
     path('reports/waiter-sales/', views.waiter_sales_report, name='waiter_sales_report'),
     path('reports/waiter-sales/<int:waiter_id>/', views.waiter_sales_detail, name='waiter_sales_detail'),
+    path('reports/waiter-sales/<int:waiter_id>/orders/', views.waiter_orders_detail, name='waiter_orders_detail'),
     path('reports/driver-owed/', views.driver_owed_report, name='driver_owed_report'),
     path('reports/category-sales/', views.category_sales_report, name='category_sales_report'),
     path('reports/product-sales/', views.product_sales_report, name='product_sales_report'),

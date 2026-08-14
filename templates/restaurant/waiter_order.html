@@ -32,6 +32,25 @@
                     طلب #<span x-text="orderId"></span>
                 </p>
             </div>
+            {% if table %}
+            <!-- How many chairs are set at this physical table — separate from party
+                 size/order items, just the table's own seat count (Table.seats), editable
+                 right here instead of only from إعدادات المطعم. -->
+            <div class="flex items-center gap-1.5 bg-gray-50 border border-gray-200 rounded-xl px-2 py-1.5 mr-1">
+                <button type="button" @click="seatsDec()" :disabled="seatsSaving || seats <= 1"
+                        class="w-7 h-7 rounded-lg bg-white border border-gray-200 text-gray-500 hover:bg-red-50 hover:text-red-600 hover:border-red-200 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center transition-colors">
+                    <i class="fa-solid fa-minus text-[10px]"></i>
+                </button>
+                <div class="flex flex-col items-center leading-none w-10">
+                    <i class="fa-solid fa-chair text-gray-400 text-[10px] mb-0.5"></i>
+                    <span class="font-black text-sm text-gray-800" x-text="seats"></span>
+                </div>
+                <button type="button" @click="seatsInc()" :disabled="seatsSaving"
+                        class="w-7 h-7 rounded-lg bg-white border border-gray-200 text-gray-500 hover:bg-emerald-50 hover:text-emerald-600 hover:border-emerald-200 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center transition-colors">
+                    <i class="fa-solid fa-plus text-[10px]"></i>
+                </button>
+            </div>
+            {% endif %}
         </div>
         <div class="flex gap-2">
             <a href="{% url 'restaurant:waiter_tables' %}" class="px-3.5 py-2.5 rounded-xl border border-gray-200 bg-white text-sm font-bold text-gray-600 hover:bg-gray-50 hover:border-gray-300 flex items-center gap-1.5 transition-colors shadow-sm">
@@ -462,6 +481,8 @@ function waiterOrder() {
     return {
         orderId: {{ order.id|default:"null" }},
         tableId: {{ table.id|default:"null" }},
+        seats: {{ table.seats|default:4 }},
+        seatsSaving: false,
         addItemsUrl: {% if table %}"{% url 'restaurant:waiter_add_items' table.id %}"{% else %}"{% url 'restaurant:waiter_add_items_no_table' order.id %}"{% endif %},
         order: {{ order_json|default:"null"|safe }},
         modifierMap: {{ modifier_map_json|default:"{}"|safe }},
@@ -473,6 +494,22 @@ function waiterOrder() {
         customerId: '',
         customerSearch: '',
         headerCustomerName: {% if order.customer %}'{{ order.customer.first_name|escapejs }} {{ order.customer.last_name|escapejs }}'{% else %}''{% endif %},
+        seatsInc() { this.seatsChange(this.seats + 1); },
+        seatsDec() { if (this.seats > 1) this.seatsChange(this.seats - 1); },
+        seatsChange(newSeats) {
+            if (!this.tableId || this.seatsSaving) return;
+            const prev = this.seats;
+            this.seats = newSeats;
+            this.seatsSaving = true;
+            fetch(`/restaurant/waiter/tables/${this.tableId}/seats/`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken')},
+                body: JSON.stringify({seats: newSeats}),
+            }).then(r => r.json()).then(data => {
+                if (data.status === 'ok') { this.seats = data.seats; }
+                else { this.seats = prev; alert(data.message || 'حدث خطأ'); }
+            }).catch(() => { this.seats = prev; }).finally(() => { this.seatsSaving = false; });
+        },
         split: {open: false, selected: [], method: 'cash', error: '', submitting: false},
         splitOpen() {
             this.split = {open: true, selected: [], method: 'cash', error: '', submitting: false};

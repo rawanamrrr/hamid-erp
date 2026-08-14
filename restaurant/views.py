@@ -433,6 +433,27 @@ def _add_items_to_order(request, order, items, branch):
 
 
 @login_required
+@require_POST
+def set_table_seats(request, table_id):
+    """Update how many chairs are set at this table (Table.seats) — an inline +/-
+    stepper on the waiter order screen, separate from the full إعدادات المطعم table
+    editor. Same permission bar as reserve_table/unreserve_table (login only, no extra
+    RBAC gate) since it's a physical-setup detail, not an order/payment action.
+    """
+    table = get_object_or_404(Table, pk=table_id)
+    try:
+        data = json.loads(request.body or b'{}')
+        seats = int(data.get('seats'))
+    except (ValueError, TypeError, json.JSONDecodeError):
+        return JsonResponse({'status': 'error', 'message': 'قيمة غير صالحة'}, status=400)
+    if seats < 1 or seats > 50:
+        return JsonResponse({'status': 'error', 'message': 'عدد الكراسي يجب أن يكون بين 1 و50'}, status=400)
+    table.seats = seats
+    table.save(update_fields=['seats'])
+    return JsonResponse({'status': 'ok', 'seats': table.seats})
+
+
+@login_required
 @require_permission('waiter', 'view')
 def waiter_order_screen(request, table_id):
     """Build/edit the open check for a table: category grid + running cart."""
@@ -461,6 +482,7 @@ def _get_or_create_table_order(table, request, branch, shift):
             warehouse=branch,
             order_type=Order.ORDER_TYPE_DINE_IN,
             table=table,
+            table_seats_snapshot=table.seats,
             waiter=request.user,
             is_open=True,
             is_completed=False,
@@ -1722,6 +1744,49 @@ def waiter_sales_detail(request, waiter_id):
 
     return render(request, 'restaurant/waiter_sales_detail.html', {
         'branch': branch, 'waiter': waiter, 'rows': rows, 'period': period,
+    })
+
+
+@login_required
+@require_permission('financial', 'view')
+def waiter_orders_detail(request, waiter_id):
+    """Per-order breakdown for one waiter — one row per invoice (not per product, see
+    waiter_sales_detail) so a manager can see exactly which orders/tables/times make up
+    the totals on waiter_sales_report, including how many chairs each order's table had
+    at the time this report is viewed (Table.seats is live, not a per-order snapshot).
+    Same period filter convention as waiter_sales_detail/product_sales_report.
+    """
+    from datetime import timedelta
+
+    from django.contrib.auth.models import User
+    from django.utils import timezone
+
+    waiter = get_object_or_404(User, pk=waiter_id)
+    branch, _ = _active_branch(request)
+
+    period = request.GET.get('period', 'today')
+    today = timezone.localdate()
+    if period == 'week':
+        date_from = today - timedelta(days=7)
+    elif period == 'month':
+        date_from = today - timedelta(days=30)
+    elif period == 'all':
+        date_from = None
+    else:
+        period = 'today'
+        date_from = today
+
+    orders = (Order.objects.filter(waiter=waiter)
+              .exclude(status='void')
+              .select_related('table', 'customer')
+              .order_by('-created_at'))
+    if branch:
+        orders = orders.filter(warehouse=branch)
+    if date_from:
+        orders = orders.filter(created_at__date__gte=date_from)
+
+    return render(request, 'restaurant/waiter_orders_detail.html', {
+        'branch': branch, 'waiter': waiter, 'orders': orders, 'period': period,
     })
 
 

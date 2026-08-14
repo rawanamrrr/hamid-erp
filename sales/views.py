@@ -1205,6 +1205,8 @@ def submit_order_ajax(request):
                     # delivery order with a stray table_id in the payload just ignores it.
                     table=(table if not (driver or requires_shipping)
                            and data.get('order_type') == Order.ORDER_TYPE_DINE_IN else None),
+                    table_seats_snapshot=(table.seats if table and not (driver or requires_shipping)
+                                          and data.get('order_type') == Order.ORDER_TYPE_DINE_IN else None),
                     driver=driver,
                     # Tailoring (if any)
                     is_tailoring=data.get('is_tailoring', False),
@@ -2705,8 +2707,10 @@ def edit_order_ajax(request):
             if new_order_type == Order.ORDER_TYPE_DINE_IN and data.get('table_id'):
                 from restaurant.models import Table
                 order.table = Table.objects.filter(id=data.get('table_id'), branch=new_wh, is_active=True).first()
+                order.table_seats_snapshot = order.table.seats if order.table else None
             elif new_order_type != Order.ORDER_TYPE_DINE_IN:
                 order.table = None
+                order.table_seats_snapshot = None
 
             order.save()
 

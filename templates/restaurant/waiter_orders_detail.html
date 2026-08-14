@@ -1,0 +1,73 @@
+{% extends 'base.html' %}
+{% block title %}تفاصيل طلبات {{ waiter.first_name|default:waiter.username }}{% endblock %}
+{% block content %}
+<div class="p-4">
+    <div class="flex items-center justify-between mb-4">
+        <h1 class="text-2xl font-bold">
+            تفاصيل طلبات {{ waiter.first_name|default:waiter.username }} {{ waiter.last_name }}
+            {% if branch %} — {{ branch.name }}{% endif %}
+        </h1>
+        <div class="flex gap-2 text-sm">
+            <a href="{% url 'restaurant:waiter_sales_report' %}" class="px-3 py-2 rounded-lg border">رجوع</a>
+            <a href="?period=today" class="px-3 py-2 rounded-lg border {% if period == 'today' %}bg-emerald-600 text-white{% endif %}">اليوم</a>
+            <a href="?period=week" class="px-3 py-2 rounded-lg border {% if period == 'week' %}bg-emerald-600 text-white{% endif %}">آخر أسبوع</a>
+            <a href="?period=month" class="px-3 py-2 rounded-lg border {% if period == 'month' %}bg-emerald-600 text-white{% endif %}">آخر شهر</a>
+            <a href="?period=all" class="px-3 py-2 rounded-lg border {% if period == 'all' %}bg-emerald-600 text-white{% endif %}">كل الفترة</a>
+        </div>
+    </div>
+
+    <table class="w-full bg-white rounded-xl border overflow-hidden">
+        <thead class="bg-gray-50 text-sm text-gray-600">
+            <tr>
+                <th class="p-3 text-right">رقم الفاتورة</th>
+                <th class="p-3 text-right">التاريخ/الوقت</th>
+                <th class="p-3 text-right">النوع</th>
+                <th class="p-3 text-right">الترابيزة</th>
+                <th class="p-3 text-right">عدد الكراسي</th>
+                <th class="p-3 text-right">العميل</th>
+                <th class="p-3 text-right">الحالة</th>
+                <th class="p-3 text-right">الإجمالي</th>
+                <th class="p-3 text-right"></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for o in orders %}
+            <tr class="border-t text-sm">
+                <td class="p-3 font-semibold">{{ o.invoice_number|default:o.id }}</td>
+                <td class="p-3">{{ o.created_at|date:"Y-m-d H:i" }}</td>
+                <td class="p-3">{{ o.get_order_type_display }}</td>
+                <td class="p-3">{% if o.table %}ترابيزة {{ o.table.number }}{% else %}—{% endif %}</td>
+                <td class="p-3">
+                    {% if o.table_seats_snapshot %}
+                    <!-- The table's chair count AT THE TIME of this order, not its live
+                         count today (Table.seats can be changed later on the same table
+                         from the waiter screen's +/- stepper) — so two orders on the same
+                         table taken with a different chair count each keep showing their
+                         own number, not both showing today's setting. -->
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-gray-100 text-gray-600">
+                        <i class="fa-solid fa-chair text-[10px]"></i> {{ o.table_seats_snapshot }}
+                    </span>
+                    {% else %}
+                    <span class="text-gray-400 text-xs">—</span>
+                    {% endif %}
+                </td>
+                <td class="p-3">{% if o.customer %}{{ o.customer.first_name }} {{ o.customer.last_name }}{% else %}—{% endif %}</td>
+                <td class="p-3">
+                    {% if o.is_open %}
+                    <span class="px-2 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-700">مفتوحة</span>
+                    {% elif o.is_completed %}
+                    <span class="px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700">مدفوعة</span>
+                    {% else %}
+                    <span class="px-2 py-0.5 rounded-full text-xs font-bold bg-red-100 text-red-700">غير مكتملة</span>
+                    {% endif %}
+                </td>
+                <td class="p-3 font-bold text-emerald-700">{{ o.total_amount|floatformat:2 }} ج.م</td>
+                <td class="p-3"><a href="{% url 'order_invoice' o.id %}?style=thermal" target="_blank" class="text-indigo-600 font-semibold">الفاتورة</a></td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="9" class="p-4 text-center text-gray-500">لا توجد طلبات في هذه الفترة.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

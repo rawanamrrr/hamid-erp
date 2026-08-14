@@ -24,7 +24,10 @@
                 <td class="p-3 {% if r.voided_count %}text-red-600 font-bold{% endif %}">{{ r.voided_count }}</td>
                 <td class="p-3">{{ r.avg_order_value|floatformat:2 }}</td>
                 <td class="p-3 font-bold">{{ r.total_sales }}</td>
-                <td class="p-3"><a href="{% url 'restaurant:waiter_sales_detail' r.waiter__id %}" class="text-emerald-600 font-semibold">تفاصيل الأصناف</a></td>
+                <td class="p-3 space-x-3 space-x-reverse">
+                    <a href="{% url 'restaurant:waiter_sales_detail' r.waiter__id %}" class="text-emerald-600 font-semibold">تفاصيل الأصناف</a>
+                    <a href="{% url 'restaurant:waiter_orders_detail' r.waiter__id %}" class="text-indigo-600 font-semibold">تفاصيل الطلبات</a>
+                </td>
             </tr>
             {% empty %}
             <tr><td colspan="7" class="p-4 text-center text-gray-500">لا توجد بيانات.</td></tr>
