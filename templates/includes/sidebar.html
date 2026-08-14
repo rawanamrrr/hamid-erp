@@ -484,6 +484,9 @@ html.fav-only-mode #topnav-items > *:not(.fav-show) { display: none; }
                     {% endif %}
                     <a href="{% url 'financial:all_transactions' %}" class="tnav-sub {% if 'transactions' in request.path %}active{% endif %}"><i class="fas fa-money-bill-transfer text-green-400 w-4"></i> كل الحركات المالية</a>
                     <a href="{% url 'financial:shift_history' %}" class="tnav-sub {% if 'history' in request.path %}active{% endif %}"><i class="fas fa-clock-rotate-left text-slate-400 w-4"></i> سجل الورديات</a>
+                    {% if request.user|can_access:"financial:manage" or request.user.is_superuser %}
+                    <a href="{% url 'attendance_devices:device_list' %}" class="tnav-sub {% if 'attendance-devices' in request.path %}active{% endif %}"><i class="fas fa-fingerprint text-rose-400 w-4"></i> أجهزة البصمة والحضور</a>
+                    {% endif %}
                     {% if request.user.is_superuser %}
                     <a href="{% url 'role_list' %}" class="tnav-sub {% if 'roles' in request.path %}active{% endif %}"><i class="fas fa-key text-amber-400 w-4"></i> إدارة الأدوار</a>
                     {% endif %}

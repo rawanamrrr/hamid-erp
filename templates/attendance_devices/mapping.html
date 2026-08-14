@@ -1,0 +1,51 @@
+{% extends 'base.html' %}
+{% block title %}ربط الموظفين — {{ device.name }}{% endblock %}
+{% block content %}
+<div class="p-4">
+    <div class="flex items-center justify-between mb-4">
+        <h1 class="text-2xl font-bold">ربط الموظفين — {{ device.name }}</h1>
+        <a href="{% url 'attendance_devices:device_list' %}" class="px-3 py-2 rounded-lg border text-sm">رجوع</a>
+    </div>
+    <p class="text-sm text-gray-500 mb-4">رقم المستخدم على الجهاز لا يساوي بالضرورة رقم الموظف في النظام — اربط كل رقم بموظفه الصحيح هنا قبل معالجة بصماته إلى سجل الحضور.</p>
+
+    <table class="w-full bg-white rounded-xl border overflow-hidden">
+        <thead class="bg-gray-50 text-sm text-gray-600">
+            <tr>
+                <th class="p-3 text-right">رقم المستخدم على الجهاز</th>
+                <th class="p-3 text-right">الموظف المرتبط</th>
+                <th class="p-3 text-right"></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in rows %}
+            <tr class="border-t text-sm">
+                <td class="p-3 font-mono font-bold">{{ row.device_user_id }}{% if row.device_user_name %} <span class="text-gray-400 font-normal">({{ row.device_user_name }})</span>{% endif %}</td>
+                <td class="p-3">
+                    {% if row.employee %}
+                    <span class="px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700">{{ row.employee.first_name|default:row.employee.username }} {{ row.employee.last_name }}</span>
+                    {% else %}
+                    <span class="px-2 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-700">غير مربوط</span>
+                    {% endif %}
+                </td>
+                <td class="p-3">
+                    <form method="post" class="flex items-center gap-2">
+                        {% csrf_token %}
+                        <input type="hidden" name="device_user_id" value="{{ row.device_user_id }}">
+                        <input type="hidden" name="device_user_name" value="{{ row.device_user_name }}">
+                        <select name="employee_id" class="border rounded-lg p-1.5 text-sm">
+                            <option value="">— بدون ربط —</option>
+                            {% for emp in employees %}
+                            <option value="{{ emp.id }}" {% if row.employee.id == emp.id %}selected{% endif %}>{{ emp.first_name|default:emp.username }} {{ emp.last_name }}</option>
+                            {% endfor %}
+                        </select>
+                        <button type="submit" class="px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-xs font-bold">حفظ</button>
+                    </form>
+                </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="3" class="p-4 text-center text-gray-500">لا يوجد مستخدمون معروفون لهذا الجهاز بعد — قم بالمزامنة أولاً.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

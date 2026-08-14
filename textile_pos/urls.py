@@ -41,6 +41,7 @@ urlpatterns = [
     path('financial/', include('financial.urls', namespace='financial')),
     path('notifications/', include('notifications.urls')),
     path('restaurant/', include('restaurant.urls', namespace='restaurant')),
+    path('attendance-devices/', include('attendance_devices.urls', namespace='attendance_devices')),
 ]
 
 # Serve media files in development

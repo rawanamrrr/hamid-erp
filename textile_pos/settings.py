@@ -93,6 +93,7 @@ INSTALLED_APPS = [
     'notifications',
     'licensing',
     'restaurant',
+    'attendance_devices',
 ]
 
 

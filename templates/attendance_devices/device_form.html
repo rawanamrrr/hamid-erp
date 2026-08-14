@@ -1,0 +1,103 @@
+{% extends 'base.html' %}
+{% block title %}{% if device %}تعديل جهاز{% else %}إضافة جهاز{% endif %}{% endblock %}
+{% block content %}
+<div class="p-4 max-w-2xl">
+    <div class="flex items-center justify-between mb-4">
+        <h1 class="text-2xl font-bold">{% if device %}تعديل جهاز: {{ device.name }}{% else %}إضافة جهاز جديد{% endif %}</h1>
+        <a href="{% url 'attendance_devices:device_list' %}" class="px-3 py-2 rounded-lg border text-sm">رجوع</a>
+    </div>
+
+    <form method="post" class="bg-white rounded-xl border p-5 space-y-4">
+        {% csrf_token %}
+        <div>
+            <label class="block text-sm font-bold text-gray-600 mb-1">اسم الجهاز *</label>
+            <input type="text" name="name" required value="{{ device.name|default:'' }}" class="w-full border rounded-lg p-2">
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+            <div>
+                <label class="block text-sm font-bold text-gray-600 mb-1">الشركة المصنّعة</label>
+                <input type="text" name="manufacturer" value="{{ device.manufacturer|default:'' }}" class="w-full border rounded-lg p-2">
+            </div>
+            <div>
+                <label class="block text-sm font-bold text-gray-600 mb-1">الموديل</label>
+                <input type="text" name="model" value="{{ device.model|default:'' }}" class="w-full border rounded-lg p-2">
+            </div>
+        </div>
+        <div>
+            <label class="block text-sm font-bold text-gray-600 mb-1">نوع الاتصال (Adapter) *</label>
+            <select name="adapter_type" required class="w-full border rounded-lg p-2">
+                {% for value, label in adapter_choices %}
+                <option value="{{ value }}" {% if device.adapter_type == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+            <p class="text-xs text-gray-400 mt-1">أنواع الاتصال المتاحة تُضاف من الكود عند دعم جهاز جديد — هذا لا يتطلب تعديل بقية النظام.</p>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+            <div>
+                <label class="block text-sm font-bold text-gray-600 mb-1">عنوان IP / المضيف</label>
+                <input type="text" name="ip_address" value="{{ device.ip_address|default:'' }}" class="w-full border rounded-lg p-2">
+            </div>
+            <div>
+                <label class="block text-sm font-bold text-gray-600 mb-1">المنفذ (Port)</label>
+                <input type="number" name="port" value="{{ device.port|default:'' }}" class="w-full border rounded-lg p-2">
+            </div>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+            <div>
+                <label class="block text-sm font-bold text-gray-600 mb-1">بروتوكول الشبكة</label>
+                <input type="text" name="protocol" value="{{ device.protocol|default:'' }}" placeholder="TCP / UDP / HTTP" class="w-full border rounded-lg p-2">
+            </div>
+            <div>
+                <label class="block text-sm font-bold text-gray-600 mb-1">الرقم التسلسلي</label>
+                <input type="text" name="device_serial" value="{{ device.device_serial|default:'' }}" class="w-full border rounded-lg p-2">
+            </div>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+            <div>
+                <label class="block text-sm font-bold text-gray-600 mb-1">اسم المستخدم على الجهاز</label>
+                <input type="text" name="username" value="{{ device.username|default:'' }}" class="w-full border rounded-lg p-2">
+            </div>
+            <div>
+                <label class="block text-sm font-bold text-gray-600 mb-1">كلمة المرور / المفتاح السري</label>
+                <input type="password" name="secret" placeholder="{% if device %}اتركه فارغاً للإبقاء على القيمة الحالية{% else %}اختياري{% endif %}" class="w-full border rounded-lg p-2">
+                <p class="text-xs text-gray-400 mt-1">يُخزَّن مشفّراً — لا يظهر مطلقاً بشكل نصي بعد الحفظ.</p>
+            </div>
+        </div>
+
+        <div class="border-t pt-4">
+            <p class="text-sm font-bold text-gray-700 mb-3">إعدادات الاتصال والمنطقة الزمنية</p>
+            <div class="grid grid-cols-3 gap-4">
+                <div>
+                    <label class="block text-xs font-bold text-gray-500 mb-1">المنطقة الزمنية للجهاز</label>
+                    <input type="text" name="timezone_name" value="{{ device.timezone_name|default:'Africa/Cairo' }}" class="w-full border rounded-lg p-2 text-sm">
+                    <p class="text-[11px] text-gray-400 mt-1">المنطقة الزمنية التي تعمل بها ساعة الجهاز فعلياً — وليست بالضرورة نفس منطقة السيرفر.</p>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-500 mb-1">مهلة الاتصال (ثانية)</label>
+                    <input type="number" name="timeout_seconds" value="{{ device.timeout_seconds|default:10 }}" min="1" class="w-full border rounded-lg p-2 text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-500 mb-1">محاولات إعادة الاتصال</label>
+                    <input type="number" name="max_retries" value="{{ device.max_retries|default:2 }}" min="0" class="w-full border rounded-lg p-2 text-sm">
+                </div>
+            </div>
+            <div class="mt-3 w-1/3">
+                <label class="block text-xs font-bold text-gray-500 mb-1">الانتظار بين المحاولات (ثانية)</label>
+                <input type="number" name="retry_delay_seconds" value="{{ device.retry_delay_seconds|default:5 }}" min="0" class="w-full border rounded-lg p-2 text-sm">
+            </div>
+        </div>
+        <div class="flex items-center gap-6">
+            <label class="flex items-center gap-2 text-sm font-bold">
+                <input type="checkbox" name="enabled" {% if device.enabled or not device %}checked{% endif %}> مفعّل
+            </label>
+            <label class="flex items-center gap-2 text-sm font-bold text-red-600">
+                <input type="checkbox" name="clear_after_sync" {% if device.clear_after_sync %}checked{% endif %}> مسح السجلات من الجهاز بعد المزامنة (لا رجعة فيه)
+            </label>
+        </div>
+        <div class="flex gap-3 pt-2">
+            <button type="submit" class="px-5 py-2.5 rounded-lg bg-emerald-600 text-white font-bold">حفظ</button>
+            <a href="{% url 'attendance_devices:device_list' %}" class="px-5 py-2.5 rounded-lg border font-bold">إلغاء</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

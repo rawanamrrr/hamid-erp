@@ -79,6 +79,15 @@ class AttendanceRecord(models.Model):
     note = models.CharField(max_length=255, blank=True, default='', verbose_name="ملاحظات")
     recorded_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL,
                                      related_name='attendance_recorded', verbose_name="سجّله")
+
+    # Set whenever a human explicitly edits this day via the manual attendance_daily
+    # form (financial/views.py). Once set, attendance_devices.sync.
+    # process_punches_into_attendance() will never silently overwrite this row from a
+    # later device sync — a device punch that would otherwise land here is left
+    # unprocessed instead (see DevicePunch.processed) so nothing is lost if the lock is
+    # ever cleared. Exists specifically so "device syncs, then a manager hand-corrects a
+    # mistake, then the device syncs again" can never quietly clobber that correction.
+    locked_by_manual_edit = models.BooleanField(default=False, verbose_name="مقفل بتعديل يدوي")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

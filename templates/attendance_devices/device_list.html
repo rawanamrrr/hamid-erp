@@ -1,0 +1,169 @@
+{% extends 'base.html' %}
+{% block title %}أجهزة البصمة والحضور{% endblock %}
+{% block content %}
+<div class="p-4">
+    <div class="flex items-center justify-between mb-4">
+        <h1 class="text-2xl font-bold">أجهزة البصمة والحضور</h1>
+        <a href="{% url 'attendance_devices:device_add' %}" class="px-4 py-2 rounded-lg bg-emerald-600 text-white font-bold text-sm">+ إضافة جهاز</a>
+    </div>
+
+    {% if unmapped_count %}
+    <div class="mb-4 px-4 py-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-sm font-bold">
+        <i class="fa-solid fa-triangle-exclamation"></i>
+        يوجد {{ unmapped_count }} مستخدم على الأجهزة غير مربوط بموظف بعد — افتح "ربط الموظفين" للجهاز المعني لإكمال الربط.
+    </div>
+    {% endif %}
+
+    <table class="w-full bg-white rounded-xl border overflow-hidden mb-6">
+        <thead class="bg-gray-50 text-sm text-gray-600">
+            <tr>
+                <th class="p-3 text-right">الجهاز</th>
+                <th class="p-3 text-right">النوع</th>
+                <th class="p-3 text-right">العنوان</th>
+                <th class="p-3 text-right">الحالة</th>
+                <th class="p-3 text-right">آخر مزامنة</th>
+                <th class="p-3 text-right">مفعّل</th>
+                <th class="p-3 text-right"></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for d in devices %}
+            <tr class="border-t text-sm" id="device-row-{{ d.id }}">
+                <td class="p-3 font-semibold">{{ d.name }}</td>
+                <td class="p-3">{{ d.adapter_type }}</td>
+                <td class="p-3">{{ d.ip_address|default:"—" }}{% if d.port %}:{{ d.port }}{% endif %}</td>
+                <td class="p-3">
+                    <span class="px-2 py-0.5 rounded-full text-xs font-bold
+                        {% if d.connection_status == 'online' %}bg-emerald-100 text-emerald-700
+                        {% elif d.connection_status == 'offline' or d.connection_status == 'error' %}bg-red-100 text-red-700
+                        {% else %}bg-gray-100 text-gray-600{% endif %}" data-status="{{ d.id }}">
+                        {{ d.get_connection_status_display }}
+                    </span>
+                </td>
+                <td class="p-3">{{ d.last_sync_at|date:"Y-m-d H:i"|default:"—" }}</td>
+                <td class="p-3">{% if d.enabled %}<span class="text-emerald-600 font-bold">نعم</span>{% else %}<span class="text-gray-400">لا</span>{% endif %}</td>
+                <td class="p-3 flex flex-wrap gap-2">
+                    <button onclick="testConnection({{ d.id }})" class="text-indigo-600 font-semibold text-xs">اختبار الاتصال</button>
+                    {% if d.adapter_type == 'csv_import' %}
+                    <button onclick="openImportModal({{ d.id }})" class="text-emerald-600 font-semibold text-xs">مزامنة الآن (رفع ملف)</button>
+                    {% else %}
+                    <button onclick="syncNow({{ d.id }})" class="text-emerald-600 font-semibold text-xs">مزامنة الآن</button>
+                    {% endif %}
+                    <a href="{% url 'attendance_devices:device_mapping' d.id %}" class="text-amber-600 font-semibold text-xs">ربط الموظفين</a>
+                    <a href="{% url 'attendance_devices:device_form' d.id %}" class="text-gray-600 font-semibold text-xs">تعديل</a>
+                    <form method="post" action="{% url 'attendance_devices:device_delete' d.id %}" onsubmit="return confirm('حذف الجهاز نهائياً؟');" class="inline">
+                        {% csrf_token %}
+                        <button type="submit" class="text-red-600 font-semibold text-xs">حذف</button>
+                    </form>
+                </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="7" class="p-4 text-center text-gray-500">لا توجد أجهزة مضافة بعد.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <h2 class="text-lg font-bold mb-3">سجل المزامنات الأخيرة</h2>
+    <table class="w-full bg-white rounded-xl border overflow-hidden">
+        <thead class="bg-gray-50 text-sm text-gray-600">
+            <tr>
+                <th class="p-3 text-right">الجهاز</th>
+                <th class="p-3 text-right">الوقت</th>
+                <th class="p-3 text-right">الحالة</th>
+                <th class="p-3 text-right">مجلوبة</th>
+                <th class="p-3 text-right">جديدة</th>
+                <th class="p-3 text-right">مكررة (متجاهلة)</th>
+                <th class="p-3 text-right">غير مربوطة</th>
+                <th class="p-3 text-right">الخطأ</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for log in recent_logs %}
+            <tr class="border-t text-sm">
+                <td class="p-3">{{ log.device.name }}</td>
+                <td class="p-3">{{ log.started_at|date:"Y-m-d H:i" }}</td>
+                <td class="p-3">
+                    <span class="px-2 py-0.5 rounded-full text-xs font-bold
+                        {% if log.status == 'success' %}bg-emerald-100 text-emerald-700
+                        {% elif log.status == 'partial' %}bg-amber-100 text-amber-700
+                        {% elif log.status == 'failed' %}bg-red-100 text-red-700
+                        {% else %}bg-gray-100 text-gray-600{% endif %}">
+                        {{ log.get_status_display }}
+                    </span>
+                </td>
+                <td class="p-3">{{ log.records_fetched }}</td>
+                <td class="p-3 font-bold text-emerald-700">{{ log.records_created }}</td>
+                <td class="p-3">{{ log.records_skipped_duplicate }}</td>
+                <td class="p-3 {% if log.records_unmapped %}text-amber-600 font-bold{% endif %}">{{ log.records_unmapped }}</td>
+                <td class="p-3 text-red-600 text-xs">{{ log.error_message|truncatechars:60 }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="8" class="p-4 text-center text-gray-500">لا يوجد سجل مزامنات بعد.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- CSV import modal -->
+<div id="importModal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-5" dir="rtl">
+        <h3 class="font-black text-base mb-3">رفع ملف بصمات (CSV)</h3>
+        <form id="importForm" enctype="multipart/form-data">
+            {% csrf_token %}
+            <input type="file" name="import_file" accept=".csv" required class="w-full border rounded-lg p-2 mb-3 text-sm">
+            <div class="flex gap-2">
+                <button type="button" onclick="closeImportModal()" class="flex-1 h-10 rounded-lg border">إلغاء</button>
+                <button type="submit" class="flex-1 h-10 rounded-lg bg-emerald-600 text-white font-bold">استيراد ومزامنة</button>
+            </div>
+        </form>
+        <p id="importResult" class="text-sm mt-3"></p>
+    </div>
+</div>
+
+<script>
+function getCookie(name) {
+    let v = null;
+    document.cookie.split(';').forEach(c => { c = c.trim(); if (c.startsWith(name + '=')) v = decodeURIComponent(c.slice(name.length + 1)); });
+    return v;
+}
+
+function testConnection(deviceId) {
+    fetch(`/attendance-devices/${deviceId}/test/`, {
+        method: 'POST', headers: {'X-CSRFToken': getCookie('csrftoken')},
+    }).then(r => r.json()).then(data => {
+        alert(data.message);
+        location.reload();
+    });
+}
+
+function syncNow(deviceId) {
+    fetch(`/attendance-devices/${deviceId}/sync/`, {
+        method: 'POST', headers: {'X-CSRFToken': getCookie('csrftoken')},
+    }).then(r => r.json()).then(data => {
+        alert(`${data.message}\nجديد: ${data.records_created} | مكرر: ${data.records_skipped_duplicate} | غير مربوط: ${data.records_unmapped}`);
+        location.reload();
+    });
+}
+
+let importDeviceId = null;
+function openImportModal(deviceId) {
+    importDeviceId = deviceId;
+    document.getElementById('importModal').classList.remove('hidden');
+    document.getElementById('importModal').classList.add('flex');
+}
+function closeImportModal() {
+    document.getElementById('importModal').classList.add('hidden');
+}
+document.getElementById('importForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const fd = new FormData(this);
+    fetch(`/attendance-devices/${importDeviceId}/sync/`, {
+        method: 'POST', headers: {'X-CSRFToken': getCookie('csrftoken')}, body: fd,
+    }).then(r => r.json()).then(data => {
+        document.getElementById('importResult').textContent =
+            `${data.message} — جديد: ${data.records_created}, مكرر: ${data.records_skipped_duplicate}, غير مربوط: ${data.records_unmapped}`;
+        setTimeout(() => location.reload(), 1500);
+    });
+});
+</script>
+{% endblock %}

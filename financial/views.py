@@ -1119,7 +1119,7 @@ def attendance_daily(request):
                 defaults={
                     'status': status, 'arrival_time': arrival_time, 'departure_time': departure_time,
                     'late_minutes': late_minutes, 'early_departure_minutes': early_minutes,
-                    'note': note, 'recorded_by': request.user,
+                    'note': note, 'recorded_by': request.user, 'locked_by_manual_edit': True,
                 },
             )
             if not created:
@@ -1130,6 +1130,10 @@ def attendance_daily(request):
                 record.early_departure_minutes = early_minutes
                 record.note = note
                 record.recorded_by = request.user
+                # A human just explicitly saved this day through this form — lock it
+                # against being silently overwritten by a later device sync (see
+                # AttendanceRecord.locked_by_manual_edit).
+                record.locked_by_manual_edit = True
             # Explicit checkbox override always wins over the status default (see
             # AttendanceRecord.save()'s first-save-only auto-default).
             if deduct_override is not None:
