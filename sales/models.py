@@ -316,6 +316,80 @@ class Order(models.Model):
         """
         return sum((it.gross_profit for it in self.items.all()), Decimal('0'))
 
+    def receipt_line_items(self):
+        """Groups order.items for RECEIPT DISPLAY ONLY — merges repeat lines of the exact
+        same product/variant/base-price (e.g. two separate "test" cart lines from two
+        add-to-cart taps) into one combined row with a summed quantity, and separates each
+        line's extras from its base price instead of quietly folding them into one number.
+        Purely a presentation grouping: does not touch OrderItem rows, order.total_amount,
+        VAT/service-charge math, or anything else that reads real DB data — those all keep
+        summing the underlying (ungrouped) items exactly as before.
+
+        Each returned row has: product_name, variant_label, quantity, unit_base_price,
+        base_total (unit_base_price * quantity — the "الإجمالي" column, excluding extras),
+        extras (list of {option, quantity, unit_price, total} — its OWN quantity/price/
+        total columns, same shape as the main product line, since not every merged unit
+        necessarily got that extra: quantity is how many units actually had it, unit_price
+        is that extra's own price_delta, and total = quantity * unit_price), and
+        extras_total (sum of all extras' totals, so base_total + extras_total still
+        reconciles to the real combined subtotal of every item in the group). Also carries
+        price_tier, is_oversold/shortfall_qty and serial_number/sku through so
+        wholesale-tier labels, oversold warnings and serialized-unit tracking (electronics)
+        aren't lost — a line with a serial_number is keyed separately per item (never
+        merged with another unit) since each serial must stay individually visible.
+        """
+        from decimal import Decimal
+        groups = {}
+        order_index = []
+        for item in self.items.all():
+            if item.is_void:
+                continue
+            key = (item.product_id, item.variant_id, item.base_price, item.price_tier, item.serial_number, item.id if item.serial_number else None)
+            if key not in groups:
+                groups[key] = {
+                    'product_name': item.product.name if item.product else '',
+                    'variant_label': item.variant.label if item.variant else '',
+                    'quantity': Decimal('0'),
+                    'unit_base_price': item.base_price,
+                    'base_total': Decimal('0'),
+                    'extras_total': Decimal('0'),
+                    'extras_by_option': {},
+                    'price_tier': item.price_tier,
+                    'is_oversold': False,
+                    'shortfall_qty': Decimal('0'),
+                    'serial_number': item.serial_number,
+                    'warranty_months': item.product.warranty_months if item.product else None,
+                    'sku': item.product.sku if item.product else '',
+                }
+                order_index.append(key)
+            g = groups[key]
+            g['quantity'] += item.quantity
+            g['base_total'] += item.base_price * item.quantity
+            if item.is_oversold:
+                g['is_oversold'] = True
+                g['shortfall_qty'] += item.shortfall_qty
+            for m in (item.modifiers or []):
+                if not m.get('price_delta') or m.get('show_on_receipt') is False:
+                    continue
+                unit_price = Decimal(str(m['price_delta']))
+                line_total = unit_price * item.quantity
+                g['extras_total'] += line_total
+                existing = g['extras_by_option'].get(m['option'])
+                if existing:
+                    existing['quantity'] += item.quantity
+                    existing['total'] += line_total
+                else:
+                    g['extras_by_option'][m['option']] = {
+                        'unit_price': unit_price, 'quantity': item.quantity, 'total': line_total,
+                    }
+
+        rows = []
+        for key in order_index:
+            g = groups[key]
+            g['extras'] = [dict(option=opt, **vals) for opt, vals in g['extras_by_option'].items()]
+            rows.append(g)
+        return rows
+
     def delete(self, *args, **kwargs):
         """Hard-deleting an order (e.g. delete_order_ajax, factory_order_delete) used to
         leave its post_sale() journal entry (reference_number f"SALE-{id}") behind
@@ -423,6 +497,17 @@ class OrderItem(models.Model):
     @property
     def subtotal(self):
         return self.quantity * self.price
+
+    @property
+    def base_price(self):
+        """`price` already has every modifier's price_delta baked in (the POS adds them
+        together before saving the line) — this strips them back out for display only,
+        so the receipt can show the item's own original price with each paid extra
+        listed as its own separate "+amount" line, instead of one price that silently
+        already includes them (which read as if the extras were free, or double-counted
+        on top of an already-inflated price)."""
+        extras = sum((m.get('price_delta') or 0) for m in (self.modifiers or []))
+        return self.price - extras
 
     @property
     def box_quantity(self):

@@ -59,6 +59,15 @@ class AttendanceRecord(models.Model):
 
     employee = models.ForeignKey(User, on_delete=models.CASCADE, related_name='attendance_records', verbose_name="الموظف")
     date = models.DateField(verbose_name="التاريخ")
+    # Which configured payroll shift (1-5, financial.views._match_shift_and_compute) this
+    # row belongs to. Lets one calendar day hold multiple attendance rows for the same
+    # employee — e.g. shift 1 in the morning and shift 2 in the evening — instead of a
+    # second shift's clock-in punch getting mislabeled as shift 1's missed clock-out. The
+    # manual attendance_daily form only ever writes/edits shift_index=1 (it has no shift
+    # picker); shift_index 2+ rows are created exclusively by the device-sync path
+    # (attendance_devices/sync.py) when it detects punches for more than one shift on the
+    # same day.
+    shift_index = models.PositiveSmallIntegerField(default=1, verbose_name="رقم الشيفت")
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=STATUS_PRESENT, verbose_name="الحالة")
 
     # Optional real clock times — if given, late/early-departure minutes are derived from
@@ -94,11 +103,12 @@ class AttendanceRecord(models.Model):
     class Meta:
         verbose_name = "سجل حضور"
         verbose_name_plural = "سجلات الحضور والغياب"
-        unique_together = ('employee', 'date')
-        ordering = ['-date', 'employee_id']
+        unique_together = ('employee', 'date', 'shift_index')
+        ordering = ['-date', 'employee_id', 'shift_index']
 
     def __str__(self):
-        return f"{self.employee.username} — {self.date} ({self.get_status_display()})"
+        suffix = f" — شيفت {self.shift_index}" if self.shift_index != 1 else ""
+        return f"{self.employee.username} — {self.date} ({self.get_status_display()}){suffix}"
 
     def save(self, *args, **kwargs):
         # Only auto-default on first save — never silently flip an admin's explicit

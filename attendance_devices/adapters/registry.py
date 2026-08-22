@@ -7,10 +7,11 @@ and "here is the code that talks to it".
 """
 from .base import AttendanceDeviceAdapter
 from .csv_import import CsvImportAdapter
+from .zkteco_tcp import ZKTecoTcpAdapter
 
 ADAPTER_REGISTRY: dict[str, type[AttendanceDeviceAdapter]] = {
     'csv_import': CsvImportAdapter,
-    # 'zkteco_tcp': ZKTecoTcpAdapter,       # example future entry — network SDK adapter
+    'zkteco_tcp': ZKTecoTcpAdapter,
     # 'hikvision_isapi': HikvisionAdapter,  # example future entry — HTTP/ISAPI adapter
 }
 
@@ -28,5 +29,6 @@ def adapter_choices() -> list[tuple[str, str]]:
     """(value, label) pairs for the device-form's protocol dropdown."""
     labels = {
         'csv_import': 'استيراد ملف CSV/Excel',
+        'zkteco_tcp': 'ZKTeco / أجهزة متوافقة (شبكة، منفذ 4370)',
     }
     return [(key, labels.get(key, key)) for key in ADAPTER_REGISTRY]

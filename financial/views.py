@@ -1022,37 +1022,130 @@ def shift_history(request):
     return render(request, 'financial/shift_history.html', context)
 
 
+def _time_to_minutes(t):
+    """A datetime.time (or 'HH:MM' string) to minutes-since-midnight, or None on any
+    parse issue. Used by the modular/circular math below instead of datetime.combine,
+    which breaks for overnight shifts (see _compute_early_departure_minutes)."""
+    if t is None:
+        return None
+    if isinstance(t, str):
+        try:
+            h, m = (int(x) for x in t.split(':')[:2])
+            return h * 60 + m
+        except Exception:
+            return None
+    return t.hour * 60 + t.minute
+
+
 def _compute_late_minutes(arrival_time, grace_minutes, work_start_str):
     """Minutes late = (arrival - work_start - grace), floored at 0. work_start_str is
-    'HH:MM' from the payroll.work_start_time policy; returns 0 on any parse issue
-    (e.g. work_start_time misconfigured) rather than blocking the save."""
-    import datetime
-    if not arrival_time:
+    'HH:MM' from the matched shift's own start policy.
+
+    Uses a SIGNED circular distance (result in [-720, 720) minutes) rather than plain
+    subtraction so an arrival shortly before the shift start (e.g. 21:55 for a 22:00
+    shift) reads as slightly early — not ~23h59m late from a naive same-day-only
+    subtraction — while an arrival that's genuinely very late and has wrapped past
+    midnight (e.g. 00:10 for that same 22:00 shift) still reads as ~10-130 minutes
+    late instead of being clamped to 0. This is what makes overnight shifts (start >
+    end, e.g. 22:00 → 06:00) work with the same formula as normal same-day shifts —
+    no separate "is this shift overnight" branch needed here.
+    """
+    arrival_minutes = _time_to_minutes(arrival_time)
+    start_minutes = _time_to_minutes(work_start_str)
+    if arrival_minutes is None or start_minutes is None:
         return 0
-    try:
-        h, m = (int(x) for x in work_start_str.split(':')[:2])
-        work_start = datetime.time(hour=h, minute=m)
-    except Exception:
-        return 0
-    arrival_dt = datetime.datetime.combine(datetime.date.today(), arrival_time)
-    start_dt = datetime.datetime.combine(datetime.date.today(), work_start)
-    late = int((arrival_dt - start_dt).total_seconds() // 60) - int(grace_minutes or 0)
-    return max(0, late)
+    diff = ((arrival_minutes - start_minutes + 720) % 1440) - 720
+    return max(0, diff - int(grace_minutes or 0))
 
 
-def _compute_early_departure_minutes(departure_time, work_end_str):
-    import datetime
-    if not departure_time:
+def _compute_early_departure_minutes(departure_time, work_end_str, work_start_str=None):
+    """Minutes left early = (scheduled shift duration - actual elapsed since start),
+    floored at 0. Needs work_start_str too (not just work_end_str) to know the shift's
+    real duration and to measure elapsed time going FORWARD from start — this is what
+    makes it correct for overnight shifts: a 22:00→06:00 shift has an 8h duration
+    regardless of the calendar-day boundary in between, and a departure at 05:55 is
+    "475 minutes after start" (out of 480 scheduled) = 5 minutes early, not a nonsense
+    negative number from subtracting two same-day-only datetimes.
+
+    work_start_str is optional only for backwards compatibility with any other caller
+    that genuinely doesn't have it; omitting it disables the overnight-aware duration
+    calculation and falls back to treating work_end_str as the same-day boundary
+    (correct for normal shifts, wrong for overnight ones).
+    """
+    departure_minutes = _time_to_minutes(departure_time)
+    end_minutes = _time_to_minutes(work_end_str)
+    if departure_minutes is None or end_minutes is None:
         return 0
+    start_minutes = _time_to_minutes(work_start_str)
+    if start_minutes is None:
+        early = end_minutes - departure_minutes
+        return max(0, early)
+    shift_duration = (end_minutes - start_minutes) % 1440
+    elapsed = (departure_minutes - start_minutes) % 1440
+    return max(0, shift_duration - elapsed)
+
+
+def _match_shift_and_compute(arrival_time, departure_time, force_shift_index=None):
+    """Multi-shift support (إعدادات الحضور والخصومات → عدد الشيفتات): picks whichever
+    configured shift's start time is closest to `arrival_time` — no per-employee shift
+    assignment needed — then computes late/early-departure against THAT shift's own
+    start/end/grace period. Both figures are measured against the SAME matched shift
+    (not independently re-matching departure_time to its own nearest shift), since an
+    employee's arrival and departure belong to one shift, not two different ones.
+
+    Falls back to shift 1 when arrival_time is None (e.g. an absent day, or a manual
+    entry with no clock time typed in) or the shift-count policy is misconfigured.
+
+    `force_shift_index`, when given, skips the auto-matching step entirely and computes
+    directly against that shift (used by attendance_devices.sync, which has already
+    bucketed a day's punches by shift itself — re-deriving the match from arrival_time
+    here could theoretically disagree with which bucket a punch was actually grouped
+    into, so the caller's own grouping decision is authoritative instead).
+    Returns (late_minutes, early_departure_minutes, matched_shift_index).
+    """
+    from settings.policies import get_policy
+
     try:
-        h, m = (int(x) for x in work_end_str.split(':')[:2])
-        work_end = datetime.time(hour=h, minute=m)
-    except Exception:
-        return 0
-    departure_dt = datetime.datetime.combine(datetime.date.today(), departure_time)
-    end_dt = datetime.datetime.combine(datetime.date.today(), work_end)
-    early = int((end_dt - departure_dt).total_seconds() // 60)
-    return max(0, early)
+        shift_count = max(1, min(5, int(get_policy('payroll.shift_count') or 1)))
+    except (TypeError, ValueError):
+        shift_count = 1
+
+    def _to_minutes(hhmm):
+        try:
+            h, m = (int(x) for x in str(hhmm).split(':')[:2])
+            return h * 60 + m
+        except Exception:
+            return 0
+
+    if force_shift_index is not None:
+        shift_idx = max(1, min(shift_count, int(force_shift_index)))
+    else:
+        shift_idx = 1
+        if arrival_time is not None:
+            arrival_minutes = arrival_time.hour * 60 + arrival_time.minute
+            best_diff = None
+            for i in range(1, shift_count + 1):
+                start_str = get_policy(f'payroll.shift_{i}_start')
+                # Circular distance (never more than 720min either direction) — plain
+                # subtraction would make an overnight shift's start (e.g. 22:00) look
+                # extremely far from an arrival shortly after midnight (e.g. 00:10),
+                # when in wall-clock terms they're only ~10-130 minutes apart.
+                raw = abs(_to_minutes(start_str) - arrival_minutes)
+                diff = min(raw, 1440 - raw)
+                if best_diff is None or diff < best_diff:
+                    best_diff = diff
+                    shift_idx = i
+
+    work_start = get_policy(f'payroll.shift_{shift_idx}_start') or '09:00'
+    work_end = get_policy(f'payroll.shift_{shift_idx}_end') or '17:00'
+    try:
+        grace = int(get_policy(f'payroll.shift_{shift_idx}_grace_minutes') or 0)
+    except (TypeError, ValueError):
+        grace = 0
+
+    late = _compute_late_minutes(arrival_time, grace, work_start)
+    early = _compute_early_departure_minutes(departure_time, work_end, work_start)
+    return late, early, shift_idx
 
 
 @login_required
@@ -1085,10 +1178,6 @@ def attendance_daily(request):
             messages.error(request, "الفترة المحاسبية الحالية مغلقة، لا يمكن تسجيل حضور.")
             return redirect(f"{request.path}?date={selected_date.isoformat()}")
 
-        grace_minutes = get_policy('payroll.grace_period_minutes') or 0
-        work_start = get_policy('payroll.work_start_time') or '09:00'
-        work_end = get_policy('payroll.work_end_time') or '17:00'
-
         saved_count = 0
         for sal in salaries:
             emp_id = sal.employee_id
@@ -1111,11 +1200,13 @@ def attendance_daily(request):
             except ValueError:
                 pass
 
-            late_minutes = _compute_late_minutes(arrival_time, grace_minutes, work_start) if status == AttendanceRecord.STATUS_PRESENT else 0
-            early_minutes = _compute_early_departure_minutes(departure_time, work_end) if status == AttendanceRecord.STATUS_PRESENT else 0
+            if status == AttendanceRecord.STATUS_PRESENT:
+                late_minutes, early_minutes, _shift_idx = _match_shift_and_compute(arrival_time, departure_time)
+            else:
+                late_minutes, early_minutes = 0, 0
 
             record, created = AttendanceRecord.objects.get_or_create(
-                employee_id=emp_id, date=selected_date,
+                employee_id=emp_id, date=selected_date, shift_index=1,
                 defaults={
                     'status': status, 'arrival_time': arrival_time, 'departure_time': departure_time,
                     'late_minutes': late_minutes, 'early_departure_minutes': early_minutes,
@@ -1144,10 +1235,19 @@ def attendance_daily(request):
         messages.success(request, f"تم حفظ حضور {saved_count} موظف ليوم {selected_date.strftime('%Y-%m-%d')}.")
         return redirect(f"{request.path}?date={selected_date.isoformat()}")
 
-    existing = {
-        r.employee_id: r for r in
+    all_day_records = list(
         AttendanceRecord.objects.filter(date=selected_date, employee__in=[s.employee_id for s in salaries])
-    }
+    )
+    # The manual form only ever edits shift_index=1 (it has no shift picker); rows for
+    # shift 2+ only exist when the device-sync path (attendance_devices/sync.py) detected
+    # punches for more than one shift that day — shown read-only below shift 1's inputs
+    # so a manager can actually SEE that a second shift was recorded, instead of it being
+    # invisible on this page.
+    existing = {r.employee_id: r for r in all_day_records if r.shift_index == 1}
+    extra_shifts_by_employee: dict[int, list] = {}
+    for r in all_day_records:
+        if r.shift_index != 1:
+            extra_shifts_by_employee.setdefault(r.employee_id, []).append(r)
 
     rows = []
     counts = {k: 0 for k, _ in AttendanceRecord.STATUS_CHOICES}
@@ -1169,6 +1269,7 @@ def attendance_daily(request):
             'late_minutes': rec.late_minutes if rec else 0,
             'note': rec.note if rec else '',
             'deduct_salary': rec.deduct_salary if rec else False,
+            'extra_shifts': sorted(extra_shifts_by_employee.get(sal.employee_id, []), key=lambda r: r.shift_index),
         })
 
     return render(request, 'financial/attendance_daily.html', {

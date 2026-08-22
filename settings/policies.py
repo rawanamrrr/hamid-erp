@@ -165,24 +165,82 @@ POLICY_REGISTRY = {
                  ('20', '20 قبل التمرير (بطاقات صغيرة)')],
         label='عدد الطلبات الظاهرة قبل الحاجة للتمرير (شاشة المطبخ)',
         help='كل الطلبات المفتوحة تظل معروضة دائماً ويمكن الوصول لها بالتمرير — هذا فقط يتحكم في حجم البطاقات: رقم أقل = بطاقات أكبر وأوضح، رقم أكبر = بطاقات أصغر تعرض أصنافاً أكثر بنظرة واحدة.'),
+    'kitchen.auto_print_ticket_on_order': dict(
+        group='kitchen', type='bool', default=False,
+        label='طباعة تذكرة المطبخ تلقائياً عند إرسال الطلب',
+        help='عند تفعيلها: أول ما الويتر أو الكاشير يرسل طلب جديد فيه صنف من قسم المطبخ، تُفتح وتُطبع تذكرة المطبخ تلقائياً بدون الحاجة للضغط يدوياً على زر "تذكرة المطبخ".'),
 
     # ── Payroll ──────────────────────────────────────────────────────────────
     'payroll.absence_deduction_percent': dict(
         group='payroll', type='decimal', default='3.33',
         label='نسبة الخصم عن كل يوم غياب (%)',
         help='النسبة المئوية من الراتب الأساسي التي تُخصم عن كل يوم غياب في قسيمة الراتب (الافتراضي 3.33% ≈ يوم من 30).'),
-    'payroll.grace_period_minutes': dict(
+    'payroll.punch_debounce_minutes': dict(
+        group='payroll', type='int', default='60',
+        label='تجاهل بصمات الجهاز المتكررة خلال (دقيقة)',
+        help='أي بصمة إضافية لنفس الموظف خلال هذه المدة من آخر بصمة مقبولة تُعتبر بصمة عرضية مكررة وتُتجاهل تماماً (لا تُحتسب كحضور أو انصراف) — ما لم تكن بعد بداية الشيفت التالي فعلياً.'),
+    # ── Shifts ──────────────────────────────────────────────────────────────
+    # Replaces the old single global payroll.grace_period_minutes/work_start_time/
+    # work_end_time (one shift only) with up to 5 independently-configured shifts, each
+    # with its own حضور/انصراف/فترة سماح. Which shift an employee is measured against
+    # is auto-matched (financial.views._match_shift_and_compute) to whichever shift's
+    # start time is closest to their actual arrival — no per-employee shift assignment
+    # needed. Shift 1's defaults intentionally match the OLD single-shift defaults
+    # exactly (09:00/17:00/15min) so a store that never touches this stays on identical
+    # behavior; a real prior customization is carried over once by a data migration
+    # (settings/migrations — see the one accompanying this change) rather than silently
+    # reset to these defaults.
+    'payroll.shift_count': dict(
+        group='payroll', type='choice', default='1',
+        choices=[('1', 'شيفت واحد'), ('2', 'شيفتان'), ('3', '3 شيفتات'),
+                 ('4', '4 شيفتات'), ('5', '5 شيفتات')],
+        label='عدد الشيفتات',
+        help='كل شيفت له موعد حضور/انصراف/فترة سماح خاصة به — يتم مطابقة كل موظف تلقائياً مع أقرب شيفت لوقت حضوره الفعلي.'),
+    'payroll.shift_1_start': dict(
+        group='payroll', type='time', default='09:00',
+        label='الشيفت 1 — موعد الحضور الرسمي (HH:MM)', help=''),
+    'payroll.shift_1_end': dict(
+        group='payroll', type='time', default='17:00',
+        label='الشيفت 1 — موعد الانصراف الرسمي (HH:MM)', help=''),
+    'payroll.shift_1_grace_minutes': dict(
         group='payroll', type='int', default='15',
-        label='فترة السماح قبل احتساب التأخير (دقيقة)',
-        help='وصول الموظف خلال هذه الدقائق من موعد الحضور الرسمي لا يُحتسب تأخيراً إطلاقاً.'),
-    'payroll.work_start_time': dict(
-        group='payroll', type='text', default='09:00',
-        label='موعد الحضور الرسمي (HH:MM)',
-        help='يُستخدم فقط عند تسجيل وقت حضور فعلي للموظف — لحساب دقائق التأخير تلقائياً بدل كتابتها يدوياً.'),
-    'payroll.work_end_time': dict(
-        group='payroll', type='text', default='17:00',
-        label='موعد الانصراف الرسمي (HH:MM)',
-        help='يُستخدم فقط عند تسجيل وقت انصراف فعلي للموظف — لحساب دقائق الانصراف المبكر تلقائياً.'),
+        label='الشيفت 1 — فترة السماح قبل احتساب التأخير (دقيقة)', help=''),
+    'payroll.shift_2_start': dict(
+        group='payroll', type='time', default='17:00',
+        label='الشيفت 2 — موعد الحضور الرسمي (HH:MM)', help=''),
+    'payroll.shift_2_end': dict(
+        group='payroll', type='time', default='01:00',
+        label='الشيفت 2 — موعد الانصراف الرسمي (HH:MM)', help=''),
+    'payroll.shift_2_grace_minutes': dict(
+        group='payroll', type='int', default='15',
+        label='الشيفت 2 — فترة السماح قبل احتساب التأخير (دقيقة)', help=''),
+    'payroll.shift_3_start': dict(
+        group='payroll', type='time', default='07:00',
+        label='الشيفت 3 — موعد الحضور الرسمي (HH:MM)', help=''),
+    'payroll.shift_3_end': dict(
+        group='payroll', type='time', default='15:00',
+        label='الشيفت 3 — موعد الانصراف الرسمي (HH:MM)', help=''),
+    'payroll.shift_3_grace_minutes': dict(
+        group='payroll', type='int', default='15',
+        label='الشيفت 3 — فترة السماح قبل احتساب التأخير (دقيقة)', help=''),
+    'payroll.shift_4_start': dict(
+        group='payroll', type='time', default='08:00',
+        label='الشيفت 4 — موعد الحضور الرسمي (HH:MM)', help=''),
+    'payroll.shift_4_end': dict(
+        group='payroll', type='time', default='16:00',
+        label='الشيفت 4 — موعد الانصراف الرسمي (HH:MM)', help=''),
+    'payroll.shift_4_grace_minutes': dict(
+        group='payroll', type='int', default='15',
+        label='الشيفت 4 — فترة السماح قبل احتساب التأخير (دقيقة)', help=''),
+    'payroll.shift_5_start': dict(
+        group='payroll', type='time', default='22:00',
+        label='الشيفت 5 — موعد الحضور الرسمي (HH:MM)', help=''),
+    'payroll.shift_5_end': dict(
+        group='payroll', type='time', default='06:00',
+        label='الشيفت 5 — موعد الانصراف الرسمي (HH:MM)', help=''),
+    'payroll.shift_5_grace_minutes': dict(
+        group='payroll', type='int', default='15',
+        label='الشيفت 5 — فترة السماح قبل احتساب التأخير (دقيقة)', help=''),
     'payroll.late_deduction_method': dict(
         group='payroll', type='choice', default='fixed_rate',
         choices=[('fixed_rate', 'سعر ثابت لكل ساعة تأخير'), ('employee_hourly', 'حسب أجر الموظف الفعلي (الراتب ÷ أيام العمل ÷ ساعات العمل)')],

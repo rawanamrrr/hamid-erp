@@ -43,6 +43,8 @@
             .no-print { display: none !important; }
             .receipt { width: 100%; margin: 0; padding: 0; box-shadow: none; }
             @page { margin: 0; size: auto; }
+            /* All text prints pure black regardless of on-screen gray shades. */
+            * { color: #000 !important; }
         }
     </style>
 </head>

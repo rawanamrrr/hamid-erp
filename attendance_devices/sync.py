@@ -182,69 +182,242 @@ def sync_device(device: AttendanceDevice, *, triggered_by=None, adapter=None) ->
     return log
 
 
+def _bucket_punches_by_shift(punches):
+    """Pairs ONE EMPLOYEE'S punches (which may span many calendar days — this is no
+    longer restricted to a single day's punches, see process_punches_into_attendance)
+    into shift arrival/departure buckets SEQUENTIALLY, walking punches in time order and
+    tracking one "currently open" shift at a time — rather than independently matching
+    every punch to its nearest shift by time-of-day (that approach let a shift-2 arrival
+    get merged into shift-1 as its checkout, or vice versa, whenever the two were close
+    together).
+
+    Core rule: once a shift is opened by an arrival punch, the NEXT punch closes it as a
+    checkout only if that punch is still before the following configured shift's start —
+    a late checkout (e.g. shift 1 ends 17:00 but the punch is 17:50) still closes shift 1
+    as long as shift 2 hasn't started yet (18:00). The moment a punch lands at or after
+    the next shift's start, it is no longer eligible to be shift 1's checkout: shift 1 is
+    left open with no departure (a genuinely missing checkout is preserved, not silently
+    overwritten), and the punch instead opens a new shift bucket of its own.
+
+    OVERNIGHT SHIFTS (configured end <= start, e.g. 22:00 → 06:00): a shift's "shift
+    date" is the calendar date of its own arrival punch (requirement: shift date = start
+    date), and the boundary that bounds its checkout is computed as an absolute
+    datetime, not just a time-of-day, so it can correctly extend past midnight into the
+    following calendar day:
+      - If another configured shift starts later the SAME day, the boundary is that
+        shift's start on the SAME date (identical to the non-overnight case).
+      - If this open shift is the last one in the daily sequence AND it is itself
+        overnight, the boundary wraps to the FOLLOWING day's first shift start — so a
+        checkout at 05:55 for a 22:00-06:00 shift that opened yesterday still closes it.
+      - If this open shift is the last one in the daily sequence and is NOT overnight,
+        the boundary is simply midnight — a normal same-day shift's checkout must never
+        bleed into the next calendar day (this preserves "forgot to check out, comes back
+        tomorrow" always starting a fresh day, never silently closing yesterday).
+    Arrival-matching (which configured shift a fresh punch belongs to) uses a CIRCULAR
+    time-of-day distance so an arrival shortly after midnight (e.g. 00:10) still matches
+    an overnight shift starting at 22:00 (only ~130 minutes away going around midnight,
+    not the ~1310 minutes a naive same-day subtraction would suggest).
+
+    Before any of the above: a debounce pass drops accidental repeated taps — see the
+    `payroll.punch_debounce_minutes` policy check below. Debounce state and the shift
+    pairing boundary both now live on real datetimes (not just time-of-day), so both
+    rules keep working correctly across a midnight crossing.
+
+    Returns (buckets, ignored_punches):
+      - buckets: {(shift_date, shift_index): [punches in that shift, chronological —
+        first = arrival, additional = closing/other punches within that shift's window]}.
+      - ignored_punches: punches dropped by the debounce check — the caller still needs to
+        mark these DevicePunch rows processed (they must never affect an AttendanceRecord,
+        but they also must not be reconsidered on the next sync run with no memory of the
+        punch that debounced them — see process_punches_into_attendance).
+    """
+    import datetime as _dt
+
+    from settings.policies import get_policy
+
+    def _to_minutes(hhmm):
+        try:
+            h, m = (int(x) for x in str(hhmm).split(':')[:2])
+            return h * 60 + m
+        except Exception:
+            return 0
+
+    try:
+        shift_count = max(1, min(5, int(get_policy('payroll.shift_count') or 1)))
+    except (TypeError, ValueError):
+        shift_count = 1
+
+    try:
+        debounce_minutes = int(get_policy('payroll.punch_debounce_minutes') or 60)
+    except (TypeError, ValueError):
+        debounce_minutes = 60
+    debounce_window = _dt.timedelta(minutes=debounce_minutes)
+
+    shifts = sorted(
+        ({'index': i,
+          'start': _to_minutes(get_policy(f'payroll.shift_{i}_start')),
+          'end': _to_minutes(get_policy(f'payroll.shift_{i}_end'))}
+         for i in range(1, shift_count + 1)),
+        key=lambda s: s['start'],
+    )
+    shift_pos = {s['index']: pos for pos, s in enumerate(shifts)}
+    shift_by_index = {s['index']: s for s in shifts}
+
+    def is_overnight(shift):
+        return shift['end'] <= shift['start']
+
+    def nearest_shift_index(minutes):
+        def circular_distance(start):
+            raw = abs(start - minutes)
+            return min(raw, 1440 - raw)
+        return min(shifts, key=lambda s: circular_distance(s['start']))['index']
+
+    def _time_of(total_minutes):
+        total_minutes %= 1440
+        return _dt.time(total_minutes // 60, total_minutes % 60)
+
+    def boundary_for_open_shift(shift_idx, shift_date):
+        """Absolute (naive, local) datetime after which this open shift's checkout is
+        considered genuinely missing rather than late — see the docstring above."""
+        pos = shift_pos[shift_idx]
+        shift = shift_by_index[shift_idx]
+        if pos + 1 < len(shifts):
+            return _dt.datetime.combine(shift_date, _time_of(shifts[pos + 1]['start']))
+        if is_overnight(shift):
+            return _dt.datetime.combine(
+                shift_date + _dt.timedelta(days=1), _time_of(shifts[0]['start']))
+        return _dt.datetime.combine(shift_date + _dt.timedelta(days=1), _dt.time(0, 0))
+
+    sorted_punches = sorted(punches, key=lambda p: p.punch_timestamp)
+
+    buckets: dict[tuple, list] = {}
+    open_key = None            # (shift_date, shift_idx) currently open, or None
+    open_boundary_dt = None
+    # Debounce state: the (naive, local) datetime of the last ACCEPTED (non-ignored)
+    # punch, and the boundary that was relevant when it was accepted. A candidate punch
+    # is only ever compared against the last ACCEPTED punch — ignored punches never
+    # reset the window, so 09:05 / 09:20 / 09:45 / 10:00 all compare back to 09:05, not
+    # to each other, and all three get dropped rather than only the first pair.
+    last_accepted_dt = None
+    last_boundary_dt = None
+    ignored_punches = []
+
+    for p in sorted_punches:
+        local_dt = timezone.localtime(p.punch_timestamp).replace(tzinfo=None)
+        t = local_dt.time()
+        minutes = t.hour * 60 + t.minute
+
+        if last_accepted_dt is not None:
+            within_debounce_window = (local_dt - last_accepted_dt) < debounce_window
+            crossed_next_shift = last_boundary_dt is not None and local_dt >= last_boundary_dt
+            if within_debounce_window and not crossed_next_shift:
+                # Accidental repeated tap — completely ignored: not a checkout, not a new
+                # arrival, no AttendanceRecord effect, doesn't move the debounce window.
+                ignored_punches.append(p)
+                continue
+
+        if open_key is not None:
+            if local_dt < open_boundary_dt:
+                # Still before the next shift starts — this closes the open shift as its
+                # checkout, however late it is (or however far past midnight, for an
+                # overnight shift).
+                buckets[open_key].append(p)
+                last_accepted_dt = local_dt
+                last_boundary_dt = open_boundary_dt
+                open_key = None
+                open_boundary_dt = None
+                continue
+            # At/after the next shift's start: the open shift's checkout is genuinely
+            # missing (left as-is, only its arrival punch is in its bucket) and this punch
+            # opens a new shift below instead.
+            open_key = None
+            open_boundary_dt = None
+
+        shift_idx = nearest_shift_index(minutes)
+        shift_date = local_dt.date()
+        key = (shift_date, shift_idx)
+        buckets.setdefault(key, []).append(p)
+        open_key = key
+        open_boundary_dt = boundary_for_open_shift(shift_idx, shift_date)
+        last_accepted_dt = local_dt
+        last_boundary_dt = open_boundary_dt
+
+    return buckets, ignored_punches
+
+
 def process_punches_into_attendance(*, employee_id: int | None = None) -> dict:
     """Fold unprocessed, mapped DevicePunch rows into financial.AttendanceRecord —
-    grouped by (employee, date): earliest punch of the day → arrival_time, latest →
-    departure_time (the two-punches-a-day model this ERP uses). Writes into the SAME
-    fields the manual attendance_daily form already writes, so every downstream
-    calculation (_compute_late_minutes, Payslip deductions, ...) runs completely
-    unmodified — this function is the ENTIRE integration surface with financial/.
+    grouped by EMPLOYEE ONLY (not by calendar date — see _bucket_punches_by_shift for
+    why: an overnight shift's checkout can fall on the day after its arrival, and pairing
+    needs to see both punches together to attribute the checkout to the correct shift
+    date), then by shift: within each shift bucket, earliest punch → arrival_time, latest
+    → departure_time. One AttendanceRecord row is written per (employee, shift_date,
+    shift_index) group, so a day with punches spanning two configured shifts — or an
+    overnight shift spanning two calendar dates — produces the correct separate rows
+    rather than merging them into a single mislabeled arrival/departure pair. Accidental
+    repeated taps (see payroll.punch_debounce_minutes) are dropped before pairing and
+    never reach an AttendanceRecord at all. Writes into the SAME fields the manual
+    attendance_daily form already writes (shift_index=1 only, from that form's side), so
+    every downstream calculation (Payslip deductions, ...) runs completely unmodified —
+    this function is the ENTIRE integration surface with financial/.
 
     Safe to re-run: only ever touches DevicePunch rows with processed=False, and marks
     them processed inside the same transaction as the AttendanceRecord write.
     """
     from financial.payroll_models import AttendanceRecord
-    from financial.views import _compute_late_minutes, _compute_early_departure_minutes
-    from settings.policies import get_policy
+    from financial.views import _match_shift_and_compute
 
     qs = DevicePunch.objects.filter(processed=False, employee_id__isnull=False)
     if employee_id:
         qs = qs.filter(employee_id=employee_id)
 
-    groups: dict[tuple[int, object], list[DevicePunch]] = {}
+    groups: dict[int, list[DevicePunch]] = {}
     for punch in qs.select_related('employee'):
-        local_ts = timezone.localtime(punch.punch_timestamp)
-        key = (punch.employee_id, local_ts.date())
-        groups.setdefault(key, []).append(punch)
-
-    grace = get_policy('payroll.grace_period_minutes') or 15
-    work_start = get_policy('payroll.work_start_time') or '09:00'
-    work_end = get_policy('payroll.work_end_time') or '17:00'
+        groups.setdefault(punch.employee_id, []).append(punch)
 
     records_touched = 0
     records_skipped_locked = 0
     with transaction.atomic():
-        for (emp_id, date), punches in groups.items():
-            existing = AttendanceRecord.objects.filter(employee_id=emp_id, date=date).first()
-            if existing and existing.locked_by_manual_edit:
-                # A manager already hand-corrected this exact day — never silently
-                # overwrite that (see AttendanceRecord.locked_by_manual_edit). Leave
-                # these punches unprocessed (not marked processed=True) so they're
-                # preserved and would be picked up automatically if the lock is ever
-                # cleared, rather than being lost.
-                records_skipped_locked += 1
-                continue
+        for emp_id, punches in groups.items():
+            shift_buckets, ignored_punches = _bucket_punches_by_shift(punches)
+            # Debounced duplicates never touch an AttendanceRecord, but still need to be
+            # marked processed — otherwise the next sync run would re-evaluate them with
+            # no memory of the punch that debounced them and wrongly treat them as fresh.
+            processed_ids = [p.id for p in ignored_punches]
 
-            punches.sort(key=lambda p: p.punch_timestamp)
-            arrival = timezone.localtime(punches[0].punch_timestamp).time()
-            departure = timezone.localtime(punches[-1].punch_timestamp).time() if len(punches) > 1 else None
+            for (shift_date, shift_idx), shift_punches in shift_buckets.items():
+                existing = AttendanceRecord.objects.filter(
+                    employee_id=emp_id, date=shift_date, shift_index=shift_idx).first()
+                if existing and existing.locked_by_manual_edit:
+                    # A manager already hand-corrected this exact (day, shift) — never
+                    # silently overwrite that (see AttendanceRecord.locked_by_manual_edit).
+                    # Leave these punches unprocessed so they're preserved and would be
+                    # picked up automatically if the lock is ever cleared.
+                    records_skipped_locked += 1
+                    continue
 
-            record, _created = AttendanceRecord.objects.get_or_create(
-                employee_id=emp_id, date=date,
-                defaults={'status': AttendanceRecord.STATUS_PRESENT},
-            )
-            record.status = AttendanceRecord.STATUS_PRESENT
-            record.arrival_time = arrival
-            record.departure_time = departure
-            record.late_minutes = _compute_late_minutes(arrival, grace, work_start)
-            record.early_departure_minutes = (
-                _compute_early_departure_minutes(departure, work_end) if departure else 0)
-            record.note = (record.note or '')
-            record.save(update_fields=['status', 'arrival_time', 'departure_time',
-                                       'late_minutes', 'early_departure_minutes'])
-            records_touched += 1
+                shift_punches.sort(key=lambda p: p.punch_timestamp)
+                arrival = timezone.localtime(shift_punches[0].punch_timestamp).time()
+                departure = (timezone.localtime(shift_punches[-1].punch_timestamp).time()
+                             if len(shift_punches) > 1 else None)
 
-            DevicePunch.objects.filter(id__in=[p.id for p in punches]).update(processed=True)
+                record, _created = AttendanceRecord.objects.get_or_create(
+                    employee_id=emp_id, date=shift_date, shift_index=shift_idx,
+                    defaults={'status': AttendanceRecord.STATUS_PRESENT},
+                )
+                record.status = AttendanceRecord.STATUS_PRESENT
+                record.arrival_time = arrival
+                record.departure_time = departure
+                record.late_minutes, record.early_departure_minutes, _matched = (
+                    _match_shift_and_compute(arrival, departure, force_shift_index=shift_idx))
+                record.note = (record.note or '')
+                record.save(update_fields=['status', 'arrival_time', 'departure_time',
+                                           'late_minutes', 'early_departure_minutes'])
+                records_touched += 1
+                processed_ids.extend(p.id for p in shift_punches)
+
+            if processed_ids:
+                DevicePunch.objects.filter(id__in=processed_ids).update(processed=True)
 
     return {'attendance_records_updated': records_touched, 'groups_processed': len(groups),
             'records_skipped_locked': records_skipped_locked}

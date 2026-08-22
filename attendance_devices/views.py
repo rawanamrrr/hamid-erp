@@ -183,16 +183,43 @@ def mapping_view(request, device_id):
     mapping_by_uid = {m.device_user_id: m for m in device.employee_mappings.select_related('employee')}
     known_uids |= set(mapping_by_uid.keys())
 
+    # Pull the device's OWN enrolled-user list live, not just uids that happen to have
+    # already generated a punch — otherwise a freshly-enrolled employee is invisible
+    # here until they've clocked in at least once, which defeats the point of mapping
+    # them in advance. Best-effort: a device that's offline/unreachable right now just
+    # falls back to whatever's already known from punches/existing mappings instead of
+    # breaking the whole page.
+    live_names_by_uid = {}
+    live_fetch_error = None
+    from .sync import build_adapter
+    from .adapters.base import AttendanceDeviceError
+    try:
+        adapter = build_adapter(device)
+        adapter.connect()
+        try:
+            for u in adapter.get_users():
+                known_uids.add(u.device_user_id)
+                if u.name:
+                    live_names_by_uid[u.device_user_id] = u.name
+        finally:
+            adapter.disconnect()
+    except AttendanceDeviceError as e:
+        live_fetch_error = str(e)
+    except Exception as e:  # noqa: BLE001 — an adapter bug here must not break this page
+        live_fetch_error = str(e)
+
     rows = []
     for uid in sorted(known_uids):
         mapping = mapping_by_uid.get(uid)
         rows.append({
             'device_user_id': uid,
             'employee': mapping.employee if mapping else None,
-            'device_user_name': mapping.device_user_name if mapping else '',
+            'device_user_name': (mapping.device_user_name if mapping and mapping.device_user_name
+                                 else live_names_by_uid.get(uid, '')),
         })
 
     employees = User.objects.filter(is_active=True).order_by('first_name', 'username')
     return render(request, 'attendance_devices/mapping.html', {
         'device': device, 'rows': rows, 'employees': employees,
+        'live_fetch_error': live_fetch_error,
     })

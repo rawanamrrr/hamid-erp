@@ -194,7 +194,7 @@
                                 </div>
                                 <div class="flex items-center gap-1 flex-wrap mt-1.5" x-show="it.modifiers && it.modifiers.length">
                                     <template x-for="m in it.modifiers" :key="m.option">
-                                        <span class="bg-indigo-50 text-indigo-700 text-[10px] font-bold px-1.5 py-0.5 rounded-md border border-indigo-100" x-text="m.option"></span>
+                                        <span class="bg-indigo-50 text-indigo-700 text-[10px] font-bold px-1.5 py-0.5 rounded-md border border-indigo-100" x-text="m.option + (m.price_delta ? ' (+' + m.price_delta + ')' : '')"></span>
                                     </template>
                                 </div>
                                 <div x-show="it.note" class="text-[11px] text-amber-700 mt-1.5 flex items-center gap-1 bg-amber-50/70 rounded-lg px-2 py-1"><i class="fa-solid fa-note-sticky text-[10px]"></i> <span x-text="it.note"></span></div>
@@ -231,7 +231,7 @@
                                 </div>
                                 <div class="flex items-center gap-1 flex-wrap mt-1.5" x-show="pc.modifiers && pc.modifiers.length">
                                     <template x-for="m in pc.modifiers" :key="m.option">
-                                        <span class="bg-indigo-50 text-indigo-700 text-[10px] font-bold px-1.5 py-0.5 rounded-md border border-indigo-100" x-text="m.option"></span>
+                                        <span class="bg-indigo-50 text-indigo-700 text-[10px] font-bold px-1.5 py-0.5 rounded-md border border-indigo-100" x-text="m.option + (m.price_delta ? ' (+' + m.price_delta + ')' : '')"></span>
                                     </template>
                                 </div>
                                 <div class="flex items-center justify-between gap-2 mt-2">
@@ -317,11 +317,11 @@
                         </div>
 
                         <div class="grid grid-cols-3 gap-2">
-                            <button @click="closeCheck('cash')" class="py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-black transition-colors shadow-sm">كاش</button>
+                            <button @click="closeCheck('instapay')" class="py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-black transition-colors shadow-sm">إنستا باي</button>
                             <button @click="closeCheck('visa')" class="py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black transition-colors shadow-sm">فيزا</button>
                             <button @click="closeCheck('wallet')" class="py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-black transition-colors shadow-sm">محفظة</button>
-                            <button @click="closeCheck('instapay')" class="py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-black transition-colors shadow-sm">إنستا باي</button>
-                            <button @click="closeCheck('cl')" class="py-2.5 rounded-xl bg-gray-700 hover:bg-gray-800 text-white text-xs font-black transition-colors col-span-2 shadow-sm">آجل (CL)</button>
+                            <button @click="closeCheck('cl')" class="py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-black transition-colors shadow-sm">آجل</button>
+                            <button @click="closeCheck('cash')" class="py-2.5 rounded-xl bg-lime-600 hover:bg-lime-700 text-white text-xs font-black transition-colors col-span-2 shadow-sm">كاش</button>
                         </div>
                     </div>
                 </template>
@@ -485,6 +485,7 @@ function waiterOrder() {
         seats: {{ table.seats|default:4 }},
         seatsSaving: false,
         addItemsUrl: {% if table %}"{% url 'restaurant:waiter_add_items' table.id %}"{% else %}"{% url 'restaurant:waiter_add_items_no_table' order.id %}"{% endif %},
+        autoPrintKitchenTicket: {% if policies.kitchen.auto_print_ticket_on_order %}true{% else %}false{% endif %},
         order: {{ order_json|default:"null"|safe }},
         modifierMap: {{ modifier_map_json|default:"{}"|safe }},
         variantMap: {{ variant_map_json|default:"{}"|safe }},
@@ -826,15 +827,31 @@ function waiterOrder() {
             // was added to pendingCart — see checkRecipeStockThenPush — so nothing to
             // recheck here.
             const payload = {items: this.pendingCart.map(p => ({product_id: p.product_id, quantity: p.quantity, modifiers: p.modifiers || [], note: p.note || '', variant_id: p.variant_id || null}))};
+            // Opened synchronously (before the fetch, not inside its .then()) so the
+            // browser still counts it as a direct result of the user's click — a
+            // popup opened from inside an async callback gets silently blocked by most
+            // browsers. Its URL is only filled in once the order actually saved.
+            const printWin = this.autoPrintKitchenTicket ? window.open('', '_blank') : null;
             fetch(this.addItemsUrl, {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken')},
                 body: JSON.stringify(payload),
             }).then(r => r.json()).then(data => {
-                if (data.status === 'ok') { window.location.href = "{% url 'restaurant:waiter_tables' %}"; return; }
+                if (data.status === 'ok') {
+                    // data.order_id, not this.orderId — for a table with no prior open
+                    // tab, this call is what CREATES the order, so this.orderId (set
+                    // from the page's initial server-render) is still null at this point.
+                    if (printWin) printWin.location.href = `/restaurant/order/${data.order_id}/ticket/`;
+                    window.location.href = "{% url 'restaurant:waiter_tables' %}";
+                    return;
+                }
+                if (printWin) printWin.close();
                 alert(data.message || 'حدث خطأ');
                 this.sendingToKitchen = false;
-            }).catch(() => { this.sendingToKitchen = false; });
+            }).catch(() => {
+                if (printWin) printWin.close();
+                this.sendingToKitchen = false;
+            });
         },
         voidItem(itemId) {
             if (!confirm('تأكيد إلغاء هذا الصنف؟')) return;

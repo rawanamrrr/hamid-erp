@@ -8,6 +8,13 @@
     </div>
     <p class="text-sm text-gray-500 mb-4">رقم المستخدم على الجهاز لا يساوي بالضرورة رقم الموظف في النظام — اربط كل رقم بموظفه الصحيح هنا قبل معالجة بصماته إلى سجل الحضور.</p>
 
+    {% if live_fetch_error %}
+    <div class="mb-4 px-4 py-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-sm">
+        <i class="fa-solid fa-triangle-exclamation"></i>
+        تعذر قراءة قائمة المستخدمين المباشرة من الجهاز الآن ({{ live_fetch_error }}) — المعروض أدناه هو آخر بيانات معروفة فقط (من مزامنات سابقة أو ربط محفوظ). تأكد أن الجهاز متصل بالشبكة وحاول مرة أخرى.
+    </div>
+    {% endif %}
+
     <table class="w-full bg-white rounded-xl border overflow-hidden">
         <thead class="bg-gray-50 text-sm text-gray-600">
             <tr>
@@ -43,7 +50,10 @@
                 </td>
             </tr>
             {% empty %}
-            <tr><td colspan="3" class="p-4 text-center text-gray-500">لا يوجد مستخدمون معروفون لهذا الجهاز بعد — قم بالمزامنة أولاً.</td></tr>
+            <tr><td colspan="3" class="p-4 text-center text-gray-500">
+                {% if live_fetch_error %}لا يوجد مستخدمون معروفون لهذا الجهاز — تعذر الاتصال به لقراءة المستخدمين المسجّلين عليه مباشرة، وأيضاً لا توجد أي بصمات مزامَنة سابقاً منه.
+                {% else %}لا يوجد مستخدمون مسجّلون على هذا الجهاز بعد.{% endif %}
+            </td></tr>
             {% endfor %}
         </tbody>
     </table>

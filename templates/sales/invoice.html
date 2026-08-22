@@ -281,10 +281,12 @@
                 padding: 10mm;
             }
 
-            /* Color fixes */
+            /* Color fixes — all text prints pure black regardless of on-screen Tailwind
+               gray/slate shades, since light grays wash out badly on a thermal printer. */
             * {
                 -webkit-print-color-adjust: exact !important;
                 print-color-adjust: exact !important;
+                color: #000 !important;
             }
 
             .bg-gray-100 {
@@ -405,26 +407,31 @@
                 </tr>
             </thead>
             <tbody>
-                {% for item in order.items.all %}
+                {% for row in order.receipt_line_items %}
                 <tr>
                     <td class="font-bold leading-tight">
-                        {{ item.product.name }}
-                        {% if item.variant %}<span class="text-xs text-indigo-600 block">{{ item.variant.label }}</span>{% endif %}
-                        {% if item.modifiers %}
-                        {% for m in item.modifiers %}{% if m.show_on_receipt != False %}<span class="text-xs text-gray-600 block">{{ m.option }}</span>{% endif %}{% endfor %}
-                        {% endif %}
-                        {% if item.price_tier == 'semi_wholesale' %}<span class="text-xs text-amber-600 font-bold block">سعر نص جملة</span>
-                        {% elif item.price_tier == 'wholesale' %}<span class="text-xs text-purple-600 font-bold block">سعر جملة</span>{% endif %}
-                        {% if item.is_oversold and can_view_profit %}<span class="text-xs text-red-600 font-bold block">⚠ تجاوز المخزون المتاح (نقص: {{ item.shortfall_qty|floatformat:-2 }})</span>{% endif %}
-                        {% if item.serial_number %}<span class="text-xs text-gray-600 block dir-ltr">S/N: {{ item.serial_number }}{% if item.product.warranty_months %} — ضمان {{ item.product.warranty_months }} شهر{% endif %}</span>{% endif %}
-                        {% if item.product.sku and print_style != 'thermal' %}
-                        <span class="text-xs text-gray-500 block mt-1">كود: {{ item.product.sku }}</span>
+                        {{ row.product_name }}
+                        {% if row.variant_label %}<span class="text-xs text-indigo-600 block">{{ row.variant_label }}</span>{% endif %}
+                        {% if row.price_tier == 'semi_wholesale' %}<span class="text-xs text-amber-600 font-bold block">سعر نص جملة</span>
+                        {% elif row.price_tier == 'wholesale' %}<span class="text-xs text-purple-600 font-bold block">سعر جملة</span>{% endif %}
+                        {% if row.is_oversold and can_view_profit %}<span class="text-xs text-red-600 font-bold block">⚠ تجاوز المخزون المتاح (نقص: {{ row.shortfall_qty|floatformat:-2 }})</span>{% endif %}
+                        {% if row.serial_number %}<span class="text-xs text-gray-600 block dir-ltr">S/N: {{ row.serial_number }}{% if row.warranty_months %} — ضمان {{ row.warranty_months }} شهر{% endif %}</span>{% endif %}
+                        {% if row.sku and print_style != 'thermal' %}
+                        <span class="text-xs text-gray-500 block mt-1">كود: {{ row.sku }}</span>
                         {% endif %}
                     </td>
-                    <td class="text-center num">{{ item.quantity|floatformat:-2 }}</td>
-                    <td class="text-center num">{{ item.price|floatformat:2 }}</td>
-                    <td class="text-left num">{{ item.subtotal|floatformat:2 }}</td>
+                    <td class="text-center num">{{ row.quantity|floatformat:-2 }}</td>
+                    <td class="text-center num">{{ row.unit_base_price|floatformat:2 }}</td>
+                    <td class="text-left num">{{ row.base_total|floatformat:2 }}</td>
                 </tr>
+                {% for extra in row.extras %}
+                <tr>
+                    <td class="text-xs text-gray-600 font-normal">↳ {{ extra.option }}</td>
+                    <td class="text-center num text-xs text-gray-600 font-normal">{{ extra.quantity|floatformat:-2 }}</td>
+                    <td class="text-center num text-xs text-gray-600 font-normal">{{ extra.unit_price|floatformat:2 }}</td>
+                    <td class="text-left num text-xs text-gray-600 font-normal">{{ extra.total|floatformat:2 }}</td>
+                </tr>
+                {% endfor %}
                 {% endfor %}
             </tbody>
         </table>

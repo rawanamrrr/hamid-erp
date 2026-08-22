@@ -86,6 +86,17 @@
               <td class="px-4 py-3">
                 <input type="time" name="arrival_{{ row.employee.id }}" value="{{ row.arrival_time }}"
                        class="border border-gray-200 rounded-lg px-2 py-1.5 text-xs outline-none focus:ring-2 focus:ring-rose-400 w-28" dir="ltr">
+                {% if row.extra_shifts %}
+                <div class="mt-1.5 space-y-1">
+                  {% for extra in row.extra_shifts %}
+                  <div class="text-[11px] bg-indigo-50 text-indigo-700 rounded-lg px-2 py-1 font-bold" dir="ltr">
+                    شيفت {{ extra.shift_index }}:
+                    {{ extra.arrival_time|time:"H:i"|default:"—" }} → {{ extra.departure_time|time:"H:i"|default:"—" }}
+                    {% if extra.late_minutes %}<span class="text-amber-600">({{ extra.late_minutes }}د تأخير)</span>{% endif %}
+                  </div>
+                  {% endfor %}
+                </div>
+                {% endif %}
               </td>
               <td class="px-4 py-3">
                 <input type="time" name="departure_{{ row.employee.id }}" value="{{ row.departure_time }}"

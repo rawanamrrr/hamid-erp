@@ -415,6 +415,13 @@
             .no-print {
                 display: none;
             }
+
+            /* All text prints pure black regardless of on-screen gray/slate shades. */
+            * {
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+                color: #000 !important;
+            }
         }
     </style>
 </head>
@@ -566,24 +573,30 @@
                         </tr>
                     </thead>
                     <tbody>
-                        {% for item in order.items.all %}
+                        {% for row in order.receipt_line_items %}
                         <tr>
                             <td class="text-center num" style="color:#6b7280; font-weight:bold;">{{ forloop.counter }}
                             </td>
-                            <td class="font-bold text-right">{{ item.product.name }}
-                                {% if item.variant %}<span style="font-size:11px;color:#4f46e5;display:block">{{ item.variant.label }}</span>{% endif %}
-                                {% if item.modifiers %}
-                                {% for m in item.modifiers %}{% if m.show_on_receipt != False %}<span style="font-size:11px;color:#6b7280;display:block">{{ m.option }}</span>{% endif %}{% endfor %}
-                                {% endif %}
-                                {% if item.price_tier == 'semi_wholesale' %}<span style="font-size:11px;color:#d97706;font-weight:bold;display:block">سعر نص جملة</span>
-                                {% elif item.price_tier == 'wholesale' %}<span style="font-size:11px;color:#9333ea;font-weight:bold;display:block">سعر جملة</span>{% endif %}
-                                {% if item.is_oversold and can_view_profit %}<span style="font-size:11px;color:#dc2626;font-weight:bold;display:block">⚠ تجاوز المخزون المتاح (نقص: {{ item.shortfall_qty|floatformat:-2 }})</span>{% endif %}
-                                {% if item.serial_number %}<span style="font-size:11px;color:#475569;display:block;direction:ltr">S/N: {{ item.serial_number }}{% if item.product.warranty_months %} — ضمان {{ item.product.warranty_months }} ش{% endif %}</span>{% endif %}
+                            <td class="font-bold text-right">{{ row.product_name }}
+                                {% if row.variant_label %}<span style="font-size:11px;color:#4f46e5;display:block">{{ row.variant_label }}</span>{% endif %}
+                                {% if row.price_tier == 'semi_wholesale' %}<span style="font-size:11px;color:#d97706;font-weight:bold;display:block">سعر نص جملة</span>
+                                {% elif row.price_tier == 'wholesale' %}<span style="font-size:11px;color:#9333ea;font-weight:bold;display:block">سعر جملة</span>{% endif %}
+                                {% if row.is_oversold and can_view_profit %}<span style="font-size:11px;color:#dc2626;font-weight:bold;display:block">⚠ تجاوز المخزون المتاح (نقص: {{ row.shortfall_qty|floatformat:-2 }})</span>{% endif %}
+                                {% if row.serial_number %}<span style="font-size:11px;color:#475569;display:block;direction:ltr">S/N: {{ row.serial_number }}{% if row.warranty_months %} — ضمان {{ row.warranty_months }} ش{% endif %}</span>{% endif %}
                             </td>
-                            <td class="text-center num font-bold">{{ item.quantity|floatformat:-2 }}</td>
-                            <td class="text-center num">{{ item.price|floatformat:"-2"|intcomma }}</td>
-                            <td class="text-left num">{{ item.subtotal|floatformat:"-2"|intcomma }}</td>
+                            <td class="text-center num font-bold">{{ row.quantity|floatformat:-2 }}</td>
+                            <td class="text-center num">{{ row.unit_base_price|floatformat:"-2"|intcomma }}</td>
+                            <td class="text-left num">{{ row.base_total|floatformat:"-2"|intcomma }}</td>
                         </tr>
+                        {% for extra in row.extras %}
+                        <tr>
+                            <td></td>
+                            <td style="font-size:11px;color:#6b7280;text-align:right">↳ {{ extra.option }}</td>
+                            <td class="text-center num" style="font-size:11px;color:#6b7280">{{ extra.quantity|floatformat:-2 }}</td>
+                            <td class="text-center num" style="font-size:11px;color:#6b7280">{{ extra.unit_price|floatformat:"-2"|intcomma }}</td>
+                            <td class="text-left num" style="font-size:11px;color:#6b7280">{{ extra.total|floatformat:"-2"|intcomma }}</td>
+                        </tr>
+                        {% endfor %}
                         {% endfor %}
                     </tbody>
                 </table>

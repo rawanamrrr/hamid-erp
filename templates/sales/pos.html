@@ -4808,6 +4808,14 @@
                             window.open(`/sales/invoice/${res.order_id}/?style=${style}`, '_blank');
                         }
 
+                        {% if policies.kitchen.auto_print_ticket_on_order %}
+                        // ثوابت النظام -> شاشة المطبخ -> "طباعة تذكرة المطبخ تلقائياً عند
+                        // إرسال الطلب" — opens the kitchen ticket (it auto-prints itself
+                        // on load, see kitchen_ticket.html) right alongside the customer
+                        // invoice above, no manual "تذكرة المطبخ" click needed.
+                        window.open(`/restaurant/order/${res.order_id}/ticket/`, '_blank');
+                        {% endif %}
+
                         // Update customer balance in the local dropdown list
                         if (customerId && typeof res.updated_balance !== 'undefined') {
                             const opt = document.querySelector(`.customer-option[data-id="${customerId}"]`);

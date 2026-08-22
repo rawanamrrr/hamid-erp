@@ -65,6 +65,8 @@
             .toolbar.no-print { display: none !important; }
             .page { margin: 0; box-shadow: none; border: none; }
             @page { margin: {% if print_style == 'a5' %}10mm{% else %}15mm{% endif %}; size: {% if print_style == 'a5' %}A5{% else %}A4{% endif %}; }
+            /* All text prints pure black regardless of on-screen gray shades. */
+            * { color: #000 !important; }
         }
     </style>
 </head>

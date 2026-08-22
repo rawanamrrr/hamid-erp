@@ -1187,11 +1187,25 @@ def kds_set_order_status(request, order_id):
                 and not order.items.filter(is_void=False).exclude(
                     kitchen_status=OrderItem.KITCHEN_SERVED).exists()):
             from django.utils import timezone as _tz
-            order.kitchen_status = Order.PREP_READY
-            order.ready_at = _tz.now()
-            order.save(update_fields=['kitchen_status', 'ready_at'])
+            # A cashier/counter sale (submit_order_ajax) is paid in full at checkout and
+            # is never opened as a tab at all (is_open=False from creation) — unlike a
+            # waiter/table order, which opens a tab (is_open=True) that only closes later
+            # via close_check. For an already-paid order there's no future close_check
+            # call coming that would ever bump it to PREP_DELIVERED, so "الطلبات الواردة"
+            # would otherwise show it stuck at "جاهز" forever, needing a separate manual
+            # "تم التسليم" click on cashier_dashboard even though it was already paid.
+            # Waiter/table orders still stop at PREP_READY and wait for the real payment.
+            if order.is_open:
+                order.kitchen_status = Order.PREP_READY
+                order.ready_at = _tz.now()
+                order.save(update_fields=['kitchen_status', 'ready_at'])
+            else:
+                order.kitchen_status = Order.PREP_DELIVERED
+                order.ready_at = _tz.now()
+                order.delivered_at = _tz.now()
+                order.save(update_fields=['kitchen_status', 'ready_at', 'delivered_at'])
             push_event('cashier', order.warehouse_id, {
-                'event': 'order_status', 'order_id': order.id, 'status': Order.PREP_READY,
+                'event': 'order_status', 'order_id': order.id, 'status': order.kitchen_status,
             })
             push_event('waiter', order.warehouse_id, {
                 'event': 'order_ready', 'order_id': order.id,
@@ -1626,9 +1640,21 @@ def close_check(request, order_id):
             # آجل: not collected as cash — tracked as credit, excluded from cash reconciliation.
             order.credit_paid = total
         order.received_amount = received
-        order.save(update_fields=['close_type', 'is_open', 'is_completed', 'cash_paid',
-                                  'visa_paid', 'wallet_paid', 'instapay_paid', 'received_amount',
-                                  'credit_paid', 'customer'])
+        update_fields = ['close_type', 'is_open', 'is_completed', 'cash_paid',
+                          'visa_paid', 'wallet_paid', 'instapay_paid', 'received_amount',
+                          'credit_paid', 'customer']
+        # Closing/paying a check never used to touch kitchen_status at all — it stayed
+        # stuck at whatever the kitchen last set it to (or 'pending' if the kitchen never
+        # touched it), forever, on cashier_dashboard's "الطلبات الواردة" queue (that view
+        # only ever excludes PREP_DELIVERED). A customer paying and leaving IS the order
+        # being fully done regardless of whether anyone remembered to click "تم التسليم"
+        # separately, so mirror mark_order_delivered's effect here too.
+        if order.kitchen_status != Order.PREP_DELIVERED:
+            from django.utils import timezone as _tz
+            order.kitchen_status = Order.PREP_DELIVERED
+            order.delivered_at = _tz.now()
+            update_fields += ['kitchen_status', 'delivered_at']
+        order.save(update_fields=update_fields)
         if order.table_id:
             Table.objects.filter(pk=order.table_id).update(status=Table.STATUS_FREE)
 
@@ -1644,6 +1670,9 @@ def close_check(request, order_id):
     if order.warehouse_id:
         push_event('waiter', order.warehouse_id, {
             'event': 'table_status', 'table_id': order.table_id, 'status': Table.STATUS_FREE,
+        })
+        push_event('cashier', order.warehouse_id, {
+            'event': 'order_status', 'order_id': order.id, 'status': Order.PREP_DELIVERED,
         })
 
     return JsonResponse({'status': 'ok'})

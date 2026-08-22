@@ -29,7 +29,12 @@
     <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
       <div class="divide-y divide-gray-50">
         {% for row in rows %}
-        <div class="flex items-center justify-between gap-4 px-5 py-3.5">
+        <div class="flex items-center justify-between gap-4 px-5 py-3.5"
+             {% if 'shift_2_' in row.field %}data-shift-row="2"
+             {% elif 'shift_3_' in row.field %}data-shift-row="3"
+             {% elif 'shift_4_' in row.field %}data-shift-row="4"
+             {% elif 'shift_5_' in row.field %}data-shift-row="5"
+             {% endif %}>
           <div class="min-w-0">
             <label for="{{ row.field }}" class="block text-sm font-bold text-gray-800 cursor-pointer">{{ row.meta.label }}</label>
             {% if row.meta.help %}<p class="text-xs text-gray-400 mt-0.5 leading-relaxed">{{ row.meta.help }}</p>{% endif %}
@@ -46,6 +51,9 @@
                   <option value="{{ cval }}" {% if cval == row.value %}selected{% endif %}>{{ clabel }}</option>
                 {% endfor %}
               </select>
+            {% elif row.meta.type == 'time' %}
+              <input type="time" id="{{ row.field }}" name="{{ row.field }}" value="{{ row.value }}"
+                     class="text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:border-teal-400 focus:outline-none" dir="ltr">
             {% else %}
               <input type="text" id="{{ row.field }}" name="{{ row.field }}" value="{{ row.value }}"
                      class="text-sm border border-gray-200 rounded-lg px-3 py-1.5 w-28 focus:border-teal-400 focus:outline-none" dir="ltr">
@@ -63,4 +71,20 @@
     </div>
   </form>
 </div>
+
+<script>
+(function () {
+  var countSelect = document.getElementById('payroll__shift_count');
+  if (!countSelect) return;
+  function applyShiftCount() {
+    var count = parseInt(countSelect.value, 10) || 1;
+    document.querySelectorAll('[data-shift-row]').forEach(function (el) {
+      var n = parseInt(el.getAttribute('data-shift-row'), 10);
+      el.style.display = (n <= count) ? '' : 'none';
+    });
+  }
+  countSelect.addEventListener('change', applyShiftCount);
+  applyShiftCount();
+})();
+</script>
 {% endblock %}

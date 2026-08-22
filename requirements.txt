@@ -17,6 +17,7 @@ django-widget-tweaks
 ecdsa
 filelock
 fonttools
+future
 fsspec
 gunicorn
 idna
@@ -33,6 +34,7 @@ pycparser
 pydyf
 pyparsing
 pyphen
+pyzk
 python-barcode
 python-dateutil
 python-escpos

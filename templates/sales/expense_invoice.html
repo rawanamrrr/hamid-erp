@@ -51,6 +51,13 @@
             }
             
             @page { margin: 0; size: auto; }
+
+            /* All text prints pure black regardless of on-screen gray shades. */
+            * {
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+                color: #000 !important;
+            }
         }
     </style>
 </head>

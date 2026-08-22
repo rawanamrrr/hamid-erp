@@ -20,18 +20,19 @@
         html { background: none; }
         body { width: 80mm; margin: 0 auto; padding: 4px; box-shadow: none; }
     }
-    h2 { text-align: center; margin: 0 0 4px; font-size: 16px; }
-    .meta { text-align: center; font-size: 12px; margin-bottom: 8px; border-bottom: 1px dashed #000; padding-bottom: 6px; }
-    .item { font-size: 15px; font-weight: bold; margin: 4px 0; }
-    .item .mods { font-size: 12px; font-weight: normal; margin-right: 12px; }
-    .footer { text-align: center; font-size: 11px; margin-top: 8px; border-top: 1px dashed #000; padding-top: 4px; }
+    h2 { text-align: center; margin: 0 0 4px; font-size: 14px; font-weight: bold; }
+    .order-num { text-align: center; margin: 0 0 4px; font-size: 34px; font-weight: 900; line-height: 1.1; }
+    .meta { text-align: center; font-size: 15px; font-weight: bold; margin-bottom: 10px; border-bottom: 2px dashed #000; padding-bottom: 8px; }
+    .item { font-size: 19px; font-weight: 900; margin: 8px 0; }
+    .item .mods { font-size: 15px; font-weight: bold; margin-right: 12px; }
+    .footer { text-align: center; font-size: 14px; font-weight: bold; margin-top: 10px; border-top: 2px dashed #000; padding-top: 6px; }
 </style>
 </head>
 <body onload="window.print()">
     <h2>{{ station.name }}</h2>
+    <div class="order-num">{{ order.display_number }}</div>
     <div class="meta">
-        {% if order.table %}ترابيزة {{ order.table.number }}{% else %}{{ order.get_order_type_display }}{% endif %}
-        — طلب #{{ order.display_number }}<br>
+        {% if order.table %}ترابيزة {{ order.table.number }}{% else %}{{ order.get_order_type_display }}{% endif %}<br>
         {{ order.created_at|date:"Y-m-d H:i" }}
     </div>
     {% for item in items %}
