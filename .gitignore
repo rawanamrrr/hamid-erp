@@ -26,6 +26,12 @@ db.sqlite3.bak*
 .env.*
 !.env.example
 
+# Claude Code local scratch — isolated agent worktrees get created here and are never
+# meant to be committed; one previously got accidentally committed as a broken gitlink
+# (mode 160000, .git pointing at a since-deleted absolute path) and broke every git
+# command in this repo until it was untracked. Never let that happen again.
+.claude/worktrees/
+
 # Bundled binaries / tooling that must not live in VCS
 *.exe
 *.dll
