@@ -19,7 +19,11 @@
     @media print {
         html { background: none; }
         body { width: 80mm; margin: 0 auto; padding: 4px; box-shadow: none; }
+        .no-print { display: none !important; }
     }
+    .toolbar { max-width: 280px; margin: 0 auto 8px; text-align: center; }
+    .toolbar button { padding: 6px 16px; border-radius: 8px; border: 1px solid #d1d5db;
+                       background: #f3f4f6; font-family: inherit; font-weight: bold; cursor: pointer; }
     h2 { text-align: center; margin: 0 0 4px; font-size: 14px; font-weight: bold; }
     .order-num { text-align: center; margin: 0 0 4px; font-size: 34px; font-weight: 900; line-height: 1.1; }
     .meta { text-align: center; font-size: 15px; font-weight: bold; margin-bottom: 10px; border-bottom: 2px dashed #000; padding-bottom: 8px; }
@@ -29,6 +33,22 @@
 </style>
 </head>
 <body onload="window.print()">
+    <div class="toolbar no-print">
+        <button onclick="closePrintPage()">إغلاق</button>
+    </div>
+    <script>
+        // ?next=... — set by window.PrintNav (base.html) in the DESKTOP app, which has
+        // only one window and therefore navigated this very window here to print. See
+        // the matching comment in templates/sales/invoice.html.
+        function closePrintPage() {
+            var next = new URLSearchParams(location.search).get('next');
+            if (next) { window.location.href = next; return; }
+            window.close();
+            setTimeout(function () {
+                if (window.history.length > 1) window.history.back();
+            }, 50);
+        }
+    </script>
     <h2>{{ station.name }}</h2>
     <div class="order-num">{{ order.display_number }}</div>
     <div class="meta">

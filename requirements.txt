@@ -1,5 +1,6 @@
 appdirs
 argcomplete
+psycopg2-binary
 asgiref
 blinker
 brotli

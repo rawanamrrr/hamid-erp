@@ -2578,3 +2578,60 @@ def modifier_group_delete(request, pk):
     group.delete()
     messages.success(request, "تم حذف مجموعة الاختيارات.")
     return redirect('restaurant:modifier_group_list')
+
+
+@login_required
+def live_token(request):
+    """Cheap "has anything on this screen changed?" fingerprint, polled by the realtime
+    fallback in base.html (window.LiveRefresh).
+
+    The websocket layer (restaurant/consumers.py) is the PRIMARY realtime mechanism and is
+    instant — but it silently does nothing whenever the socket can't connect, and there is
+    no way for the page to tell "nothing happened" apart from "my connection is dead".
+    That failure mode is invisible and total: the kitchen simply never sees new orders.
+    This endpoint makes freshness not depend on that single point of failure — the screen
+    polls it, and reloads only when the fingerprint actually changes, so a broken socket
+    costs a few seconds of latency instead of breaking the whole workflow.
+
+    Returns a hash, not the data itself, so the poll payload stays tiny regardless of how
+    busy the branch is.
+    """
+    import datetime
+    import hashlib
+
+    from django.utils import timezone as _tz
+
+    screen = (request.GET.get('screen') or '').strip()
+    branch, _ = _active_branch(request)
+    if not branch:
+        return JsonResponse({'token': ''})
+
+    # Bounded window: an all-time scan would grow unboundedly for a store that's been
+    # running for months, and nothing older than a day is ever on these live screens.
+    since = _tz.now() - datetime.timedelta(hours=24)
+
+    if screen == 'kds':
+        rows = list(OrderItem.objects.filter(
+            order__warehouse=branch, order__created_at__gte=since,
+        ).order_by('id').values_list(
+            'id', 'kitchen_status', 'is_void', 'kitchen_void_acknowledged'))
+    elif screen == 'cashier':
+        rows = list(Order.objects.filter(
+            warehouse=branch, created_at__gte=since,
+        ).order_by('id').values_list('id', 'kitchen_status', 'status', 'is_open'))
+    elif screen == 'waiter':
+        rows = list(Table.objects.filter(branch=branch).order_by('id')
+                    .values_list('id', 'status'))
+        rows += list(Order.objects.filter(
+            warehouse=branch, created_at__gte=since,
+        ).order_by('id').values_list('id', 'kitchen_status', 'is_open'))
+    elif screen == 'delivery':
+        rows = list(Order.objects.filter(
+            warehouse=branch, created_at__gte=since,
+            order_type=Order.ORDER_TYPE_DELIVERY,
+        ).order_by('id').values_list('id', 'kitchen_status', 'driver_id', 'is_open'))
+    else:
+        return JsonResponse({'token': ''})
+
+    token = hashlib.md5(repr(rows).encode('utf-8')).hexdigest()
+    return JsonResponse({'token': token})

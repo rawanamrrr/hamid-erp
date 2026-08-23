@@ -4813,7 +4813,16 @@
                         // إرسال الطلب" — opens the kitchen ticket (it auto-prints itself
                         // on load, see kitchen_ticket.html) right alongside the customer
                         // invoice above, no manual "تذكرة المطبخ" click needed.
-                        window.open(`/restaurant/order/${res.order_id}/ticket/`, '_blank');
+                        //
+                        // Desktop app (pywebview) only has ONE window to navigate — the
+                        // invoice call above already claimed it, and a second window.open()
+                        // right after would just re-navigate away before the first ever
+                        // rendered/printed (this is exactly why only the kitchen ticket was
+                        // showing — it always won the race, being called second). Skip the
+                        // auto-ticket there; a real browser tab has no such conflict.
+                        if (!(print && window.pywebview)) {
+                            window.open(`/restaurant/order/${res.order_id}/ticket/`, '_blank');
+                        }
                         {% endif %}
 
                         // Update customer balance in the local dropdown list

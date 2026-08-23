@@ -286,6 +286,9 @@ function waiterTables(branchId) {
 
             this.recomputeCounts();
             if (!this.branchId) return;
+            // Safety net if the websocket below never connects (see window.LiveRefresh in
+            // base.html) — without it a waiter's table map can sit stale indefinitely.
+            window.LiveRefresh.start('waiter', {interval: 4000});
             const ws = new WebSocket((location.protocol==='https:'?'wss://':'ws://') + location.host + '/ws/waiter/' + this.branchId + '/');
             ws.onmessage = (e) => {
                 const data = JSON.parse(e.data);

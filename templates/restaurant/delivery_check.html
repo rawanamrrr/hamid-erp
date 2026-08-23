@@ -9,7 +9,11 @@
     @media print {
         html { background: none; }
         body { margin: 0 auto; box-shadow: none; }
+        .no-print { display: none !important; }
     }
+    .toolbar { max-width: 280px; margin: 0 auto 8px; text-align: center; }
+    .toolbar button { padding: 6px 16px; border-radius: 8px; border: 1px solid #d1d5db;
+                       background: #f3f4f6; font-family: inherit; font-weight: bold; cursor: pointer; }
     h2 { text-align: center; margin: 0 0 4px; font-size: 16px; }
     .meta { text-align: center; font-size: 12px; margin-bottom: 8px; border-bottom: 1px dashed #000; padding-bottom: 6px; }
     .row { font-size: 13px; margin: 4px 0; display: flex; justify-content: space-between; gap: 8px; }
@@ -23,6 +27,9 @@
 </style>
 </head>
 <body onload="window.print()">
+    <div class="toolbar no-print">
+        <button onclick="window.close(); setTimeout(function(){ if (window.history.length > 1) window.history.back(); }, 50)">إغلاق</button>
+    </div>
     <h2>تذكرة تسليم دليفري</h2>
     <div class="meta">
         طلب #{{ order.display_number }}<br>

@@ -16,6 +16,10 @@
         ws.onmessage = (e) => { setTimeout(() => location.reload(), 400); };
         ws.onclose = () => { setTimeout(connect, 2000); };
     })();
+    // Safety net if that socket never connects at all (see window.LiveRefresh in
+    // base.html) — a kitchen screen silently stuck on stale orders is the single worst
+    // failure this app can have.
+    window.LiveRefresh.start('kds', {interval: 3000});
 ">
     <div class="flex items-center justify-between mb-0.5 flex-wrap gap-2">
         <h1 class="text-sm font-bold">شاشة المطبخ — {{ branch.name }}</h1>

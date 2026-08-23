@@ -18,6 +18,10 @@ db.sqlite3.bak*
 /staticfiles/
 /media/
 /logs/
+
+# SQLite -> PostgreSQL migration artifacts (contain full customer/user data)
+data_backup.json
+seq_reset.sql
 /backups/
 *.log
 

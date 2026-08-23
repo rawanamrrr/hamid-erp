@@ -2,10 +2,14 @@
 {% block title %}شاشة الكاشير — الطلبات الواردة{% endblock %}
 {% block content %}
 <div class="p-4" x-data="{ branchId: {{ branch.id }} }" x-init="
-    let ws = new WebSocket((location.protocol==='https:'?'wss://':'ws://') + location.host + '/ws/cashier/' + branchId + '/');
-    ws.onmessage = (e) => {
-        setTimeout(() => location.reload(), 400);
-    };
+    (function connect() {
+        let ws = new WebSocket((location.protocol==='https:'?'wss://':'ws://') + location.host + '/ws/cashier/' + branchId + '/');
+        ws.onmessage = (e) => { setTimeout(() => location.reload(), 400); };
+        // Was missing entirely here: a dropped socket never reconnected, so this queue
+        // silently stopped updating until someone refreshed by hand.
+        ws.onclose = () => { setTimeout(connect, 2000); };
+    })();
+    window.LiveRefresh.start('cashier', {interval: 3000});
 ">
     <h1 class="text-2xl font-bold mb-4">الطلبات الواردة — {{ branch.name }}</h1>
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">

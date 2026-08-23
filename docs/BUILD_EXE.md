@@ -15,10 +15,10 @@ python manage.py collectstatic --noinput
 pyinstaller textile_pos.spec --noconfirm
 ```
 
-Output: **`dist/POS/`** — ship this whole folder. The customer runs **`dist/POS/POS.exe`**.
+Output: **`dist/DigiFlow/`** — ship this whole folder. The customer runs **`dist/DigiFlow/DigiFlow.exe`**.
 
 ## What the EXE does (pos_launcher.py)
-1. Creates a writable **`data/`** folder next to `POS.exe` for `db.sqlite3` + uploaded media.
+1. Creates a writable **`data/`** folder next to `DigiFlow.exe` for `db.sqlite3` + uploaded media.
    **Customer data lives here, outside the bundle — it survives program updates.**
 2. Runs `migrate` on every launch (first run creates the DB; updates upgrade the schema in place).
 3. Serves the app with **waitress** on `http://localhost:8085` (and the LAN IP for other devices).
@@ -26,7 +26,7 @@ Output: **`dist/POS/`** — ship this whole folder. The customer runs **`dist/PO
 
 ## Shipping an update / bug fix to a customer
 1. Edit source here, rebuild (`collectstatic` + `pyinstaller`).
-2. Send the new `dist/POS/` folder; the customer replaces their program folder **but keeps their
+2. Send the new `dist/DigiFlow/` folder; the customer replaces their program folder **but keeps their
    own `data/` folder**. On launch, `migrate` upgrades their existing DB — no data loss.
 
 ## Per-install setup (first deployment)
@@ -74,7 +74,7 @@ secret to match). Verified: dev signs, any install verifies, a machine without t
 cannot sign.
 
 **The private key** lives in `license_private_key.pem` — it is **gitignored and NOT bundled in the
-EXE**. Keep it safe; back it up. Place it next to `POS.exe` (or in the project root) on the ONE
+EXE**. Keep it safe; back it up. Place it next to `DigiFlow.exe` (or in the project root) on the ONE
 machine where you generate tokens. If you lose it you must rotate to a new keypair (regenerate +
 update `PUBLIC_KEY_HEX` in licensing/signing.py + rebuild). To rotate:
 `python -c "from ecdsa import SigningKey,NIST256p; sk=SigningKey.generate(curve=NIST256p); open('license_private_key.pem','w').write(sk.to_string().hex()); print('PUBLIC_KEY_HEX =', sk.get_verifying_key().to_string().hex())"`

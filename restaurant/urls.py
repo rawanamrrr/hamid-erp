@@ -32,6 +32,9 @@ urlpatterns = [
     path('cashier/order/<int:order_id>/status/', views.cashier_set_order_status, name='cashier_set_order_status'),
 
     # Kitchen Display
+    # Realtime fallback fingerprint polled by base.html's window.LiveRefresh — see
+    # restaurant.views.live_token for why the websocket layer alone isn't enough.
+    path('live-token/', views.live_token, name='live_token'),
     path('kds/', views.kds_view, name='kds'),
     path('kds/item/<int:item_id>/status/', views.kds_set_status, name='kds_set_status'),
     path('kds/order/<int:order_id>/status/', views.kds_set_order_status, name='kds_set_order_status'),

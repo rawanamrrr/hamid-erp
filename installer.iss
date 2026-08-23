@@ -5,7 +5,7 @@
 #define AppName "Wholesale POS System"
 #define AppVer "1.0.0"
 #define AppPublisher "Wholesale POS System"
-#define AppExe "POS.exe"
+#define AppExe "DigiFlow.exe"
 
 [Setup]
 AppId={{A7F2C9E1-POS0-4B3A-9D5E-POSSYSTEM0001}
@@ -16,7 +16,7 @@ DefaultDirName={autopf}\Wholesale POS System
 DefaultGroupName=Wholesale POS System
 DisableProgramGroupPage=yes
 OutputDir=installer_output
-OutputBaseFilename=POS-Setup
+OutputBaseFilename=DigiFlow-Setup
 SetupIconFile=app_icon.ico
 UninstallDisplayIcon={app}\{#AppExe}
 Compression=lzma2/max
@@ -36,7 +36,7 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 [Files]
 ; Ship the entire PyInstaller onedir output — but NEVER the runtime data\ folder
 ; (that's the customer's own database/media, created fresh on first launch).
-Source: "dist\POS\*"; DestDir: "{app}"; Excludes: "data\*,data,*.log"; Flags: recursesubdirs createallsubdirs ignoreversion
+Source: "dist\DigiFlow\*"; DestDir: "{app}"; Excludes: "data\*,data,*.log"; Flags: recursesubdirs createallsubdirs ignoreversion
 
 [Dirs]
 ; The app writes its database/media here; keep it on uninstall (don't delete customer data).

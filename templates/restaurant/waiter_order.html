@@ -841,8 +841,11 @@ function waiterOrder() {
                     // data.order_id, not this.orderId — for a table with no prior open
                     // tab, this call is what CREATES the order, so this.orderId (set
                     // from the page's initial server-render) is still null at this point.
-                    if (printWin) printWin.location.href = `/restaurant/order/${data.order_id}/ticket/`;
-                    window.location.href = "{% url 'restaurant:waiter_tables' %}";
+                    // Same single-navigation rule as closeCheck below — see PrintNav.
+                    window.PrintNav.go(
+                        printWin,
+                        `/restaurant/order/${data.order_id}/ticket/`,
+                        "{% url 'restaurant:waiter_tables' %}");
                     return;
                 }
                 if (printWin) printWin.close();
@@ -917,8 +920,13 @@ function waiterOrder() {
                     // autoprint=1 — the same printable invoice the cashier POS opens
                     // after "دفع وطباعة", but triggers the print dialog itself instead
                     // of leaving the waiter to find and tap the print button manually.
-                    if (receiptWin) receiptWin.location.href = `/sales/invoice/${this.orderId}/?style=thermal&autoprint=1`;
-                    window.location.href = "{% url 'restaurant:waiter_tables' %}";
+                    // PrintNav, not two separate navigations — in the desktop app both
+                    // assignments hit the SAME window and racing them blanks it out
+                    // (that was this screen's "close check → print" black-screen crash).
+                    window.PrintNav.go(
+                        receiptWin,
+                        `/sales/invoice/${this.orderId}/?style=thermal&autoprint=1`,
+                        "{% url 'restaurant:waiter_tables' %}");
                 } else {
                     if (receiptWin) receiptWin.close();
                     alert(data.message || 'حدث خطأ');

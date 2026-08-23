@@ -1,6 +1,31 @@
+import sys
+
 from django.db.models.signals import post_save, post_migrate
 from django.dispatch import receiver
 from .models import Warehouse, WarehouseStock, Product, PurchaseOrder
+
+
+def _safe_print(msg):
+    """print() that never crashes the whole migrate run over an Arabic string. Windows
+    defaults stdout/stderr to the system codepage (cp1252) for any process that isn't
+    attached to a real console — the packaged desktop EXE (pos_launcher.py, no console
+    window) hits this on EVERY first launch via create_default_warehouse below, which
+    used to take down the entire startup migrate with an unhandled UnicodeEncodeError
+    before the app ever got a chance to serve a single page. Re-encoding to the stream's
+    OWN codec with errors='replace' (not utf-8) is what actually avoids the crash — the
+    failure happens when the underlying stream tries to write the string in ITS codec,
+    so degrading unencodable characters to '?' in that same codec is guaranteed safe;
+    round-tripping through utf-8 first would still contain the same un-encodable
+    characters and crash again on the real write.
+    """
+    try:
+        print(msg)
+    except UnicodeEncodeError:
+        enc = getattr(sys.stdout, 'encoding', None) or 'ascii'
+        try:
+            print(str(msg).encode(enc, errors='replace').decode(enc, errors='replace'))
+        except Exception:
+            pass
 
 
 @receiver(post_save, sender=WarehouseStock)
@@ -42,7 +67,7 @@ def create_default_warehouse(sender, **kwargs):
                 is_sales_point=True,
                 warehouse_type='BOTH'
             )
-            print("Created Default Warehouse: المخزن الرئيسي")
+            _safe_print("Created Default Warehouse: المخزن الرئيسي")
         else:
             main_wh = Warehouse.objects.first()
 
@@ -58,7 +83,7 @@ def create_default_warehouse(sender, **kwargs):
                 )
                 count += 1
         if count > 0:
-            print(f"Migrated stock for {count} products to '{main_wh.name}'")
+            _safe_print(f"Migrated stock for {count} products to '{main_wh.name}'")
 
         # 3. Seed default UnitOfMeasure
         from .models import UnitOfMeasure
@@ -72,7 +97,7 @@ def create_default_warehouse(sender, **kwargs):
             ]
             for name, abbr in defaults:
                 UnitOfMeasure.objects.get_or_create(name=name, defaults={'abbreviation': abbr})
-            print("Seeded default UnitOfMeasure records")
+            _safe_print("Seeded default UnitOfMeasure records")
 
         # 4. Seed default Sizes
         from .models import Size
@@ -98,4 +123,4 @@ def create_default_warehouse(sender, **kwargs):
                 numeric_sizes = [('38', 10), ('40', 11), ('42', 12), ('44', 13), ('46', 14)]
                 for name, order in numeric_sizes:
                     Size.objects.get_or_create(name=name, defaults={'size_type': 'numeric', 'sort_order': order})
-            print("Seeded default Size records")
+            _safe_print("Seeded default Size records")

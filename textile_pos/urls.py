@@ -44,6 +44,11 @@ urlpatterns = [
     path('attendance-devices/', include('attendance_devices.urls', namespace='attendance_devices')),
 ]
 
-# Serve media files in development
-if settings.DEBUG:
+# Serve media files in development — plus DJANGO_SERVE_MEDIA=True for a temporary
+# DEBUG=False run with no nginx/reverse proxy in front yet (e.g. the LAN test-run setup;
+# whitenoise above only ever serves STATIC_ROOT, never MEDIA_ROOT/uploads). Off by default
+# even outside DEBUG since a real production deployment behind nginx should let nginx
+# serve media directly instead of routing every image request through Django.
+import os as _os
+if settings.DEBUG or _os.environ.get('DJANGO_SERVE_MEDIA', '').strip().lower() in ('1', 'true', 'yes', 'on'):
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

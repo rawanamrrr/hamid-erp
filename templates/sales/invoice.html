@@ -309,7 +309,7 @@
             {% if print_style == 'a4' %}A4{% elif print_style == 'a5' %}A5{% else %}Thermal{% endif %}
         </div>
         <div class="flex gap-2 px-4">
-            <button onclick="window.close(); setTimeout(function(){ if (window.history.length > 1) window.history.back(); }, 50)"
+            <button onclick="closePrintPage()"
                 class="px-3 py-1 bg-gray-200 text-gray-700 rounded text-sm hover:bg-gray-300 font-bold transition">إغلاق</button>
             <button onclick="window.print()"
                 class="px-4 py-1 bg-black text-white rounded text-sm hover:bg-gray-800 font-bold transition flex items-center gap-2">
@@ -593,6 +593,22 @@
     </div>
 
     <script>
+        // ?next=... — set by window.PrintNav (base.html) in the DESKTOP app, where there
+        // is only one window: the caller navigated this single window here to print, so
+        // "إغلاق" has to navigate onward explicitly (e.g. back to the tables list).
+        // window.close() can't work — the app never "opened" this as a popup — and
+        // history.back() would land on the already-closed check instead.
+        // In a normal browser there's no ?next=, and the original close/back behavior is
+        // used unchanged.
+        function closePrintPage() {
+            var next = new URLSearchParams(location.search).get('next');
+            if (next) { window.location.href = next; return; }
+            window.close();
+            setTimeout(function () {
+                if (window.history.length > 1) window.history.back();
+            }, 50);
+        }
+
         // ?autoprint=1 — used when this page is opened programmatically right after an
         // action (e.g. the waiter closing a check, same as the cashier POS's "دفع
         // وطباعة") so the print dialog appears immediately instead of leaving the

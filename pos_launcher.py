@@ -3,8 +3,8 @@
 Runs the Django app under waitress on 127.0.0.1 and shows it inside a **native Windows
 window** via pywebview (WebView2). It's a real desktop app: own window, own icon, own
 taskbar entry — no browser, no tabs, no address bar. Closing the window quits the program.
-The database, media and logs live in a writable `data/` folder NEXT TO the .exe, so customer
-data survives every program update.
+The database, media and logs live in a writable `data/` folder, so customer data survives
+every program update.
 """
 import os
 import sys
@@ -23,9 +23,30 @@ def _app_dir():
     return os.path.dirname(os.path.abspath(__file__))
 
 
+def _data_dir():
+    """Prefers a `data/` folder NEXT TO the .exe (simplest — one self-contained folder,
+    fine for a portable/USB install or running dist/POS directly during dev/testing).
+    Falls back to %ProgramData%\\Wholesale POS System when that's not writable — which is
+    exactly the installer's default (Program Files requires admin elevation to write into,
+    but the app runs as whatever regular Windows user double-clicks the Start Menu icon
+    afterward — this used to hard-crash with PermissionError on every single launch for
+    anyone who installed to the default Program Files location).
+    """
+    app_dir = _app_dir()
+    candidate = os.path.join(app_dir, 'data')
+    try:
+        os.makedirs(os.path.join(candidate, 'media'), exist_ok=True)
+        return candidate
+    except PermissionError:
+        pass
+    fallback_root = os.environ.get('ProgramData') or os.environ.get('APPDATA') or app_dir
+    fallback = os.path.join(fallback_root, 'Wholesale POS System', 'data')
+    os.makedirs(os.path.join(fallback, 'media'), exist_ok=True)
+    return fallback
+
+
 APP_DIR = _app_dir()
-DATA_DIR = os.path.join(APP_DIR, 'data')
-os.makedirs(os.path.join(DATA_DIR, 'media'), exist_ok=True)
+DATA_DIR = _data_dir()
 
 # Persistent paths must be set BEFORE Django settings are imported.
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'textile_pos.production_settings')
@@ -72,21 +93,93 @@ class _PrintAPI:
         webview.create_window('طباعة', url, width=950, height=780)
 
 
+_SINGLE_INSTANCE_MUTEX_NAME = 'Global\\WholesalePOSSystem_SingleInstance'
+_ERROR_ALREADY_EXISTS = 183
+
+
+def _acquire_single_instance_lock():
+    """A Windows named mutex — the OS itself guarantees only one process can ever hold it,
+    and it's automatically released the instant this process exits or crashes (unlike a
+    lock *file*, which could be left behind after a crash and then wrongly block every
+    future launch). Returns the mutex handle to keep it alive (must NOT be garbage
+    collected / closed while the app runs), or None if another instance already holds it.
+
+    Without this: a double-click while the first launch is still starting up (a very easy
+    mistake — there's no window yet, nothing visibly happening for several seconds) starts
+    a SECOND process that runs its own `migrate` against the exact same db.sqlite3
+    concurrently. SQLite has no protection against two independent processes racing the
+    same schema migration — one adds a column and commits, the other (mid-flight, unaware)
+    tries to add the same column a moment later and crashes with "duplicate column name"
+    before either ever gets to show a window. That's exactly what happened here.
+    """
+    import ctypes
+    handle = ctypes.windll.kernel32.CreateMutexW(None, False, _SINGLE_INSTANCE_MUTEX_NAME)
+    if ctypes.windll.kernel32.GetLastError() == _ERROR_ALREADY_EXISTS:
+        if handle:
+            ctypes.windll.kernel32.CloseHandle(handle)
+        return None
+    return handle
+
+
+def _serve_forever():
+    """Serve the app over ASGI (daphne) so WEBSOCKETS actually work.
+
+    This used to be `waitress.serve(get_wsgi_application(), ...)`. waitress is a
+    WSGI-only server, and WSGI has no concept of a websocket — so inside the packaged
+    desktop app EVERY `new WebSocket(...)` the frontend opens (kds.html,
+    waiter_tables.html, waiter_order.html, cashier_dashboard.html, delivery.html) was
+    refused at the protocol level, and every server-side push_event() broadcast went
+    into a void with nobody connected to receive it. That is precisely why nothing on
+    the kitchen/waiter/cashier screens ever updated until the page was manually
+    refreshed: the app's entire realtime layer was silently dead in the .exe build,
+    even though the channels consumers/routing were all present and correct.
+
+    Falls back to the old waitress/WSGI behavior if daphne can't start for any reason,
+    so a failure here degrades to "works but needs refresh" (the previous behavior)
+    rather than "app won't start at all".
+    """
+    try:
+        from daphne.endpoints import build_endpoint_description_strings
+        from daphne.server import Server
+
+        from textile_pos.asgi import application as asgi_app
+
+        # signal_handlers=False is REQUIRED: daphne runs the twisted reactor, and only
+        # the main thread may install signal handlers — this runs on a worker thread so
+        # the pywebview GUI loop can own the main thread.
+        Server(
+            application=asgi_app,
+            endpoints=build_endpoint_description_strings(host='0.0.0.0', port=PORT),
+            signal_handlers=False,
+            verbosity=0,
+        ).run()
+        return
+    except Exception as exc:
+        _log(f'daphne/ASGI failed to start ({exc}); falling back to waitress (no websockets)')
+
+    from django.core.wsgi import get_wsgi_application
+    from waitress import serve
+    serve(get_wsgi_application(), host='0.0.0.0', port=PORT, threads=8)
+
+
 def main():
     _log('starting…')
+
+    _mutex = _acquire_single_instance_lock()
+    if _mutex is None:
+        _log('another instance is already running — exiting without touching the database')
+        _error_box('النظام شغّال بالفعل — دوّر على النافذة المفتوحة (قد تكون خلف نوافذ أخرى)، '
+                    'أو في شريط المهام.\n\nThe system is already running — check for its window '
+                    '(it may be behind other windows) or the taskbar.')
+        sys.exit(0)
+
     import django
     django.setup()
     from django.core.management import call_command
-    from django.core.wsgi import get_wsgi_application
 
     call_command('migrate', interactive=False, verbosity=0)   # first run / update upgrades the DB
-    application = get_wsgi_application()
 
-    from waitress import serve
-    threading.Thread(
-        target=lambda: serve(application, host='0.0.0.0', port=PORT, threads=8),
-        daemon=True,
-    ).start()
+    threading.Thread(target=_serve_forever, daemon=True).start()
 
     if not _wait_until_up():
         raise RuntimeError('الخادم لم يبدأ في الوقت المتوقع / server did not start')

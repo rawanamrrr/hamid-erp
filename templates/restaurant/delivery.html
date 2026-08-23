@@ -122,8 +122,16 @@ function initDeliveryScreen(branchId) {
     renderDeliveryCards();
     switchDeliveryTab('all');
 
-    const ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws/delivery/' + branchId + '/');
-    ws.onmessage = () => { refreshDeliveryFeed(); };
+    (function connect() {
+        const ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws/delivery/' + branchId + '/');
+        ws.onmessage = () => { refreshDeliveryFeed(); };
+        // Was missing: a dropped socket never reconnected, silently freezing this screen.
+        ws.onclose = () => { setTimeout(connect, 2000); };
+    })();
+    // Safety net if the socket never connects at all (see window.LiveRefresh in
+    // base.html). This screen can re-render from its own feed endpoint, so refresh it
+    // in place rather than reloading the whole page.
+    window.LiveRefresh.start('delivery', {interval: 4000, onChange: refreshDeliveryFeed});
 
     if (deliveryTimerInterval) clearInterval(deliveryTimerInterval);
     deliveryTimerInterval = setInterval(updateDeliveryTimers, 1000);

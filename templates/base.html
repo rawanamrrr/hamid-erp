@@ -4,6 +4,142 @@
     <script>if(localStorage.getItem('favOnlyActive')==='1'){document.documentElement.classList.add('fav-only-mode');}</script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script>
+        // Desktop EXE (pywebview/WebView2) only — a normal browser tab is untouched.
+        // Every invoice/kitchen-ticket/delivery-check/receipt page across the app opens
+        // with plain window.open(url, '_blank') (or the popup-blocker-safe variant: open a
+        // blank window synchronously, set `.location.href` on it once the URL is known
+        // asynchronously) — written for real browser tabs. Inside the single native app
+        // window, WebView2 opens those as bare chromeless popups with no back button.
+        //
+        // An EARLIER version of this fix routed every popup through pywebview's own
+        // webview.create_window() to get a real separate native window — that turned out
+        // to be unreliable: closing that window sometimes took the whole app down with it,
+        // and it broke the "open blank, set .location.href later" pattern (returning null
+        // meant that later assignment silently did nothing, so anything printed that way —
+        // e.g. the delivery check — never actually opened).
+        //
+        // This instead reuses the exact mechanism templates/sales/pos_mobile.html already
+        // uses successfully: navigate the SAME window to the print URL — a normal browser
+        // navigation, so it lands in real history. Every print template's own "إغلاق"
+        // button already does `window.close(); ...; window.history.back();` — window.close()
+        // harmlessly no-ops here (browsers refuse to script-close a window they didn't
+        // open), and history.back() then correctly returns to whatever page was open
+        // before printing, with zero changes needed in any individual print template.
+        (function() {
+            if (!window.pywebview) return;  // real browser tab — leave window.open() alone
+            window.open = function(url, target, features) {
+                if (url) {
+                    window.location.href = url;
+                    return null;
+                }
+                // Deferred pattern: `const w = window.open(); ...; w.location.href = url;`
+                // — the URL isn't known yet, so hand back a proxy whose `.location.href`
+                // setter performs the real navigation once the caller does know it.
+                var proxyLocation = {};
+                Object.defineProperty(proxyLocation, 'href', {
+                    set: function(u) { window.location.href = u; },
+                    get: function() { return window.location.href; },
+                });
+                return {closed: false, close: function() {}, focus: function() {}, location: proxyLocation};
+            };
+        })();
+    </script>
+    <script>
+        // ── "Print this, then go there" navigation ───────────────────────────────
+        // A browser tab and the desktop app need genuinely different handling here, and
+        // getting it wrong blanks the whole app:
+        //
+        //   Browser: the print page opens in a SEPARATE tab, so the current page is free
+        //            to navigate onward (back to the tables list) at the same time.
+        //   Desktop: there is only ONE window. The window.open() shim above turns
+        //            `someWin.location.href = X` into `window.location.href = X`, so a
+        //            call site that did that AND THEN `window.location.href = Y` fired two
+        //            competing navigations in the same tick — WebView2 gives up and shows
+        //            a BLANK/BLACK window. (That was the waiter "close check → print"
+        //            crash, and the same bug was sitting in "send to kitchen" too.)
+        //
+        // So on desktop we perform exactly ONE navigation — to the print page — and pass
+        // the onward destination as ?next=, which the print templates' إغلاق button uses
+        // instead of history.back(). Same end result, one navigation.
+        window.PrintNav = {
+            go: function (preOpenedWin, printUrl, nextUrl) {
+                if (window.pywebview) {
+                    var sep = printUrl.indexOf('?') === -1 ? '?' : '&';
+                    window.location.href = printUrl + sep + 'next=' + encodeURIComponent(nextUrl);
+                    return;
+                }
+                if (preOpenedWin && !preOpenedWin.closed) {
+                    preOpenedWin.location.href = printUrl;
+                } else {
+                    window.open(printUrl, '_blank');
+                }
+                if (nextUrl) window.location.href = nextUrl;
+            },
+        };
+    </script>
+    <script>
+        // ── Realtime fallback ────────────────────────────────────────────────────
+        // Websockets (restaurant/consumers.py) are the primary, instant mechanism — but
+        // when the socket can't connect the page has NO way to tell "nothing happened"
+        // from "my connection is dead", so the screen just silently goes stale forever.
+        // That's a total failure mode for a kitchen/cashier screen, so freshness must not
+        // depend on the socket alone. This poller asks the server for a small fingerprint
+        // of the screen's data (restaurant.views.live_token) and reloads only when it
+        // actually changes — so an idle screen costs one tiny request every few seconds
+        // and never flickers, while a dead socket costs a few seconds of latency instead
+        // of breaking the workflow entirely.
+        //
+        // Only the passive MONITOR screens opt in (kds / cashier queue / table map /
+        // delivery). Screens where someone is actively entering an order (pos.html,
+        // pos_mobile.html, waiter_order.html) deliberately do NOT auto-reload — throwing
+        // away a half-built cart mid-order would be far worse than being a few seconds
+        // stale, and those screens already push their own changes to the server anyway.
+        window.LiveRefresh = (function () {
+            function isBusy() {
+                // Page-set escape hatch for "I'm mid-workflow, don't yank the page".
+                if (window.__liveRefreshBusy) return true;
+                var el = document.activeElement;
+                if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' ||
+                           el.tagName === 'SELECT' || el.isContentEditable)) return true;
+                // A visible SweetAlert / open <dialog> means a decision is in progress.
+                if (document.querySelector('.swal2-container')) return true;
+                if (document.querySelector('dialog[open]')) return true;
+                return false;
+            }
+
+            return {
+                isBusy: isBusy,
+                start: function (screen, options) {
+                    options = options || {};
+                    var intervalMs = options.interval || 4000;
+                    var onChange = options.onChange || function () { location.reload(); };
+                    var known = null;
+
+                    setInterval(function () {
+                        // A background tab doesn't need to be fresh — and reloading one
+                        // wastes work and can fight with the tab the user is actually on.
+                        if (document.hidden) return;
+                        fetch('/restaurant/live-token/?screen=' + encodeURIComponent(screen),
+                              {headers: {'X-Requested-With': 'XMLHttpRequest'}, credentials: 'same-origin'})
+                            .then(function (r) { return r.ok ? r.json() : null; })
+                            .then(function (d) {
+                                if (!d || !d.token) return;
+                                if (known === null) { known = d.token; return; }  // first poll = baseline
+                                if (d.token === known) return;
+                                // Deliberately do NOT update `known` while busy, so the
+                                // pending change is picked up on a later tick instead of
+                                // being swallowed and lost.
+                                if (isBusy()) return;
+                                known = d.token;
+                                onChange();
+                            })
+                            .catch(function () { /* offline//session blip — try again next tick */ });
+                    }, intervalMs);
+                },
+            };
+        })();
+    </script>
     <title>{% block title %}نظام إدارة الكافيه{% endblock %}</title>
     
     <!-- Dynamic Favicon from System Settings -->

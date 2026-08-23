@@ -435,6 +435,8 @@
             معاينة: <span class="text-blue-600">{{ print_style|upper }}</span>
         </div>
         <div class="flex gap-3 px-4">
+            <button onclick="window.close(); setTimeout(function(){ if (window.history.length > 1) window.history.back(); }, 50)"
+                class="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded font-bold text-gray-600 transition">إغلاق</button>
             <!-- Browser Print Button -->
             <button onclick="window.print()"
                 class="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded font-bold text-gray-700 transition">طباعة

@@ -99,6 +99,12 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    # Serves STATIC_ROOT directly from Django/Daphne even with DEBUG=False and no
+    # nginx/reverse proxy in front (runserver's DEBUG=True auto-serving stops working
+    # the moment DEBUG=False — this replaces that for a standalone Daphne process, e.g.
+    # the LAN test-run setup). Whitenoise is already in requirements.txt but was never
+    # wired in here before, so DEBUG=False previously meant AND ALL static files 404.
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -221,6 +227,11 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 STATICFILES_DIRS = [
     BASE_DIR / 'static',
 ]
+# Plain (non-manifest) storage — CompressedManifestStaticFilesStorage requires every
+# template's {% static %} reference to exactly match a real collectstatic'd file or the
+# whole page 500s; plain compressed storage degrades to "serves the file, just without
+# cache-busting hashes" instead, which is what a temporary LAN test run wants.
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedStaticFilesStorage'
 
 # Media files (uploaded images, etc.)
 MEDIA_URL = '/media/'
@@ -246,9 +257,18 @@ SESSION_EXPIRE_AT_BROWSER_CLOSE = True # إغلاق الجلسة عند إغلا
 #  PRODUCTION SECURITY (active only when DEBUG=False)
 # ──────────────────────────────────────────────
 # These harden cookies/HTTPS in production while leaving local HTTP dev untouched.
+# All of the HTTPS-only knobs below are individually env-overridable (not just gated on
+# DEBUG) specifically so a DEBUG=False run over PLAIN HTTP — e.g. a LAN test on cafe
+# hardware before real TLS is set up — can turn them off without going back to DEBUG=True.
+# A "Secure" cookie is silently dropped by every browser over plain http:// — leaving
+# SESSION_COOKIE_SECURE/CSRF_COOKIE_SECURE hardcoded True with no override meant login
+# would look like it succeeds (200 response) but no session cookie ever gets stored, so
+# the very next request is logged out again. SECURE_SSL_REDIRECT defaulting True would
+# additionally force-redirect every plain http:// request to https://, which doesn't
+# exist yet on a LAN test — a redirect loop / connection refused, not a login page.
 if not DEBUG:
-    SESSION_COOKIE_SECURE = True
-    CSRF_COOKIE_SECURE = True
+    SESSION_COOKIE_SECURE = _env_bool('DJANGO_SESSION_COOKIE_SECURE', True)
+    CSRF_COOKIE_SECURE = _env_bool('DJANGO_CSRF_COOKIE_SECURE', True)
     SECURE_BROWSER_XSS_FILTER = True
     SECURE_CONTENT_TYPE_NOSNIFF = True
     X_FRAME_OPTIONS = 'DENY'
