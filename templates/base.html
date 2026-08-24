@@ -27,8 +27,19 @@
         // open), and history.back() then correctly returns to whatever page was open
         // before printing, with zero changes needed in any individual print template.
         (function() {
-            if (!window.pywebview) return;  // real browser tab — leave window.open() alone
+            var _origOpen = window.open;
             window.open = function(url, target, features) {
+                // CRITICAL: this check must happen HERE (at call time), never at install
+                // time. pywebview injects `window.pywebview` into the page ASYNCHRONOUSLY,
+                // so it does not exist yet while this <head> script runs — an
+                // `if (!window.pywebview) return;` guard around the install therefore
+                // ALWAYS bailed out in the desktop app and the shim was never installed at
+                // all. The real window.open then ran, and WebView2 opened a genuine blank
+                // popup window; after the print dialog was dismissed that empty window was
+                // what the user was left staring at — the "black screen after tapping OK
+                // to print" crash on the waiter screen. By the time any user click happens
+                // window.pywebview is long since defined, so checking here is reliable.
+                if (!window.pywebview) return _origOpen.apply(window, arguments);
                 if (url) {
                     window.location.href = url;
                     return null;
@@ -65,6 +76,13 @@
         window.PrintNav = {
             go: function (preOpenedWin, printUrl, nextUrl) {
                 if (window.pywebview) {
+                    // Defence in depth: if a real blank popup somehow got opened anyway
+                    // (e.g. the shim above was bypassed), close it — otherwise it sits
+                    // there as an empty window and becomes the visible "black screen"
+                    // the moment the print dialog is dismissed.
+                    if (preOpenedWin && typeof preOpenedWin.close === 'function') {
+                        try { preOpenedWin.close(); } catch (e) { /* not ours to close */ }
+                    }
                     var sep = printUrl.indexOf('?') === -1 ? '?' : '&';
                     window.location.href = printUrl + sep + 'next=' + encodeURIComponent(nextUrl);
                     return;
