@@ -4,7 +4,7 @@ from decimal import Decimal
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db import transaction as db_transaction
-from django.db.models import Exists as _Exists, OuterRef as _OuterRef
+from django.db.models import Exists as _Exists, OuterRef as _OuterRef, Prefetch as _Prefetch
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -94,9 +94,23 @@ def restaurant_setup(request):
             seats = request.POST.get('seats') or 4
             if number:
                 section = Section.objects.filter(id=section_id, branch=branch).first() if section_id else None
-                Table.objects.get_or_create(branch=branch, number=number, defaults={
+                table, created = Table.objects.get_or_create(branch=branch, number=number, defaults={
                     'section': section, 'seats': seats,
                 })
+                if not created:
+                    # Deleting a table only soft-deletes it (is_active=False), so the row
+                    # for this number still exists and get_or_create quietly returns it —
+                    # `defaults` apply on CREATE only. Without this, re-adding a table you
+                    # previously deleted reported "تمت إضافة الترابيزة" and then nothing
+                    # appeared, because the row stayed is_active=False. Revive it (and
+                    # apply the section/seats just entered) instead.
+                    table.is_active = True
+                    table.section = section
+                    try:
+                        table.seats = int(seats)
+                    except (TypeError, ValueError):
+                        pass
+                    table.save(update_fields=['is_active', 'section', 'seats'])
                 messages.success(request, f"تمت إضافة الترابيزة: {number}")
         elif action == 'add_driver':
             name = request.POST.get('name', '').strip()
@@ -158,7 +172,13 @@ def restaurant_setup(request):
             messages.success(request, "تم حذف الطيار.")
         return redirect(f"{request.path}?branch_id={branch.id}")
 
-    sections = Section.objects.filter(branch=branch, is_active=True).prefetch_related('tables')
+    # Same is_active filter on the prefetch as waiter_table_map — see the comment there.
+    # setup.html happens to render from the filtered `tables` list below rather than
+    # `section.tables.all`, but leaving the unfiltered prefetch here is a trap for the
+    # next person who reaches for section.tables in this template.
+    sections = Section.objects.filter(branch=branch, is_active=True).prefetch_related(
+        _Prefetch('tables', queryset=Table.objects.filter(is_active=True).select_related('section'))
+    )
     tables = Table.objects.filter(branch=branch, is_active=True).select_related('section')
     drivers = Driver.objects.filter(branch=branch, is_active=True)
 
@@ -198,7 +218,15 @@ def waiter_table_map(request):
         messages.error(request, "لا يوجد فرع نشط متاح لك.")
         return redirect('dashboard')
 
-    sections = Section.objects.filter(branch=branch, is_active=True).prefetch_related('tables')
+    # The prefetch MUST filter is_active too. Deleting a table is a soft delete
+    # (setup view's 'delete_table' sets is_active=False so historical orders keep their
+    # FK), and waiter_tables.html renders a section's tables via `section.tables.all` —
+    # a plain prefetch_related('tables') returns EVERY table including the deleted ones,
+    # so a deleted table stayed on the waiter map forever. Only tables with no section
+    # vanished correctly, because those render from the filtered `tables` list below.
+    sections = Section.objects.filter(branch=branch, is_active=True).prefetch_related(
+        _Prefetch('tables', queryset=Table.objects.filter(is_active=True).select_related('section'))
+    )
     tables = Table.objects.filter(branch=branch, is_active=True).select_related('section')
 
     # Table-less orders (started via "طلب جديد بدون ترابيزة") stay open/in-progress just
@@ -228,6 +256,12 @@ def waiter_table_map(request):
         'branch': branch,
         'warehouses': warehouses,
         'sections': sections,
+        # Tables not assigned to any صالة. The template used to render these ONLY as the
+        # {% empty %} fallback of the sections loop — i.e. only when the branch had no
+        # sections at all — so as soon as one section existed, every section-less table
+        # silently vanished from the waiter map (including any table re-added without
+        # picking a صالة). They now get their own group, always.
+        'unsectioned_tables': tables.filter(section__isnull=True),
         'tables': tables,
         'waiter_only_user': _waiter_only_user(request.user),
         'no_table_orders': no_table_orders,
@@ -2620,8 +2654,11 @@ def live_token(request):
             warehouse=branch, created_at__gte=since,
         ).order_by('id').values_list('id', 'kitchen_status', 'status', 'is_open'))
     elif screen == 'waiter':
+        # is_active is part of the fingerprint on purpose: deleting a table is a soft
+        # delete, so without it the token wouldn't change and open waiter screens would
+        # keep showing the deleted table until someone refreshed by hand.
         rows = list(Table.objects.filter(branch=branch).order_by('id')
-                    .values_list('id', 'status'))
+                    .values_list('id', 'status', 'is_active'))
         rows += list(Order.objects.filter(
             warehouse=branch, created_at__gte=since,
         ).order_by('id').values_list('id', 'kitchen_status', 'is_open'))

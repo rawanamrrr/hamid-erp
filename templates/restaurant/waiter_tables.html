@@ -102,11 +102,30 @@
             {% endfor %}
         </div>
     </div>
-    {% empty %}
+    {% endfor %}
+
+    {% comment %}
+    Tables with no صالة. These used to live in the sections loop's empty-branch, which
+    only renders when there are NO sections at all — so the moment a single صالة existed,
+    every section-less table disappeared from this screen entirely.
+    {% endcomment %}
+    {% if unsectioned_tables %}
+    <div class="mb-8">
+        {% if sections %}
+        <h2 class="text-sm font-black text-gray-500 uppercase tracking-wide mb-3 flex items-center gap-2">
+            <i class="fa-solid fa-location-dot text-gray-300"></i> بدون صالة
+        </h2>
+        {% endif %}
+        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-3">
+            {% for table in unsectioned_tables %}
+            {% include 'restaurant/_table_card.html' %}
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    {% if not tables %}
     <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-3">
-        {% for table in tables %}
-        {% include 'restaurant/_table_card.html' %}
-        {% empty %}
         <div class="col-span-full text-center py-16 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200">
             <i class="fa-solid fa-chair text-3xl text-gray-300 mb-3"></i>
             <p class="text-gray-500 text-sm mb-4">لا توجد ترابيزات مُعرّفة لهذا الفرع — مش لازم تضيف ترابيزات عشان تاخد أوردر.</p>
@@ -114,9 +133,8 @@
                 <i class="fa-solid fa-bag-shopping text-xs ml-1"></i> ابدأ طلب جديد بدون ترابيزة
             </button>
         </div>
-        {% endfor %}
     </div>
-    {% endfor %}
+    {% endif %}
 
     <!-- Reserve table modal -->
     <div x-show="reserveModal.open" x-cloak class="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" @click.self="reserveModal.open=false">
