@@ -75,3 +75,6 @@ d_tailwind_auto.py
 
 # Dev token-signing PRIVATE key — NEVER commit or ship
 license_private_key.pem
+
+# Bundled third-party installers (huge; not source)
+vendor/

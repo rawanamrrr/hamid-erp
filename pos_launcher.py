@@ -14,7 +14,7 @@ import threading
 import webbrowser
 
 PORT = 8085
-WINDOW_TITLE = 'Wholesale POS System'
+WINDOW_TITLE = 'DigiFlow'
 
 
 def _app_dir():
@@ -26,7 +26,7 @@ def _app_dir():
 def _data_dir():
     """Prefers a `data/` folder NEXT TO the .exe (simplest — one self-contained folder,
     fine for a portable/USB install or running dist/POS directly during dev/testing).
-    Falls back to %ProgramData%\\Wholesale POS System when that's not writable — which is
+    Falls back to %ProgramData%\\DigiFlow when that's not writable — which is
     exactly the installer's default (Program Files requires admin elevation to write into,
     but the app runs as whatever regular Windows user double-clicks the Start Menu icon
     afterward — this used to hard-crash with PermissionError on every single launch for
@@ -40,7 +40,7 @@ def _data_dir():
     except PermissionError:
         pass
     fallback_root = os.environ.get('ProgramData') or os.environ.get('APPDATA') or app_dir
-    fallback = os.path.join(fallback_root, 'Wholesale POS System', 'data')
+    fallback = os.path.join(fallback_root, 'DigiFlow', 'data')
     os.makedirs(os.path.join(fallback, 'media'), exist_ok=True)
     return fallback
 
@@ -48,8 +48,43 @@ def _data_dir():
 APP_DIR = _app_dir()
 DATA_DIR = _data_dir()
 
+DB_CONFIG_PATH = os.path.join(APP_DIR, 'db_config.json')
+
+
+def _load_db_config():
+    """Point Django at PostgreSQL when the installer wrote a db_config.json next to the
+    .exe; otherwise stay on the built-in SQLite file (zero setup, the default).
+
+    Lives in a file rather than environment variables because the app is launched by
+    whatever user double-clicks the shortcut — machine-wide env vars would have to be set
+    separately on every install, and per-user ones wouldn't apply to a different cashier
+    logging into the same PC.
+
+    setdefault(), not direct assignment: a real environment variable is an explicit
+    admin/developer override and must still win over the file.
+    """
+    try:
+        import json
+        with open(DB_CONFIG_PATH, encoding='utf-8') as fh:
+            cfg = json.load(fh)
+    except (OSError, ValueError):
+        return None   # no config (or unreadable/corrupt) -> SQLite
+
+    if str(cfg.get('engine', '')).lower() not in ('postgres', 'postgresql'):
+        return None
+
+    os.environ.setdefault('DJANGO_DB_ENGINE', 'postgres')
+    os.environ.setdefault('DJANGO_DB_NAME', cfg.get('name') or 'digiflow')
+    os.environ.setdefault('DJANGO_DB_USER', cfg.get('user') or 'postgres')
+    os.environ.setdefault('DJANGO_DB_PASSWORD', cfg.get('password') or '')
+    os.environ.setdefault('DJANGO_DB_HOST', cfg.get('host') or '127.0.0.1')
+    os.environ.setdefault('DJANGO_DB_PORT', str(cfg.get('port') or '5432'))
+    return cfg
+
+
 # Persistent paths must be set BEFORE Django settings are imported.
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'textile_pos.production_settings')
+_DB_CONFIG = _load_db_config()
 os.environ.setdefault('DJANGO_SQLITE_NAME', os.path.join(DATA_DIR, 'db.sqlite3'))
 os.environ.setdefault('DJANGO_MEDIA_ROOT', os.path.join(DATA_DIR, 'media'))
 os.environ.setdefault('DJANGO_LOG_DIR', os.path.join(DATA_DIR, 'logs'))
@@ -93,7 +128,7 @@ class _PrintAPI:
         webview.create_window('طباعة', url, width=950, height=780)
 
 
-_SINGLE_INSTANCE_MUTEX_NAME = 'Global\\WholesalePOSSystem_SingleInstance'
+_SINGLE_INSTANCE_MUTEX_NAME = 'Global\\DigiFlow_SingleInstance'
 _ERROR_ALREADY_EXISTS = 183
 
 
@@ -119,6 +154,53 @@ def _acquire_single_instance_lock():
             ctypes.windll.kernel32.CloseHandle(handle)
         return None
     return handle
+
+
+def _ensure_postgres_database():
+    """Create the target PostgreSQL database on first run if it doesn't exist yet.
+
+    `manage.py migrate` can create TABLES but never the DATABASE itself — it just fails
+    with "database ... does not exist". Without this the customer would have to open
+    pgAdmin/psql and create it by hand before the app would start even once, which is
+    not something a cafe owner should ever have to do.
+
+    Connects to the always-present 'postgres' maintenance database to issue CREATE
+    DATABASE, since you cannot create a database from inside itself.
+    """
+    if os.environ.get('DJANGO_DB_ENGINE', '').lower() not in ('postgres', 'postgresql'):
+        return
+
+    import psycopg2
+    from psycopg2 import sql
+    from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
+
+    name = os.environ['DJANGO_DB_NAME']
+    conn_kwargs = dict(
+        user=os.environ.get('DJANGO_DB_USER', 'postgres'),
+        password=os.environ.get('DJANGO_DB_PASSWORD', ''),
+        host=os.environ.get('DJANGO_DB_HOST', '127.0.0.1'),
+        port=os.environ.get('DJANGO_DB_PORT', '5432'),
+    )
+
+    # Already there? Then there is nothing to do — and we must NOT touch it.
+    try:
+        psycopg2.connect(dbname=name, connect_timeout=5, **conn_kwargs).close()
+        return
+    except psycopg2.OperationalError:
+        pass
+
+    conn = psycopg2.connect(dbname='postgres', connect_timeout=5, **conn_kwargs)
+    try:
+        conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)   # CREATE DATABASE can't run in a transaction
+        with conn.cursor() as cur:
+            cur.execute('SELECT 1 FROM pg_database WHERE datname = %s', (name,))
+            if cur.fetchone() is None:
+                # UTF8 so Arabic product/customer names store correctly.
+                cur.execute(sql.SQL("CREATE DATABASE {} ENCODING 'UTF8' TEMPLATE template0")
+                            .format(sql.Identifier(name)))
+                _log(f'created PostgreSQL database "{name}"')
+    finally:
+        conn.close()
 
 
 def _serve_forever():
@@ -172,6 +254,27 @@ def main():
                     'أو في شريط المهام.\n\nThe system is already running — check for its window '
                     '(it may be behind other windows) or the taskbar.')
         sys.exit(0)
+
+    if _DB_CONFIG:
+        _log(f"database: PostgreSQL {os.environ['DJANGO_DB_NAME']} @ "
+             f"{os.environ['DJANGO_DB_HOST']}:{os.environ['DJANGO_DB_PORT']}")
+        try:
+            _ensure_postgres_database()
+        except Exception as exc:
+            # Deliberately fatal instead of quietly continuing on SQLite: a silent
+            # fallback would start writing today's sales into a DIFFERENT database from
+            # yesterday's, and nobody would notice until the numbers didn't add up.
+            _log(f'FATAL: cannot reach PostgreSQL — {exc}')
+            _error_box(
+                'تعذّر الاتصال بقاعدة بيانات PostgreSQL.\n\n'
+                f'{exc}\n\n'
+                'تأكد أن خدمة PostgreSQL شغّالة وأن بيانات الاتصال صحيحة في:\n'
+                f'{DB_CONFIG_PATH}\n\n'
+                'Could not connect to PostgreSQL — check the service is running and the '
+                'connection details in the file above are correct.')
+            sys.exit(1)
+    else:
+        _log(f'database: SQLite ({os.path.join(DATA_DIR, "db.sqlite3")})')
 
     import django
     django.setup()

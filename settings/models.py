@@ -6,7 +6,7 @@ class SystemSetting(models.Model):
     # Single source of truth lives in settings/market_profiles.py (the MarketProfile engine).
     MARKET_TYPE_CHOICES = _MARKET_TYPE_CHOICES
 
-    shop_name = models.CharField(max_length=200, default="Wholesale POS System", verbose_name="اسم المحل")
+    shop_name = models.CharField(max_length=200, default="DigiFlow", verbose_name="اسم المحل")
     # No placeholder default — an unset address must print as nothing on receipts, not
     # a literal "العنوان الافتراضي" line nobody actually typed in (see the receipt
     # templates, which now only render this paragraph when it's non-blank).
