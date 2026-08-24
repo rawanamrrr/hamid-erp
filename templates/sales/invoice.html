@@ -613,8 +613,41 @@
         // action (e.g. the waiter closing a check, same as the cashier POS's "دفع
         // وطباعة") so the print dialog appears immediately instead of leaving the
         // person to find and tap the "طباعة" button themselves.
-        if (new URLSearchParams(location.search).get('autoprint') === '1') {
+        //
+        // ?then=<url> — chain to another page once this one has been printed. A cashier
+        // sale needs TWO documents printed (customer invoice + kitchen ticket), and
+        // opening a second popup for the second one does not work: a mobile browser
+        // allows at most ONE window.open() per tap (so the second was always silently
+        // blocked — the reported "it only says تم الحفظ and never prints"), and the
+        // desktop app has just a single window to navigate. Printing them one after the
+        // other in the same window works everywhere.
+        // Fires after EVERY print on this page — the automatic one and the manual
+        // "طباعة" button alike. Once the print dialog closes this preview has served its
+        // purpose, so it either continues the print chain or closes itself; leaving spent
+        // print previews stacked up for someone to dismiss by hand is poor UX.
+        // 'afterprint' fires when the dialog closes in Chrome/Edge/WebView2 (the desktop
+        // app and Android Chrome). It also fires on CANCEL — intentional: either way the
+        // person is finished with this page.
+        var printAdvanced = false;
+        function afterPrintAdvance() {
+            if (printAdvanced) return;
+            printAdvanced = true;
+            var then = new URLSearchParams(location.search).get('then');
+            if (then) { window.location.href = then; return; }
+            closePrintPage();
+        }
+        window.addEventListener('afterprint', function () { setTimeout(afterPrintAdvance, 300); });
+
+        function autoPrintThenChain() {
             window.print();
+            // Safety net for browsers that never fire 'afterprint' (some mobile ones):
+            // deliberately long, so it can't yank the page away while the print dialog
+            // is still open and the user is choosing a printer.
+            setTimeout(afterPrintAdvance, 20000);
+        }
+
+        if (new URLSearchParams(location.search).get('autoprint') === '1') {
+            autoPrintThenChain();
         }
     </script>
 

@@ -1375,18 +1375,14 @@
                 data.order_id = editOrderId;
             }
 
-            // Must open BEFORE the fetch/await — a window.open() call made only after
-            // the async response comes back is no longer a direct result of the user's
-            // click as far as the browser's popup blocker is concerned, and gets silently
-            // blocked on mobile (the order still saves fine, just the print tab vanishes).
-            const preOpenedWin = (print && !window.pywebview) ? window.open('', '_blank') : null;
-            {% if policies.kitchen.auto_print_ticket_on_order %}
-            // ثوابت النظام -> شاشة المطبخ -> "طباعة تذكرة المطبخ تلقائياً عند إرسال
-            // الطلب" — same popup-blocker-safe pre-open as the invoice above. This was
-            // never wired into the mobile POS at all before (only the desktop pos.html
-            // had it), which is why the kitchen ticket never showed up here.
-            const preOpenedTicketWin = !window.pywebview ? window.open('', '_blank') : null;
-            {% endif %}
+            // NOTE: deliberately no window.open() here any more. A cashier sale prints
+            // TWO documents (customer invoice + kitchen ticket) and the previous approach
+            // pre-opened one popup for each — but a mobile browser permits at most ONE
+            // window.open() per tap, so the second was always silently blocked, and often
+            // both were. That is exactly why "دفع وطباعة" on a phone only ever showed
+            // "تم حفظ الطلب" and printed nothing at all. buildPrintChainUrl() below
+            // prints them one after another in THIS window instead, which needs no popup
+            // permission and works identically on a phone and in the desktop app.
 
             fetch(submitUrl, {
                 method: 'POST',
@@ -1400,40 +1396,40 @@
                     closePaymentModal();
                     closeCartModal();
                     
-                    if(print) {
-                        const style = document.querySelector('input[name="printStyle"]:checked').value;
-                        openPrintWindow(`${window.location.origin}/sales/invoice/${res.order_id}/?style=${style}`, preOpenedWin);
-                    }
-                    {% if policies.kitchen.auto_print_ticket_on_order %}
-                    if (window.pywebview) {
-                        // Single native window can only navigate to one place at a time —
-                        // the invoice above already claimed it (via sessionStorage +
-                        // location.href in openPrintWindow), so the auto kitchen-ticket
-                        // print is skipped here to avoid the two navigations racing each
-                        // other. Use the manual "تذكرة المطبخ" button for this order instead.
-                    } else if (preOpenedTicketWin && !preOpenedTicketWin.closed) {
-                        preOpenedTicketWin.location.href = `${window.location.origin}/restaurant/order/${res.order_id}/ticket/`;
-                    }
-                    {% endif %}
-
-                    if(isOnline && confirm('الانتقال للوحة الشحن؟')) {
+                    if (isOnline && confirm('الانتقال للوحة الشحن؟')) {
                         window.location.href = "{% url 'shipping_dashboard' %}";
-                    } else if (!(print && window.pywebview)) {
-                        window.location.reload();
+                        return;
                     }
+
+                    if (print) {
+                        // ONE navigation that prints the invoice, then (if the kitchen
+                        // auto-print policy is on) the kitchen ticket, then comes back
+                        // here — see buildPrintChainUrl.
+                        const style = document.querySelector('input[name="printStyle"]:checked').value;
+                        window.location.href = buildPrintChainUrl(res.order_id, style);
+                        return;
+                    }
+
+                    window.location.reload();
                 } else {
-                    if (preOpenedWin && !preOpenedWin.closed) preOpenedWin.close();
-                    {% if policies.kitchen.auto_print_ticket_on_order %}
-                    if (typeof preOpenedTicketWin !== 'undefined' && preOpenedTicketWin && !preOpenedTicketWin.closed) preOpenedTicketWin.close();
-                    {% endif %}
                     alert('خطأ: ' + res.message);
                 }
-            }).catch(() => {
-                if (preOpenedWin && !preOpenedWin.closed) preOpenedWin.close();
-                {% if policies.kitchen.auto_print_ticket_on_order %}
-                if (typeof preOpenedTicketWin !== 'undefined' && preOpenedTicketWin && !preOpenedTicketWin.closed) preOpenedTicketWin.close();
-                {% endif %}
             });
+        }
+
+        // Builds a single URL that prints every document this sale needs, in order,
+        // reusing THIS window: invoice -> [kitchen ticket] -> back to the POS. Each print
+        // page advances to the next via its own ?then= handler once its print dialog is
+        // done (see sales/invoice.html and restaurant/kitchen_ticket.html).
+        function buildPrintChainUrl(orderId, style) {
+            const origin = window.location.origin;
+            const backHere = '{% url "pos_mobile" %}';
+            let chain = backHere;
+            {% if policies.kitchen.auto_print_ticket_on_order %}
+            // ثوابت النظام -> شاشة المطبخ -> "طباعة تذكرة المطبخ تلقائياً عند إرسال الطلب"
+            chain = `${origin}/restaurant/order/${orderId}/ticket/?then=${encodeURIComponent(chain)}`;
+            {% endif %}
+            return `${origin}/sales/invoice/${orderId}/?style=${style}&autoprint=1&then=${encodeURIComponent(chain)}`;
         }
 
         // --- UI Helpers ---

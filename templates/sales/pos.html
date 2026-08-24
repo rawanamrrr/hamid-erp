@@ -4786,6 +4786,22 @@
             {% endif %}
         }
 
+        // Builds a single URL that prints every document this sale needs, in order,
+        // reusing THIS window: invoice -> [kitchen ticket] -> back to the POS. Each print
+        // page advances to the next via its own ?then= handler once its print dialog is
+        // done (see sales/invoice.html and restaurant/kitchen_ticket.html). Sequential
+        // rather than one popup per document because the desktop app has only one window,
+        // and a phone browser blocks the second window.open() of a single tap outright.
+        function buildPrintChainUrl(orderId, style) {
+            const origin = window.location.origin;
+            let chain = '{% url "pos_view" %}';
+            {% if policies.kitchen.auto_print_ticket_on_order %}
+            // ثوابت النظام -> شاشة المطبخ -> "طباعة تذكرة المطبخ تلقائياً عند إرسال الطلب"
+            chain = `${origin}/restaurant/order/${orderId}/ticket/?then=${encodeURIComponent(chain)}`;
+            {% endif %}
+            return `${origin}/sales/invoice/${orderId}/?style=${style}&autoprint=1&then=${encodeURIComponent(chain)}`;
+        }
+
         function submitOrderRequest(url, data, print, isOnline, customerId) {
             // Use the determined URL
             fetch(url, {
@@ -4805,25 +4821,17 @@
                         if (print) {
                             // Logic to handle print style. If boolean true passed, default to thermal
                             let style = (print && print !== true) ? print : 'thermal';
-                            window.open(`/sales/invoice/${res.order_id}/?style=${style}`, '_blank');
+                            // ONE navigation that prints the customer invoice and then
+                            // (when the kitchen auto-print policy is on) the kitchen
+                            // ticket, before returning here. Previously the ticket was
+                            // opened as a SECOND window.open() — which the desktop app
+                            // can't honour (it has a single window, so the two
+                            // navigations raced and only one document ever printed), so
+                            // it used to be skipped there entirely. Chaining prints both,
+                            // in the desktop app and in a browser alike.
+                            window.location.href = buildPrintChainUrl(res.order_id, style);
+                            return;
                         }
-
-                        {% if policies.kitchen.auto_print_ticket_on_order %}
-                        // ثوابت النظام -> شاشة المطبخ -> "طباعة تذكرة المطبخ تلقائياً عند
-                        // إرسال الطلب" — opens the kitchen ticket (it auto-prints itself
-                        // on load, see kitchen_ticket.html) right alongside the customer
-                        // invoice above, no manual "تذكرة المطبخ" click needed.
-                        //
-                        // Desktop app (pywebview) only has ONE window to navigate — the
-                        // invoice call above already claimed it, and a second window.open()
-                        // right after would just re-navigate away before the first ever
-                        // rendered/printed (this is exactly why only the kitchen ticket was
-                        // showing — it always won the race, being called second). Skip the
-                        // auto-ticket there; a real browser tab has no such conflict.
-                        if (!(print && window.pywebview)) {
-                            window.open(`/restaurant/order/${res.order_id}/ticket/`, '_blank');
-                        }
-                        {% endif %}
 
                         // Update customer balance in the local dropdown list
                         if (customerId && typeof res.updated_balance !== 'undefined') {

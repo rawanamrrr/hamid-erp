@@ -3,11 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <style>
-    /* Preview-only backdrop so the ticket reads as a small slip instead of a blank
-       full-width page — @media print below strips it back out for actual printing. */
-    html { background: #e5e7eb; }
-    body { font-family: 'Courier New', monospace; width: 280px; margin: 16px auto; padding: 8px;
-           background: #fff; box-shadow: 0 1px 6px rgba(0,0,0,0.15); }
+    /* Preview chrome mirrors templates/sales/invoice.html so the two print previews a
+       cashier sees back-to-back (customer invoice, then kitchen ticket) look like the
+       same product instead of two unrelated pages — @media print strips all of it out. */
+    html { background: #525252; }
+    body { font-family: 'Courier New', monospace; margin: 0; padding: 76px 0 20px;
+           background: #525252; }
+    .sheet { width: 280px; margin: 0 auto; padding: 8px; background: #fff;
+             box-shadow: 0 1px 6px rgba(0,0,0,0.15); }
     /* Page size matches the ticket's own content width (thermal-receipt width) instead
        of the browser's A4/Letter default — without this, the ticket prints as a small
        strip pasted in the corner of a full blank page, with a huge empty margin around
@@ -17,13 +20,24 @@
        there (or in the thermal printer's driver settings) to get rid of it. */
     @page { size: 80mm auto; margin: 0; }
     @media print {
-        html { background: none; }
-        body { width: 80mm; margin: 0 auto; padding: 4px; box-shadow: none; }
+        html, body { background: none; }
+        body { padding: 0; margin: 0; }
+        .sheet { width: 80mm; margin: 0 auto; padding: 4px; box-shadow: none; }
         .no-print { display: none !important; }
     }
-    .toolbar { max-width: 280px; margin: 0 auto 8px; text-align: center; }
-    .toolbar button { padding: 6px 16px; border-radius: 8px; border: 1px solid #d1d5db;
-                       background: #f3f4f6; font-family: inherit; font-weight: bold; cursor: pointer; }
+    /* Same fixed white control bar as the invoice preview. */
+    .toolbar { position: fixed; top: 0; left: 0; right: 0; height: 56px; background: #fff;
+               box-shadow: 0 1px 4px rgba(0,0,0,.2); z-index: 50;
+               display: flex; align-items: center; justify-content: space-between;
+               padding: 0 16px; font-family: system-ui, sans-serif; }
+    .toolbar .label { font-weight: bold; color: #374151; }
+    .toolbar .actions { display: flex; gap: 8px; }
+    .toolbar button { font-family: inherit; font-weight: bold; font-size: 14px;
+                      border-radius: 6px; cursor: pointer; border: 0; }
+    .toolbar .btn-close { padding: 6px 14px; background: #e5e7eb; color: #374151; }
+    .toolbar .btn-close:hover { background: #d1d5db; }
+    .toolbar .btn-print { padding: 6px 18px; background: #000; color: #fff; }
+    .toolbar .btn-print:hover { background: #1f2937; }
     h2 { text-align: center; margin: 0 0 4px; font-size: 14px; font-weight: bold; }
     .order-num { text-align: center; margin: 0 0 4px; font-size: 34px; font-weight: 900; line-height: 1.1; }
     .meta { text-align: center; font-size: 15px; font-weight: bold; margin-bottom: 10px; border-bottom: 2px dashed #000; padding-bottom: 8px; }
@@ -32,11 +46,43 @@
     .footer { text-align: center; font-size: 14px; font-weight: bold; margin-top: 10px; border-top: 2px dashed #000; padding-top: 6px; }
 </style>
 </head>
-<body onload="window.print()">
+<body onload="autoPrintThenChain()">
     <div class="toolbar no-print">
-        <button onclick="closePrintPage()">إغلاق</button>
+        <div class="label">معاينة: تذكرة المطبخ</div>
+        <div class="actions">
+            <button class="btn-close" onclick="closePrintPage()">إغلاق</button>
+            <button class="btn-print" onclick="window.print()">🖨 طباعة</button>
+        </div>
     </div>
     <script>
+        // Prints on load (this page exists only to be printed), then optionally chains
+        // onward via ?then=<url> — see the matching comment in sales/invoice.html for why
+        // a cashier sale prints its two documents sequentially in ONE window instead of
+        // opening a second popup (mobile browsers block the second popup outright).
+        // Fires after EVERY print on this page — the automatic one on load and the manual
+        // "طباعة" button alike. Once the print dialog closes this preview has served its
+        // purpose, so it either continues the print chain or closes itself; leaving spent
+        // print previews stacked up for someone to dismiss by hand is poor UX.
+        // Note 'afterprint' also fires when the dialog is CANCELLED — that's intentional
+        // here: either way the person is done with this page.
+        var printAdvanced = false;
+        function afterPrintAdvance() {
+            if (printAdvanced) return;
+            printAdvanced = true;
+            var then = new URLSearchParams(location.search).get('then');
+            if (then) { window.location.href = then; return; }
+            closePrintPage();
+        }
+        window.addEventListener('afterprint', function () { setTimeout(afterPrintAdvance, 300); });
+
+        function autoPrintThenChain() {
+            window.print();
+            // Safety net for browsers that never fire 'afterprint' (some mobile ones).
+            // Deliberately long so it can't yank the page away while the print dialog is
+            // still open and a printer is being chosen.
+            setTimeout(afterPrintAdvance, 20000);
+        }
+
         // ?next=... — set by window.PrintNav (base.html) in the DESKTOP app, which has
         // only one window and therefore navigated this very window here to print. See
         // the matching comment in templates/sales/invoice.html.
@@ -49,6 +95,7 @@
             }, 50);
         }
     </script>
+    <div class="sheet">
     <h2>{{ station.name }}</h2>
     <div class="order-num">{{ order.display_number }}</div>
     <div class="meta">
@@ -72,5 +119,6 @@
         {% if order.waiter %}{{ order.waiter.get_full_name|default:order.waiter.username }}
         {% elif order.user %}{{ order.user.get_full_name|default:order.user.username }}{% endif %}
     </div>
+    </div><!-- /.sheet -->
 </body>
 </html>
