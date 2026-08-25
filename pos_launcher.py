@@ -203,6 +203,52 @@ def _ensure_postgres_database():
         conn.close()
 
 
+ATTENDANCE_SYNC_MINUTES = int(os.environ.get('DIGIFLOW_ATTENDANCE_SYNC_MINUTES', '5'))
+
+
+def _attendance_sync_loop():
+    """Pull fingerprint punches from the attendance devices on a timer, forever.
+
+    The same work the "مزامنة الآن" button does and the sync_attendance_devices
+    management command does — but neither is reachable on a customer install: there is no
+    manage.py in a packaged build to schedule, and expecting a cafe to remember to click
+    a button every day means the attendance data is silently stale exactly when payroll
+    needs it. So the app syncs itself.
+
+    Deliberately forgiving: an unreachable device (switched off, moved, wrong IP) must
+    never take down the app or spam the log, so every failure is swallowed and simply
+    retried on the next tick. File-based (csv_import) devices are skipped — they have no
+    live connection to poll.
+    """
+    import time as _time
+
+    # Let the server finish coming up first; a sync during startup would fight the
+    # migrate/first-request work for the same SQLite file.
+    _time.sleep(90)
+
+    while True:
+        try:
+            from attendance_devices.models import AttendanceDevice
+            from attendance_devices.sync import process_punches_into_attendance, sync_device
+
+            devices = list(AttendanceDevice.objects.filter(enabled=True)
+                           .exclude(adapter_type='csv_import'))
+            for device in devices:
+                try:
+                    sync_device(device)
+                except Exception as exc:
+                    _log(f'auto-sync: device "{device.name}" failed — {exc}')
+
+            if devices:
+                result = process_punches_into_attendance()
+                if result.get('attendance_records_updated'):
+                    _log(f"auto-sync: {result['attendance_records_updated']} سجل حضور محدّث")
+        except Exception as exc:
+            _log(f'auto-sync loop error: {exc}')
+
+        _time.sleep(max(60, ATTENDANCE_SYNC_MINUTES * 60))
+
+
 def _serve_forever():
     """Serve the app over ASGI (daphne) so WEBSOCKETS actually work.
 
@@ -283,6 +329,7 @@ def main():
     call_command('migrate', interactive=False, verbosity=0)   # first run / update upgrades the DB
 
     threading.Thread(target=_serve_forever, daemon=True).start()
+    threading.Thread(target=_attendance_sync_loop, daemon=True).start()
 
     if not _wait_until_up():
         raise RuntimeError('الخادم لم يبدأ في الوقت المتوقع / server did not start')

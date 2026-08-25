@@ -24,9 +24,19 @@ class SystemSettingForm(forms.ModelForm):
     # Explicitly define printer_name to use a ChoiceField (Dropdown)
     # We initialize choices as empty list, then populate in __init__
     printer_name = forms.ChoiceField(
-        choices=[], 
-        required=False, 
-        label="الطابعة الأساسية", 
+        choices=[],
+        required=False,
+        label="الطابعة الأساسية",
+        widget=forms.Select(attrs={'class': TAILWIND_SELECT})
+    )
+
+    # Kitchen tickets print server-side straight to this printer (restaurant/direct_print.py),
+    # which is the only way to send them somewhere other than the invoice printer — a
+    # browser never lets a page choose the target printer.
+    kitchen_printer_name = forms.ChoiceField(
+        choices=[],
+        required=False,
+        label="طابعة المطبخ (طباعة تلقائية للتذاكر)",
         widget=forms.Select(attrs={'class': TAILWIND_SELECT})
     )
 
@@ -40,7 +50,7 @@ class SystemSettingForm(forms.ModelForm):
         model = SystemSetting
         fields = [
             'shop_name', 'address', 'phone', 'market_type', 'ui_color_theme', 'return_policy', 'thank_you_text',
-            'show_qr', 'qr_link', 'printer_name', 'notification_sound',
+            'show_qr', 'qr_link', 'printer_name', 'kitchen_printer_name', 'notification_sound',
             'gmail_sender_email', 'gmail_app_password', 'email_recipients'
         ]
         widgets = {
@@ -67,12 +77,16 @@ class SystemSettingForm(forms.ModelForm):
         # Ensure we have a default empty option if needed, though get_available_printers usually handles it
         if printer_choices:
             self.fields['printer_name'].choices = printer_choices
+            self.fields['kitchen_printer_name'].choices = printer_choices
         else:
             self.fields['printer_name'].choices = [('', 'لا توجد طابعات متاحة')]
-            
+            self.fields['kitchen_printer_name'].choices = [('', 'لا توجد طابعات متاحة')]
+
         # IMPORTANT: Set initial value if instance has one
         if self.instance and self.instance.printer_name:
              self.fields['printer_name'].initial = self.instance.printer_name
+        if self.instance and self.instance.kitchen_printer_name:
+             self.fields['kitchen_printer_name'].initial = self.instance.kitchen_printer_name
 
         # Phase ③: once the market type is locked (set at onboarding / by dev token), the
         # customer can no longer change it from settings — only a CHANGE_STORE_TYPE token can.

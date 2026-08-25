@@ -49,6 +49,11 @@ hiddenimports += [
     'django.db.backends.postgresql', 'psycopg2',
     'whitenoise', 'whitenoise.middleware', 'whitenoise.storage',
     'waitress', 'openpyxl', 'PIL', 'PIL.Image',
+    # Direct kitchen-ticket printing (restaurant/direct_print.py): PIL draws the ticket,
+    # win32ui/win32print push it through the printer driver, and reshaper+bidi are what
+    # make Arabic render as joined right-to-left text instead of reversed loose letters.
+    'PIL.ImageWin', 'PIL.ImageDraw', 'PIL.ImageFont',
+    'win32ui', 'win32con', 'win32gui', 'arabic_reshaper', 'bidi', 'bidi.algorithm',
     # ASGI + websockets (realtime KDS/waiter/cashier screens) — see the collect_all loop
     # below for the rest of the twisted stack these pull in dynamically.
     'daphne', 'daphne.server', 'daphne.endpoints', 'channels', 'channels.layers',
@@ -81,7 +86,11 @@ datas += collect_data_files('widget_tweaks')
 binaries = []
 for _pkg in ('webview', 'pythonnet', 'clr_loader', 'psycopg2',
              'daphne', 'twisted', 'autobahn', 'channels', 'txaio',
-             'constantly', 'incremental', 'hyperlink', 'zope.interface'):
+             'constantly', 'incremental', 'hyperlink', 'zope.interface',
+             # arabic_reshaper reads a bundled default-config.ini at runtime — a plain
+             # hiddenimport copies the .py files but NOT that data file, so it imports
+             # and then fails the moment it's used. collect_all takes the data too.
+             'arabic_reshaper', 'bidi'):
     try:
         _d, _b, _h = collect_all(_pkg)
         datas += _d

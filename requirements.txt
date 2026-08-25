@@ -54,3 +54,6 @@ webencodings
 Werkzeug
 whitenoise
 zopfli
+pywin32
+arabic-reshaper
+python-bidi

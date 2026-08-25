@@ -1,4 +1,5 @@
 import json
+import logging
 from decimal import Decimal
 
 from django.contrib import messages
@@ -21,6 +22,8 @@ from .models import (
     CashCustody, Driver, MenuModifier, MenuModifierGroup, Recipe, RecipeItem, Section,
     SubRecipe, SubRecipeItem, Table, compatible_units,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def _recompute_order_totals(order):
@@ -754,34 +757,60 @@ def waiter_set_order_customer(request, order_id):
 
 
 def _print_kitchen_tickets(request, order, items):
-    """Group newly-sent items by their category's KitchenStation and print one ticket
-    per station. Best-effort: the printing backend is currently stubbed out (see
-    sales/printer_utils.py) so this always reports failure until printing is re-enabled —
-    the ticket is still rendered correctly, ready to send once a real printer is wired.
-    Never raises: a printer problem must never block the order/kitchen-display flow.
+    """Print a kitchen ticket for newly-sent items, straight to the kitchen printer.
+
+    Routing, most specific first:
+      1. The item's category → KitchenStation.printer_target, when set. Lets a branch
+         with separate stations (grill / drinks / desserts) send each station's items to
+         its own printer, one ticket per station.
+      2. Otherwise everything goes on ONE ticket to the printer configured in
+         إعدادات النظام → طابعة المطبخ.
+
+    Printing is server-side and asynchronous (restaurant/direct_print.py) — it does not
+    go through a browser, so it needs nobody to click anything and can target a printer
+    other than the one the invoice uses. Entirely best-effort: the order is already saved
+    by the time this runs, and a jammed or offline printer must never break the flow.
     """
     from collections import defaultdict
 
-    from django.template.loader import render_to_string
+    from settings.models import SystemSetting
+    from settings.policies import get_policy
 
-    from sales.printer_utils import print_html_to_backend
+    from .direct_print import print_kitchen_ticket_async
 
-    by_station = defaultdict(list)
-    for item in items:
-        station = item.product.category.station if (item.product and item.product.category) else None
-        by_station[station].append(item)
+    # ثوابت النظام → شاشة المطبخ → "طباعة تذكرة المطبخ تلقائياً عند إرسال الطلب".
+    # The SAME switch that governs the browser-side auto-print, so turning it off means
+    # nothing prints by itself at all — otherwise an admin who disabled it would still
+    # get tickets coming out of the kitchen printer, which is the opposite of what the
+    # setting says. Tickets can still be printed on demand from the ticket page.
+    if not get_policy('kitchen.auto_print_ticket_on_order'):
+        return
 
-    base_url = request.build_absolute_uri('/')
-    for station, station_items in by_station.items():
-        if not station or not station.printer_target:
-            continue
-        try:
-            html = render_to_string('restaurant/kitchen_ticket.html', {
-                'order': order, 'items': station_items, 'station': station,
-            })
-            print_html_to_backend(html, station.printer_target, base_url=base_url)
-        except Exception:
-            pass
+    try:
+        by_station = defaultdict(list)
+        for item in items:
+            station = item.product.category.station if (item.product and item.product.category) else None
+            by_station[station].append(item)
+
+        settings_obj = SystemSetting.objects.first()
+        default_printer = (getattr(settings_obj, 'kitchen_printer_name', '') or '').strip()
+
+        # Items whose station has no printer of its own are merged onto one ticket for
+        # the default kitchen printer, rather than silently not printing at all (which is
+        # what happened before — station-less items were skipped entirely).
+        fallback_items = []
+        for station, station_items in by_station.items():
+            if station and station.printer_target:
+                print_kitchen_ticket_async(
+                    order, station_items, station_name=station.name,
+                    printer_override=station.printer_target)
+            else:
+                fallback_items.extend(station_items)
+
+        if fallback_items and default_printer:
+            print_kitchen_ticket_async(order, fallback_items)
+    except Exception:
+        logger.warning('kitchen ticket printing failed', exc_info=True)
 
 
 @login_required

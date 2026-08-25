@@ -68,6 +68,14 @@ class SystemSetting(models.Model):
 
     # Printer Settings
     printer_name = models.CharField(max_length=255, blank=True, null=True, verbose_name="اسم الطابعة الأساسية (Direct Print)")
+    # Kitchen tickets are printed SERVER-SIDE straight to this printer (see
+    # restaurant/direct_print.py) instead of through a browser print dialog — that's the
+    # only way to send them to a different printer than the customer invoice, since a
+    # browser gives no way to choose the target printer. Leave empty to keep the old
+    # behaviour (ticket opens in a print preview like before).
+    kitchen_printer_name = models.CharField(
+        max_length=255, blank=True, null=True,
+        verbose_name="طابعة المطبخ (طباعة مباشرة للتذاكر)")
     
     # Notification Sound
     notification_sound = models.FileField(upload_to='sounds/', blank=True, null=True, verbose_name="صوت التنبيه (MP3)")
