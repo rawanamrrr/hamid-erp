@@ -485,7 +485,8 @@ function waiterOrder() {
         seats: {{ table.seats|default:4 }},
         seatsSaving: false,
         addItemsUrl: {% if table %}"{% url 'restaurant:waiter_add_items' table.id %}"{% else %}"{% url 'restaurant:waiter_add_items_no_table' order.id %}"{% endif %},
-        autoPrintKitchenTicket: {% if policies.kitchen.auto_print_ticket_on_order %}true{% else %}false{% endif %},
+        // ثوابت النظام ← شاشة المطبخ ← "طباعة تذكرة المطبخ عند إرسال الطلب".
+        printKitchenTicket: {% if policies.kitchen.print_ticket_on_order %}true{% else %}false{% endif %},
         order: {{ order_json|default:"null"|safe }},
         modifierMap: {{ modifier_map_json|default:"{}"|safe }},
         variantMap: {{ variant_map_json|default:"{}"|safe }},
@@ -539,6 +540,10 @@ function waiterOrder() {
             if (!this.split.selected.length) return;
             this.split.submitting = true;
             this.split.error = '';
+            // Opened HERE, synchronously inside the click, for the same reason closeCheck
+            // does it: a window.open() issued later from the fetch's .then() has lost the
+            // user gesture and mobile browsers silently block it.
+            const splitReceiptWin = window.open('', '_blank');
             const amount = this.splitEstimatedTotal();
             const payments = {cash: 0, wallet: 0, instapay: 0, visa: 0};
             payments[this.split.method] = amount.toFixed(2);
@@ -552,18 +557,31 @@ function waiterOrder() {
                 this.split.submitting = false;
                 if (res.status === 'ok') {
                     this.splitClose();
-                    // Print the new split invoice's own receipt, then reload this page —
-                    // the cart/order data here is a server-rendered snapshot from page
-                    // load, and after a split it must reflect only whatever items are
-                    // still actually on this check (same reasoning as the bfcache guard
-                    // above: never leave a stale item list showing after a real change).
-                    window.open(`/sales/invoice/${res.split_order_id}/?style=thermal`, '_blank');
-                    location.reload();
+                    // Print the split invoice, then come back to this check — the
+                    // cart/order data here is a server-rendered snapshot from page load,
+                    // and after a split it must reflect only whatever items are still
+                    // actually on this check (same reasoning as the bfcache guard above:
+                    // never leave a stale item list showing after a real change).
+                    //
+                    // This went through PrintNav for the same reason closeCheck does. It
+                    // used to be a plain window.open() followed immediately by
+                    // location.reload(), which works in a browser tab (two independent
+                    // windows) but not in the desktop app: there the popup shim turns the
+                    // open into a navigation of THIS window, and the reload on the very
+                    // next line cancels it — so the split receipt never appeared at all.
+                    window.PrintNav.go(
+                        splitReceiptWin,
+                        `/sales/invoice/${res.split_order_id}/?style=thermal&autoprint=1`,
+                        window.location.pathname + window.location.search);
                 } else {
+                    // Nothing was split, so there is no receipt — close the blank window
+                    // rather than leaving an empty one sitting in front of the waiter.
+                    if (splitReceiptWin) splitReceiptWin.close();
                     this.split.error = res.message || 'حدث خطأ';
                 }
             })
             .catch(() => {
+                if (splitReceiptWin) splitReceiptWin.close();
                 this.split.submitting = false;
                 this.split.error = 'تعذر الاتصال بالسيرفر';
             });
@@ -831,13 +849,27 @@ function waiterOrder() {
             // browser still counts it as a direct result of the user's click — a
             // popup opened from inside an async callback gets silently blocked by most
             // browsers. Its URL is only filled in once the order actually saved.
-            const printWin = this.autoPrintKitchenTicket ? window.open('', '_blank') : null;
+            const printWin = this.printKitchenTicket ? window.open('', '_blank') : null;
             fetch(this.addItemsUrl, {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken')},
                 body: JSON.stringify(payload),
             }).then(r => r.json()).then(data => {
                 if (data.status === 'ok') {
+                    // Two reasons to go straight back to the tables without showing the
+                    // ticket:
+                    //   • the shop turned kitchen tickets off entirely
+                    //     (ثوابت النظام ← "طباعة تذكرة المطبخ عند إرسال الطلب")
+                    //   • or the ticket already came out of the kitchen printer, and
+                    //     showing it too would be the same ticket a second time.
+                    // Otherwise the preview opens — and whether it prints itself or waits
+                    // for طباعة is the ticket page's own business
+                    // (ثوابت النظام ← "طباعة تذكرة المطبخ تلقائياً").
+                    if (!this.printKitchenTicket || data.printed_directly) {
+                        if (printWin) printWin.close();
+                        window.location.href = "{% url 'restaurant:waiter_tables' %}";
+                        return;
+                    }
                     // data.order_id, not this.orderId — for a table with no prior open
                     // tab, this call is what CREATES the order, so this.orderId (set
                     // from the page's initial server-render) is still null at this point.

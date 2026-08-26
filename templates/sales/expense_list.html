@@ -145,9 +145,15 @@
                             </td>
                             <td class="p-4">
                                 {% if expense.receipt %}
-                                <a href="{{ expense.receipt.url }}" target="_blank" class="text-emerald-600 hover:text-emerald-800" title="عرض الإيصال">
+                                {# Shown in a dialog on this page rather than opened as a
+                                   link. The receipt is a raw uploaded image, and in the
+                                   desktop app window — which has no address bar and no
+                                   Back button — navigating to a bare image file leaves
+                                   the user staring at it with no way back. #}
+                                <button type="button" onclick="showReceipt('{{ expense.receipt.url }}')"
+                                        class="text-emerald-600 hover:text-emerald-800" title="عرض الإيصال">
                                     <i class="fas fa-receipt"></i>
-                                </a>
+                                </button>
                                 {% else %}
                                 <span class="text-gray-300">—</span>
                                 {% endif %}
@@ -201,5 +207,42 @@ function setRange(kind) {
     document.getElementById('date_to').value = fmt(to);
     document.getElementById('filterForm').submit();
 }
+
+// Receipt preview. Deliberately a dialog on this page and not a link: the receipt is a
+// bare uploaded image, and the desktop app window has no address bar or Back button, so
+// opening one directly strands the user on it.
+function showReceipt(url) {
+    document.getElementById('receiptImg').src = url;
+    document.getElementById('receiptLink').href = url;
+    document.getElementById('receiptModal').classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+}
+function closeReceipt() {
+    document.getElementById('receiptModal').classList.add('hidden');
+    document.getElementById('receiptImg').src = '';
+    document.body.style.overflow = '';
+}
+document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') closeReceipt();
+});
 </script>
+
+<!-- Receipt preview dialog -->
+<div id="receiptModal" class="hidden fixed inset-0 z-[9999] bg-black/70 flex items-center justify-center p-4"
+     onclick="if(event.target===this)closeReceipt()">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] flex flex-col overflow-hidden">
+        <div class="flex items-center justify-between gap-3 px-5 py-3 border-b border-gray-100">
+            <h3 class="font-black text-gray-800">إيصال المصروف</h3>
+            <div class="flex items-center gap-2">
+                <a id="receiptLink" href="#" download
+                   class="px-3 py-1.5 text-xs font-bold rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700">تنزيل</a>
+                <button type="button" onclick="closeReceipt()"
+                        class="px-3 py-1.5 text-xs font-bold rounded-lg bg-rose-500 hover:bg-rose-600 text-white">إغلاق</button>
+            </div>
+        </div>
+        <div class="p-4 overflow-auto bg-gray-50 flex items-center justify-center">
+            <img id="receiptImg" src="" alt="إيصال المصروف" class="max-w-full h-auto rounded-lg shadow">
+        </div>
+    </div>
+</div>
 {% endblock %}

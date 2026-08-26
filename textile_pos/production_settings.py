@@ -30,6 +30,12 @@ CSRF_TRUSTED_ORIGINS = [
     f'http://localhost:{os.environ.get("POS_PORT", "8085")}',
     f'http://127.0.0.1:{os.environ.get("POS_PORT", "8085")}',
 ]
+
+# A CSRF failure in the desktop window is a dead end — no address bar, no Back button, so
+# Django's bare 403 page traps the cashier with no way out but killing the app. And the
+# usual cause is innocent: a login screen left open long enough for its CSRF cookie to be
+# replaced. This view sends them back to reload the form with a fresh token instead.
+CSRF_FAILURE_VIEW = 'textile_pos.csrf.csrf_failure'
 # See textile_pos/middleware.py — rewrites the session/CSRF cookies to Secure+SameSite=None
 # ONLY for requests whose Host is literally localhost/127.0.0.1 (the desktop app's own
 # window), which is what actually fixes the WebView2 CSRF-cookie-drop quirk without
@@ -60,16 +66,49 @@ STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 # ---------------------------------------------------------
 # LOGGING (Optional - prints errors to console)
 # ---------------------------------------------------------
+# Errors MUST go to a file here, not just the console. The packaged desktop app runs with
+# no console window at all (pos_launcher.py, pywebview), so a console-only handler sent
+# every 500 traceback into nowhere — leaving a customer-reported error with literally no
+# evidence anywhere on their machine to diagnose it from. Same rotating file the dev
+# settings use, inside the app's own writable data folder.
+_log_dir = Path(os.environ.get('DJANGO_LOG_DIR', str(BASE_DIR / 'logs')))
+try:
+    _log_dir.mkdir(parents=True, exist_ok=True)
+except OSError:
+    _log_dir = Path(BASE_DIR)
+
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {'format': '{asctime} [{levelname}] {name}: {message}', 'style': '{'},
+    },
     'handlers': {
         'console': {
             'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
+        },
+        'file': {
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': str(_log_dir / 'app.log'),
+            'maxBytes': 5 * 1024 * 1024,
+            'backupCount': 5,
+            'encoding': 'utf-8',
+            'formatter': 'verbose',
         },
     },
     'root': {
-        'handlers': ['console'],
+        'handlers': ['console', 'file'],
         'level': 'WARNING',
+    },
+    'loggers': {
+        # Unhandled view exceptions (the 500 pages) are logged by django.request —
+        # without naming it explicitly its propagation could be silenced, which is
+        # exactly the traceback we need most.
+        'django.request': {
+            'handlers': ['console', 'file'],
+            'level': 'ERROR',
+            'propagate': False,
+        },
     },
 }

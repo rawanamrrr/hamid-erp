@@ -4,6 +4,7 @@ from django.views.decorators.http import require_POST
 from django.http import JsonResponse
 from django.core.exceptions import PermissionDenied
 import json
+import sys
 from django.contrib.auth.views import LoginView
 from django.contrib.auth import logout
 from django.contrib.auth import update_session_auth_hash
@@ -525,6 +526,15 @@ def log_js_error(request):
             return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
     return JsonResponse({'status': 'ignored'}, status=405)
 
+def _gunicorn_restart_supported():
+    """Can this install actually restart a gunicorn service?
+
+    Only on a Linux server deployment. `sudo`/`systemctl` do not exist on Windows, and in
+    the packaged desktop build there is no separate service process at all.
+    """
+    return sys.platform.startswith('linux')
+
+
 @login_required
 def system_error_history(request):
     # Superuser (developer/admin) only — hidden from the Master (business owner)
@@ -542,7 +552,13 @@ def system_error_history(request):
         
     return render(request, 'accounts/error_history.html', {
         'errors': errors,
-        'title': 'سجل أخطاء النظام (History)'
+        'title': 'سجل أخطاء النظام (History)',
+        # The restart button shells out to `sudo systemctl`, which only exists where the
+        # app runs as a gunicorn service behind a Linux server. In the packaged Windows
+        # desktop build the app IS the server — there is no gunicorn to restart — so the
+        # button could only ever fail, and offering a dead control on a technical page is
+        # worse than not offering one. Closing the window and reopening it is the restart.
+        'can_restart_gunicorn': _gunicorn_restart_supported(),
     })
 
 @login_required
@@ -564,6 +580,17 @@ def restart_gunicorn(request):
         raise PermissionDenied('لا تمتلك صلاحيات كافية للوصول إلى هذه الصفحة.')
         
     if request.method != 'POST':
+        return redirect('error_history')
+
+    # The button is hidden off Linux, but the URL is still routed — so refuse here rather
+    # than letting a hand-typed POST spend 50 seconds timing out on commands that cannot
+    # exist, and answer with something the person can act on.
+    if not _gunicorn_restart_supported():
+        messages.error(
+            request,
+            'إعادة تشغيل Gunicorn متاحة فقط عند التشغيل على خادم Linux. '
+            'في نسخة سطح المكتب أغلق البرنامج وافتحه من جديد.'
+        )
         return redirect('error_history')
 
     try:

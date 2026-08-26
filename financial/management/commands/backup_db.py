@@ -33,7 +33,12 @@ class Command(BaseCommand):
 
     def handle(self, *args, **opts):
         db = settings.DATABASES['default']
-        out_dir = Path(opts['out']) if opts['out'] else (Path(settings.BASE_DIR) / 'backups')
+        # BASE_DIR sits inside the program folder, which in the packaged desktop build is
+        # under Program Files and is not writable by the cashier running the app — the
+        # launcher points DJANGO_BACKUP_DIR at the same writable data folder it uses for
+        # the database and logs. Falls back to BASE_DIR for a plain source checkout.
+        default_out = os.environ.get('DJANGO_BACKUP_DIR') or (Path(settings.BASE_DIR) / 'backups')
+        out_dir = Path(opts['out']) if opts['out'] else Path(default_out)
         out_dir.mkdir(parents=True, exist_ok=True)
         stamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         engine = db['ENGINE']
@@ -68,12 +73,20 @@ class Command(BaseCommand):
         finally:
             src.close()
 
+    def _resolve_pg_dump(self):
+        """Locate pg_dump — shared with the settings-page backup/restore buttons."""
+        from textile_pos.pg_tools import find_pg_tool, PgToolNotFound
+        try:
+            return find_pg_tool('pg_dump')
+        except PgToolNotFound as exc:
+            raise CommandError(str(exc))
+
     def _backup_postgres(self, db, target):
         env = os.environ.copy()
         if db.get('PASSWORD'):
             env['PGPASSWORD'] = db['PASSWORD']
         cmd = [
-            'pg_dump', '-Fc',
+            self._resolve_pg_dump(), '-Fc',
             '-h', db.get('HOST') or '127.0.0.1',
             '-p', str(db.get('PORT') or '5432'),
             '-U', db.get('USER') or 'postgres',
@@ -83,7 +96,7 @@ class Command(BaseCommand):
         try:
             subprocess.run(cmd, env=env, check=True, capture_output=True, text=True)
         except FileNotFoundError:
-            raise CommandError("pg_dump not found on PATH. Install PostgreSQL client tools.")
+            raise CommandError(f"Could not run {cmd[0]} — the file disappeared or is not executable.")
         except subprocess.CalledProcessError as e:
             raise CommandError(f"pg_dump failed: {e.stderr}")
 

@@ -1,0 +1,24 @@
+{# Shared "back" control for standalone pages that carry no site navigation of their own
+   (print layouts, report sheets, labels). In a browser tab a missing back button is only
+   an annoyance — you press the browser's own. In the packaged desktop app the window has
+   no address bar and no Back button at all, so such a page is a dead end the cashier can
+   escape only by killing the program.
+
+   Hidden by @media print so it never ends up on the paper. #}
+<style>
+  .dgf-back {
+    position: fixed; inset-inline-start: 16px; top: 16px; z-index: 99999;
+    display: inline-flex; align-items: center; gap: .5rem;
+    padding: .55rem 1.15rem;
+    border: 1px solid #d6d9e3; border-radius: 10px;
+    background: #ffffff; color: #1f2430;
+    font: 700 14px/1 Cairo, "Segoe UI", Tahoma, sans-serif;
+    cursor: pointer; box-shadow: 0 2px 10px rgba(0, 0, 0, .09);
+  }
+  .dgf-back:hover { background: #f3f4f8; }
+  .dgf-back:focus-visible { outline: 2px solid #33408f; outline-offset: 2px; }
+  @media print { .dgf-back { display: none !important; } }
+</style>
+<button type="button" class="dgf-back" onclick="if(history.length>1){history.back()}else{location.href='/'}">
+  <span aria-hidden="true">&#8594;</span> رجوع
+</button>

@@ -255,7 +255,15 @@ class SystemLicense(models.Model):
             end_date = self.grace_period_started_at + timedelta(days=5)
         else:
             end_date = self.subscription_expires_at
-            
+
+        # A license row can legitimately exist with no expiry date at all (the onboarding
+        # flow used to create one that way), and this property is read straight from the
+        # activation template — so an unguarded `None - now` here is not a quiet bug, it is
+        # a hard 500 on the plain GET of /licensing/activate/ before the user types
+        # anything. Report it as undetermined rather than crashing the page.
+        if end_date is None:
+            return "غير محدد"
+
         delta = end_date - now
         total_seconds = delta.total_seconds()
         

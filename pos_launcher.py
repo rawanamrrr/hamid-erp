@@ -88,6 +88,17 @@ _DB_CONFIG = _load_db_config()
 os.environ.setdefault('DJANGO_SQLITE_NAME', os.path.join(DATA_DIR, 'db.sqlite3'))
 os.environ.setdefault('DJANGO_MEDIA_ROOT', os.path.join(DATA_DIR, 'media'))
 os.environ.setdefault('DJANGO_LOG_DIR', os.path.join(DATA_DIR, 'logs'))
+# Uploads (staff photos, expense receipts, a custom notification sound) are saved into
+# DATA_DIR/media above, but with DEBUG=False Django serves /media/ only when this is set
+# (see textile_pos/urls.py). It is off by default because a server deployment puts nginx
+# in front to serve uploads directly — the desktop build has no nginx, Django IS the
+# server, so without this every uploaded image 404s and renders as a broken thumbnail
+# even though the file is sitting right there on disk.
+os.environ.setdefault('DJANGO_SERVE_MEDIA', '1')
+# Same reason as the media/log dirs: the backup command's own default is BASE_DIR/backups,
+# which lives inside the program folder under Program Files and is not writable by the
+# cashier running the app.
+os.environ.setdefault('DJANGO_BACKUP_DIR', os.path.join(DATA_DIR, 'backups'))
 
 LOG_PATH = os.path.join(DATA_DIR, 'pos.log')
 
@@ -126,6 +137,18 @@ class _PrintAPI:
     def open_print_window(self, url):
         import webview
         webview.create_window('طباعة', url, width=950, height=780)
+
+    def open_external(self, url):
+        """Hand a link that leads outside the app to the system's real browser.
+
+        Links to WhatsApp and the like used to load inside the app's own window, which
+        has no address bar and no Back button — so following one replaced the POS with a
+        web page the user could not get out of without killing the program.
+        """
+        if not isinstance(url, str) or not url.lower().startswith(('http://', 'https://')):
+            return False
+        webbrowser.open(url)
+        return True
 
 
 _SINGLE_INSTANCE_MUTEX_NAME = 'Global\\DigiFlow_SingleInstance'
@@ -350,6 +373,11 @@ def main():
         # system's default browser — that's a different browser profile with no
         # session cookie, so it always bounced to the login page.
         webview.settings['OPEN_EXTERNAL_LINKS_IN_BROWSER'] = False
+        # pywebview blocks downloads by default, and WebView2 then cancels the navigation
+        # without a word — so every "تصدير Excel / CSV / PDF" button in the app looked
+        # completely dead: no file, no error, nothing. Turning this on lets WebView2 show
+        # its normal save prompt for any response sent as an attachment.
+        webview.settings['ALLOW_DOWNLOADS'] = True
         webview.create_window(WINDOW_TITLE, url, width=1300, height=840, min_size=(1024, 700), js_api=_PrintAPI())
         _log('opening native window (pywebview)')
         webview.start()

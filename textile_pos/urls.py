@@ -50,5 +50,20 @@ urlpatterns = [
 # even outside DEBUG since a real production deployment behind nginx should let nginx
 # serve media directly instead of routing every image request through Django.
 import os as _os
-if settings.DEBUG or _os.environ.get('DJANGO_SERVE_MEDIA', '').strip().lower() in ('1', 'true', 'yes', 'on'):
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+elif _os.environ.get('DJANGO_SERVE_MEDIA', '').strip().lower() in ('1', 'true', 'yes', 'on'):
+    # django.conf.urls.static.static() short-circuits to [] whenever DEBUG is False, so it
+    # can never honour this flag — routing the opt-in through it meant the switch silently
+    # did nothing and every uploaded image 404'd in the packaged desktop app. Register the
+    # serve view directly instead, which is what that helper does in debug anyway.
+    import re as _re
+    from django.urls import re_path as _re_path
+    from django.views.static import serve as _serve_media
+    urlpatterns += [
+        _re_path(
+            r'^%s(?P<path>.*)$' % _re.escape(settings.MEDIA_URL.lstrip('/')),
+            _serve_media,
+            {'document_root': settings.MEDIA_ROOT},
+        ),
+    ]

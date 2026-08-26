@@ -20,7 +20,22 @@
 </head>
 <body>
     <div class="no-print fixed top-0 w-full bg-white p-2 shadow flex justify-between z-50">
-        <button onclick="window.close(); setTimeout(function(){ if (window.history.length > 1) window.history.back(); }, 50)" class="px-4 py-1 bg-gray-200 rounded font-bold">إغلاق</button>
+        <button onclick="closePrintPage()" class="px-4 py-1 bg-gray-200 rounded font-bold">إغلاق</button>
+        <script>
+            // ?next=... — set by window.PrintNav (base.html) in the DESKTOP app, where
+            // there is only one window: the caller navigated it here to print, so "إغلاق"
+            // has to navigate onward explicitly. window.close() cannot work (the app never
+            // opened this as a popup). In a normal browser there is no ?next= and the
+            // original close/back behaviour is used unchanged.
+            function closePrintPage() {
+                var next = new URLSearchParams(location.search).get('next');
+                if (next) { window.location.href = next; return; }
+                window.close();
+                setTimeout(function () {
+                    if (window.history.length > 1) window.history.back();
+                }, 50);
+            }
+        </script>
         <button onclick="window.print()" class="px-4 py-1 bg-black text-white rounded font-bold">طباعة الإيصال</button>
     </div>
     <div class="h-10 no-print"></div>

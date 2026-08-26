@@ -1,0 +1,58 @@
+{% load static %}<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>تعذر إتمام الطلب</title>
+  {# Deliberately standalone — no {% extends %}. This page has to render even when the #}
+  {# session is the thing that broke, so it must not depend on anything the base layout #}
+  {# expects to find on the request. #}
+  <link rel="stylesheet" href="{% static 'vendor/fonts/cairo.css' %}">
+  <style>
+    :root { --ink:#1f2430; --muted:#5d6478; --line:#e4e6ee; --accent:#b45309; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100vh;
+      display: flex; align-items: center; justify-content: center;
+      background: #f6f7fa; color: var(--ink);
+      font-family: Cairo, "Segoe UI", Tahoma, sans-serif;
+      padding: 24px;
+    }
+    .card {
+      background: #fff; border: 1px solid var(--line); border-radius: 18px;
+      max-width: 30rem; width: 100%; padding: 2.25rem 2rem;
+      box-shadow: 0 12px 40px -24px rgba(31,36,48,.5);
+      text-align: center;
+    }
+    .icon {
+      width: 3.5rem; height: 3.5rem; margin: 0 auto 1.25rem;
+      display: grid; place-content: center;
+      background: #fdf3e3; color: var(--accent);
+      border-radius: 50%; font-size: 1.6rem; font-weight: 700;
+    }
+    h1 { font-size: 1.35rem; margin: 0 0 .75rem; }
+    p { color: var(--muted); line-height: 1.85; margin: 0 0 1.75rem; font-size: .97rem; }
+    .actions { display: flex; gap: .65rem; flex-wrap: wrap; justify-content: center; }
+    a.btn, button.btn {
+      font: inherit; font-weight: 700; cursor: pointer;
+      padding: .7rem 1.5rem; border-radius: 11px; border: 1px solid transparent;
+      text-decoration: none; transition: filter .15s;
+    }
+    .btn.primary { background: var(--accent); color: #fff; }
+    .btn.ghost { background: #fff; color: var(--ink); border-color: var(--line); }
+    .btn:hover { filter: brightness(.95); }
+    .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon">!</div>
+    <h1>تعذر إتمام الطلب</h1>
+    <p>{{ message }}</p>
+    <div class="actions">
+      <button type="button" class="btn primary" onclick="location.reload(true)">إعادة تحميل الصفحة</button>
+      <a class="btn ghost" href="/">الصفحة الرئيسية</a>
+    </div>
+  </div>
+</body>
+</html>

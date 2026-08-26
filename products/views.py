@@ -4743,28 +4743,27 @@ def supplier_statement_pdf(request, pk):
 
     sys_settings = SystemSetting.objects.first()
     from django.template.loader import render_to_string
-    try:
-        import weasyprint
-        html = render_to_string('products/supplier_statement_pdf.html', {
-            'supplier': supplier, 'entries': entries,
-            'closing_balance': balance, 'sys_settings': sys_settings,
-            'date_from': date_from, 'date_to': date_to,
-            'print_date': timezone.now(),
-        })
-        pdf = weasyprint.HTML(string=html, base_url=request.build_absolute_uri('/')).write_pdf()
+    statement_context = {
+        'supplier': supplier, 'entries': entries,
+        'closing_balance': balance, 'sys_settings': sys_settings,
+        'date_from': date_from, 'date_to': date_to,
+        'print_date': timezone.now(),
+    }
+    html = render_to_string('products/supplier_statement_pdf.html', statement_context)
+
+    # Printed by the Edge/Chrome install already on the machine — WeasyPrint needed GTK
+    # native libraries Windows does not have, so it never produced a PDF here at all.
+    from textile_pos.html_to_pdf import html_to_pdf
+    pdf = html_to_pdf(html, base_url=request.build_absolute_uri('/'))
+
+    if pdf:
         response = HttpResponse(pdf, content_type='application/pdf')
         response['Content-Disposition'] = f'inline; filename="supplier_statement_{supplier.id}.pdf"'
         return response
-    except Exception as e:
-        # Fallback to HTML view if PDF generation fails (e.g. missing GTK)
-        html = render_to_string('products/supplier_statement_pdf.html', {
-            'supplier': supplier, 'entries': entries,
-            'closing_balance': balance, 'sys_settings': sys_settings,
-            'date_from': date_from, 'date_to': date_to,
-            'print_date': timezone.now(),
-            'is_print_preview': True,
-        })
-        return HttpResponse(html)
+
+    # Fallback: the same statement as a printable page.
+    statement_context['is_print_preview'] = True
+    return HttpResponse(render_to_string('products/supplier_statement_pdf.html', statement_context))
 
 @login_required
 @require_permission('products', 'view')

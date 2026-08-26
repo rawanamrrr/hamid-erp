@@ -41,9 +41,12 @@ def notify_kitchen_for_order(request, order, items=None):
     machine sold at the counter) has nothing for the kitchen to prepare.
 
     Safe no-op if the order has no kitchen-relevant items, or no warehouse/branch.
+
+    Returns True when a ticket actually reached a printer, so the caller can tell the
+    browser not to also put the ticket preview on screen — see _print_kitchen_tickets.
     """
     if not order.warehouse_id:
-        return
+        return False
 
     candidate_items = items if items is not None else order.items.filter(is_void=False)
     kitchen_items = [
@@ -51,7 +54,7 @@ def notify_kitchen_for_order(request, order, items=None):
         if it.product_id and it.product.category_id and it.product.category.is_menu_category
     ]
     if not kitchen_items:
-        return
+        return False
 
     push_event('kds', order.warehouse_id, {
         'event': 'order_updated', 'order_id': order.id,
@@ -62,4 +65,4 @@ def notify_kitchen_for_order(request, order, items=None):
     })
 
     from .views import _print_kitchen_tickets
-    _print_kitchen_tickets(request, order, kitchen_items)
+    return _print_kitchen_tickets(request, order, kitchen_items)

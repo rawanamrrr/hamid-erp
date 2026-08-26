@@ -36,12 +36,11 @@ from .printer_utils import print_html_to_backend
 
 logger = logging.getLogger(__name__)
 
-# --- PDF Generation Import (WeasyPrint) ---
-# FIXED: Now catches OSError to prevent server crash if GTK is missing
-try:
-    from weasyprint import HTML, CSS
-except (ImportError, OSError):
-    HTML = None # Handle gracefully if not installed or libraries missing
+# --- PDF generation ---
+# Was WeasyPrint, which needs GTK/Pango native libraries that Windows does not have — it
+# failed to import on every customer machine, so PDF downloads always fell back to HTML.
+# html_to_pdf drives the Edge/Chrome install that is already on the machine instead.
+from textile_pos.html_to_pdf import html_to_pdf
 
 # --- Notification Import ---
 try:
@@ -843,6 +842,11 @@ def submit_order_ajax(request):
     API View to handle order submission from POS via AJAX.
     Now supports explicit warehouse selection.
     """
+    # Set here rather than only where the kitchen notification runs: that call sits
+    # inside a nested block that some paths skip, and the JSON response below reads
+    # this unconditionally — an unset name there is a NameError, i.e. a 500 on a
+    # sale that already went through.
+    printed_directly = False
     if request.method == 'POST':
         try:
             data = json.loads(request.body)
@@ -1338,7 +1342,9 @@ def submit_order_ajax(request):
                 # screen) must still send it to the kitchen — otherwise the drink/food
                 # never reaches the KDS or gets a prep ticket printed.
                 from restaurant.services import notify_kitchen_for_order
-                notify_kitchen_for_order(request, order)
+                # Reported back to the browser so it can skip the ticket preview when the
+                # ticket already came out of the kitchen printer.
+                printed_directly = notify_kitchen_for_order(request, order)
 
                 # --- Create Notifications ---
                 if Notification:
@@ -1385,7 +1391,8 @@ def submit_order_ajax(request):
             return JsonResponse({
                 'status': 'success', 
                 'order_id': order.id,
-                'updated_balance': updated_balance
+                'updated_balance': updated_balance,
+                'printed_directly': printed_directly,
             })
 
         except Exception as e:
@@ -2358,33 +2365,24 @@ def download_invoice_pdf(request, pk):
         'is_pdf': True, # Flag to trigger PDF-specific CSS
     }
 
-    if not HTML:
-        # Fallback to HTML print preview if WeasyPrint is missing dependencies (like GTK on Windows)
-        context['is_print_preview'] = True
-        html_string = render_to_string('sales/invoice_a4.html', context, request=request)
-        return HttpResponse(html_string)
-
     # Render HTML content using the A4/A5 template
     html_string = render_to_string('sales/invoice_a4.html', context, request=request)
-    
-    try:
-        # Create PDF
-        # base_url is needed for WeasyPrint to find images and fonts (uses request to get domain)
-        html = HTML(string=html_string, base_url=request.build_absolute_uri('/'))
-        
-        # Generate PDF bytes
-        pdf_file = html.write_pdf()
-        
-        # Return as download
+
+    # Printed by the browser Windows already ships (see textile_pos/html_to_pdf.py).
+    # Returns None rather than raising when no browser is available, so the invoice still
+    # opens — as a print preview — instead of erroring out.
+    pdf_file = html_to_pdf(html_string, base_url=request.build_absolute_uri('/'))
+
+    if pdf_file:
         response = HttpResponse(pdf_file, content_type='application/pdf')
         filename = f"Invoice_{order.id}_{size.upper()}.pdf"
         response['Content-Disposition'] = f'inline; filename="{filename}"' # 'inline' opens in browser, 'attachment' downloads
         return response
-    except Exception:
-        # Final fallback if something goes wrong during PDF generation
-        context['is_print_preview'] = True
-        html_string = render_to_string('sales/invoice_a4.html', context, request=request)
-        return HttpResponse(html_string)
+
+    # Fallback: show the same invoice as a printable page.
+    context['is_print_preview'] = True
+    html_string = render_to_string('sales/invoice_a4.html', context, request=request)
+    return HttpResponse(html_string)
 @login_required
 @require_permission('sales', 'delete')
 def delete_order_ajax(request):
@@ -2523,6 +2521,11 @@ def delete_order_ajax(request):
 @login_required
 @require_permission('sales', 'edit')
 def edit_order_ajax(request):
+    # Set here rather than only where the kitchen notification runs: that call sits
+    # inside a nested block that some paths skip, and the JSON response below reads
+    # this unconditionally — an unset name there is a NameError, i.e. a 500 on a
+    # sale that already went through.
+    printed_directly = False
     if request.method != 'POST':
         return JsonResponse({'status': 'error', 'message': 'Invalid Method'}, status=400)
     
@@ -2804,7 +2807,7 @@ def edit_order_ajax(request):
             # Same as submit_order_ajax: an edit that adds/keeps a cafe menu item must
             # still reach the kitchen even though it went through the edit-invoice path.
             from restaurant.services import notify_kitchen_for_order
-            notify_kitchen_for_order(request, order)
+            printed_directly = notify_kitchen_for_order(request, order)
 
             # 7. Log Activity
             try:
@@ -2866,7 +2869,8 @@ def edit_order_ajax(request):
                 'status': 'success', 
                 'message': 'تم تحديث الفاتورة بنجاح', 
                 'order_id': order.id,
-                'updated_balance': updated_balance
+                'updated_balance': updated_balance,
+                'printed_directly': printed_directly,
             })
         
     except Order.DoesNotExist:

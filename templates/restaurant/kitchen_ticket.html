@@ -46,7 +46,11 @@
     .footer { text-align: center; font-size: 14px; font-weight: bold; margin-top: 10px; border-top: 2px dashed #000; padding-top: 6px; }
 </style>
 </head>
-<body onload="autoPrintThenChain()">
+{# ثوابت النظام ← شاشة المطبخ ← "طباعة تذكرة المطبخ تلقائياً".
+   Off means the ticket still appears exactly as before — it just waits for the "طباعة"
+   button instead of throwing the print dialog up by itself. Whether this page is reached
+   at all is the other setting, "طباعة تذكرة المطبخ عند إرسال الطلب". #}
+<body{% if policies.kitchen.auto_print_ticket %} onload="autoPrintThenChain()"{% endif %}>
     <div class="toolbar no-print">
         <div class="label">معاينة: تذكرة المطبخ</div>
         <div class="actions">
@@ -87,7 +91,13 @@
         // only one window and therefore navigated this very window here to print. See
         // the matching comment in templates/sales/invoice.html.
         function closePrintPage() {
-            var next = new URLSearchParams(location.search).get('next');
+            var params = new URLSearchParams(location.search);
+            // Same as the invoice page: with auto-print off nothing fires 'afterprint' on
+            // load, so closing is how the person moves on and it must still carry the
+            // chain forward rather than dropping whatever came next.
+            var then = params.get('then');
+            if (then) { window.location.href = then; return; }
+            var next = params.get('next');
             if (next) { window.location.href = next; return; }
             window.close();
             setTimeout(function () {

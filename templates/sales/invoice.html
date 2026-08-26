@@ -601,7 +601,14 @@
         // In a normal browser there's no ?next=, and the original close/back behavior is
         // used unchanged.
         function closePrintPage() {
-            var next = new URLSearchParams(location.search).get('next');
+            var params = new URLSearchParams(location.search);
+            // Continue the print chain if there is one. Normally 'afterprint' does this,
+            // but with the auto-print setting off nothing prints on load, so closing is
+            // how the person moves on — and without this the next document in the chain
+            // (the kitchen ticket) would simply be skipped.
+            var then = params.get('then');
+            if (then) { window.location.href = then; return; }
+            var next = params.get('next');
             if (next) { window.location.href = next; return; }
             window.close();
             setTimeout(function () {
@@ -646,9 +653,16 @@
             setTimeout(afterPrintAdvance, 20000);
         }
 
+        // ?autoprint=1 says the CALLER opened this to be printed (a completed sale rather
+        // than someone browsing an old invoice). Whether that actually opens the print
+        // dialog by itself is the shop's choice:
+        // ثوابت النظام ← الإيصالات والفواتير ← "طباعة الفاتورة تلقائياً".
+        // Off means the invoice still appears — it just waits for the "طباعة" button.
+        {% if policies.receipts.auto_print_invoice %}
         if (new URLSearchParams(location.search).get('autoprint') === '1') {
             autoPrintThenChain();
         }
+        {% endif %}
     </script>
 
 </body>

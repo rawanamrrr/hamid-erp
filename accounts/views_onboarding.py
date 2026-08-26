@@ -1,5 +1,7 @@
 import uuid
+from datetime import timedelta
 from django.shortcuts import render, redirect
+from django.utils import timezone
 from django.contrib.auth.decorators import login_required
 from accounts.models import UserProfile
 from django.contrib import messages
@@ -58,7 +60,12 @@ def onboarding_wizard(request):
                     system_license = SystemLicense.objects.create(
                         store_id=f"STORE-{uuid.uuid4().hex[:8].upper()}",
                         store_type=market_type,
-                        is_locked=False
+                        is_locked=False,
+                        # Same 6-month trial the activation view grants when it auto-creates
+                        # a license. Without it the row is stored with a NULL expiry, and
+                        # every later "how long is left?" calculation has nothing to work
+                        # from — which is what broke the activation page on fresh installs.
+                        subscription_expires_at=timezone.now() + timedelta(days=180),
                     )
                 else:
                     system_license.store_type = market_type

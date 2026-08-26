@@ -12,6 +12,7 @@
   @media print{.noprint{display:none}}
 </style></head>
 <body>
+{% include '_back_button.html' %}
   <div class="head">
     <div><h1>قسيمة راتب</h1><div class="muted">شهر: {{ ps.period_month }}</div></div>
     <div style="text-align:left"><strong>{{ ps.employee.get_full_name|default:ps.employee.username }}</strong>

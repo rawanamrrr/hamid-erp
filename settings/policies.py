@@ -136,6 +136,10 @@ POLICY_REGISTRY = {
         group='receipts', type='bool', default=True,
         label='إظهار اسم البائع على الإيصال',
         help='يطبع اسم البائع/الكاشير في ترويسة الإيصال.'),
+    'receipts.auto_print_invoice': dict(
+        group='receipts', type='bool', default=True,
+        label='طباعة الفاتورة تلقائياً (بدون الضغط على "طباعة")',
+        help='عند تفعيلها تُطبع الفاتورة من تلقاء نفسها بمجرد ظهورها بعد إتمام الدفع. عند إيقافها تظهر الفاتورة وتنتظر ضغط الكاشير أو الويتر على زر "طباعة" — مفيد لمراجعة الفاتورة قبل طباعتها أو للطلبات التي لا تحتاج إيصالاً مطبوعاً.'),
 
     # ── Shifts / Cash Register ───────────────────────────────────────────────
     'shifts.require_open_shift_before_sales': dict(
@@ -165,10 +169,19 @@ POLICY_REGISTRY = {
                  ('20', '20 قبل التمرير (بطاقات صغيرة)')],
         label='عدد الطلبات الظاهرة قبل الحاجة للتمرير (شاشة المطبخ)',
         help='كل الطلبات المفتوحة تظل معروضة دائماً ويمكن الوصول لها بالتمرير — هذا فقط يتحكم في حجم البطاقات: رقم أقل = بطاقات أكبر وأوضح، رقم أكبر = بطاقات أصغر تعرض أصنافاً أكثر بنظرة واحدة.'),
-    'kitchen.auto_print_ticket_on_order': dict(
-        group='kitchen', type='bool', default=False,
-        label='طباعة تذكرة المطبخ تلقائياً عند إرسال الطلب',
-        help='عند تفعيلها: أول ما الويتر أو الكاشير يرسل طلب جديد فيه صنف من قسم المطبخ، تُفتح وتُطبع تذكرة المطبخ تلقائياً بدون الحاجة للضغط يدوياً على زر "تذكرة المطبخ".'),
+    # Two separate questions, deliberately not one setting:
+    #   1. Should sending an order produce a kitchen ticket at all?
+    #   2. If so, should it print by itself or wait for someone to press طباعة?
+    # Direct printing to the kitchen printer belongs to (2), not (1) — printing straight
+    # to a printer IS the automatic behaviour, so it must not happen while (2) is off.
+    'kitchen.print_ticket_on_order': dict(
+        group='kitchen', type='bool', default=True,
+        label='طباعة تذكرة المطبخ عند إرسال الطلب',
+        help='عند تفعيلها: كل طلب جديد فيه صنف من قسم المطبخ تُصدر له تذكرة. عند إيقافها لا تُصدر تذكرة إطلاقاً — لا تُطبع ولا تظهر صفحة — ويظل بإمكان الويتر طباعتها يدوياً من زر "تذكرة المطبخ" وقت ما يحتاج.'),
+    'kitchen.auto_print_ticket': dict(
+        group='kitchen', type='bool', default=True,
+        label='طباعة تذكرة المطبخ تلقائياً (بدون الضغط على "طباعة")',
+        help='يعمل فقط عند تفعيل الإعداد السابق. عند تفعيله تخرج التذكرة من تلقاء نفسها: مباشرة على طابعة المطبخ إذا كانت مضبوطة في الإعدادات، وإلا تُفتح صفحة التذكرة وتطبع نفسها. عند إيقافه تظهر صفحة التذكرة وتنتظر الضغط على زر "طباعة".'),
 
     # ── Payroll ──────────────────────────────────────────────────────────────
     'payroll.absence_deduction_percent': dict(

@@ -499,8 +499,10 @@ def _add_items_to_order(request, order, items, branch):
             'event': 'table_status', 'table_id': order.table_id, 'status': order.table.status,
         })
 
-    _print_kitchen_tickets(request, order, new_items)
-    return new_items
+    # Whether a ticket actually reached a printer decides if the browser still needs to
+    # show the ticket preview — see _print_kitchen_tickets.
+    printed_directly = _print_kitchen_tickets(request, order, new_items)
+    return new_items, printed_directly
 
 
 @login_required
@@ -601,10 +603,11 @@ def waiter_open_or_append(request, table_id):
 
     with db_transaction.atomic():
         order, created = _get_or_create_table_order(table, request, branch, shift)
-        _add_items_to_order(request, order, items, branch)
+        _, printed_directly = _add_items_to_order(request, order, items, branch)
 
     return JsonResponse({'status': 'ok', 'order_id': order.id, 'created': created,
-                         'total_amount': float(order.total_amount)})
+                         'total_amount': float(order.total_amount),
+                         'printed_directly': printed_directly})
 
 
 @login_required
@@ -705,10 +708,11 @@ def waiter_add_items_no_table(request, order_id):
     # Recipe stock is checked at add-to-cart time instead — see waiter_open_or_append.
 
     with db_transaction.atomic():
-        _add_items_to_order(request, order, items, branch)
+        _, printed_directly = _add_items_to_order(request, order, items, branch)
 
     return JsonResponse({'status': 'ok', 'order_id': order.id, 'created': False,
-                         'total_amount': float(order.total_amount)})
+                         'total_amount': float(order.total_amount),
+                         'printed_directly': printed_directly})
 
 
 @login_required
@@ -770,22 +774,39 @@ def _print_kitchen_tickets(request, order, items):
     go through a browser, so it needs nobody to click anything and can target a printer
     other than the one the invoice uses. Entirely best-effort: the order is already saved
     by the time this runs, and a jammed or offline printer must never break the flow.
+
+    Returns True when at least one ticket was actually handed to a printer. The caller
+    passes that back to the browser so it can skip opening the ticket preview: with direct
+    printing working, showing the page too means the ticket is both printed AND put on
+    screen for someone to print a second time. When this returns False — no printer
+    configured, or a machine without the Windows printing libraries, e.g. a waiter's
+    tablet — the preview is still the only way the ticket gets printed at all, so it must
+    keep appearing.
     """
     from collections import defaultdict
 
     from settings.models import SystemSetting
     from settings.policies import get_policy
 
-    from .direct_print import print_kitchen_ticket_async
+    from .direct_print import is_available, print_kitchen_ticket_async
 
-    # ثوابت النظام → شاشة المطبخ → "طباعة تذكرة المطبخ تلقائياً عند إرسال الطلب".
-    # The SAME switch that governs the browser-side auto-print, so turning it off means
-    # nothing prints by itself at all — otherwise an admin who disabled it would still
-    # get tickets coming out of the kitchen printer, which is the opposite of what the
-    # setting says. Tickets can still be printed on demand from the ticket page.
-    if not get_policy('kitchen.auto_print_ticket_on_order'):
-        return
+    # ثوابت النظام → شاشة المطبخ → "طباعة تذكرة المطبخ عند إرسال الطلب".
+    # Off means no ticket exists for this order at all — nothing printed here, and the
+    # browser is told not to show the preview either.
+    if not get_policy('kitchen.print_ticket_on_order'):
+        return False
 
+    # ثوابت النظام → شاشة المطبخ → "طباعة تذكرة المطبخ تلقائياً".
+    # Printing straight to the kitchen printer IS the automatic behaviour, so it must not
+    # happen while the shop has asked for tickets to wait for a press of طباعة. With this
+    # off the ticket still gets made — it just goes to the preview instead.
+    if not get_policy('kitchen.auto_print_ticket'):
+        return False
+
+    if not is_available():
+        return False
+
+    dispatched = False
     try:
         by_station = defaultdict(list)
         for item in items:
@@ -804,13 +825,23 @@ def _print_kitchen_tickets(request, order, items):
                 print_kitchen_ticket_async(
                     order, station_items, station_name=station.name,
                     printer_override=station.printer_target)
+                dispatched = True
             else:
                 fallback_items.extend(station_items)
 
         if fallback_items and default_printer:
             print_kitchen_ticket_async(order, fallback_items)
+            dispatched = True
+        elif fallback_items:
+            # Items with nowhere to go: no station printer and no default kitchen printer
+            # set. Nothing was printed for them, so the browser preview must still open —
+            # otherwise those items reach the kitchen on no ticket at all.
+            dispatched = False
     except Exception:
         logger.warning('kitchen ticket printing failed', exc_info=True)
+        return False
+
+    return dispatched
 
 
 @login_required

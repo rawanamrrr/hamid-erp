@@ -390,6 +390,11 @@
         const methodDropdown = document.getElementById('payMethod');
         const payment_method = methodDropdown ? methodDropdown.value : 'cash';
 
+        // Opened here, synchronously, while the click is still the reason we're running:
+        // a window.open() issued later from the fetch's .then() has lost the user gesture
+        // and mobile browsers block it silently.
+        const receiptWin = window.open('', '_blank');
+
         fetch('{% url "customer_pay_debt" customer.pk %}', {
             method: 'POST',
             body: JSON.stringify({ 
@@ -402,15 +407,25 @@
         .then(res => res.json())
         .then(data => {
             if(data.status === 'success') {
-                window.open(`${window.location.origin}/crm/payment-receipt/${data.payment_id}/`, '_blank');
-                location.reload();
+                // PrintNav, not window.open + location.reload. In a browser tab those are
+                // two independent windows and both work, but in the desktop app the popup
+                // shim turns the open into a navigation of THIS window and the reload on
+                // the next line cancels it — so the receipt never printed there at all.
+                // PrintNav does one navigation and hands the return address to the print
+                // page, which is what its إغلاق button uses.
+                window.PrintNav.go(
+                    receiptWin,
+                    `/crm/payment-receipt/${data.payment_id}/`,
+                    window.location.pathname + window.location.search);
             } else {
+                if (receiptWin) receiptWin.close();
                 alert('خطأ: ' + data.message);
                 btn.innerHTML = originalText;
                 btn.disabled = false;
             }
         })
         .catch(err => {
+            if (receiptWin) receiptWin.close();
             alert('حدث خطأ في الاتصال');
             btn.innerHTML = originalText;
             btn.disabled = false;

@@ -57,6 +57,34 @@
         })();
     </script>
     <script>
+        // ── Links that lead OUT of the app ───────────────────────────────────────
+        // The shim above deliberately keeps popups inside this window, because every
+        // popup the app itself opens (invoices, tickets) belongs here. But a link to
+        // somewhere else entirely — a WhatsApp reminder, a supplier's site — is the
+        // opposite case: loading it here replaces the POS with a page that has no
+        // address bar and no Back button to escape from. Those go to the real browser.
+        //
+        // Same call-time check as the shim: window.pywebview is injected asynchronously,
+        // so testing for it while this <head> script runs would always see nothing.
+        (function() {
+            document.addEventListener('click', function(e) {
+                var link = e.target.closest ? e.target.closest('a[href]') : null;
+                if (!link || !window.pywebview || !window.pywebview.api) return;
+
+                var href = link.getAttribute('href') || '';
+                if (!/^https?:\/\//i.test(href)) return;      // in-app path, leave alone
+                if (link.hasAttribute('download')) return;    // a download, not a visit
+
+                var target;
+                try { target = new URL(href, window.location.href); } catch (err) { return; }
+                if (target.host === window.location.host) return;   // still our own server
+
+                e.preventDefault();
+                window.pywebview.api.open_external(target.href);
+            }, true);
+        })();
+    </script>
+    <script>
         // ── "Print this, then go there" navigation ───────────────────────────────
         // A browser tab and the desktop app need genuinely different handling here, and
         // getting it wrong blanks the whole app:

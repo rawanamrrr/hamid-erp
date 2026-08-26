@@ -1,4 +1,4 @@
-; Inno Setup script — builds a one-click Windows installer for the DigiFlow desktop app.
+﻿; Inno Setup script — builds a one-click Windows installer for the DigiFlow desktop app.
 ; Compile with:  ISCC.exe installer.iss   (output: installer_output\DigiFlow-Setup.exe)
 ; Prerequisite:  build dist\DigiFlow first  (see docs/BUILD_EXE.md)
 
@@ -12,9 +12,18 @@ AppId={{A7F2C9E1-POS0-4B3A-9D5E-POSSYSTEM0001}
 AppName={#AppName}
 AppVersion={#AppVer}
 AppPublisher={#AppPublisher}
-DefaultDirName={autopf}\DigiFlow
+DefaultDirName={code:GetDefaultDir}
 DefaultGroupName=DigiFlow
 DisableProgramGroupPage=yes
+; The app first shipped as "Wholesale POS System" and was later renamed to DigiFlow, but
+; AppId deliberately stayed the same so upgrades keep working. Inno's default is to reuse
+; whatever folder and Start Menu group the PREVIOUS install registered, so an upgrade
+; silently landed back in "Program Files\Wholesale POS System" with the old name in the
+; Start Menu — the rename only ever showed up on machines that had never had the product.
+; Turning both off makes DefaultDirName/DefaultGroupName authoritative; GetDefaultDir below
+; still honours a genuinely custom folder an admin picked.
+UsePreviousAppDir=no
+UsePreviousGroup=no
 OutputDir=installer_output
 OutputBaseFilename=DigiFlow-Setup
 SetupIconFile=app_icon.ico
@@ -80,6 +89,95 @@ Type: files; Name: "{app}\db_config.json"
 var
   PgPage: TInputQueryWizardPage;
   PgOptPage: TInputOptionWizardPage;
+  { Where a previous version installed itself, read BEFORE this install rewrites the
+    uninstall key. Empty string on a first-time install. }
+  PrevDir: string;
+
+const
+  OLD_PRODUCT_NAME = 'Wholesale POS System';
+  UNINST_KEY = 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{A7F2C9E1-POS0-4B3A-9D5E-POSSYSTEM0001}_is1';
+
+{ Setup runs 32-bit while the app installs 64-bit, so a previous install's key may sit in
+  either registry view depending on which build wrote it — check both. }
+function ReadPreviousAppDir(): string;
+var
+  S: string;
+begin
+  Result := '';
+  if RegQueryStringValue(HKLM, UNINST_KEY, 'Inno Setup: App Path', S) then
+    Result := S
+  else if IsWin64 and RegQueryStringValue(HKLM64, UNINST_KEY, 'Inno Setup: App Path', S) then
+    Result := S;
+end;
+
+function InitializeSetup(): Boolean;
+begin
+  PrevDir := ReadPreviousAppDir();
+  Result := True;
+end;
+
+{ Keep a deliberately-chosen custom folder (someone who installed to D:\DigiFlow meant it),
+  but never inherit the old product-name folder — that is the thing being fixed here. }
+function GetDefaultDir(Param: string): string;
+begin
+  if (PrevDir <> '') and
+     (CompareText(ExtractFileName(RemoveBackslash(PrevDir)), OLD_PRODUCT_NAME) <> 0) then
+    Result := RemoveBackslash(PrevDir)
+  else
+    Result := ExpandConstant('{autopf}\DigiFlow');
+end;
+
+{ Retire an old-named install once the new one is in place. }
+procedure MigrateFromOldFolder();
+var
+  ResultCode: Integer;
+  NewDir, OldGroup: string;
+begin
+  NewDir := RemoveBackslash(ExpandConstant('{app}'));
+  if (PrevDir = '') or (not DirExists(PrevDir)) or
+     (CompareText(RemoveBackslash(PrevDir), NewDir) = 0) then
+    Exit;
+
+  { The customer's database normally lives in C:\ProgramData\DigiFlow\data, because a
+    cashier running the app without admin rights cannot write inside Program Files. But an
+    install that was ever launched as administrator keeps it in the program folder
+    deleting the old folder without checking would wipe out the shop's entire database.
+    So copy it across first, and if that copy fails for any reason leave the old folder
+    completely untouched rather than risk it. }
+  if FileExists(PrevDir + '\data\db.sqlite3') and
+     (not FileExists(NewDir + '\data\db.sqlite3')) then
+  begin
+    if (not Exec('cmd.exe',
+                 '/c xcopy "' + RemoveBackslash(PrevDir) + '\data" "' + NewDir + '\data" /E /I /Y /Q',
+                 '', SW_HIDE, ewWaitUntilTerminated, ResultCode)) or (ResultCode <> 0) then
+      Exit;
+  end;
+
+  DelTree(RemoveBackslash(PrevDir), True, True, True);
+
+  OldGroup := ExpandConstant('{commonprograms}') + '\' + OLD_PRODUCT_NAME;
+  if DirExists(OldGroup) then
+    DelTree(OldGroup, True, True, True);
+end;
+
+{ Windows cannot delete a running .exe, so if the old-named install was open while the
+  upgrade ran, its program files survive as a dead half-gigabyte copy — and a shortcut
+  someone pinned to the taskbar still launches that stale build, which then looks like
+  the update did nothing. The registry now points at the new folder, so the migration
+  above will never look at the old one again; clean it up here instead. Only ever when
+  its data folder is already gone, i.e. the database was migrated and nothing is at risk. }
+procedure PurgeLegacyFolder();
+var
+  Legacy: string;
+begin
+  Legacy := RemoveBackslash(ExpandConstant('{commonpf}') + '\' + OLD_PRODUCT_NAME);
+  if (not DirExists(Legacy)) or
+     (CompareText(Legacy, RemoveBackslash(ExpandConstant('{app}'))) = 0) then
+    Exit;
+  if DirExists(Legacy + '\data') then
+    Exit;
+  DelTree(Legacy, True, True, True);
+end;
 
 { Is a PostgreSQL server already on this machine? Used to decide whether to offer
   installing the bundled one — installing a second server over an existing one would
@@ -221,6 +319,9 @@ begin
 
   if CurStep <> ssPostInstall then
     Exit;
+
+  MigrateFromOldFolder();
+  PurgeLegacyFolder();
 
   if PgOptPage.Values[0] then
   begin

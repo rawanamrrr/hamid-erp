@@ -1406,7 +1406,7 @@
                         // auto-print policy is on) the kitchen ticket, then comes back
                         // here — see buildPrintChainUrl.
                         const style = document.querySelector('input[name="printStyle"]:checked').value;
-                        window.location.href = buildPrintChainUrl(res.order_id, style);
+                        window.location.href = buildPrintChainUrl(res.order_id, style, res.printed_directly);
                         return;
                     }
 
@@ -1421,13 +1421,20 @@
         // reusing THIS window: invoice -> [kitchen ticket] -> back to the POS. Each print
         // page advances to the next via its own ?then= handler once its print dialog is
         // done (see sales/invoice.html and restaurant/kitchen_ticket.html).
-        function buildPrintChainUrl(orderId, style) {
+        function buildPrintChainUrl(orderId, style, printedDirectly) {
             const origin = window.location.origin;
             const backHere = '{% url "pos_mobile" %}';
             let chain = backHere;
-            {% if policies.kitchen.auto_print_ticket_on_order %}
+            {% if policies.kitchen.print_ticket_on_order %}
+            // Only when the server did NOT already print it. With direct printing
+            // working, adding the ticket to the chain shows the same ticket on screen a
+            // second time for someone to dismiss — printed AND previewed. When nothing
+            // reached a printer (none configured, or a phone without the Windows printing
+            // libraries) the preview is the only way it gets printed, so it stays.
+            if (!printedDirectly) {
             // ثوابت النظام -> شاشة المطبخ -> "طباعة تذكرة المطبخ تلقائياً عند إرسال الطلب"
             chain = `${origin}/restaurant/order/${orderId}/ticket/?then=${encodeURIComponent(chain)}`;
+                        }
             {% endif %}
             return `${origin}/sales/invoice/${orderId}/?style=${style}&autoprint=1&then=${encodeURIComponent(chain)}`;
         }
