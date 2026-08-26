@@ -46,10 +46,10 @@
     .footer { text-align: center; font-size: 14px; font-weight: bold; margin-top: 10px; border-top: 2px dashed #000; padding-top: 6px; }
 </style>
 </head>
-{# ثوابت النظام ← شاشة المطبخ ← "طباعة تذكرة المطبخ تلقائياً".
+{% comment %} ثوابت النظام ← شاشة المطبخ ← "طباعة تذكرة المطبخ تلقائياً".
    Off means the ticket still appears exactly as before — it just waits for the "طباعة"
    button instead of throwing the print dialog up by itself. Whether this page is reached
-   at all is the other setting, "طباعة تذكرة المطبخ عند إرسال الطلب". #}
+   at all is the other setting, "طباعة تذكرة المطبخ عند إرسال الطلب". {% endcomment %}
 <body{% if policies.kitchen.auto_print_ticket %} onload="autoPrintThenChain()"{% endif %}>
     <div class="toolbar no-print">
         <div class="label">معاينة: تذكرة المطبخ</div>

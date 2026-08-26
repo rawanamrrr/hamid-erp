@@ -62,9 +62,9 @@
               <input type="time" id="{{ row.field }}" name="{{ row.field }}" value="{{ row.value }}"
                      class="text-sm border border-gray-200 rounded-lg px-3 py-1.5 w-32 focus:border-teal-400 focus:outline-none">
             {% elif row.is_path %}
-              {# Folder paths are long; the narrow default input hides most of one. The
+              {% comment %} Folder paths are long; the narrow default input hides most of one. The
                  browse button opens Windows' own folder picker — something only the
-                 desktop app can do, since a web page is never handed a real path. #}
+                 desktop app can do, since a web page is never handed a real path. {% endcomment %}
               <div class="flex items-center gap-2">
                 <input type="text" id="{{ row.field }}" name="{{ row.field }}" value="{{ row.value }}"
                        dir="ltr" placeholder="D:\DigiFlow-Backups"

@@ -145,11 +145,11 @@
                             </td>
                             <td class="p-4">
                                 {% if expense.receipt %}
-                                {# Shown in a dialog on this page rather than opened as a
+                                {% comment %} Shown in a dialog on this page rather than opened as a
                                    link. The receipt is a raw uploaded image, and in the
                                    desktop app window — which has no address bar and no
                                    Back button — navigating to a bare image file leaves
-                                   the user staring at it with no way back. #}
+                                   the user staring at it with no way back. {% endcomment %}
                                 <button type="button" onclick="showReceipt('{{ expense.receipt.url }}')"
                                         class="text-emerald-600 hover:text-emerald-800" title="عرض الإيصال">
                                     <i class="fas fa-receipt"></i>

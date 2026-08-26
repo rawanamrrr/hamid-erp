@@ -1,10 +1,10 @@
-{# Shared "back" control for standalone pages that carry no site navigation of their own
+{% comment %} Shared "back" control for standalone pages that carry no site navigation of their own
    (print layouts, report sheets, labels). In a browser tab a missing back button is only
    an annoyance — you press the browser's own. In the packaged desktop app the window has
    no address bar and no Back button at all, so such a page is a dead end the cashier can
    escape only by killing the program.
 
-   Hidden by @media print so it never ends up on the paper. #}
+   Hidden by @media print so it never ends up on the paper. {% endcomment %}
 <style>
   .dgf-back {
     position: fixed; inset-inline-start: 16px; top: 16px; z-index: 99999;
