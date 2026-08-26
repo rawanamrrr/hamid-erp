@@ -56,6 +56,24 @@
                   <i class="fa-solid fa-plus"></i> إضافة سعر
                 </button>
               </div>
+            {% elif row.is_time %}
+              {# A clock picker rather than free text: a typo here silently moves or #}
+              {# disables whatever is scheduled on it. #}
+              <input type="time" id="{{ row.field }}" name="{{ row.field }}" value="{{ row.value }}"
+                     class="text-sm border border-gray-200 rounded-lg px-3 py-1.5 w-32 focus:border-teal-400 focus:outline-none">
+            {% elif row.is_path %}
+              {# Folder paths are long; the narrow default input hides most of one. The
+                 browse button opens Windows' own folder picker — something only the
+                 desktop app can do, since a web page is never handed a real path. #}
+              <div class="flex items-center gap-2">
+                <input type="text" id="{{ row.field }}" name="{{ row.field }}" value="{{ row.value }}"
+                       dir="ltr" placeholder="D:\DigiFlow-Backups"
+                       class="text-sm border border-gray-200 rounded-lg px-3 py-1.5 w-72 text-left focus:border-teal-400 focus:outline-none">
+                <button type="button" onclick="pickFolderFor('{{ row.field }}')"
+                        class="shrink-0 text-sm font-bold px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 flex items-center gap-1.5">
+                  <i class="fa-solid fa-folder-open"></i> اختيار
+                </button>
+              </div>
             {% else %}
               <input type="text" id="{{ row.field }}" name="{{ row.field }}" value="{{ row.value }}"
                      class="text-sm border border-gray-200 rounded-lg px-3 py-1.5 w-28 focus:border-teal-400 focus:outline-none">
@@ -76,6 +94,26 @@
 </div>
 
 <script>
+  // Ask the desktop window to open Windows' own folder picker and drop the chosen path
+  // into the field. Checked at CALL time, not on load: pywebview injects its bridge
+  // asynchronously, so testing for it while this script first runs would always miss it
+  // and permanently disable the button.
+  async function pickFolderFor(fieldId) {
+    const input = document.getElementById(fieldId);
+    if (!input) return;
+    if (!window.pywebview || !window.pywebview.api || !window.pywebview.api.pick_folder) {
+      alert('اختيار المجلد متاح من برنامج DigiFlow على الكمبيوتر فقط.\n'
+            + 'من المتصفح أو الموبايل اكتب المسار الكامل يدوياً.');
+      return;
+    }
+    try {
+      const chosen = await window.pywebview.api.pick_folder(input.value || '');
+      if (chosen) { input.value = chosen; }   // empty means the dialog was cancelled
+    } catch (err) {
+      alert('تعذر فتح نافذة اختيار المجلد.');
+    }
+  }
+
   function priceListRowHtml(value) {
     return `<div class="flex items-center gap-1.5">
       <input type="number" min="0" step="0.5" value="${value}" oninput="syncPriceListField(this.closest('.price-list-field'))"

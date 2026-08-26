@@ -146,6 +146,18 @@ def policies_view(request):
                 val = request.POST.get(field)
                 valid = {c[0] for c in meta.get('choices', [])}
                 new_values[key] = val if val in valid else meta.get('default')
+            elif t == 'time':
+                # Anything that isn't a real HH:MM would silently disable whatever runs on
+                # this schedule, so fall back to the default rather than store it.
+                val = (request.POST.get(field) or '').strip()
+                try:
+                    hh, mm = val.split(':')[:2]
+                    valid = 0 <= int(hh) <= 23 and 0 <= int(mm) <= 59
+                except (ValueError, AttributeError):
+                    valid = False
+                new_values[key] = '%02d:%02d' % (int(hh), int(mm)) if valid else meta.get('default')
+            elif t == 'path':
+                new_values[key] = (request.POST.get(field) or '').strip().strip('"')
             else:
                 new_values[key] = request.POST.get(field, meta.get('default'))
         policy_obj.values = new_values
@@ -172,6 +184,10 @@ def policies_view(request):
                 'is_bool': meta.get('type') == 'bool',
                 'is_choice': meta.get('type') == 'choice',
                 'is_price_list': meta.get('type') == 'price_list',
+                # A clock picker beats typing "02:00" into a free-text box, and a folder
+                # path needs far more room than the narrow default input gives it.
+                'is_time': meta.get('type') == 'time',
+                'is_path': meta.get('type') == 'path',
             })
         groups.append({'key': gkey, 'label': glabel, 'rows': rows})
 

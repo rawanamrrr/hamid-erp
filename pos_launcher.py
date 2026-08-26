@@ -12,6 +12,7 @@ import time
 import socket
 import threading
 import webbrowser
+from datetime import datetime
 
 PORT = 8085
 WINDOW_TITLE = 'DigiFlow'
@@ -138,6 +139,31 @@ class _PrintAPI:
         import webview
         webview.create_window('طباعة', url, width=950, height=780)
 
+    def pick_folder(self, current=''):
+        """Open Windows' own folder picker and return the chosen path.
+
+        A web page cannot do this on its own — browsers deliberately never reveal a real
+        filesystem path — so the backup-folder setting could only ever be typed by hand,
+        which is easy to get wrong and impossible to verify while typing. The desktop
+        window has no such restriction, so it offers the real picker and hands the path
+        back to the page.
+
+        Returns '' when the dialog is cancelled, so the caller can simply do nothing.
+        """
+        import webview
+        try:
+            windows = webview.windows
+            if not windows:
+                return ''
+            chosen = windows[0].create_file_dialog(
+                webview.FOLDER_DIALOG, directory=current or '')
+            if not chosen:
+                return ''
+            return chosen[0] if isinstance(chosen, (list, tuple)) else str(chosen)
+        except Exception as exc:
+            _log(f'folder picker failed: {exc}')
+            return ''
+
     def open_external(self, url):
         """Hand a link that leads outside the app to the system's real browser.
 
@@ -227,6 +253,98 @@ def _ensure_postgres_database():
 
 
 ATTENDANCE_SYNC_MINUTES = int(os.environ.get('DIGIFLOW_ATTENDANCE_SYNC_MINUTES', '5'))
+
+
+def _backup_target_dir():
+    """Where the daily backup should be written.
+
+    An admin-chosen folder (ثوابت النظام ← النسخ الاحتياطي) wins, so backups can live on a
+    different drive from the program — a copy sitting on the same disk as the original is
+    no protection against that disk failing. Falls back to the app's own data folder when
+    unset or unusable, because a backup somewhere is worth far more than no backup at all.
+    """
+    from settings.policies import get_policy
+
+    fallback = os.path.join(DATA_DIR, 'backups')
+    chosen = (get_policy('backups.folder') or '').strip()
+    if not chosen:
+        os.makedirs(fallback, exist_ok=True)
+        return fallback
+
+    try:
+        os.makedirs(chosen, exist_ok=True)
+        # Prove it is really writable now rather than discovering it isn't at 2am: a
+        # disconnected USB drive or a permission-protected folder both look fine to
+        # makedirs but fail on the first write.
+        probe = os.path.join(chosen, '.digiflow-write-test')
+        with open(probe, 'w') as fh:
+            fh.write('ok')
+        os.unlink(probe)
+        return chosen
+    except OSError as exc:
+        _log(f'backup folder "{chosen}" is not usable ({exc}); using {fallback} instead')
+        os.makedirs(fallback, exist_ok=True)
+        return fallback
+
+
+def _backup_already_taken_today(target_dir):
+    """Has today's backup already been written?
+
+    Read off the filenames rather than remembered in memory, so closing and reopening the
+    app during the day cannot produce a second backup — or, worse, make it think one was
+    taken when the app was actually shut at the scheduled moment.
+    """
+    import glob
+
+    stamp = datetime.now().strftime('%Y%m%d')
+    return bool(glob.glob(os.path.join(target_dir, f'backup_{stamp}_*')))
+
+
+def _daily_backup_loop():
+    """Take one full backup a day, at the time the admin picked.
+
+    A shop that has never lost its data does not think about backups, which is exactly why
+    this cannot be a button someone has to remember to press. The schedule, the folder and
+    how many copies to keep all come from ثوابت النظام, and are re-read on every tick so a
+    change takes effect without restarting the program.
+
+    If the app was closed at the scheduled time, the backup is taken as soon as it opens
+    later that day — a till that is switched off overnight would otherwise never back up
+    at all with an early-hours schedule.
+    """
+    import time as _time
+
+    # Let startup finish first: migrations and the first requests are already competing
+    # for the database.
+    _time.sleep(150)
+
+    while True:
+        try:
+            from settings.policies import get_policy
+
+            if get_policy('backups.daily_enabled'):
+                scheduled = str(get_policy('backups.daily_time') or '02:00')
+                try:
+                    hh, mm = (int(p) for p in scheduled.split(':')[:2])
+                except ValueError:
+                    hh, mm = 2, 0
+
+                now = datetime.now()
+                due_at = now.replace(hour=hh, minute=mm, second=0, microsecond=0)
+                target_dir = _backup_target_dir()
+
+                if now >= due_at and not _backup_already_taken_today(target_dir):
+                    keep = int(get_policy('backups.keep_count') or 30)
+                    from django.core.management import call_command
+                    call_command('backup_db', out=target_dir, keep=keep, verbosity=0)
+                    _log(f'daily backup written to {target_dir}')
+        except Exception as exc:
+            # A failed backup must never take the till down. Logged, then retried on the
+            # next tick — and because the "already taken today" check reads the folder,
+            # a failure now still leaves today's backup pending rather than skipped.
+            _log(f'daily backup failed: {exc}')
+
+        _time.sleep(60)
 
 
 def _attendance_sync_loop():
@@ -353,6 +471,7 @@ def main():
 
     threading.Thread(target=_serve_forever, daemon=True).start()
     threading.Thread(target=_attendance_sync_loop, daemon=True).start()
+    threading.Thread(target=_daily_backup_loop, daemon=True).start()
 
     if not _wait_until_up():
         raise RuntimeError('الخادم لم يبدأ في الوقت المتوقع / server did not start')
