@@ -696,6 +696,25 @@
             }
         }
         {% endif %}
+
+        // Enter prints, whether or not "طباعة الفاتورة تلقائياً" is on. This used to
+        // work by accident: with auto-print on, the print dialog opened itself on load,
+        // and Enter was just the browser's own accelerator for that dialog's already-
+        // focused Print button — nothing on this page ever handled Enter itself. Turn
+        // auto-print off and there is no dialog open yet, so that same keypress had
+        // nothing to confirm — reported as "لما أوقف الطباعة التلقائية، Enter بقى مش
+        // بيطبع". A real listener here means Enter prints either way, without needing
+        // "طباعة الفاتورة تلقائياً" on at all.
+        document.addEventListener('keydown', function (e) {
+            if (e.key !== 'Enter') return;
+            var active = document.activeElement;
+            var tag = active ? active.tagName.toLowerCase() : '';
+            // A focused button/link already has its own native Enter behavior (activates
+            // that control) — don't also fire a second, competing print from here.
+            if (tag === 'button' || tag === 'a') return;
+            e.preventDefault();
+            autoPrintThenChain();
+        });
     </script>
 
 </body>

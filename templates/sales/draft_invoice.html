@@ -65,7 +65,7 @@
 </head>
 <body>
     <div class="toolbar no-print">
-        <button onclick="window.close(); setTimeout(function(){ if (window.history.length > 1) window.history.back(); }, 50)">إغلاق</button>
+        <button onclick="closePrintPage()">إغلاق</button>
         <button onclick="window.print()">طباعة</button>
     </div>
     <div class="sheet" id="print-area">
@@ -148,5 +148,25 @@
             فاتورة وهمية / مسودة<br>غير رسمية
         </div>
     </div>
+    <script>
+        // Closing this print-preview page. window.close() only works when the page was
+        // opened as a real popup (window.open()) — in the packaged desktop app there is
+        // just one window that NAVIGATED here, so window.close() silently does nothing
+        // and the person was stuck on the print preview with no way back at all. Try, in
+        // order: an explicit ?next=/?then= the caller passed (same convention as
+        // sales/invoice.html and restaurant/kitchen_ticket.html), then document.referrer
+        // (the page that linked here — works with no caller changes), then the old
+        // popup-close/history-back behaviour for the cases where that always worked.
+        function closePrintPage() {
+            var params = new URLSearchParams(location.search);
+            var next = params.get('next') || params.get('then');
+            if (next) { window.location.href = next; return; }
+            if (document.referrer) { window.location.href = document.referrer; return; }
+            window.close();
+            setTimeout(function () {
+                if (window.history.length > 1) window.history.back();
+            }, 50);
+        }
+    </script>
 </body>
 </html>

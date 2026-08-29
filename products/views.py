@@ -4800,7 +4800,10 @@ def supplier_statement_pdf(request, pk):
 
     if pdf:
         response = HttpResponse(pdf, content_type='application/pdf')
-        response['Content-Disposition'] = f'inline; filename="supplier_statement_{supplier.id}.pdf"'
+        # 'attachment', not 'inline' — see sales/views.py's download_invoice_pdf for why:
+        # the desktop app has no browser chrome, so an inline PDF hijacks the whole
+        # window with WebView2's native viewer and leaves no way back.
+        response['Content-Disposition'] = f'attachment; filename="supplier_statement_{supplier.id}.pdf"'
         return response
 
     # Fallback: the same statement as a printable page.

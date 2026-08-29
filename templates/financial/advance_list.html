@@ -15,6 +15,7 @@
             <thead class="bg-gray-50 text-gray-500 text-xs"><tr>
                 <th class="py-3 px-4 text-right">الموظف</th><th class="py-3 px-4 text-right">القيمة</th>
                 <th class="py-3 px-4 text-right">القسط الشهري</th><th class="py-3 px-4 text-right">المتبقي</th>
+                <th class="py-3 px-4 text-right">صُرفت من</th>
                 <th class="py-3 px-4 text-right">التاريخ</th><th class="py-3 px-4 text-right">الحالة</th>
                 <th class="py-3 px-4 text-right">إجراءات</th>
             </tr></thead>
@@ -25,6 +26,7 @@
                     <td class="py-2 px-4">{{ a.amount|floatformat:2|intcomma }}</td>
                     <td class="py-2 px-4">{% if a.per_period_deduction %}{{ a.per_period_deduction|floatformat:2 }}{% else %}<span class="text-gray-400">كامل</span>{% endif %}</td>
                     <td class="py-2 px-4 font-bold {% if a.remaining > 0 %}text-red-600{% else %}text-green-600{% endif %}">{{ a.remaining|floatformat:2|intcomma }}</td>
+                    <td class="py-2 px-4 text-gray-500">{% if a.source_account %}{{ a.source_account.name }}{% else %}<span class="text-gray-300">—</span>{% endif %}</td>
                     <td class="py-2 px-4 text-gray-500">{{ a.date_taken|date:"Y-m-d" }}</td>
                     <td class="py-2 px-4">{% if a.is_settled %}<span class="px-2 py-0.5 rounded text-xs font-bold bg-green-100 text-green-700">مسدّدة</span>{% else %}<span class="px-2 py-0.5 rounded text-xs font-bold bg-amber-100 text-amber-700">قائمة</span>{% endif %}</td>
                     <td class="py-2 px-4"><a href="{% url 'financial:advance_edit' a.pk %}" class="px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded-lg text-xs font-bold text-gray-600"><i class="fas fa-pen me-1"></i>تعديل</a></td>

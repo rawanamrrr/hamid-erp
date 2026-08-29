@@ -1,0 +1,501 @@
+﻿Inno Setup 6 Command-Line Compiler
+Copyright (C) 1997-2026 Jordan Russell. All rights reserved.
+Portions Copyright (C) 2000-2026 Martijn Laan. All rights reserved.
+Portions Copyright (C) 2001-2004 Alex Yackimoff. All rights reserved.
+https://www.innosetup.com
+
+Compiler engine version: Inno Setup 6.7.3
+Non-commercial use only
+
+Preprocessing
+   Reading file: C:\Users\rawan\AppData\Local\Programs\Inno Setup 6\ISPPBuiltins.iss
+Parsing [Setup] section, line 11
+Parsing [Setup] section, line 12
+Parsing [Setup] section, line 13
+Parsing [Setup] section, line 14
+Parsing [Setup] section, line 15
+Parsing [Setup] section, line 16
+Parsing [Setup] section, line 17
+Parsing [Setup] section, line 25
+Parsing [Setup] section, line 26
+Parsing [Setup] section, line 27
+Parsing [Setup] section, line 28
+Parsing [Setup] section, line 29
+Parsing [Setup] section, line 30
+Parsing [Setup] section, line 31
+Parsing [Setup] section, line 32
+Parsing [Setup] section, line 33
+Parsing [Setup] section, line 34
+Parsing [Setup] section, line 36
+Reading file (WizardImageFile)
+Reading file (WizardSmallImageFile)
+Preparing Setup program executable
+   Verification successful
+   Updating icons (Setup.e32)
+   Updating version info (Setup.e32)
+Determining language code pages
+Parsing [Languages] section, line 39
+   Reading file: C:\Users\rawan\AppData\Local\Programs\Inno Setup 6\Languages\Arabic.isl
+Parsing [Languages] section, line 40
+   Reading file: C:\Users\rawan\AppData\Local\Programs\Inno Setup 6\Default.isl
+   Messages in script file
+Reading default messages from Default.isl
+Parsing [Languages] section, line 39
+   Reading file: C:\Users\rawan\AppData\Local\Programs\Inno Setup 6\Languages\Arabic.isl
+Parsing [Languages] section, line 40
+   Reading file: C:\Users\rawan\AppData\Local\Programs\Inno Setup 6\Default.isl
+Parsing [LangOptions], [Messages], and [CustomMessages] sections
+   Messages in script file
+Reading [Code] section
+Parsing [Tasks] section, line 43
+Parsing [Dirs] section, line 57
+Parsing [Icons] section, line 60
+Parsing [Icons] section, line 61
+Parsing [Icons] section, line 62
+Parsing [UninstallDelete] section, line 76
+Parsing [UninstallDelete] section, line 79
+Parsing [Run] section, line 68
+Parsing [Run] section, line 72
+Parsing [Files] section, line 48
+Parsing [Files] section, line 53
+   Reading version info: C:\Users\rawan\Downloads\hamid-erp\vendor\postgresql-setup.exe
+Compiling [Code] section
+Creating setup files
+   Verification successful
+   Updating icons (Setup.exe)
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\DigiFlow.exe
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\81d243bd2c585b0f4821__mypyc.cp310-win_amd64.pyd
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\base_library.zip
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\db.sqlite3
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\db.sqlite3.bak-before-cafe-reset-20260709-014634
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\db.sqlite3.bak-before-wipe-20260706-021629
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\db.sqlite3.bak-pre-alloc
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\db.sqlite3.bak-pre-fk
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\db.sqlite3.bak-pre-invnum
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\db.sqlite3.bak-pre-journal
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\db.sqlite3.bak-pre-reconcile
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\db.sqlite3.bak-pre-retnum
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\db.sqlite3.bak-pre-void
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\db.sqlite3.bak-pre-vouchers
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\libcrypto-1_1.dll
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\libffi-7.dll
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\libssl-1_1.dll
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\pyexpat.pyd
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\python3.dll
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\python310.dll
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\select.pyd
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\sqlite3.dll
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\unicodedata.pyd
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\VCRUNTIME140.dll
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\VCRUNTIME140_1.dll
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\_asyncio.pyd
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\_brotli.cp310-win_amd64.pyd
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\_bz2.pyd
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\_cffi_backend.cp310-win_amd64.pyd
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\_ctypes.pyd
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\_decimal.pyd
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\_elementtree.pyd
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\_hashlib.pyd
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\_lzma.pyd
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\_multiprocessing.pyd
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\_overlapped.pyd
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\_queue.pyd
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\_socket.pyd
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\_sqlite3.pyd
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\_ssl.pyd
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\_uuid.pyd
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\_zoneinfo.pyd
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\accounts\migrations\0001_initial.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\accounts\migrations\0002_systemerror.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\accounts\migrations\0003_systemerror_source.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\accounts\migrations\0004_userprofile_direct_permissions.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\accounts\migrations\0005_userprofile_allowed_warehouses.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\accounts\migrations\0006_userprofile_is_master.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\accounts\migrations\0007_userprofile_master_store.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\accounts\migrations\0008_remove_userprofile_master_store.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\accounts\migrations\0009_userprofile_can_edit_price_and_more.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\accounts\migrations\0010_userprofile_favorites.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\accounts\migrations\0011_userprofile_can_change_unit_and_more.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\accounts\migrations\0012_approvalrequest.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\accounts\migrations\0013_alter_userprofile_phone_passwordresetcode.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\accounts\migrations\0014_userprofile_max_discount_amount.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\accounts\migrations\0015_userprofile_default_landing.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\accounts\migrations\0016_seed_cafe_roles.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\accounts\migrations\0017_alter_userprofile_default_landing.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\accounts\migrations\0018_userprofile_allowed_order_types.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\accounts\migrations\0019_role_allowed_order_types.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\accounts\migrations\0020_alter_approvalrequest_kind.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\accounts\migrations\0021_backfill_shift_checkboxes.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\accounts\migrations\__init__.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\arabic_reshaper\arabic_reshaper.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\arabic_reshaper\letters.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\arabic_reshaper\ligatures.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\arabic_reshaper\reshaper_config.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\arabic_reshaper\__init__.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\arabic_reshaper\__version__.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\attendance_devices\migrations\0001_initial.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\attendance_devices\migrations\0002_attendancedevice_max_retries_and_more.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\attendance_devices\migrations\__init__.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\attrs-26.1.0.dist-info\INSTALLER
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\attrs-26.1.0.dist-info\METADATA
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\attrs-26.1.0.dist-info\RECORD
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\attrs-26.1.0.dist-info\WHEEL
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\attrs-26.1.0.dist-info\licenses\LICENSE
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\exception.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\testutil.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\util.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\_version.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\__init__.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\__main__.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\asset\xbr_gray.svg
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\asset\xbr_white.svg
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\asyncio\component.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\asyncio\rawsocket.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\asyncio\util.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\asyncio\wamp.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\asyncio\websocket.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\asyncio\__init__.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\asyncio\test\README_NO_INIT_PY
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\asyncio\test\test_aio_rawsocket.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\asyncio\test\test_aio_websocket.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\asyncio\test\test_wamp_runner.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\asyncio\xbr\__init__.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\nvx\_utf8validator.c
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\nvx\_utf8validator.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\nvx\__init__.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\nvx\test\test_nvx_utf8validator.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\nvx\test\__init__.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\rawsocket\util.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\rawsocket\__init__.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\rawsocket\test\test_rawsocket_url.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\rawsocket\test\__init__.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\test\test_rng.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\test\test_util.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\test\__init__.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\twisted\choosereactor.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\twisted\component.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\twisted\cryptosign.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\twisted\forwarder.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\twisted\rawsocket.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\twisted\resource.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\twisted\util.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\twisted\wamp.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\twisted\websocket.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\twisted\__init__.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\twisted\test\test_tx_application_runner.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\twisted\test\test_tx_choosereactor.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\twisted\test\test_tx_component.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\twisted\test\test_tx_endpoint_plugins.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\twisted\test\test_tx_protocol.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\twisted\test\test_tx_rawsocket.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\twisted\test\test_tx_websocket_agent.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\twisted\test\test_wamp_runner.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\twisted\test\__init__.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\twisted\testing\__init__.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\twisted\xbr\__init__.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\auth.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\component.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\cryptobox.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\cryptosign.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\exception.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\interfaces.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\message.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\message_fbs.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\protocol.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\request.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\role.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\serializer.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\types.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\uri.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\websocket.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\__init__.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\gen\__init__.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\gen\schema\auth.bfbs
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\gen\schema\pubsub.bfbs
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\gen\schema\roles.bfbs
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\gen\schema\rpc.bfbs
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\gen\schema\session.bfbs
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\gen\schema\types.bfbs
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\gen\schema\wamp.bfbs
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\gen\wamp\Map.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\gen\wamp\Void.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\gen\wamp\__init__.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\gen\wamp\proto\Abort.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\gen\wamp\proto\AnyMessage.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\gen\wamp\proto\AuthCraChallenge.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\gen\wamp\proto\AuthCraRequest.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\gen\wamp\proto\AuthCraWelcome.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\gen\wamp\proto\AuthCryptosignChallenge.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\gen\wamp\proto\AuthCryptosignRequest.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\gen\wamp\proto\AuthCryptosignWelcome.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\gen\wamp\proto\Authenticate.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\gen\wamp\proto\AuthFactor.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\gen\wamp\proto\AuthMethod.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\gen\wamp\proto\AuthMode.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\gen\wamp\proto\AuthScramChallenge.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\gen\wamp\proto\AuthScramRequest.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\gen\wamp\proto\AuthScramWelcome.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\gen\wamp\proto\AuthTicketChallenge.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\gen\wamp\proto\AuthTicketRequest.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\gen\wamp\proto\AuthTicketWelcome.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\gen\wamp\proto\BrokerFeatures.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\gen\wamp\proto\Call.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\gen\wamp\proto\CalleeFeatures.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\gen\wamp\proto\CallerFeatures.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\gen\wamp\proto\Cancel.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\gen\wamp\proto\CancelMode.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\gen\wamp\proto\Challenge.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\gen\wamp\proto\ChannelBinding.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\gen\wamp\proto\ClientRoles.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\gen\wamp\proto\DealerFeatures.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\gen\wamp\proto\Error.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\gen\wamp\proto\Event.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\gen\wamp\proto\EventReceived.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\gen\wamp\proto\Goodbye.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\gen\wamp\proto\Hello.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\gen\wamp\proto\HelloNew.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\gen\wamp\proto\Interrupt.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\gen\wamp\proto\Invocation.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\gen\wamp\proto\InvocationPolicy.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\gen\wamp\proto\Kdf.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\gen\wamp\proto\Match.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\gen\wamp\proto\Message.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\gen\wamp\proto\MessageType.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\gen\wamp\proto\Payload.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\gen\wamp\proto\Principal.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\gen\wamp\proto\Publish.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\gen\wamp\proto\Published.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\gen\wamp\proto\PublisherFeatures.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\gen\wamp\proto\Register.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\gen\wamp\proto\Registered.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\gen\wamp\proto\Result.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\gen\wamp\proto\RouterRoles.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\gen\wamp\proto\Serializer.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\gen\wamp\proto\Subscribe.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\gen\wamp\proto\Subscribed.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\gen\wamp\proto\SubscriberFeatures.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\gen\wamp\proto\SubscriberReceived.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\gen\wamp\proto\Unregister.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\gen\wamp\proto\Unregistered.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\gen\wamp\proto\Unsubscribe.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\gen\wamp\proto\Unsubscribed.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\gen\wamp\proto\Welcome.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\gen\wamp\proto\Yield.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\gen\wamp\proto\__init__.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\test\test_wamp_auth.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\test\test_wamp_component.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\test\test_wamp_component_aio.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\test\test_wamp_cryptobox.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\test\test_wamp_cryptosign.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\test\test_wamp_exception.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\test\test_wamp_identifiers.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\test\test_wamp_message.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\test\test_wamp_protocol.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\test\test_wamp_protocol_peer.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\test\test_wamp_scram.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\test\test_wamp_serializer.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\test\test_wamp_session_details.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\test\test_wamp_transport_details.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\test\test_wamp_uri_pattern.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\test\test_wamp_user_handler_errors.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\test\test_wamp_websocket.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\wamp\test\__init__.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\websocket\compress.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\websocket\compress_base.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\websocket\compress_bzip2.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\websocket\compress_deflate.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\websocket\compress_snappy.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\websocket\interfaces.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\websocket\protocol.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\websocket\types.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\websocket\utf8validator.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\websocket\util.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\websocket\xormasker.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\websocket\__init__.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\websocket\test\test_websocket_frame.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\websocket\test\test_websocket_protocol.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\websocket\test\test_websocket_url.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\websocket\test\__init__.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\xbr\_abi.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\xbr\_blockchain.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\xbr\_buyer.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\xbr\_cli.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\xbr\_config.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\xbr\_dialog.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\xbr\_eip712_api_publish.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\xbr\_eip712_authority_certificate.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\xbr\_eip712_base.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\xbr\_eip712_catalog_create.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\xbr\_eip712_certificate.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\xbr\_eip712_certificate_chain.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\xbr\_eip712_channel_close.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\xbr\_eip712_channel_open.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\xbr\_eip712_consent.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\xbr\_eip712_delegate_certificate.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\xbr\_eip712_domain_create.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\xbr\_eip712_market_create.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\xbr\_eip712_market_join.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\xbr\_eip712_market_leave.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\xbr\_eip712_market_member_login.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\xbr\_eip712_member_login.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\xbr\_eip712_member_register.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\xbr\_eip712_member_unregister.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\xbr\_eip712_node_pair.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\xbr\_frealm.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\xbr\_gui.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\xbr\_interfaces.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\xbr\_mnemonic.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\xbr\_schema.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\xbr\_secmod.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\xbr\_seller.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\xbr\_userkey.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\xbr\_util.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\xbr\_wallet.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\xbr\__init__.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\xbr\templates\py-autobahn\enum.py.jinja2
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\xbr\templates\py-autobahn\module.py.jinja2
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\xbr\templates\py-autobahn\obj.py.jinja2
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\xbr\templates\py-autobahn\service.py.jinja2
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\xbr\templates\py-autobahn\test_enum.py.jinja2
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\xbr\templates\py-autobahn\test_module.py.jinja2
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\xbr\templates\py-autobahn\test_obj.py.jinja2
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\xbr\templates\py-autobahn\test_service.py.jinja2
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\xbr\templates\sol-eip712\obj-eip712.sol.jinja2
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\xbr\test\test_xbr_argon2.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\xbr\test\test_xbr_config.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\xbr\test\test_xbr_eip712.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\xbr\test\test_xbr_frealm.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\xbr\test\test_xbr_mnemonic.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\xbr\test\test_xbr_schema_demo.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\xbr\test\test_xbr_schema_wamp.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\xbr\test\test_xbr_schema_wamp_control.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\xbr\test\test_xbr_secmod.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\xbr\test\test_xbr_web3.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\xbr\test\__init__.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\xbr\test\catalog\schema\demo.bfbs
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\xbr\test\catalog\schema\testsvc1.bfbs
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\xbr\test\catalog\schema\wamp-auth.bfbs
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\xbr\test\catalog\schema\wamp-control.bfbs
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\xbr\test\catalog\schema\wamp-meta.bfbs
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\xbr\test\catalog\schema\wamp.bfbs
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\xbr\test\profile\config.ini
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\xbr\test\profile\default.priv
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn\xbr\test\profile\default.pub
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn-24.4.2.dist-info\entry_points.txt
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn-24.4.2.dist-info\INSTALLER
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn-24.4.2.dist-info\LICENSE
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn-24.4.2.dist-info\METADATA
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn-24.4.2.dist-info\RECORD
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn-24.4.2.dist-info\top_level.txt
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\autobahn-24.4.2.dist-info\WHEEL
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\bidi\algorithm.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\bidi\bidi.cp310-win_amd64.pyd
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\bidi\mirror.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\bidi\wrapper.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\bidi\__init__.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\camera_view\migrations\0001_initial.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\camera_view\migrations\__init__.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\channels\apps.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\channels\auth.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\channels\consumer.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\channels\db.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\channels\exceptions.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\channels\layers.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\channels\middleware.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\channels\routing.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\channels\sessions.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\channels\utils.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\channels\worker.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\channels\__init__.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\channels\generic\http.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\channels\generic\websocket.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\channels\generic\__init__.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\channels\management\__init__.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\channels\management\commands\runworker.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\channels\management\commands\__init__.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\channels\security\websocket.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\channels\security\__init__.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\channels\testing\application.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\channels\testing\http.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\channels\testing\live.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\channels\testing\websocket.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\channels\testing\__init__.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\channels-4.3.2.dist-info\INSTALLER
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\channels-4.3.2.dist-info\METADATA
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\channels-4.3.2.dist-info\RECORD
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\channels-4.3.2.dist-info\REQUESTED
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\channels-4.3.2.dist-info\top_level.txt
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\channels-4.3.2.dist-info\WHEEL
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\channels-4.3.2.dist-info\licenses\LICENSE
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\charset_normalizer\cd.cp310-win_amd64.pyd
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\charset_normalizer\md.cp310-win_amd64.pyd
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\click-8.4.2.dist-info\INSTALLER
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\click-8.4.2.dist-info\METADATA
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\click-8.4.2.dist-info\RECORD
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\click-8.4.2.dist-info\REQUESTED
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\click-8.4.2.dist-info\WHEEL
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\click-8.4.2.dist-info\licenses\LICENSE.txt
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\clr_loader\hostfxr.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\clr_loader\mono.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\clr_loader\netfx.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\clr_loader\py.typed
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\clr_loader\types.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\clr_loader\__init__.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\clr_loader\ffi\hostfxr.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\clr_loader\ffi\mono.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\clr_loader\ffi\netfx.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\clr_loader\ffi\__init__.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\clr_loader\ffi\dlls\amd64\ClrLoader.dll
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\clr_loader\ffi\dlls\amd64\ClrLoader.pdb
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\clr_loader\ffi\dlls\x86\ClrLoader.dll
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\clr_loader\ffi\dlls\x86\ClrLoader.pdb
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\clr_loader\util\clr_error.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\clr_loader\util\coreclr_errors.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\clr_loader\util\find.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\clr_loader\util\hostfxr_errors.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\clr_loader\util\runtime_spec.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\clr_loader\util\__init__.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\clr_loader-0.3.1.dist-info\INSTALLER
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\clr_loader-0.3.1.dist-info\METADATA
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\clr_loader-0.3.1.dist-info\RECORD
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\clr_loader-0.3.1.dist-info\top_level.txt
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\clr_loader-0.3.1.dist-info\WHEEL
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\clr_loader-0.3.1.dist-info\licenses\LICENSE
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\constantly\_constants.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\constantly\_version.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\constantly\__init__.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\constantly\test\test_constants.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\constantly\test\__init__.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\constantly-23.10.4.dist-info\INSTALLER
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\constantly-23.10.4.dist-info\LICENSE
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\constantly-23.10.4.dist-info\METADATA
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\constantly-23.10.4.dist-info\RECORD
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\constantly-23.10.4.dist-info\top_level.txt
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\constantly-23.10.4.dist-info\WHEEL
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\crm\migrations\0001_initial.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\crm\migrations\0002_customer_customer_type_alter_customer_phone.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\crm\migrations\0003_customer_opening_balance.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\crm\migrations\0004_customerpayment.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\crm\migrations\0005_customer_master_store_customerpayment_master_store.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\crm\migrations\0006_remove_customer_master_store_and_more.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\crm\migrations\0007_market_features_phase1.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\crm\migrations\0008_customerpayment_voucher_number.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\crm\migrations\0009_backfill_receipt_vouchers.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\crm\migrations\0010_paymentallocation.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\crm\migrations\0011_backfill_allocations.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\crm\migrations\0012_customer_is_blacklisted_customer_phone2_and_more.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\crm\migrations\__init__.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\cryptography\hazmat\bindings\_rust.pyd
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\cryptography-49.0.0.dist-info\INSTALLER
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\cryptography-49.0.0.dist-info\METADATA
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\cryptography-49.0.0.dist-info\RECORD
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\cryptography-49.0.0.dist-info\REQUESTED
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\cryptography-49.0.0.dist-info\WHEEL
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\cryptography-49.0.0.dist-info\licenses\LICENSE
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\cryptography-49.0.0.dist-info\licenses\LICENSE.APACHE
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\cryptography-49.0.0.dist-info\licenses\LICENSE.BSD
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\cryptography-49.0.0.dist-info\sboms\cryptography-rust.cyclonedx.json
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\cryptography-49.0.0.dist-info\sboms\sbom.json
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\cv2\config-3.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\cv2\config.py
+   Compressing: C:\Users\rawan\Downloads\hamid-erp\dist\DigiFlow\_internal\cv2\cv2.pyd

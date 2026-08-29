@@ -15,7 +15,7 @@ class PayrollTests(TestCase):
         ps = Payslip.objects.create(
             employee=self.emp, period_month='2026-06',
             basic_salary=Decimal('3000'), allowances=Decimal('500'),
-            days_absent=Decimal('3'),  # 3000/30*3 = 300 absence
+            days_absent=Decimal('3'),  # 3000 * 3.33% * 3 = 299.70 absence
         )
         PayslipAdjustment.objects.create(payslip=ps, kind='bonus', amount=Decimal('200'))
         PayslipAdjustment.objects.create(payslip=ps, kind='overtime', amount=Decimal('100'))
@@ -25,9 +25,10 @@ class PayrollTests(TestCase):
         self.assertEqual(ps.gross, Decimal('3800'))
         self.assertEqual(ps.total_additions, Decimal('300'))
         self.assertEqual(ps.total_deductions, Decimal('200'))
-        self.assertEqual(ps.absence_deduction, Decimal('300.00'))
-        # net = 3800 - 200 - 300 - 0 = 3300
-        self.assertEqual(ps.net, Decimal('3300.00'))
+        # policy default = 3.33% per absent day → 3000 * 0.0333 * 3 = 299.70
+        self.assertEqual(ps.absence_deduction, Decimal('299.70'))
+        # net = 3800 - 200 - 299.70 - 0 = 3300.30
+        self.assertEqual(ps.net, Decimal('3300.30'))
 
     def test_net_never_negative(self):
         ps = Payslip.objects.create(employee=self.emp, period_month='2026-07',

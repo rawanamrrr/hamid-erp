@@ -2475,7 +2475,13 @@ def download_invoice_pdf(request, pk):
     if pdf_file:
         response = HttpResponse(pdf_file, content_type='application/pdf')
         filename = f"Invoice_{order.id}_{size.upper()}.pdf"
-        response['Content-Disposition'] = f'inline; filename="{filename}"' # 'inline' opens in browser, 'attachment' downloads
+        # 'attachment', not 'inline': in a normal browser 'inline' just opens a tab with
+        # its own back button, but the desktop app has no browser chrome at all — an
+        # inline PDF takes over WebView2's single window with its native PDF viewer and
+        # leaves no way back except killing the app. 'attachment' triggers an actual save
+        # prompt everywhere instead (ALLOW_DOWNLOADS is already on for exactly this), which
+        # also just matches what the button itself says: "تحميل PDF" (Download PDF).
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
         return response
 
     # Fallback: show the same invoice as a printable page.

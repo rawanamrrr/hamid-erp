@@ -217,6 +217,16 @@ class EmployeeAdvance(models.Model):
     notes = models.TextField(blank=True, default='', verbose_name="ملاحظات")
     created_at = models.DateTimeField(auto_now_add=True)
 
+    # Null on advances created before this existed, and on any advance an admin recorded
+    # after the fact (money already handed over in cash, nothing left to withdraw from an
+    # account here). When set, financial.views.advance_create posted a WITHDRAWAL
+    # Transaction against this account for `amount` at creation time — before that, giving
+    # an advance never touched any account balance at all, so the drawer's reported cash
+    # stayed overstated from the moment the cash physically left until the advance was
+    # eventually deducted from a payslip.
+    source_account = models.ForeignKey(Account, on_delete=models.SET_NULL, null=True, blank=True,
+                                       related_name='employee_advances', verbose_name="صُرفت من حساب")
+
     class Meta:
         verbose_name = "سلفة موظف"
         verbose_name_plural = "سلف الموظفين"

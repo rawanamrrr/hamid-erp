@@ -1719,24 +1719,50 @@ def advance_list(request):
 @login_required
 @require_granular_action('financial', 'advances', 'financial', 'manage')
 def advance_create(request):
-    from .payroll_models import EmployeeAdvance
     from decimal import Decimal
+
     from django.contrib.auth.models import User
+    from django.db import transaction as db_tx
+
+    from .payroll_models import EmployeeAdvance
+
+    accounts = _exclude_dead_coded_accounts(Account.objects.filter(is_active=True)).order_by('name')
     if request.method == 'POST':
         try:
             emp = get_object_or_404(User, pk=request.POST.get('employee'))
-            EmployeeAdvance.objects.create(
-                employee=emp,
-                amount=Decimal(str(request.POST.get('amount'))),
-                per_period_deduction=Decimal(str(request.POST.get('per_period_deduction') or 0)),
-                notes=request.POST.get('notes', ''),
-            )
-            messages.success(request, f"تم تسجيل سلفة للموظف {emp.username}.")
+            amount = Decimal(str(request.POST.get('amount')))
+            account = get_object_or_404(Account, id=request.POST.get('account_id'))
+            if account.balance < amount:
+                messages.error(request, f"رصيد {account.name} ({account.balance} ج.م) لا يكفي لصرف سلفة بقيمة {amount} ج.م.")
+                raise ValueError('insufficient balance')
+
+            with db_tx.atomic():
+                advance = EmployeeAdvance.objects.create(
+                    employee=emp,
+                    amount=amount,
+                    per_period_deduction=Decimal(str(request.POST.get('per_period_deduction') or 0)),
+                    notes=request.POST.get('notes', ''),
+                    source_account=account,
+                )
+                # WITHDRAWAL, not EXPENSE: the money isn't spent, it's a receivable the
+                # employee will repay through payroll deductions — an EXPENSE transaction
+                # would also count it as an operating cost in the P&L, overstating it.
+                # _pay_payslip already posts the correct, smaller EXPENSE when the salary
+                # is later paid net of the installment, so nothing else needs to change
+                # there for the books to balance.
+                Transaction.objects.create(
+                    account=account, transaction_type='WITHDRAWAL', amount=amount,
+                    description=f"سلفة موظف: {emp.get_full_name() or emp.username} (تُخصم من الراتب)",
+                    created_by=request.user,
+                )
+            messages.success(request, f"تم تسجيل سلفة للموظف {emp.username} وخصم {amount} ج.م من {account.name}.")
             return redirect('financial:advance_list')
+        except ValueError:
+            pass
         except Exception as e:
             messages.error(request, f"تعذّر الحفظ: {e}")
     employees = User.objects.filter(is_active=True).order_by('username')
-    return render(request, 'financial/advance_form.html', {'employees': employees})
+    return render(request, 'financial/advance_form.html', {'employees': employees, 'accounts': accounts})
 
 
 @login_required
