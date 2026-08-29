@@ -205,6 +205,40 @@ def _acquire_single_instance_lock():
     return handle
 
 
+def _wait_for_postgres_ready(conn_kwargs, timeout=40):
+    """Retry connecting to PostgreSQL's own maintenance database until the SERVER is
+    actually ready to accept connections, or `timeout` seconds pass. Raises the last
+    connection error once the timeout is exhausted.
+
+    PostgreSQL runs as its own Windows service, separate from this app, and after a
+    reboot it can take anywhere from a couple of seconds to well over a minute to
+    finish its own startup/recovery — during that window it refuses EVERY connection
+    with "the database system is starting up", which looks identical to a real
+    misconfiguration but is not one: it just isn't ready yet. On a till that boots
+    straight into this app every morning (or has it in the Windows startup folder),
+    launching before Postgres has finished starting is routine, not exceptional — and
+    surfacing that as an immediate fatal error, with no retry at all, is exactly the
+    "why does this show sometimes" report this fixes. Trying again for a while first is
+    the difference between a real error message and a spurious one.
+    """
+    import psycopg2
+    deadline = time.time() + timeout
+    last_exc = None
+    attempt = 0
+    while time.time() < deadline:
+        attempt += 1
+        try:
+            psycopg2.connect(dbname='postgres', connect_timeout=5, **conn_kwargs).close()
+            if attempt > 1:
+                _log(f'PostgreSQL became ready after {attempt} attempt(s)')
+            return
+        except psycopg2.OperationalError as exc:
+            last_exc = exc
+            _log(f'PostgreSQL not ready yet (attempt {attempt}): {exc}'.strip())
+            time.sleep(2)
+    raise last_exc
+
+
 def _ensure_postgres_database():
     """Create the target PostgreSQL database on first run if it doesn't exist yet.
 
@@ -230,6 +264,11 @@ def _ensure_postgres_database():
         host=os.environ.get('DJANGO_DB_HOST', '127.0.0.1'),
         port=os.environ.get('DJANGO_DB_PORT', '5432'),
     )
+
+    # Wait for the SERVER itself to be reachable before trying anything else — both
+    # connection attempts below would otherwise fail with the same "starting up" error
+    # right after a reboot, and the second one (unlike this wait) is not retried.
+    _wait_for_postgres_ready(conn_kwargs)
 
     # Already there? Then there is nothing to do — and we must NOT touch it.
     try:

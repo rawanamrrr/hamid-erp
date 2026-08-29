@@ -97,11 +97,15 @@ def settings_view(request):
         # 3. PASS 'printer_choices' HERE
         form = SystemSettingForm(instance=setting_obj, printer_choices=available_printers)
 
+    from .network import network_access
+
     return render(request, 'settings/edit.html', {
-        'form': form, 
-        'setting': setting_obj, 
+        'form': form,
+        'setting': setting_obj,
         'title': 'إعدادات النظام',
-        'available_printers': [p[0] for p in available_printers] # Pass just names for template loop if needed, or use form field
+        'available_printers': [p[0] for p in available_printers], # Pass just names for template loop if needed, or use form field
+        # The address waiters type into their phones — see settings/network.py.
+        **network_access(request),
     })
 
 @login_required

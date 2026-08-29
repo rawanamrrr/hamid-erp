@@ -1302,7 +1302,7 @@
                 el.className = "font-bold text-lg text-blue-700 font-mono";
             } else {
                 box.className = "p-3 bg-green-50 border border-green-100 rounded-lg flex justify-between items-center";
-                label.innerText = "خالص:";
+                label.innerText = "مسدَّد:";
                 label.className = "font-bold text-xs text-green-700";
                 el.className = "font-bold text-lg text-green-700 font-mono";
             }
@@ -1356,7 +1356,7 @@
             const data = {
                 warehouse_id: warehouseId,
                 customer_id: customerId,
-                items: cart.map(i => ({ id: i.id, quantity: i.quantity, price: i.price, variant_id: i.variantId || null })),
+                items: cart.map(i => ({ product_id: i.id, quantity: i.quantity, price: i.price, variant_id: i.variantId || null })),
                 discount: currentDiscount,
                 discount_type: currentDiscountType,
                 delivery_cost: currentDeliveryCost,
@@ -1406,7 +1406,7 @@
                         // auto-print policy is on) the kitchen ticket, then comes back
                         // here — see buildPrintChainUrl.
                         const style = document.querySelector('input[name="printStyle"]:checked').value;
-                        window.location.href = buildPrintChainUrl(res.order_id, style, res.printed_directly);
+                        window.location.href = buildPrintChainUrl(res.order_id, style, res.printed_directly, res.new_item_ids, res.invoice_printed_directly);
                         return;
                     }
 
@@ -1421,7 +1421,7 @@
         // reusing THIS window: invoice -> [kitchen ticket] -> back to the POS. Each print
         // page advances to the next via its own ?then= handler once its print dialog is
         // done (see sales/invoice.html and restaurant/kitchen_ticket.html).
-        function buildPrintChainUrl(orderId, style, printedDirectly) {
+        function buildPrintChainUrl(orderId, style, printedDirectly, addedItems, invoicePrintedDirectly) {
             const origin = window.location.origin;
             const backHere = '{% url "pos_mobile" %}';
             let chain = backHere;
@@ -1433,9 +1433,30 @@
             // libraries) the preview is the only way it gets printed, so it stays.
             if (!printedDirectly) {
             // ثوابت النظام -> شاشة المطبخ -> "طباعة تذكرة المطبخ تلقائياً عند إرسال الطلب"
-            chain = `${origin}/restaurant/order/${orderId}/ticket/?then=${encodeURIComponent(chain)}`;
+            // addedItems says what this action actually added:
+            //   null/undefined -> a brand new sale; the whole order is new, print it all
+            //   []             -> an edit that added nothing (a price or a note changed);
+            //                     the kitchen has already been given every one of these
+            //                     items, so there is nothing to print at all
+            //   [ids]          -> an edit that added these; print only them
+            // Treating [] the same as null is what put the whole check back on the
+            // printer whenever an invoice was edited without adding anything.
+            const nothingAdded = Array.isArray(addedItems) && addedItems.length === 0;
+            if (!nothingAdded) {
+                const only = (addedItems && addedItems.length)
+                           ? `items=${encodeURIComponent(addedItems.join(','))}&` : '';
+                chain = `${origin}/restaurant/order/${orderId}/ticket/?${only}then=${encodeURIComponent(chain)}`;
+            }
                         }
             {% endif %}
+            // When the server already sent the receipt to the printer there is nothing
+            // for the browser to print, and opening the invoice would only put a spent
+            // preview on screen for the cashier to dismiss — so go straight on to
+            // whatever came next in the chain. This is the path the desktop app takes:
+            // WebView2 ignores window.print(), so the browser route never printed there.
+            if (invoicePrintedDirectly) {
+                return chain;
+            }
             return `${origin}/sales/invoice/${orderId}/?style=${style}&autoprint=1&then=${encodeURIComponent(chain)}`;
         }
 
@@ -1660,7 +1681,10 @@
                 discount: currentDiscount,
                 notes: currentNotes,
                 items: cart.map(i => ({
-                    id: i.id,
+                    // product_id, matching the waiter screen and every other
+                    // caller. The server still accepts the old 'id' spelling for
+                    // drafts saved before this and for any page a browser cached.
+                    product_id: i.id,
                     name: i.name,
                     quantity: i.quantity,
                     price: i.price,

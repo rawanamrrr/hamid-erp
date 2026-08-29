@@ -15,20 +15,20 @@
             <i class="fa-solid fa-bell text-[9px]"></i> الطلب جاهز
         </span>
     </div>
-    <span class="status-dot absolute top-2.5 left-2.5 w-2.5 h-2.5 rounded-full
+    <span class="status-dot absolute top-2.5 right-2.5 w-2.5 h-2.5 rounded-full
                  {% if table.status == 'busy' %}bg-red-500
                  {% elif table.status == 'reserved' %}bg-amber-500
                  {% else %}bg-emerald-500{% endif %}"></span>
 
     {% if table.status == 'free' %}
     <button onclick="event.preventDefault(); event.stopPropagation(); openReserveModal({{ table.id }}, '{{ table.number|escapejs }}');"
-            class="absolute top-2 left-2 w-6 h-6 rounded-lg bg-white/80 hover:bg-amber-100 text-amber-600 flex items-center justify-center shadow-sm" title="حجز الترابيزة">
-        <i class="fa-solid fa-calendar-plus text-[10px]"></i>
+            class="absolute top-2 left-2 h-8 px-2.5 rounded-xl bg-white hover:bg-amber-100 text-amber-600 border border-amber-200/70 flex items-center gap-1.5 shadow-sm font-black text-[11px] transition-colors" title="حجز الترابيزة">
+        <i class="fa-solid fa-calendar-plus text-xs"></i> حجز
     </button>
     {% elif table.status == 'reserved' %}
     <button onclick="event.preventDefault(); event.stopPropagation(); cancelReservation({{ table.id }});"
-            class="absolute top-2 left-2 w-6 h-6 rounded-lg bg-white/80 hover:bg-red-100 text-red-600 flex items-center justify-center shadow-sm" title="إلغاء الحجز">
-        <i class="fa-solid fa-calendar-xmark text-[10px]"></i>
+            class="absolute top-2 left-2 h-8 px-2.5 rounded-xl bg-white hover:bg-red-100 text-red-600 border border-red-200/70 flex items-center gap-1.5 shadow-sm font-black text-[11px] transition-colors" title="إلغاء الحجز">
+        <i class="fa-solid fa-calendar-xmark text-xs"></i> إلغاء
     </button>
     {% endif %}
 

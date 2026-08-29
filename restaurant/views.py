@@ -1,6 +1,6 @@
 import json
 import logging
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -12,6 +12,7 @@ from django.urls import reverse
 from django.utils.dateparse import parse_datetime
 from django.views.decorators.http import require_POST
 
+from django.core.exceptions import PermissionDenied
 from accounts.permissions import has_permission, require_permission
 from products.models import Category, Product, Warehouse
 from sales.models import Order, OrderItem
@@ -77,7 +78,7 @@ def _active_branch(request):
 # ─────────────────────────────────────────────
 
 @login_required
-@require_permission('pos', 'edit')
+@require_permission('settings', 'view')
 def restaurant_setup(request):
     branch, warehouses = _active_branch(request)
     if not branch:
@@ -273,6 +274,7 @@ def waiter_table_map(request):
 
 
 @login_required
+@require_permission('waiter', 'edit')
 @require_POST
 def reserve_table(request, table_id):
     """Mark a free table 'محجوزة' with the reserving guest's details — a table can only
@@ -305,6 +307,7 @@ def reserve_table(request, table_id):
 
 
 @login_required
+@require_permission('waiter', 'edit')
 @require_POST
 def unreserve_table(request, table_id):
     """Release a reserved table back to free — the guest didn't show, or the reservation
@@ -506,6 +509,7 @@ def _add_items_to_order(request, order, items, branch):
 
 
 @login_required
+@require_permission('waiter', 'edit')
 @require_POST
 def set_table_seats(request, table_id):
     """Update how many chairs are set at this table (Table.seats) — an inline +/-
@@ -538,6 +542,24 @@ def waiter_order_screen(request, table_id):
     context.update({'branch': branch, 'table': table, 'order': order,
                     'waiter_only_user': _waiter_only_user(request.user)})
     return render(request, 'restaurant/waiter_order.html', context)
+
+
+def _shift_required_error():
+    """Same rule the cashier POS already enforces (شفتات ← "إلزام فتح وردية قبل
+    البيع"): a NEW order must not be created with no shift open, so its sales land in
+    someone's shift and count on the right shift report. Returns a JsonResponse to send
+    back when blocked, or None when it's fine to proceed.
+
+    Only gates creating a brand-new order — adding items to a table's ALREADY-open tab
+    is never blocked by this, since that order started validly and the shift may simply
+    have been closed and not yet reopened since.
+    """
+    from settings.policies import get_policy
+    if get_policy('shifts.require_open_shift_before_sales') and get_active_shift() is None:
+        return JsonResponse({'status': 'error',
+                             'message': 'لا يمكن إنشاء طلب جديد بدون فتح وردية أولاً. يرجى فتح وردية من لوحة التحكم أو الخزنة.'},
+                            status=400)
+    return None
 
 
 def _get_or_create_table_order(table, request, branch, shift):
@@ -587,6 +609,11 @@ def waiter_open_or_append(request, table_id):
     if not items:
         return JsonResponse({'status': 'error', 'message': 'لا يوجد أصناف لإضافتها'}, status=400)
 
+    if table.open_order is None:
+        blocked = _shift_required_error()
+        if blocked:
+            return blocked
+
     # The table already pins the branch — don't re-guess it from the request (which has
     # no ?branch_id on this POST and would silently fall back to the wrong warehouse).
     branch = table.branch
@@ -603,11 +630,13 @@ def waiter_open_or_append(request, table_id):
 
     with db_transaction.atomic():
         order, created = _get_or_create_table_order(table, request, branch, shift)
-        _, printed_directly = _add_items_to_order(request, order, items, branch)
+        new_items, printed_directly = _add_items_to_order(request, order, items, branch)
 
     return JsonResponse({'status': 'ok', 'order_id': order.id, 'created': created,
                          'total_amount': float(order.total_amount),
-                         'printed_directly': printed_directly})
+                         'printed_directly': printed_directly,
+                         # Only these lines belong on the ticket — see kitchen_ticket_preview.
+                         'new_item_ids': [i.id for i in new_items]})
 
 
 @login_required
@@ -622,6 +651,12 @@ def waiter_ensure_order(request, table_id):
     branch = table.branch
     if not branch:
         return JsonResponse({'status': 'error', 'message': 'لا يوجد فرع نشط'}, status=400)
+
+    if table.open_order is None:
+        blocked = _shift_required_error()
+        if blocked:
+            return blocked
+
     shift = get_active_shift()
     with db_transaction.atomic():
         order, created = _get_or_create_table_order(table, request, branch, shift)
@@ -652,6 +687,10 @@ def waiter_new_order_no_table(request):
     branch, _ = _active_branch(request)
     if not branch:
         return JsonResponse({'status': 'error', 'message': 'لا يوجد فرع نشط'}, status=400)
+
+    blocked = _shift_required_error()
+    if blocked:
+        return blocked
 
     shift = get_active_shift()
     from sales.services import current_vat_snapshot
@@ -708,11 +747,12 @@ def waiter_add_items_no_table(request, order_id):
     # Recipe stock is checked at add-to-cart time instead — see waiter_open_or_append.
 
     with db_transaction.atomic():
-        _, printed_directly = _add_items_to_order(request, order, items, branch)
+        new_items, printed_directly = _add_items_to_order(request, order, items, branch)
 
     return JsonResponse({'status': 'ok', 'order_id': order.id, 'created': False,
                          'total_amount': float(order.total_amount),
-                         'printed_directly': printed_directly})
+                         'printed_directly': printed_directly,
+                         'new_item_ids': [i.id for i in new_items]})
 
 
 @login_required
@@ -1159,12 +1199,54 @@ def kds_view(request):
 
 
 @login_required
-@require_permission('kitchen', 'view')
 def kitchen_ticket_preview(request, order_id):
     """Browser-printable ticket for one order (window.print() fallback) — for stations
-    with no printer_target wired up yet, or a manual reprint of the whole check."""
+    with no printer_target wired up yet, or a manual reprint of the whole check.
+
+    ?items=1,2,3 restricts the ticket to just those lines. That is what the waiter screen
+    passes after sending, because a second round on the same table must produce a ticket
+    for the coffee that was just added — NOT for the tea that went to the kitchen twenty
+    minutes ago and is already on the customer's table. Without the parameter the whole
+    check is printed, which is what a manual reprint wants.
+
+    A line may also carry a quantity, as ?items=7:2 — "two more of line 7". Editing a
+    cashier invoice can raise an existing line from 1 to 3, and the kitchen needs to make
+    the two extra, not all three; the id alone cannot say that.
+
+    Open to anyone who can take an order, not just kitchen staff. This page is a printed
+    artifact of the sale the person just made — it is the second half of "confirm the
+    order", reached automatically by the print chain. Gating it on 'kitchen.view' meant
+    every real cashier and waiter (who hold 'pos' and 'waiter', never 'kitchen') hit a 403
+    the instant they confirmed a sale, so neither the ticket NOR the invoice ahead of it
+    in the chain ever printed. Only the owner and the kitchen screen accounts could print
+    at all, which is why it looked fine in testing.
+    """
+    if not any(has_permission(request.user, module, 'view')
+               for module in ('kitchen', 'pos', 'sales', 'waiter', 'cashier', 'delivery')):
+        raise PermissionDenied('لا تمتلك صلاحية عرض تذكرة المطبخ.')
+
     order = get_object_or_404(Order, pk=order_id)
     items = order.items.filter(is_void=False).select_related('product')
+
+    requested = (request.GET.get('items') or '').strip()
+    if requested:
+        wanted = {}
+        for part in requested.split(','):
+            piece, _, qty = part.strip().partition(':')
+            if not piece.isdigit():
+                continue
+            wanted[int(piece)] = qty.strip() or None
+
+        if wanted:
+            items = list(items.filter(pk__in=wanted.keys()))
+            for item in items:
+                override = wanted.get(item.pk)
+                if override:
+                    try:
+                        # In memory only — the check itself still holds the real quantity.
+                        item.quantity = Decimal(override)
+                    except (InvalidOperation, TypeError):
+                        pass
     return render(request, 'restaurant/kitchen_ticket.html', {
         'order': order, 'items': items,
         'station': {'name': 'تذكرة المطبخ'},
@@ -1769,7 +1851,14 @@ def close_check(request, order_id):
             'event': 'order_status', 'order_id': order.id, 'status': Order.PREP_DELIVERED,
         })
 
-    return JsonResponse({'status': 'ok'})
+    # Closing a check prints the customer's receipt, exactly like the cashier's
+    # "دفع وطباعة". Printed here, server-side, for the same reason: the desktop app runs
+    # the page in WebView2, which ignores window.print(), so the browser route put
+    # nothing on paper. The waiter screen falls back to its own preview when this is
+    # False (no printer configured, or a phone that cannot print directly).
+    from sales.views import _auto_print_invoice
+    return JsonResponse({'status': 'ok',
+                         'invoice_printed_directly': _auto_print_invoice(order)})
 
 
 @login_required

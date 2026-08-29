@@ -94,7 +94,14 @@ class Command(BaseCommand):
             '-f', str(target),
         ]
         try:
-            subprocess.run(cmd, env=env, check=True, capture_output=True, text=True)
+            # CREATE_NO_WINDOW — without it, launching pg_dump.exe pops a real console
+            # window on screen for the few seconds the dump takes, on whatever schedule
+            # the auto-backup loop runs (see pos_launcher._daily_backup_loop). Capturing
+            # stdout/stderr does not suppress that window; only this does. The settings
+            # page's own backup/restore buttons (settings/views.py) already set this —
+            # this was the one pg_dump call site that got missed.
+            subprocess.run(cmd, env=env, check=True, capture_output=True, text=True,
+                           creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
         except FileNotFoundError:
             raise CommandError(f"Could not run {cmd[0]} — the file disappeared or is not executable.")
         except subprocess.CalledProcessError as e:

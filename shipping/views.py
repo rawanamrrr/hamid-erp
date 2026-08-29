@@ -1,7 +1,7 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
-from accounts.permissions import require_permission  # RBAC (Phase 3.1)
+from accounts.permissions import require_permission, require_granular_action  # RBAC (Phase 3.1)
 from django.db.models import Q, Count, Sum, Avg, F
 import json
 from decimal import Decimal
@@ -16,7 +16,7 @@ from financial.models import Account, Transaction, DailyShift
 from sales.utils import get_active_shift
 
 @login_required
-@require_permission('shipping', 'view')
+@require_granular_action('shipping', 'dashboard', 'shipping', 'view')
 def shipping_dashboard(request):
     """Dashboard for Online and Shipping Orders"""
     
@@ -302,7 +302,7 @@ def print_shipping_label(request, shipment_id):
 
 # --- Company CRUD ---
 @login_required
-@require_permission('shipping', 'view')
+@require_granular_action('shipping', 'companies', 'shipping', 'view')
 def company_list(request):
     companies = ShippingCompany.objects.annotate(
         total_shipments=Count('shipment'),

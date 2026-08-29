@@ -230,7 +230,12 @@ def has_granular_action_open(user, module, action):
     if module in dp:
         return False
 
-    return True
+    # Default-DENY, not default-allow. These views started out with no check at all, and
+    # a bare "return True" here re-creates exactly that hole: a waiter or a kitchen user
+    # could open /sales/orders/ or the CRM list simply because nobody had customized the
+    # module for them. Falling back to module-level view access keeps the intent — no
+    # per-action setup required — while still honoring "only what this role was given".
+    return has_permission(user, module, 'view')
 
 
 def require_granular_action_open(module, action):
@@ -263,17 +268,19 @@ def _cashier_shift_eligible(user, action, policy_key):
     of "a cashier", regardless of what their Role is named) should be able to open and
     close shifts, since that's an operational necessity, not a privileged action.
 
-    The one case that previously broke this: an admin uses the sidebar-permissions
-    tool to hide the whole "الخزنة والشيفتات" section for a cashier (a blanket
-    `direct_permissions['financial'] = ['__denied__']`, usually meant just to declutter
-    their sidebar) — which also silently blocked shift management with no way to tell
-    it apart from a deliberate exclusion. We now distinguish the two:
-      - A blanket whole-module deny (`['__denied__']`) is treated as "never
-        customized for shift purposes" — falls back to the pos:create check below.
-      - An explicit granular list (admin picked specific financial sub-actions via
-        the sidebar tool, e.g. ['view', 'withdraw']) is still respected as
-        authoritative — if the admin deliberately left open_shift/close_shift off
-        that list, that exclusion holds.
+    Deliberately NOT has_granular_action: that treats ANY entry in direct_permissions
+    for the module (including a blanket `['__denied__']`) as "customized, no fallback".
+    Here the two must be told apart:
+      - A blanket whole-module deny (`['__denied__']`) usually just means an admin hid
+        the "الخزنة والشيفتات" sidebar section for someone via the sidebar-permissions
+        tool — treated as "never customized for shift purposes" and falls back to the
+        pos:create check below.
+      - An explicit granular list (admin picked specific financial sub-actions for this
+        user, e.g. ['view', 'withdraw']) is respected as authoritative. Since
+        financial:open_shift/close_shift carry 'fb': 'pos:create' in that tool now
+        (accounts.views.user_sidebar_permissions), a functional cashier's box pre-fills
+        checked and survives every future save automatically — it only stays off the
+        list if an admin actually unchecked it.
     """
     try:
         if user.profile.is_master:

@@ -53,7 +53,9 @@ def build_invoice_json(order):
     cust = order.customer
     return {
         'documentType': 'I',  # Invoice
-        'internalId': order.display_number,
+        # accounting_number, not display_number: the receipt number people see
+        # restarts at 1 every shift, and an e-invoice id has to stay unique.
+        'internalId': order.accounting_number,
         'dateTimeIssued': order.created_at.isoformat() if order.created_at else None,
         'issuer': {
             'name': s.shop_name if s else '',

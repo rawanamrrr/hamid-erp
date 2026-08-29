@@ -346,6 +346,16 @@ def dashboard(request):
         'show_widget_revenue': dashboard_widget_visible(request.user, 'revenue'),
         'show_widget_stock_value': dashboard_widget_visible(request.user, 'stock_value'),
         'show_widget_cash_summary': dashboard_widget_visible(request.user, 'cash_summary'),
+        # The four above were the only gated cards; every other panel on this screen was
+        # unconditional, so an admin who ticked ONLY "القطع المباعة" still handed the user
+        # the live cash movements, the inventory statistics and the pricing analysis.
+        'show_widget_sales_count': dashboard_widget_visible(request.user, 'sales_count'),
+        'show_widget_live_operations': dashboard_widget_visible(request.user, 'live_operations'),
+        'show_widget_inventory_tools': dashboard_widget_visible(request.user, 'inventory_tools'),
+        'show_widget_top_products': dashboard_widget_visible(request.user, 'top_products'),
+        'show_widget_catalog_health': dashboard_widget_visible(request.user, 'catalog_health'),
+        'show_widget_pricing_tips': dashboard_widget_visible(request.user, 'pricing_tips'),
+        'show_widget_supply_alerts': dashboard_widget_visible(request.user, 'supply_alerts'),
     }
 
     # Quick shift open/close action buttons on the dashboard (mirrors the ones

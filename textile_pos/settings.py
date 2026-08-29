@@ -19,6 +19,8 @@ See .env.example for the full list.
 """
 
 import os
+import sys
+import logging
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -286,6 +288,20 @@ if not DEBUG:
 LOG_DIR = Path(os.environ.get('DJANGO_LOG_DIR', str(BASE_DIR / 'logs')))
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 
+# The packaged desktop build runs windowed (console=False), so sys.stdout and sys.stderr
+# are None. A StreamHandler attached to a missing stream raises AttributeError on the very
+# first record, logging then tries to report THAT failure to a cp1252 stderr, and an Arabic
+# message turns it into UnicodeEncodeError. The exception escapes whatever view was logging
+# — which is how `logger.error(...)` inside submit_order_ajax's error handler turned an
+# ordinary refused sale into an unhandled 500, an HTML error page, and a POS button that
+# looked completely dead.
+_CONSOLE_LOGGING_AVAILABLE = sys.stderr is not None and sys.stdout is not None
+_LOG_HANDLERS = ['console', 'file'] if _CONSOLE_LOGGING_AVAILABLE else ['file']
+
+# Belt and braces: logging must never be able to break a request, whatever the handler.
+logging.raiseExceptions = False
+
+
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
@@ -306,15 +322,18 @@ LOGGING = {
             'maxBytes': 5 * 1024 * 1024,  # 5 MB
             'backupCount': 5,
             'formatter': 'verbose',
+            # Without this the file handler uses the Windows ANSI codepage, and every log
+            # line containing Arabic raises UnicodeEncodeError instead of being written.
+            'encoding': 'utf-8',
         },
     },
     'root': {
-        'handlers': ['console', 'file'],
+        'handlers': _LOG_HANDLERS,
         'level': 'INFO',
     },
     'loggers': {
         'django': {
-            'handlers': ['console', 'file'],
+            'handlers': _LOG_HANDLERS,
             'level': 'INFO',
             'propagate': False,
         },

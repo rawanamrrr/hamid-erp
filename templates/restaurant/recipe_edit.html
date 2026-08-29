@@ -34,7 +34,7 @@
     {% if recipe %}
     <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4 flex items-center justify-between">
         <span class="text-sm text-amber-800">هذا الحجم له وصفة مفعّلة حالياً — بيعه بيخصم الخامات تلقائياً.</span>
-        <form method="post" onsubmit="return confirm('تأكيد إلغاء الوصفة؟ الحجم ده هيرجع يتباع من غير خصم خامات.');">
+        <form method="post" onsubmit="return confirm('تأكيد إلغاء الوصفة؟ سيعود هذا الحجم للبيع دون خصم خامات.');">
             {% csrf_token %}
             <input type="hidden" name="action" value="remove_recipe">
             <input type="hidden" name="size_id" value="{{ active_size_id|default:'' }}">
@@ -71,12 +71,12 @@
             </div>
             {% if not ingredients %}
             <p class="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3 mb-3">
-                لا توجد مواد خام مضافة بعد. <a href="{% url 'raw_material_create' %}" class="font-semibold underline">أضف مادة خام</a> (زي حليب أو سكر) الأول عشان تقدر تختارها هنا.
+                لا توجد مواد خام مضافة بعد. <a href="{% url 'raw_material_create' %}" class="font-semibold underline">أضِف مادة خام</a> (مثل الحليب أو السكر) أولاً لتتمكن من اختيارها هنا.
             </p>
             {% endif %}
             {% if not sub_recipes %}
             <p class="text-sm text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-lg p-3 mb-3">
-                لا توجد وصفات فرعية بعد. <a href="{% url 'restaurant:subrecipe_create' %}" class="font-semibold underline">أضف وصفة فرعية</a> (زي العجينة) لو هتستخدمها في أكتر من صنف.
+                لا توجد وصفات فرعية بعد. <a href="{% url 'restaurant:subrecipe_create' %}" class="font-semibold underline">أضِف وصفة فرعية</a> (مثل العجينة) إذا كنت ستستخدمها في أكثر من صنف.
             </p>
             {% endif %}
 

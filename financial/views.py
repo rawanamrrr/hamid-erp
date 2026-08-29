@@ -617,6 +617,24 @@ def _open_shift(user, start_balance, opening_notes=''):
     return shift
 
 
+def _after_shift_redirect(user):
+    """Where to send someone once a shift action is done.
+
+    The obvious answer, the financial dashboard, is one a cashier cannot open: they are
+    allowed to run their own shift but not to read the branch's finances, so opening or
+    closing a shift bounced them straight onto a 403 page. Send anyone without financial
+    visibility back to the screen they actually work in.
+    """
+    from accounts.permissions import has_permission
+    if has_permission(user, 'financial', 'view'):
+        return redirect('financial:dashboard')
+    if has_permission(user, 'pos', 'view'):
+        return redirect('pos_view')
+    if has_permission(user, 'waiter', 'view'):
+        return redirect('waiter_tables')
+    return redirect('dashboard')
+
+
 @login_required
 def start_shift(request):
     """بدء شيفت جديد"""
@@ -626,14 +644,14 @@ def start_shift(request):
     # منع أي شيفت مكرر — التحقق عالمياً
     if DailyShift.objects.filter(is_closed=False).exists():
         messages.warning(request, "يوجد شيفت مفتوح بالفعل في النظام! يرجى إغلاقه أولاً لضمان دقة الحسابات.")
-        return redirect('financial:dashboard')
+        return _after_shift_redirect(request.user)
 
     if request.method == 'POST':
         form = StartShiftForm(request.POST)
         if form.is_valid():
             _open_shift(request.user, form.cleaned_data['start_balance'], form.cleaned_data.get('opening_notes', ''))
             messages.success(request, "تم فتح الشيفت بنجاح.")
-            return redirect('financial:dashboard')
+            return _after_shift_redirect(request.user)
     else:
         form = StartShiftForm(initial={'start_balance': suggested_shift_start_balance()})
 
@@ -754,12 +772,12 @@ def close_shift(request, pk):
     if request.method == 'POST':
         if not request.user.is_superuser and shift.employee != request.user:
             messages.error(request, "لا يمكنك إغلاق شيفت مستخدم آخر إلا بصلاحيات المدير.")
-            return redirect('financial:dashboard')
+            return _after_shift_redirect(request.user)
 
         from .models import PeriodLock
         if PeriodLock.is_locked(shift.start_time) and not has_permission(request.user, 'financial', 'manage'):
             messages.error(request, "الفترة المحاسبية لهذا الشيفت مغلقة، لا يمكن إغلاقه.")
-            return redirect('financial:dashboard')
+            return _after_shift_redirect(request.user)
 
         form = CloseShiftForm(request.POST, instance=shift)
         if form.is_valid():

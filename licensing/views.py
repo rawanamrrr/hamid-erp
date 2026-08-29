@@ -1,6 +1,7 @@
 import uuid
 from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required
+from accounts.permissions import require_permission
 from django.http import JsonResponse
 from django.utils import timezone
 from datetime import timedelta
@@ -219,6 +220,8 @@ def activation_view(request):
     })
 
 
+@login_required
+@require_permission('settings', 'view')
 def licensing_status(request):
     try:
         system_license = SystemLicense.objects.first()

@@ -4,7 +4,7 @@ from decimal import Decimal, InvalidOperation
 from io import BytesIO
 import base64
 from django.contrib.auth.decorators import login_required
-from accounts.permissions import require_permission, require_granular_action
+from accounts.permissions import require_permission, require_granular_action, has_permission
 from django.http import JsonResponse , HttpResponse
 from django.views.decorators.http import require_POST
 from django.core.exceptions import PermissionDenied
@@ -2255,7 +2255,7 @@ def update_product_stock_ajax(request):
 # --- NEW: Bulk Product Add System ---
 
 @login_required
-@require_permission('products', 'view')
+@require_granular_action('products', 'bulk_add', 'products', 'view')
 def bulk_product_add_view(request):
     """View to render the bulk add page with necessary context"""
     categories = Category.objects.all()
@@ -2516,6 +2516,7 @@ def bulk_quick_add_size_api(request):
 
 # --- Supplier Financials ---
 @login_required
+@require_permission('products', 'view')
 def api_products_search(request):
     """
     JSON API for product search (used by Purchase Invoice / Purchase Return item pickers).
@@ -2707,6 +2708,7 @@ def purchase_invoice_create(request, pk=None):
 
 @csrf_exempt
 @login_required
+@require_permission('products', 'edit')
 @require_POST
 def api_purchase_invoice_submit(request):
     """
@@ -3372,6 +3374,7 @@ def supplier_add_payment(request, pk):
 from django.views.decorators.csrf import csrf_exempt
 
 @login_required
+@require_permission('products', 'view')
 def costing_view(request):
     """
     View for the secure Costing Tool.
@@ -3384,15 +3387,37 @@ def costing_view(request):
 
 @csrf_exempt
 @login_required
+@require_permission('products', 'view')
 def api_costing_unlock(request):
     """
     Verifies the submitted password against the master (owner) account's real
     password, rather than a hardcoded string baked into the template's JS.
+
+    Two things this endpoint has to be careful about, because answering "is this the
+    owner's password?" is exactly what an attacker wants:
+
+      * It is only reachable by someone who can already see the costing screen. It used
+        to answer any logged-in account -- a kitchen or delivery login could sit and ask
+        it questions about the owner's credentials.
+      * Attempts are capped per user. Without that, an unlimited yes/no oracle over the
+        owner's real password is a brute-force tool with a JSON interface.
     """
     if request.method != 'POST':
         return JsonResponse({'status': 'error', 'message': 'Invalid Method'}, status=405)
 
-    password = json.loads(request.body or '{}').get('password', '')
+    from django.core.cache import cache
+    attempts_key = 'costing_unlock_fails_%s' % request.user.pk
+    if (cache.get(attempts_key) or 0) >= 8:
+        return JsonResponse(
+            {'status': 'error', 'ok': False,
+             'message': 'تم تجاوز عدد المحاولات المسموح بها. حاول بعد 10 دقائق.'},
+            status=429)
+
+    try:
+        password = json.loads(request.body or '{}').get('password', '')
+    except (ValueError, TypeError):
+        return JsonResponse({'status': 'error', 'ok': False, 'message': 'طلب غير صالح'},
+                            status=400)
     if not password:
         return JsonResponse({'status': 'error', 'ok': False})
 
@@ -3404,10 +3429,15 @@ def api_costing_unlock(request):
         authenticate(username=p.user.username, password=password) is not None
         for p in master_profiles if p.user and p.user.is_active
     )
+    if not ok:
+        cache.set(attempts_key, (cache.get(attempts_key) or 0) + 1, 600)
+    else:
+        cache.delete(attempts_key)
     return JsonResponse({'status': 'success', 'ok': ok})
 
 @csrf_exempt
 @login_required
+@require_permission('products', 'edit')
 def api_update_product_cost(request):
     """
     AJAX API to update a product's cost_price.
@@ -3587,6 +3617,7 @@ def quick_edit_products_page(request):
 
 
 @login_required
+@require_permission('products', 'view')
 def api_stock_alerts_count(request):
     """
     AJAX API to get the count of products with low stock.
@@ -3600,6 +3631,7 @@ def api_stock_alerts_count(request):
     return JsonResponse({'count': count})
 
 @login_required
+@require_permission('products', 'view')
 def api_search_products(request):
     """
     AJAX API to search products for the costing tool.
@@ -3657,6 +3689,7 @@ def api_search_products(request):
 
 
 @login_required
+@require_permission('products', 'view')
 def api_recipe_cost(request):
     """
     Costing tool "Option A" (منتج له وصفة بالفعل): given a product (and, for a
@@ -3707,6 +3740,7 @@ def api_recipe_cost(request):
 
 @csrf_exempt
 @login_required
+@require_permission('products', 'create')
 @require_POST
 def api_create_recipe_product(request):
     """
@@ -3787,6 +3821,7 @@ import json
 from .models import ProductCosting
 
 @login_required
+@require_permission('products', 'view')
 def costing_list_view(request):
     """
     List all saved costings.
@@ -3804,6 +3839,7 @@ def costing_list_view(request):
 
 @csrf_exempt
 @login_required
+@require_permission('products', 'edit')
 def api_save_costing(request):
     """
     AJAX API to save a costing configuration.
@@ -3827,6 +3863,7 @@ def api_save_costing(request):
     return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=405)
 
 @login_required
+@require_permission('products', 'view')
 def costing_print_view(request, pk):
     """
     View to render a clean print layout for a saved costing.
@@ -4112,6 +4149,7 @@ def kind_delete(request, pk):
 
 # API: kinds filtered by category
 @login_required
+@require_permission('products', 'view')
 def api_kinds_by_category(request):
     cat_id = request.GET.get('category_id')
     qs = Kind.objects.filter(is_active=True)
@@ -4180,6 +4218,7 @@ def unit_create(request):
     return redirect('unit_list')
 
 @login_required
+@require_permission('products', 'edit')
 @require_POST
 def quick_create_unit_ajax(request):
     """AJAX endpoint to quickly create a new unit of measure"""
@@ -4294,6 +4333,7 @@ def category_delete(request, pk):
 # ══════════════════════════════════════════════
 
 @login_required
+@require_permission('products', 'edit')
 @require_POST
 def product_image_upload(request, pk):
     """Accepts base64-encoded images (up to 5) for a product"""
@@ -4317,6 +4357,7 @@ def product_image_upload(request, pk):
         return JsonResponse({'success': False, 'error': str(e)})
 
 @login_required
+@require_permission('products', 'edit')
 @require_POST
 def product_image_delete(request, pk, img_pk):
     img = get_object_or_404(ProductImage, pk=img_pk, product_id=pk)
@@ -4324,6 +4365,7 @@ def product_image_delete(request, pk, img_pk):
     return JsonResponse({'success': True})
 
 @login_required
+@require_permission('products', 'view')
 def product_images_list(request, pk):
     product = get_object_or_404(Product, pk=pk)
     imgs = list(product.images.values('id', 'order', 'image_data'))
@@ -4881,6 +4923,7 @@ def fetch_product_image_api(request):
 
 @csrf_exempt
 @login_required
+@require_permission('products', 'edit')
 @require_POST
 def api_purchase_invoice_confirm(request):
     try:
@@ -4926,6 +4969,7 @@ def api_purchase_invoice_confirm(request):
 
 @csrf_exempt
 @login_required
+@require_permission('products', 'edit')
 @require_POST
 def api_purchase_invoice_cancel(request):
     try:
@@ -4965,6 +5009,7 @@ def api_purchase_invoice_cancel(request):
 
 @csrf_exempt
 @login_required
+@require_permission('products', 'create')
 @require_POST
 def api_quick_create_product(request):
     try:
@@ -5573,6 +5618,14 @@ def product_variants(request, pk):
 @login_required
 def product_variants_api(request, pk):
     """JSON list of a product's sellable variants — used by the POS variant picker."""
+    # Only the two POS screens call this, to fill a product's variants into the cart.
+    # Gating it on products:view alone locked out every pos-only cashier: the cart
+    # never filled, so the دفع وطباعة button appeared to do nothing at all. Same
+    # multi-module shape as kitchen_ticket_preview -- anyone who works a till or the
+    # catalogue may read variants, and nobody else.
+    if not any(has_permission(request.user, module, 'view')
+               for module in ('products', 'pos', 'waiter', 'cashier')):
+        raise PermissionDenied('لا تمتلك صلاحية عرض بيانات الأصناف.')
     from .models import Product, ProductVariant
     product = get_object_or_404(Product, pk=pk)
     rows = []

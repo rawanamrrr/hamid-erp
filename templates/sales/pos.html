@@ -2563,6 +2563,19 @@
                 const term = barcodeBuffer.trim();
                 barcodeBuffer = ''; // reset immediately
 
+                // That Enter belonged to the scanner, not the cashier: tell the checkout
+                // shortcut below to sit this one out, and take the scanned digits back out
+                // of المبلغ المستلم — on the way past they were indistinguishable from
+                // someone typing an amount.
+                window.__barcodeJustScanned = true;
+                if (window.__mirroredDigits && typeof typedAmount === 'string'
+                        && typedAmount.endsWith(window.__mirroredDigits)) {
+                    typedAmount = typedAmount.slice(0, -window.__mirroredDigits.length);
+                    renderTypedAmount();
+                    if (!typedAmount) { typedAmount = null; }
+                }
+                window.__mirroredDigits = '';
+
                 let foundProduct = Array.from(document.querySelectorAll('.product-card')).find(c =>
                     (c.dataset.barcode && c.dataset.barcode.toLowerCase() === term.toLowerCase()) ||
                     (c.dataset.sku && c.dataset.sku.toLowerCase() === term.toLowerCase())
@@ -2575,6 +2588,86 @@
                     showToast(`الباركود غير صالح: [${term}] برجاء المحاولة مرة أخرى`, true);
                 }
             }
+        });
+
+        // --- Checkout with Enter, and type anywhere into المبلغ المستلم -------------
+        // Registered after the barcode listener on purpose: a scanner ends its burst with
+        // Enter too, and that Enter must add the scanned product, never ring up the sale.
+        window.__mirroredDigits = '';
+        let mirrorResetTimer = null;
+        let typedAmount = null;      // what the cashier has typed so far, as text
+        let typedResetTimer = null;
+
+        function renderTypedAmount() {
+            const ri = document.getElementById('payReceivedInput');
+            if (!ri) return;
+            // trailing "." is not a number the field will hold, so show the part before it
+            const shown = (typedAmount || '').replace(/\.$/, '');
+            ri.value = shown;
+            ri.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+
+        document.addEventListener('keydown', function (e) {
+            const el = document.activeElement;
+            const tag = el ? el.tagName.toLowerCase() : '';
+            const id = el ? el.id : '';
+
+            // Fields that own their Enter (search adds a product, phone does a lookup) and
+            // any open dialog: none of those should complete a sale.
+            const ownsEnter = tag === 'textarea' ||
+                ['productSearch', 'customerSearchInput', 'dcmPhoneInput'].includes(id);
+            // Ask whether it is actually on screen, not whether it carries a class:
+            // several ids ending in "Modal" are the INPUTS inside a modal, and those never
+            // carry .hidden themselves — testing the class marked a dialog permanently
+            // open and silently disabled both shortcuts.
+            const dialogOpen = !!document.querySelector('.swal2-container') ||
+                Array.from(document.querySelectorAll('[id$="Modal"]'))
+                     .some(m => m.offsetParent !== null);
+
+            if (e.key === 'Enter') {
+                if (window.__barcodeJustScanned) { window.__barcodeJustScanned = false; return; }
+                if (ownsEnter || dialogOpen) return;
+                if (!cart.length) { showToast('السلة فارغة'); return; }
+                e.preventDefault();
+                submitOrder('thermal');   // exactly what the دفع وطباعة button does
+                return;
+            }
+
+            // A number typed with nothing else focused belongs in المبلغ المستلم, so the
+            // cashier can take the cash and press Enter without touching the mouse.
+            if (tag === 'input' || tag === 'textarea' || dialogOpen) return;
+            const ri = document.getElementById('payReceivedInput');
+            if (!ri) return;
+
+            const isDigit = /^[0-9]$/.test(e.key) || e.key === '.';
+            if (!isDigit && e.key !== 'Backspace') return;
+            e.preventDefault();
+
+            // The field is an <input type="number">, so a half-typed value like "226." is
+            // invalid and the browser blanks it — which used to eat every digit before the
+            // decimal point. Keep the string here and only ever hand the field something
+            // it will accept.
+            if (typedAmount === null) {
+                typedAmount = '';          // first keystroke replaces the suggested total
+                window.__mirroredDigits = '';
+            }
+            if (isDigit) {
+                if (!(e.key === '.' && typedAmount.includes('.'))) {
+                    typedAmount += e.key;
+                    window.__mirroredDigits += e.key;
+                }
+            } else {
+                typedAmount = typedAmount.slice(0, -1);
+                window.__mirroredDigits = '';
+            }
+            renderTypedAmount();
+
+            // After the scanner's burst window these are certainly a human's digits, and a
+            // longer pause means the cashier has finished this amount.
+            clearTimeout(mirrorResetTimer);
+            mirrorResetTimer = setTimeout(function () { window.__mirroredDigits = ''; }, 120);
+            clearTimeout(typedResetTimer);
+            typedResetTimer = setTimeout(function () { typedAmount = null; }, 2500);
         });
 
         function filterCategory(catId, btn = null) {
@@ -4725,7 +4818,10 @@
                 warehouse_id: warehouseId, // Send Warehouse ID
                 customer_id: customerId,
                 items: cart.map(i => ({
-                    id: i.id,
+                    // product_id, matching the waiter screen and every other
+                    // caller. The server still accepts the old 'id' spelling for
+                    // drafts saved before this and for any page a browser cached.
+                    product_id: i.id,
                     quantity: i.quantity,
                     price: i.price,
                     name: i.name,
@@ -4792,7 +4888,7 @@
         // done (see sales/invoice.html and restaurant/kitchen_ticket.html). Sequential
         // rather than one popup per document because the desktop app has only one window,
         // and a phone browser blocks the second window.open() of a single tap outright.
-        function buildPrintChainUrl(orderId, style, printedDirectly) {
+        function buildPrintChainUrl(orderId, style, printedDirectly, addedItems, invoicePrintedDirectly) {
             const origin = window.location.origin;
             let chain = '{% url "pos_view" %}';
             {% if policies.kitchen.print_ticket_on_order %}
@@ -4803,9 +4899,30 @@
             // libraries) the preview is the only way it gets printed, so it stays.
             if (!printedDirectly) {
             // ثوابت النظام -> شاشة المطبخ -> "طباعة تذكرة المطبخ تلقائياً عند إرسال الطلب"
-            chain = `${origin}/restaurant/order/${orderId}/ticket/?then=${encodeURIComponent(chain)}`;
+            // addedItems says what this action actually added:
+            //   null/undefined -> a brand new sale; the whole order is new, print it all
+            //   []             -> an edit that added nothing (a price or a note changed);
+            //                     the kitchen has already been given every one of these
+            //                     items, so there is nothing to print at all
+            //   [ids]          -> an edit that added these; print only them
+            // Treating [] the same as null is what put the whole check back on the
+            // printer whenever an invoice was edited without adding anything.
+            const nothingAdded = Array.isArray(addedItems) && addedItems.length === 0;
+            if (!nothingAdded) {
+                const only = (addedItems && addedItems.length)
+                           ? `items=${encodeURIComponent(addedItems.join(','))}&` : '';
+                chain = `${origin}/restaurant/order/${orderId}/ticket/?${only}then=${encodeURIComponent(chain)}`;
+            }
                         }
             {% endif %}
+            // When the server already sent the receipt to the printer there is nothing
+            // for the browser to print, and opening the invoice would only put a spent
+            // preview on screen for the cashier to dismiss — so go straight on to
+            // whatever came next in the chain. This is the path the desktop app takes:
+            // WebView2 ignores window.print(), so the browser route never printed there.
+            if (invoicePrintedDirectly) {
+                return chain;
+            }
             return `${origin}/sales/invoice/${orderId}/?style=${style}&autoprint=1&then=${encodeURIComponent(chain)}`;
         }
 
@@ -4836,7 +4953,7 @@
                             // navigations raced and only one document ever printed), so
                             // it used to be skipped there entirely. Chaining prints both,
                             // in the desktop app and in a browser alike.
-                            window.location.href = buildPrintChainUrl(res.order_id, style, res.printed_directly);
+                            window.location.href = buildPrintChainUrl(res.order_id, style, res.printed_directly, res.new_item_ids, res.invoice_printed_directly);
                             return;
                         }
 
@@ -4879,8 +4996,31 @@
                         requestManagerApproval(res, () => submitOrder(print));
                     } else {
                         window._approverUser = ''; window._approverPass = '';
-                        alert('خطأ: ' + res.message);
+                        // Was a bare alert(). In a browser tab that shows the reason the sale
+                        // was refused ("الكمية غير متوفرة..."), but the packaged desktop window
+                        // does not reliably surface a native alert() — so the cashier pressed
+                        // دفع وطباعة, no order was saved, nothing printed, and NOTHING was
+                        // shown to explain why. Use the dialog the rest of this screen uses.
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'تعذر إتمام البيع',
+                            text: res.message || 'حدث خطأ غير متوقع أثناء حفظ الفاتورة.',
+                            confirmButtonText: 'حسناً'
+                        });
                     }
+                })
+                .catch(err => {
+                    // No catch at all before this: a network drop, a 403 that renders HTML
+                    // instead of JSON, or any parse failure rejected the promise silently and
+                    // the button simply appeared dead.
+                    window._approverUser = ''; window._approverPass = '';
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'تعذر إتمام البيع',
+                        text: 'تعذر الاتصال بالخادم أو قراءة رده. من فضلك حاول مرة أخرى.',
+                        confirmButtonText: 'حسناً'
+                    });
+                    console.error('submitOrderRequest failed:', err);
                 });
         }
 
@@ -5049,7 +5189,10 @@
                 discount: discountValue,
                 notes: orderNotes,
                 items: cart.map(i => ({
-                    id: i.id,
+                    // product_id, matching the waiter screen and every other
+                    // caller. The server still accepts the old 'id' spelling for
+                    // drafts saved before this and for any page a browser cached.
+                    product_id: i.id,
                     name: i.name,
                     quantity: i.quantity,
                     price: i.price,
@@ -5807,7 +5950,17 @@
                 total: item.qty * item.price,
                 quantity: item.qty, // Ensure qty field is correct for internal logic
                 isManualPrice: true,
-                priceTier: item.price_tier || 'retail'
+                priceTier: item.price_tier || 'retail',
+                // The cart reads these in camelCase when it builds the save payload, so
+                // the snake_case ones the server sends have to be mapped across —
+                // otherwise the size, the extras and the note are dropped on save even
+                // though the server did send them.
+                variantId: item.variant_id || null,
+                variantLabel: item.variant_label || '',
+                modifiers: item.modifiers || [],
+                note: item.note || '',
+                sellUnit: item.sell_unit || 'box',
+                serialNumber: item.serial_number || ''
             }));
 
             // 2. Load Customer

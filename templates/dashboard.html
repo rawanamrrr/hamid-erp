@@ -257,6 +257,7 @@
         {% endif %}
 
         <!-- Sales Ops -->
+        {% if show_widget_sales_count %}
         <div class="kpi-card bg-gradient-to-br from-amber-50 to-white border border-amber-100/50">
             <div class="kpi-glow bg-amber-400"></div>
             <div class="relative z-10">
@@ -270,6 +271,7 @@
                 <div id="ops-sparkline" class="mt-3 h-8"></div>
             </div>
         </div>
+        {% endif %}
 
         <!-- Stock Value -->
         {% if show_widget_stock_value %}
@@ -382,6 +384,7 @@
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 fade-up fade-up-3">
         
         <!-- Interactive Tabs Operations Hub (Left, 2 Columns) -->
+        {% if show_widget_live_operations %}
         <div class="lg:col-span-2 db-card flex flex-col">
             <div class="db-card-header flex-col sm:flex-row gap-3">
                 <div class="db-section-label">
@@ -548,8 +551,10 @@
                 </div>
             </div>
         </div>
+        {% endif %}
 
         <!-- Inventory quick stats & actions sidebar (Right, 1 Column) -->
+        {% if show_widget_inventory_tools %}
         <div class="db-card flex flex-col">
             <div class="db-card-header">
                 <div class="db-section-label">
@@ -656,9 +661,11 @@
                 {% endif %}
             </div>
         </div>
+        {% endif %}
     </div>
 
     <!-- ===== PRODUCT CAROUSEL WIDGET (Most Sold Products) ===== -->
+    {% if show_widget_top_products %}
     <div class="db-card fade-up fade-up-3">
         <div class="db-card-header">
             <div class="db-section-label">
@@ -685,11 +692,13 @@
             </div>
         </div>
     </div>
+    {% endif %}
 
     <!-- ===== PREMIUM AI BUSINESS INTELLIGENCE HUB ===== -->
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 fade-up fade-up-4">
         
         <!-- Column 1: Data Health & Catalog Compass -->
+        {% if show_widget_catalog_health %}
         <div class="db-card flex flex-col">
             <div class="db-card-header">
                 <div class="db-section-label">
@@ -712,8 +721,10 @@
                 </div>
             </div>
         </div>
+        {% endif %}
 
         <!-- Column 2: Margin Optimization and Pricing opportunities -->
+        {% if show_widget_pricing_tips %}
         <div class="db-card flex flex-col">
             <div class="db-card-header">
                 <div class="db-section-label">
@@ -731,8 +742,10 @@
                 </div>
             </div>
         </div>
+        {% endif %}
 
         <!-- Column 3: Restocking & CRM Alerts -->
+        {% if show_widget_supply_alerts %}
         <div class="db-card flex flex-col">
             <div class="db-card-header">
                 <div class="db-section-label">
@@ -749,6 +762,7 @@
                 </div>
             </div>
         </div>
+        {% endif %}
 
     </div>
 

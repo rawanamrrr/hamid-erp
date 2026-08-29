@@ -1,3 +1,4 @@
+{% load qr_tags %}
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 
@@ -7,12 +8,16 @@
     <title>إيصال #{{ order.id }}</title>
     <!-- Tailwind CSS -->
     <script src="/static/vendor/js/tailwind.js"></script>
+    <link rel="stylesheet" href="/static/vendor/fonts/cairo.css">
 
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;700&family=Inconsolata:wght@700&display=swap');
+        /* Deliberately no @import from fonts.googleapis.com. A till has no reason to
+           reach the internet, and on one that cannot, that request hangs — which used to
+           delay (and in the desktop window, swallow) the automatic print of every
+           receipt. Cairo ships with the app, so the receipt renders identically offline. */
 
         body {
-            font-family: 'IBM Plex Sans Arabic', sans-serif;
+            font-family: 'Cairo', 'Segoe UI', Tahoma, sans-serif;
             background-color: #525252;
             margin: 0;
             padding: 20px 0;
@@ -59,7 +64,7 @@
 
         /* --- SHARED UTILS --- */
         .num {
-            font-family: 'Inconsolata', monospace;
+            font-family: 'Consolas', 'Courier New', monospace;
             font-weight: 700;
         }
 
@@ -353,7 +358,12 @@
                 <tr>
                     <td class="info-label">رقم الإيصال</td>
                     <td class="info-sep">:</td>
-                    <td class="info-val"><span class="num font-bold">#{{ order.id }}</span></td>
+                    {% comment %}
+                      display_number, not order.id — the A4 invoice and the kitchen ticket
+                      both show the invoice number, and a receipt quoting a different
+                      number than the paperwork is impossible to trace back.
+                    {% endcomment %}
+                    <td class="info-val"><span class="num font-bold">{{ order.display_number }}</span></td>
                 </tr>
                 <tr>
                     <td class="info-label">التاريخ</td>
@@ -582,8 +592,10 @@
                  in الإعدادات — no longer falls back to encoding the bare order id,
                  which wasn't a link at all and printed a QR nobody asked for. -->
             <div class="mt-3 flex justify-center">
-                <img src="https://api.qrserver.com/v1/create-qr-code/?size=90x90&data={{ sys_settings.qr_link }}"
-                    class="h-20 w-20 grayscale" alt="QR Code">
+                {% with qr=sys_settings.qr_link|qr_data_uri %}
+                {# Drawn locally: fetching it from api.qrserver.com printed a broken image on every offline till, and even online the receipt auto-prints before a remote image has necessarily arrived. #}
+                {% if qr %}<img src="{{ qr }}" class="h-20 w-20 grayscale" alt="QR Code">{% endif %}
+                {% endwith %}
             </div>
             {% endif %}
 
@@ -660,7 +672,28 @@
         // Off means the invoice still appears — it just waits for the "طباعة" button.
         {% if policies.receipts.auto_print_invoice %}
         if (new URLSearchParams(location.search).get('autoprint') === '1') {
-            autoPrintThenChain();
+            // DOMContentLoaded, NOT load. 'load' waits for every last resource, and this
+            // page pulls a webfont from fonts.googleapis.com — on a till with no internet
+            // that request hangs until it times out, so the print dialog never appeared
+            // and the invoice simply did not print. The kitchen ticket has no remote
+            // resources at all, which is exactly why that one always worked.
+            //
+            // The receipt's own layout comes from local CSS, so it is fully laid out by
+            // DOMContentLoaded; the remote font only ever changes which typeface renders,
+            // and falling back to a system one is far better than not printing.
+            var startPrinting = function () {
+                // A plain timer, never requestAnimationFrame. Chromium suspends animation
+                // frames entirely while a page is not visible, so a receipt opened in a
+                // window that is still coming up — or behind another — would sit there
+                // waiting for a frame that never arrives and never print at all.
+                // The short delay just lets the local stylesheet finish applying.
+                window.setTimeout(autoPrintThenChain, 80);
+            };
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', startPrinting);
+            } else {
+                startPrinting();
+            }
         }
         {% endif %}
     </script>

@@ -19,6 +19,7 @@ from products.models import Product, Category, StockTransaction, Warehouse, Ware
 from crm.models import Customer
 from settings.models import SystemSetting
 from .models import Order, OrderItem, Expense, ReturnInvoice, ReturnItem, OtherIncome, CashSettlement, Draft, SavedOrder, SavedOrderItem, Reservation, ReservationItem, DocumentSequence
+from .services import cart_product_id  # one definition of a cart line's product
 from .forms import ExpenseForm, OtherIncomeForm, CashSettlementForm
 from shipping.models import Shipment 
 
@@ -27,6 +28,7 @@ from .utils import record_sale_transaction, get_active_shift, get_or_create_acti
 from financial.models import Account, Transaction, DailyShift
 
 # --- RBAC (Phase 3.1) ---
+from django.core.exceptions import PermissionDenied
 from accounts.permissions import require_permission, has_permission, has_granular_action, require_granular_action, require_granular_action_open, cashier_can_open_shift, cashier_can_close_shift
 from settings.policies import get_policy
 from financial.views import suggested_shift_start_balance as _suggested_shift_start_balance
@@ -271,6 +273,13 @@ def pos_view(request):
                 'table_id': order.table_id,
                 'order_type': order.order_type,
                 # ----------------------------------------------------------------------------------
+                # Everything the cart needs to rebuild the line EXACTLY as it was.
+                # This used to carry only id/name/qty/price/price_tier, so opening an
+                # invoice for editing and saving it silently dropped the size, the extras
+                # and the kitchen note off every line — while keeping the price that was
+                # charged for them. A "spanish latte (large) + whipping cream" came back
+                # as a plain spanish latte still billed at the with-extras price, and the
+                # kitchen lost the instruction.
                 'items': [
                     {
                         'id': item.product.id,
@@ -278,6 +287,12 @@ def pos_view(request):
                         'qty': float(item.quantity),
                         'price': float(item.price),
                         'price_tier': item.price_tier,
+                        'variant_id': item.variant_id,
+                        'variant_label': item.variant.label if item.variant else '',
+                        'modifiers': item.modifiers or [],
+                        'note': item.note or '',
+                        'sell_unit': item.sell_unit,
+                        'serial_number': item.serial_number or '',
                     } for item in order.items.all()
                 ]
             }
@@ -446,7 +461,7 @@ def save_saved_order(request):
     with transaction.atomic():
         so = SavedOrder.objects.create(customer=customer, name=name[:100], created_by=request.user)
         for it in items:
-            pid = it.get('id') or it.get('product_id')
+            pid = cart_product_id(it)
             if not pid:
                 continue
             SavedOrderItem.objects.create(
@@ -545,7 +560,7 @@ def create_reservation(request):
             reservation_number=DocumentSequence.next_number('SO'),
         )
         for it in items:
-            pid = it.get('id') or it.get('product_id')
+            pid = cart_product_id(it)
             if not pid:
                 continue
             ReservationItem.objects.create(
@@ -620,7 +635,7 @@ def reservation_detail(request, pk):
     })
 
 @login_required
-@require_permission('pos', 'view')
+@require_granular_action('pos', 'mobile', 'pos', 'view')
 def pos_mobile(request):
     """
     Mobile-Specific POS View.
@@ -688,7 +703,7 @@ def pos_mobile(request):
 def _serialize_cart_items(raw_items):
     serialized_items = []
     for item in raw_items or []:
-        product_id = item.get('id') or item.get('product_id')
+        product_id = cart_product_id(item)
         if not product_id:
             continue
             
@@ -707,6 +722,7 @@ def _serialize_cart_items(raw_items):
 
 
 @login_required
+@require_permission('pos', 'create')
 @transaction.atomic
 def save_draft_ajax(request):
     if request.method != 'POST':
@@ -773,12 +789,14 @@ def save_draft_ajax(request):
 
 
 @login_required
+@require_permission('pos', 'view')
 def list_drafts_ajax(request):
     drafts = Draft.objects.filter(user=request.user, status=Draft.STATUS_OPEN).select_related('customer')
     return JsonResponse({'status': 'success', 'drafts': [draft.to_summary() for draft in drafts]})
 
 
 @login_required
+@require_permission('pos', 'view')
 def get_draft_ajax(request, pk):
     draft = get_object_or_404(Draft, id=pk, user=request.user)
     if draft.status != Draft.STATUS_OPEN:
@@ -787,6 +805,7 @@ def get_draft_ajax(request, pk):
 
 
 @login_required
+@require_permission('pos', 'create')
 @transaction.atomic
 def delete_draft_ajax(request, pk):
     if request.method not in ['DELETE', 'POST']:
@@ -798,6 +817,7 @@ def delete_draft_ajax(request, pk):
 
 
 @login_required
+@require_permission('pos', 'view')
 def draft_invoice_view(request, pk):
     draft = get_object_or_404(Draft.objects.select_related('user', 'customer', 'warehouse'), id=pk, user=request.user)
     if draft.status != Draft.STATUS_OPEN:
@@ -847,6 +867,7 @@ def submit_order_ajax(request):
     # this unconditionally — an unset name there is a NameError, i.e. a 500 on a
     # sale that already went through.
     printed_directly = False
+    new_item_ids = None
     if request.method == 'POST':
         try:
             data = json.loads(request.body)
@@ -970,7 +991,7 @@ def submit_order_ajax(request):
                 for it in cart_items:
                     if (it.get('sell_unit', 'box') or 'box') != 'box':
                         continue
-                    _prod = Product.objects.filter(id=(it.get('id') or it.get('product_id'))).first()
+                    _prod = Product.objects.filter(id=cart_product_id(it)).first()
                     if not _prod:
                         continue
                     _qty = Decimal(str(it.get('quantity') or it.get('qty', 1)))
@@ -1042,7 +1063,7 @@ def submit_order_ajax(request):
                 # 2) Below-cost guard
                 if not profile.allows_below_cost():
                     for it in cart_items:
-                        prod_id = it.get('id') or it.get('product_id')
+                        prod_id = cart_product_id(it)
                         prod = Product.objects.filter(id=prod_id).first()
                         if prod and prod.cost_price and Decimal(str(it.get('price', 0))) < prod.cost_price:
                             violations.append({'kind': _appr.BELOW_COST,
@@ -1057,7 +1078,7 @@ def submit_order_ajax(request):
                     for it in cart_items:
                         if (it.get('sell_unit', 'box') or 'box') != 'box':
                             continue
-                        prod = Product.objects.filter(id=(it.get('id') or it.get('product_id'))).first()
+                        prod = Product.objects.filter(id=cart_product_id(it)).first()
                         if not prod:
                             continue
                         _q = Decimal(str(it.get('quantity') or it.get('qty', 1)))
@@ -1108,7 +1129,7 @@ def submit_order_ajax(request):
                 _neg_ok = _policy('sales.allow_negative_stock') or (profile and profile.allows_below_zero_stock())
                 _recipe_ids = set(_recipe_product_ids())
                 for item in cart_items:
-                    prod_id = item.get('id') or item.get('product_id')
+                    prod_id = cart_product_id(item)
                     product = Product.objects.get(id=prod_id)
 
                     # Made-to-order items are prepared on demand — they're never stocked as
@@ -1226,10 +1247,9 @@ def submit_order_ajax(request):
                         'event': 'order_assigned', 'order_id': order.id, 'driver_id': driver.id,
                     })
 
-                # Phase 6.1: assign a gap-free human invoice number (INV-YYYY-NNNNN).
-                from .models import DocumentSequence
-                order.invoice_number = DocumentSequence.next_number('INV')
-                order.save(update_fields=['invoice_number'])
+                # The number is assigned by Order.save() the moment the row is created,
+                # in one running sequence shared with the waiter screen — assigning a
+                # second, differently-formatted one here would overwrite it.
 
                 # Fetch applied deal if any
                 applied_deal = None
@@ -1345,6 +1365,12 @@ def submit_order_ajax(request):
                 # Reported back to the browser so it can skip the ticket preview when the
                 # ticket already came out of the kitchen printer.
                 printed_directly = notify_kitchen_for_order(request, order)
+                # None, not [] — the two mean opposite things to the print chain: None is
+                # "no list to narrow by, print the whole order" (a brand new sale), while
+                # [] is "compared, and nothing was added" (an edit that changed only a
+                # price or a note). Sending [] here would be read as the second and the
+                # ticket would be skipped on every new sale.
+                new_item_ids = None
 
                 # --- Create Notifications ---
                 if Notification:
@@ -1393,6 +1419,7 @@ def submit_order_ajax(request):
                 'order_id': order.id,
                 'updated_balance': updated_balance,
                 'printed_directly': printed_directly,
+                'invoice_printed_directly': _auto_print_invoice(order),
             })
 
         except Exception as e:
@@ -1406,6 +1433,7 @@ def submit_order_ajax(request):
     return JsonResponse({'status': 'error', 'message': 'Invalid Request Method'})
 
 @login_required
+@require_permission('pos', 'create')
 def create_customer_ajax(request):
     """
     AJAX view to create a new customer directly from POS.
@@ -1450,6 +1478,7 @@ def create_customer_ajax(request):
     return JsonResponse({'status': 'error', 'message': 'Invalid request method'})
 
 @login_required
+@require_granular_action_open('sales', 'factory')
 def update_tailoring_status_ajax(request):
     """
     AJAX view to update tailoring status.
@@ -1535,11 +1564,18 @@ def order_list(request):
     # Search Filter
     q = request.GET.get('q')
     if q:
-        orders = orders.filter(
+        # The number on the receipt is the per-shift one, so searching has to match it —
+        # exactly, since it is an integer column and "1" must not also drag in 21 and 100.
+        # It repeats every shift, so combine it with the date filter to narrow things down.
+        criteria = (
             Q(id__icontains=q) |
+            Q(invoice_number__icontains=q) |
             Q(customer__first_name__icontains=q) |
             Q(customer__phone__icontains=q)
         )
+        if q.strip().isdigit():
+            criteria |= Q(shift_number=int(q.strip()))
+        orders = orders.filter(criteria)
 
     # Stats
     # Stats exclude voided invoices; the list itself still shows them (with a badge).
@@ -1570,6 +1606,7 @@ def order_list(request):
 
 
 @login_required
+@require_granular_action_open('sales', 'orders')
 def order_report(request):
     # .active() excludes voided orders — every other revenue view in this app
     # (order_list stats, financial_statement) already does this; a voided invoice
@@ -1598,12 +1635,58 @@ def order_report(request):
     }
     return render(request, 'sales/order_report.html', context)
 
+# Anyone who deals with orders may open and print one. Deliberately broad — a cashier
+# holds 'pos', a waiter holds 'waiter', a driver holds 'delivery', and each of them has a
+# legitimate reason to reach a receipt — but not unlimited: with only @login_required, an
+# account granted nothing at all could still read any invoice in the shop by typing its
+# URL, which is exactly what "show each user only what was selected for them" rules out.
+# 'crm' is deliberately NOT here: a customer-service role manages customer records
+# and debts, and has its own receipt/statement views for that. Letting it also open
+# any sales invoice by id would hand it the whole sales ledger it was never given.
+# 'kitchen' is not here either: the KDS never links to a priced sales invoice, it works
+# from the kitchen ticket, which has its own check. Leaving kitchen in let a kitchen
+# login walk /sales/orders/<id>/invoice/ by id and read every total in the shop.
+ORDER_FACING_MODULES = ('pos', 'sales', 'cashier', 'waiter', 'delivery')
+
+
+def _may_see_orders(user):
+    return any(has_permission(user, module, 'view') for module in ORDER_FACING_MODULES)
+
+
+def _assert_may_see_order(user, order, what='عرض الفواتير'):
+    """Feature access is only half of it -- the object has to be in scope too.
+
+    allowed_warehouses was enforced when a sale is CREATED but not when one is READ, so a
+    cashier restricted to one branch could still pull up any other branch's invoice, PDF
+    or thermal print just by changing the id in the URL. Masters, superusers and users
+    with no branch restriction at all are unaffected.
+    """
+    if not _may_see_orders(user):
+        raise PermissionDenied('لا تمتلك صلاحية %s.' % what)
+    if getattr(user, 'is_superuser', False):
+        return
+    try:
+        profile = user.profile
+    except AttributeError:
+        return
+    if getattr(profile, 'is_master', False):
+        return
+    allowed = profile.allowed_warehouses.all()
+    if not allowed.exists():
+        return
+    warehouse_id = getattr(order, 'warehouse_id', None)
+    if warehouse_id and not allowed.filter(id=warehouse_id).exists():
+        raise PermissionDenied('هذه الفاتورة تخص فرعاً غير مصرح لك به.')
+
+
 @login_required
 def order_invoice(request, pk):
     """
     Renders invoice. Switches template based on 'style' param (thermal, a4, a5).
     """
     order = get_object_or_404(Order, pk=pk)
+    _assert_may_see_order(request.user, order)
+
     sys_settings = SystemSetting.objects.first()
     
     # Get print style (thermal, a4, a5)
@@ -1694,6 +1777,7 @@ def factory_order_create(request):
     return render(request, 'sales/factory_order_create.html', {'customers': customers})
 
 @login_required
+@require_granular_action_open('sales', 'factory')
 def factory_order_edit(request, pk):
     """Edit an existing tailoring/work order's details (type, cost, tailor, customer, notes, status)."""
     from crm.models import Customer
@@ -1752,6 +1836,7 @@ def factory_order_edit(request, pk):
     })
 
 @login_required
+@require_granular_action_open('sales', 'factory')
 def factory_order_delete(request, pk):
     """Delete a standalone work order. If it has any deposit/payment collected, the user
     chooses whether to return that deposit to the customer:
@@ -1780,6 +1865,7 @@ def factory_order_delete(request, pk):
     return redirect('factory_list')
 
 @login_required
+@require_granular_action_open('sales', 'factory')
 def factory_invoice(request, pk):
     order = get_object_or_404(Order, pk=pk)
     sys_settings = SystemSetting.objects.first()
@@ -1787,6 +1873,7 @@ def factory_invoice(request, pk):
 
 # --- NEW: AJAX Endpoint to fetch Order Details for Refund ---
 @login_required
+@require_granular_action('sales', 'refunds', 'sales', 'refund')
 def get_order_details_ajax(request):
     """
     Fetch order items to populate the Refund Form.
@@ -1904,7 +1991,7 @@ def refund_view(request):
 
                 # 4. Process Each Returned Item
                 for item in refund_items:
-                    product_id = item.get('product_id')
+                    product_id = cart_product_id(item)
                     variant_id = item.get('variant_id')
                     qty = Decimal(str(item.get('quantity', 0)))
                     price = Decimal(str(item.get('price', 0))) # Refund price
@@ -2181,6 +2268,7 @@ def expense_list(request):
     })
 
 @login_required
+@require_granular_action('sales', 'expenses', 'financial', 'view')
 def expense_invoice(request, pk):
     expense = get_object_or_404(Expense, pk=pk)
     sys_settings = SystemSetting.objects.first()
@@ -2195,7 +2283,7 @@ def calculate_system_cash():
     return account.balance if account else Decimal('0.00')
 
 @login_required
-@require_permission('financial', 'view')
+@require_granular_action('financial', 'statement', 'financial', 'view')
 def financial_statement(request):
     date_from = request.GET.get('date_from')
     date_to = request.GET.get('date_to')
@@ -2306,51 +2394,62 @@ def financial_statement(request):
     }
     return render(request, 'sales/financial_statement.html', context)
 
+def _auto_print_invoice(order):
+    """Send the receipt to the shop's printer when automatic printing is switched on.
+
+    Returns True only when the job was actually handed to a printer, because the browser
+    uses that to decide whether it still has to open the invoice and print it itself.
+    That fallback is what a phone on the shop wifi uses; the desktop app cannot rely on
+    it, since WebView2 ignores window.print() — which is why this server-side route
+    exists at all.
+    """
+    try:
+        from settings.policies import get_policy
+        if not get_policy('receipts.auto_print_invoice'):
+            return False
+        from restaurant.receipt_print import print_receipt_async, receipt_printer_ready
+        if not receipt_printer_ready():
+            return False
+        print_receipt_async(order)
+        return True
+    except Exception:
+        # A printer problem must never fail a sale that is already committed.
+        logger.warning('automatic receipt printing failed', exc_info=True)
+        return False
+
+
 # --- NEW DIRECT PRINT VIEW ---
 @login_required
 def print_receipt_backend(request, pk):
+    """Print the customer receipt straight to the shop's printer, with no browser dialog.
+
+    Rasterised server-side (restaurant/receipt_print.py) rather than handed to the
+    browser: the packaged desktop app shows pages inside WebView2, which ignores
+    window.print() completely — so the browser route printed nothing at all on the till.
     """
-    Generates the invoice HTML internally and sends it to the server's connected printer.
-    Now correctly passes base_url to fix CSS/Image loading issues.
-    """
+    # Outside the try on purpose. Everything below is wrapped in a catch-all that turns
+    # exceptions into a friendly HTTP 200 error payload -- which silently swallowed the
+    # PermissionDenied and printed the receipt anyway.
+    order = get_object_or_404(Order, pk=pk)
+    _assert_may_see_order(request.user, order, 'طباعة الفواتير')
+
     try:
-        order = get_object_or_404(Order, pk=pk)
-        sys_settings = SystemSetting.objects.first()
-        
-        if not sys_settings or not sys_settings.printer_name:
-            return JsonResponse({'status': 'error', 'message': 'لم يتم تحديد طابعة في الإعدادات'})
-
-        # Render the invoice template to a string
-        # Ensure 'print_mode' is True to hide buttons or adjust styles for the physical receipt
-        html_content = render_to_string('sales/invoice.html', {
-            'order': order,
-            'sys_settings': sys_settings,
-            'print_mode': True 
-        }, request=request)
-
-        # CRITICAL: This gets the full root URL of your site (e.g., http://127.0.0.1:8000/)
-        # This allows WeasyPrint to resolve /static/css/style.css to a full absolute path.
-        base_url = request.build_absolute_uri('/')
-
-        # Send to printer
-        success, message = print_html_to_backend(html_content, sys_settings.printer_name, base_url=base_url)
-
-        if success:
-            return JsonResponse({'status': 'success', 'message': message})
-        else:
-            return JsonResponse({'status': 'error', 'message': message})
-
+        from restaurant.receipt_print import print_receipt
+        success, message = print_receipt(order)
+        return JsonResponse({'status': 'success' if success else 'error', 'message': message})
     except Exception as e:
         return JsonResponse({'status': 'error', 'message': str(e)})
 
-# --- NEW: PDF DOWNLOAD VIEW (Using WeasyPrint) ---
+# --- PDF DOWNLOAD VIEW ---
 @login_required
 def download_invoice_pdf(request, pk):
     """
-    Generates a PDF download for the invoice using WeasyPrint.
+    Generates a PDF download for the invoice.
     Usage: /sales/invoice/pdf/<pk>/?size=a4 (or a5)
     """
+    # Same gate as the on-screen invoice — otherwise the PDF is a way around it.
     order = get_object_or_404(Order, pk=pk)
+    _assert_may_see_order(request.user, order)
     sys_settings = SystemSetting.objects.first()
     size = request.GET.get('size', 'a4') # Default to A4
 
@@ -2519,13 +2618,17 @@ def delete_order_ajax(request):
     return JsonResponse({'status': 'error', 'message': 'Invalid Request Method'})
 
 @login_required
-@require_permission('sales', 'edit')
+# The POS screen posts here to save an edit to an order it created. Requiring
+# 'sales:edit' locked out every cashier — pos:create let them ring the order up,
+# then pos:edit was not what the check asked for, so the save came back 403.
+@require_granular_action('sales', 'edit_order', 'pos', 'edit')
 def edit_order_ajax(request):
     # Set here rather than only where the kitchen notification runs: that call sits
     # inside a nested block that some paths skip, and the JSON response below reads
     # this unconditionally — an unset name there is a NameError, i.e. a 500 on a
     # sale that already went through.
     printed_directly = False
+    new_item_ids = None
     if request.method != 'POST':
         return JsonResponse({'status': 'error', 'message': 'Invalid Method'}, status=400)
     
@@ -2630,6 +2733,11 @@ def edit_order_ajax(request):
                 reference_number=str(order.id)
             ).delete()
             # 3. Clear Old Items
+            # Remembered first: the rebuild below recreates every line, so afterwards
+            # there is no way to tell which ones the kitchen has already seen. See
+            # sales/kitchen_delta.py.
+            from sales.kitchen_delta import snapshot as _kitchen_snapshot
+            kitchen_before = _kitchen_snapshot(order.items.filter(is_void=False))
             order.items.all().delete()
         
             # 4. Update Order Metadata
@@ -2711,7 +2819,7 @@ def edit_order_ajax(request):
 
             # Pre-check availability (friendly early error before issuing anything).
             for it in new_items:
-                product = Product.objects.get(id=it['id'])
+                product = Product.objects.get(id=cart_product_id(it))
                 qty = Decimal(str(it['quantity']))
                 sell_unit = it.get('sell_unit', 'box')
                 strips_per_box = it.get('strips_per_box') or product.strips_per_box or 1
@@ -2807,7 +2915,22 @@ def edit_order_ajax(request):
             # Same as submit_order_ajax: an edit that adds/keeps a cafe menu item must
             # still reach the kitchen even though it went through the edit-invoice path.
             from restaurant.services import notify_kitchen_for_order
-            printed_directly = notify_kitchen_for_order(request, order)
+            from sales.kitchen_delta import additions as _kitchen_additions
+
+            # Only what this edit actually added. Passing the whole order here is what
+            # sent already-cooked food back to the kitchen on every edit.
+            added = _kitchen_additions(kitchen_before, order.items.filter(is_void=False))
+            kitchen_items = []
+            for line, quantity in added:
+                # A shallow copy so the printed ticket can say "2 more" without changing
+                # what the check itself records.
+                line.quantity = quantity
+                kitchen_items.append(line)
+
+            printed_directly = notify_kitchen_for_order(request, order, items=kitchen_items)
+            # id:quantity — the ticket page needs the added amount, not the line total.
+            new_item_ids = ['%s:%s' % (line.id, quantity.normalize())
+                            for line, quantity in added]
 
             # 7. Log Activity
             try:
@@ -2871,6 +2994,8 @@ def edit_order_ajax(request):
                 'order_id': order.id,
                 'updated_balance': updated_balance,
                 'printed_directly': printed_directly,
+                'invoice_printed_directly': _auto_print_invoice(order),
+                'new_item_ids': new_item_ids,
             })
         
     except Order.DoesNotExist:

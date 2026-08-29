@@ -19,7 +19,8 @@ from .forms import (
     ProfileUserForm, ProfileDetailsForm, ProfilePasswordChangeForm
 )
 from .models import Role, UserProfile, UserActivityLog, UserIPHistory, SystemError
-from .permissions import require_permission, has_permission, get_best_landing_url
+from .permissions import (require_permission, require_granular_action, has_permission,
+                          has_granular_action, get_best_landing_url)
 
 # ----------------- INICIO AUTH -----------------
 class CustomLoginView(LoginView):
@@ -36,11 +37,22 @@ class CustomLoginView(LoginView):
         return super().form_valid(form)
 
     def get_success_url(self):
-        # We always check for the next parameter first
-        next_url = self.request.GET.get('next')
-        if next_url:
-            return next_url
-
+        # NOT `next=`, even when present. This machine is shared across a shift — a
+        # waiter, a cashier, kitchen staff and a delivery rider all sign in and out of
+        # the SAME browser through the day. `?next=` on the login page is set by
+        # Django's own login_required the moment ANYONE (including a session that has
+        # since expired) hits a page while logged out, and it has nothing to do with
+        # whoever actually types their password in next. Honoring it blindly used to
+        # send THIS person straight to whatever page the PREVIOUS person's session had
+        # been pointed at — which their own role frequently has no permission for at
+        # all, and most pages have no graceful fallback for that: they raise a hard,
+        # unrecoverable "لا تمتلك صلاحية" the instant the page tries to render. That
+        # is exactly the bug reported as "sometimes, with any account, right after
+        # logging in" — going back to the login page and back in cleared `next=` and
+        # it worked, which is what made it look random.
+        # get_best_landing_url is already computed fresh for whoever is actually
+        # signing in right now, so it can never send someone to a page their own role
+        # cannot open.
         return get_best_landing_url(self.request.user)
 
 @login_required
@@ -501,12 +513,15 @@ def role_delete(request, pk):
 
 # ----------------- ACTIVITY LOGS -----------------
 @login_required
-@require_permission('users', 'view')
+@require_granular_action('users', 'logs', 'users', 'view')
 def activity_logs(request):
     logs = UserActivityLog.objects.select_related('user').order_by('-timestamp')[:500]
     return render(request, 'accounts/logs_list.html', {'logs': logs, 'title': 'سجل نشاط النظام'})
 
 @csrf_exempt
+# Writes an attacker-controlled row into SystemError. Unauthenticated it was an open
+# write endpoint: anyone reaching the port could flood the error log with any content.
+@login_required
 def log_js_error(request):
     if request.method == 'POST':
         try:
@@ -632,6 +647,12 @@ def user_sidebar_permissions(request, pk):
     if is_editing_master and not is_current_master:
         raise PermissionDenied('لا تمتلك صلاحيات كافية لتعديل هذه الحساب.')
     
+    # Checkboxes removed on purpose, because they could never do anything:
+    #   pos:desktop / users:view / settings:view - each duplicated its own section toggle,
+    #     which already grants exactly that permission, so the sub-box could never turn it off.
+    #   users:errors / users:broadcast - those pages are gated on superuser / is_admin, which
+    #     sits above role permissions entirely. Offering a toggle implied a control that does
+    #     not exist, which is worse than offering nothing.
     modules = [
         {
             'id': 'dashboard', 'name': 'لوحة التحكم', 'icon': 'fas fa-th-large',
@@ -640,16 +661,34 @@ def user_sidebar_permissions(request, pk):
                 {'id': 'dashboard:revenue', 'name': 'الإيرادات', 'icon': 'fas fa-sack-dollar'},
                 {'id': 'dashboard:stock_value', 'name': 'قيمة المخزون', 'icon': 'fas fa-warehouse'},
                 {'id': 'dashboard:cash_summary', 'name': 'ملخص الخزنة', 'icon': 'fas fa-vault'},
+                {'id': 'dashboard:sales_count', 'name': 'عمليات البيع', 'icon': 'fas fa-receipt'},
+                {'id': 'dashboard:live_operations', 'name': 'مركز العمليات والتدفقات اللحظي',
+                 'icon': 'fas fa-bolt'},
+                {'id': 'dashboard:inventory_tools', 'name': 'أدوات وإحصائيات المخزون',
+                 'icon': 'fas fa-boxes-stacked'},
+                {'id': 'dashboard:top_products', 'name': 'الأكثر مبيعاً ورواجاً',
+                 'icon': 'fas fa-ranking-star'},
+                {'id': 'dashboard:catalog_health', 'name': 'بوصلة صحة البيانات',
+                 'icon': 'fas fa-compass'},
+                {'id': 'dashboard:pricing_tips', 'name': 'فرص تعديل الأسعار والهوامش',
+                 'icon': 'fas fa-tags'},
+                {'id': 'dashboard:supply_alerts', 'name': 'اقتراحات التوريد وإشعارات العملاء',
+                 'icon': 'fas fa-truck-ramp-box'},
             ]
         },
         {
             'id': 'pos', 'name': 'نظام البيع (الكاشير)', 'icon': 'fas fa-calculator',
             'sub_links': [
-                {'id': 'pos:desktop', 'name': 'كاشير الكمبيوتر', 'icon': 'fas fa-desktop'},
                 {'id': 'pos:mobile', 'name': 'موبايل كاشير', 'icon': 'fas fa-mobile-alt'},
                 {'id': 'pos:transfer', 'name': 'تحويل مخزون (من الكاشير)', 'icon': 'fas fa-exchange-alt'},
                 {'id': 'pos:cashier_inbound', 'name': 'الطلبات الواردة (الكاشير)', 'icon': 'fas fa-cash-register'},
                 {'id': 'pos:custody', 'name': 'الجرد والودائع (تقارير الويتر/الطيارين)', 'icon': 'fas fa-mug-saucer'},
+                # Stored under 'sales' but it is a POS action: saving an edit to an
+                # order the cashier already rang up. It used to ride on pos:edit
+                # through require_granular_action's fallback, which stops applying
+                # the moment this page is saved even once -- so it needs its own box.
+                {'id': 'sales:edit_order', 'name': 'تعديل فاتورة محفوظة',
+                 'icon': 'fas fa-pen-to-square', 'fb': 'pos:edit'},
             ]
         },
         # Waiter/kitchen/delivery are now their own permission modules (restaurant/views.py
@@ -671,14 +710,33 @@ def user_sidebar_permissions(request, pk):
         {
             'id': 'financial', 'name': 'الخزنة والشيفتات', 'icon': 'fas fa-vault',
             'sub_links': [
-                {'id': 'financial:open_shift', 'name': 'فتح وردية', 'icon': 'fas fa-door-open'},
-                {'id': 'financial:close_shift', 'name': 'إغلاق وردية', 'icon': 'fas fa-lock'},
+                # fb: 'pos:create' — the same functional-cashier fallback
+                # cashier_can_open_shift/cashier_can_close_shift use: whoever can ring up
+                # a POS sale can run their own shift, unless an admin deliberately picks
+                # specific financial actions for them. Without 'fb' here, this box always
+                # pre-filled UNCHECKED for exactly that majority case (nothing had ever
+                # written the literal string 'open_shift' into their permissions before),
+                # so the very first save of ANY per-user customization silently dropped
+                # shift access — with no way to tell it apart from a deliberate denial,
+                # and with the شفتات ← "الكاشير يقدر يفتح وردية" system policy having no
+                # effect on it at all once that happened.
+                {'id': 'financial:open_shift', 'name': 'فتح وردية', 'icon': 'fas fa-door-open',
+                 'fb': 'pos:create'},
+                {'id': 'financial:close_shift', 'name': 'إغلاق وردية', 'icon': 'fas fa-lock',
+                 'fb': 'pos:create'},
                 {'id': 'financial:shift_history', 'name': 'سجل الورديات', 'icon': 'fas fa-clock-rotate-left'},
                 {'id': 'financial:shift_report', 'name': 'تقرير الوردية (X)', 'icon': 'fas fa-receipt'},
                 {'id': 'financial:withdraw', 'name': 'سحب نقدي', 'icon': 'fas fa-money-bill-wave'},
                 {'id': 'financial:manage', 'name': 'إضافة عملية مالية (إيداع/تحويل/مصروف)', 'icon': 'fas fa-money-bill-transfer'},
                 {'id': 'financial:accounts', 'name': 'دليل الحسابات', 'icon': 'fas fa-book'},
-                {'id': 'financial:payroll', 'name': 'رواتب الموظفين والسلف', 'icon': 'fas fa-money-check-dollar'},
+                # 'payroll' was a key nothing enforced. These two are what the
+                # salary and advance pages actually check, and both carry the
+                # fallback their views use, so a user who reaches them today by
+                # holding financial:view still arrives with the box ticked.
+                {'id': 'financial:salaries', 'name': 'رواتب الموظفين',
+                 'icon': 'fas fa-money-check-dollar', 'fb': 'financial:view'},
+                {'id': 'financial:advances', 'name': 'سلف الموظفين',
+                 'icon': 'fas fa-hand-holding-dollar', 'fb': 'financial:view'},
                 {'id': 'financial:deals', 'name': 'العروض والخصومات', 'icon': 'fas fa-tags'},
                 {'id': 'financial:reports', 'name': 'التقارير المالية (ملخص/ربحية/تحليلات/قوائم)', 'icon': 'fas fa-chart-pie'},
             ]
@@ -756,16 +814,12 @@ def user_sidebar_permissions(request, pk):
         {
             'id': 'users', 'name': 'إدارة الصلاحيات والمستخدمين', 'icon': 'fas fa-users-gear',
             'sub_links': [
-                {'id': 'users:view', 'name': 'المستخدمين والأدوار', 'icon': 'fas fa-users-cog'},
                 {'id': 'users:logs', 'name': 'سجلات الأنشطة', 'icon': 'fas fa-history'},
-                {'id': 'users:errors', 'name': 'سجل أخطاء النظام', 'icon': 'fas fa-bug'},
-                {'id': 'users:broadcast', 'name': 'بث إشعار عام', 'icon': 'fas fa-bullhorn'},
             ]
         },
         {
             'id': 'settings', 'name': 'الإدارة والنظام (الإعدادات)', 'icon': 'fas fa-sliders',
             'sub_links': [
-                {'id': 'settings:view', 'name': 'إعدادات النظام', 'icon': 'fas fa-cogs'},
             ]
         },
     ]
@@ -786,11 +840,6 @@ def user_sidebar_permissions(request, pk):
             for module, actions in role.permissions.items():
                 role_actions.setdefault(module, set()).update(actions)
 
-        new_perms = {}
-
-        # Collect all unique top-level module IDs handled by this form
-        all_module_ids = [m['id'] for m in modules]
-
         # Build a map of sub-links per module for splitting: 'mod' -> [action, ...]
         sub_links_map = {}  # e.g. {'sales': ['orders', 'reports', ...], 'financial': ['statement']}
         for m in modules:
@@ -803,12 +852,24 @@ def user_sidebar_permissions(request, pk):
                         sub_links_map[sub_mod] = []
                     sub_links_map[sub_mod].append(sub_act)
 
+        new_perms = {}
+
+        # Collect all unique top-level module IDs handled by this form
+        all_module_ids = [m['id'] for m in modules]
+
         for m in modules:
             mid = m['id']
             if mid in selected_set:
-                # Module is checked: grant 'view' access, preserving any create/edit/delete
-                # actions already granted by the user's role(s) for this module.
-                preserved = (role_actions.get(mid, set()) - {'__denied__'})
+                # Module is checked: grant 'view', and carry over the role's actions that
+                # this form has no checkbox for (create/edit/delete/manage on most
+                # modules) so ticking a section does not silently wipe them.
+                #
+                # Only those, though. Preserving *every* role action also re-added the
+                # ones the admin had just unticked, which made every sub-action the role
+                # happened to grant impossible to switch off for a single user — the box
+                # moved, the saved permissions did not.
+                expressible = set(sub_links_map.get(mid, []))
+                preserved = (role_actions.get(mid, set()) - {'__denied__'}) - expressible
                 new_perms[mid] = sorted(preserved | {'view'})
             else:
                 # Module is NOT checked: explicit deny to override any role permission
@@ -825,9 +886,12 @@ def user_sidebar_permissions(request, pk):
                     # sub_mod might be a secondary module (e.g. 'financial' under 'sales')
                     new_perms[sub_mod] = ['view', sub_act]
                 elif '__denied__' in new_perms.get(sub_mod, []):
-                    # Parent module was denied but a sub-link was checked; this shouldn't happen
-                    # with our JS, but just in case, grant it.
-                    new_perms[sub_mod] = ['view', sub_act]
+                    # Parent module denied but one of its sub-links ticked. This is normal
+                    # for a cross-module link (sales:edit_order sits under the POS section
+                    # while the section for 'sales' itself may be off). Grant the single
+                    # action and nothing else -- adding 'view' here handed out the whole
+                    # module's landing pages as a side effect.
+                    new_perms[sub_mod] = [sub_act]
         
         # Handle special cross-module sub-link: financial:statement is shown under sales section
         # but stored under 'financial' module. If 'financial:statement' is selected,
@@ -861,7 +925,12 @@ def user_sidebar_permissions(request, pk):
         for sub in m.get('sub_links', []):
             if ':' in sub['id']:
                 sub_mod, sub_act = sub['id'].split(':')
-                sub['has_access'] = (sub_mod in current_perms and (sub_act in current_perms[sub_mod] or 'all' in current_perms[sub_mod]))
+                if sub.get('fb'):
+                    fb_mod, fb_act = sub['fb'].split(':')
+                    sub['has_access'] = has_granular_action(
+                        user_obj, sub_mod, sub_act, fb_mod, fb_act)
+                else:
+                    sub['has_access'] = (sub_mod in current_perms and (sub_act in current_perms[sub_mod] or 'all' in current_perms[sub_mod]))
                 sub['is_direct'] = (sub_mod in dp and sub_act in dp[sub_mod] and '__denied__' not in dp[sub_mod])
                 sub['is_denied'] = (sub_mod in dp and '__denied__' in dp[sub_mod])
 

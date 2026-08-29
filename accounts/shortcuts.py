@@ -8,7 +8,12 @@ from django.urls import reverse, NoReverseMatch
 # key, label, icon (Font Awesome), section, (module, action) or None, master_only
 AVAILABLE_SHORTCUTS = [
     # ── الرئيسية ──
-    ('dashboard',                    'الرئيسية',           'fa-gauge-high',            'الرئيسية',            None,                    False),
+    # Not None: the dashboard is gated on dashboard.view like any other page. Leaving it
+    # unconditional made it look available to everyone, and since it is the first entry
+    # here it became the landing page for every role without one of its own — so a
+    # stock-keeper, an accountant or a CRM user logging in was sent straight to a page
+    # they are not allowed to open, and met "ممنوع" instead of their own screen.
+    ('dashboard',                    'الرئيسية',           'fa-gauge-high',            'الرئيسية',            ('dashboard', 'view'),   False),
     ('pos_view',                     'نقطة البيع',         'fa-cash-register',         'الرئيسية',            ('pos', 'view'),          False),
 
     # ── المبيعات ──

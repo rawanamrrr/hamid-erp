@@ -98,10 +98,31 @@ def user_capabilities(request):
         can_view_profit = False
         can_edit_price = False
         can_change_unit = True
+
+    # Two shift actions the sidebar used to offer unconditionally inside the vault menu.
+    # Opening a shift needs its own per-user flag, and the X report is gated on
+    # financial:shift_report falling back to pos.view — so an accountant, who has neither,
+    # was shown both links and got "ممنوع" on each. The menu now asks the same questions
+    # the views do.
+    can_open_shift = False
+    can_see_shift_report = False
+    try:
+        from accounts.permissions import cashier_can_open_shift, has_granular_action
+        user = getattr(request, 'user', None)
+        if user is not None and user.is_authenticated:
+            can_open_shift = cashier_can_open_shift(user)
+            can_see_shift_report = has_granular_action(
+                user, 'financial', 'shift_report', 'pos', 'view')
+    except Exception:
+        can_open_shift = False
+        can_see_shift_report = False
+
     return {
         'can_view_profit': can_view_profit,
         'can_edit_price': can_edit_price,
         'can_change_unit': can_change_unit,
+        'can_open_shift': can_open_shift,
+        'can_see_shift_report': can_see_shift_report,
     }
 
 

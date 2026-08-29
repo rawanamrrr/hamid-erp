@@ -128,7 +128,7 @@
     <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-3">
         <div class="col-span-full text-center py-16 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200">
             <i class="fa-solid fa-chair text-3xl text-gray-300 mb-3"></i>
-            <p class="text-gray-500 text-sm mb-4">لا توجد ترابيزات مُعرّفة لهذا الفرع — مش لازم تضيف ترابيزات عشان تاخد أوردر.</p>
+            <p class="text-gray-500 text-sm mb-4">لا توجد طاولات معرّفة لهذا الفرع — لا يلزم إضافة طاولات لاستقبال الطلبات.</p>
             <button onclick="startOrderWithoutTable()" class="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-sm transition-colors">
                 <i class="fa-solid fa-bag-shopping text-xs ml-1"></i> ابدأ طلب جديد بدون ترابيزة
             </button>
@@ -196,7 +196,7 @@
 
             <template x-if="wcm.step === 'new'">
                 <div class="space-y-2.5">
-                    <p class="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">مفيش عميل مسجل بالرقم ده — أضف اسمه فقط.</p>
+                    <p class="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">لا يوجد عميل مسجَّل بهذا الرقم — يُرجى إضافة الاسم فقط.</p>
                     <div>
                         <label class="block text-xs font-bold text-gray-500 mb-1">رقم الموبايل</label>
                         <input type="tel" x-model="wcm.phone" dir="ltr" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm bg-gray-50" disabled>

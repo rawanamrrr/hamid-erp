@@ -101,26 +101,28 @@
         // So on desktop we perform exactly ONE navigation — to the print page — and pass
         // the onward destination as ?next=, which the print templates' إغلاق button uses
         // instead of history.back(). Same end result, one navigation.
+        // ALWAYS one navigation, no popup at all — the desktop app forced this originally
+        // (WebView2 has a single window, so a popup plus a same-tick navigation raced and
+        // blanked the whole app), but a regular browser tab needs it just as badly: a
+        // popup pre-opened blank and filled in later, once the save request finishes, is
+        // exactly what mobile Safari/Chrome tend to foreground the instant it opens. If
+        // that fetch is slow, gets suspended because the tab holding it went to the
+        // background, or the fill-in call itself gets treated as un-trusted because it
+        // runs inside an async .then() rather than the tap itself, the person is left
+        // staring at a tab that never became anything but blank — reported as "make an
+        // order from the waiter page on mobile, sometimes navigates to a blank page."
+        // ?then=<url> is read by every print template's own afterprint handler
+        // (sales/invoice.html, restaurant/kitchen_ticket.html, crm/payment_receipt.html)
+        // and advances there automatically once printing is done — no popup needed.
         window.PrintNav = {
             go: function (preOpenedWin, printUrl, nextUrl) {
-                if (window.pywebview) {
-                    // Defence in depth: if a real blank popup somehow got opened anyway
-                    // (e.g. the shim above was bypassed), close it — otherwise it sits
-                    // there as an empty window and becomes the visible "black screen"
-                    // the moment the print dialog is dismissed.
-                    if (preOpenedWin && typeof preOpenedWin.close === 'function') {
-                        try { preOpenedWin.close(); } catch (e) { /* not ours to close */ }
-                    }
-                    var sep = printUrl.indexOf('?') === -1 ? '?' : '&';
-                    window.location.href = printUrl + sep + 'next=' + encodeURIComponent(nextUrl);
-                    return;
+                // Any blank tab a caller pre-opened (the old popup-blocker workaround) is
+                // dead weight now — close it rather than leaving an empty tab behind.
+                if (preOpenedWin && typeof preOpenedWin.close === 'function') {
+                    try { preOpenedWin.close(); } catch (e) { /* not ours to close */ }
                 }
-                if (preOpenedWin && !preOpenedWin.closed) {
-                    preOpenedWin.location.href = printUrl;
-                } else {
-                    window.open(printUrl, '_blank');
-                }
-                if (nextUrl) window.location.href = nextUrl;
+                var sep = printUrl.indexOf('?') === -1 ? '?' : '&';
+                window.location.href = printUrl + sep + 'then=' + encodeURIComponent(nextUrl);
             },
         };
     </script>

@@ -8,8 +8,6 @@
     .wo-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
     .wo-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 999px; }
     .wo-scrollbar::-webkit-scrollbar-track { background: transparent; }
-    .wo-cat-chip { scroll-snap-align: start; }
-    .wo-cat-rail { scroll-snap-type: x proximity; }
     @keyframes wo-pop { 0% { transform: scale(0.9); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
     .wo-pop-in { animation: wo-pop .18s ease-out; }
     @keyframes wo-toast-in { from { transform: translateX(-16px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
@@ -110,17 +108,20 @@
             </script>
             <script type="application/json" id="product-specs-data">{{ product_specs_json|default:"{}"|safe }}</script>
 
-            <!-- Category chips -->
-            <div class="flex items-center gap-2 overflow-x-auto pb-3 mb-3 -mx-1 px-1 wo-cat-rail wo-scrollbar">
+            <!-- Category chips — wraps onto as many rows as needed instead of scrolling
+                 sideways, so every category is visible at a glance on any screen size,
+                 phone included. Compact on purpose: this is a filter bar, not a menu in
+                 its own right. -->
+            <div class="flex flex-wrap items-center gap-2 mb-4">
                 <button @click="activeCategory = 'all'"
-                        :class="activeCategory === 'all' ? 'bg-emerald-600 text-white border-emerald-600 shadow-md shadow-emerald-100' : 'bg-white text-gray-500 border-gray-200 hover:border-emerald-300 hover:text-emerald-700'"
-                        class="wo-cat-chip shrink-0 px-4 py-2 rounded-full text-xs font-black border transition-all whitespace-nowrap">
+                        :class="activeCategory === 'all' ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm shadow-emerald-100' : 'bg-white text-gray-500 border-gray-200 hover:border-emerald-300 hover:text-emerald-700'"
+                        class="px-3 py-1.5 rounded-full text-xs font-black border transition-all whitespace-nowrap">
                     <i class="fa-solid fa-border-all ml-1 text-[10px] opacity-70"></i> الكل
                 </button>
                 {% for cat in categories %}
                 <button @click="activeCategory = {{ cat.id }}"
-                        :class="activeCategory === {{ cat.id }} ? 'bg-emerald-600 text-white border-emerald-600 shadow-md shadow-emerald-100' : 'bg-white text-gray-500 border-gray-200 hover:border-emerald-300 hover:text-emerald-700'"
-                        class="wo-cat-chip shrink-0 px-4 py-2 rounded-full text-xs font-black border transition-all whitespace-nowrap">
+                        :class="activeCategory === {{ cat.id }} ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm shadow-emerald-100' : 'bg-white text-gray-500 border-gray-200 hover:border-emerald-300 hover:text-emerald-700'"
+                        class="px-3 py-1.5 rounded-full text-xs font-black border transition-all whitespace-nowrap">
                     {{ cat.name }}
                 </button>
                 {% endfor %}
@@ -130,8 +131,8 @@
             <div class="max-h-[calc(100vh-15rem)] overflow-y-auto wo-scrollbar pr-1 -mr-1">
                 {% for cat in categories %}
                 <div class="mb-6" x-show="(activeCategory === 'all' || activeCategory === {{ cat.id }}) && categoryHasMatch({{ cat.id }})">
-                    <h3 class="text-xs font-black text-gray-400 uppercase tracking-wide mb-2.5 flex items-center gap-2 sticky top-0 bg-white/95 backdrop-blur-sm py-1 z-10">
-                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> {{ cat.name }}
+                    <h3 class="text-sm font-black text-gray-500 uppercase tracking-wide mb-3 flex items-center gap-2 sticky top-0 bg-white/95 backdrop-blur-sm py-1.5 z-10">
+                        <span class="w-2 h-2 rounded-full bg-emerald-400"></span> {{ cat.name }}
                     </h3>
                     <div class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3">
                         {% for p in cat.products.all %}
@@ -407,7 +408,7 @@
 
             <template x-if="wcm.step === 'new'">
                 <div class="space-y-3">
-                    <p class="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">مفيش عميل مسجل بالرقم ده — أضف اسمه فقط.</p>
+                    <p class="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">لا يوجد عميل مسجَّل بهذا الرقم — يُرجى إضافة الاسم فقط.</p>
                     <div>
                         <label class="block text-xs font-bold text-gray-500 mb-1">رقم الموبايل</label>
                         <input type="tel" x-model="wcm.phone" dir="ltr" class="w-full border border-gray-200 rounded-xl p-3 text-sm bg-gray-50" disabled>
@@ -437,7 +438,7 @@
             </div>
 
             <p class="text-xs text-gray-500 bg-gray-50 border border-gray-100 rounded-xl px-3 py-2 mb-3">
-                حدّد الأصناف اللي هتتدفع دلوقتي — هتتحول لفاتورة منفصلة وتُدفع بالكامل. الباقي هيفضل على نفس الشيك مفتوح.
+                حدّد الأصناف التي سيتم دفعها الآن — سيتم تحويلها إلى فاتورة منفصلة تُدفع بالكامل، وستبقى بقية الأصناف على نفس الشيك المفتوح.
             </p>
 
             <div class="space-y-1.5 mb-4">
@@ -543,7 +544,9 @@ function waiterOrder() {
             // Opened HERE, synchronously inside the click, for the same reason closeCheck
             // does it: a window.open() issued later from the fetch's .then() has lost the
             // user gesture and mobile browsers silently block it.
-            const splitReceiptWin = window.open('', '_blank');
+            // PrintNav.go now always does a single navigation, so there is nothing
+            // left to pre-open a blank tab for.
+            const splitReceiptWin = null;
             const amount = this.splitEstimatedTotal();
             const payments = {cash: 0, wallet: 0, instapay: 0, visa: 0};
             payments[this.split.method] = amount.toFixed(2);
@@ -849,7 +852,9 @@ function waiterOrder() {
             // browser still counts it as a direct result of the user's click — a
             // popup opened from inside an async callback gets silently blocked by most
             // browsers. Its URL is only filled in once the order actually saved.
-            const printWin = this.printKitchenTicket ? window.open('', '_blank') : null;
+            // PrintNav.go now always does a single navigation, so there is nothing
+            // left to pre-open a blank tab for.
+            const printWin = null;
             fetch(this.addItemsUrl, {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken')},
@@ -874,9 +879,17 @@ function waiterOrder() {
                     // tab, this call is what CREATES the order, so this.orderId (set
                     // from the page's initial server-render) is still null at this point.
                     // Same single-navigation rule as closeCheck below — see PrintNav.
+                    //
+                    // ?items= limits the ticket to the lines just sent. A second round on
+                    // the same table used to reprint the whole check, so the kitchen was
+                    // handed the tea it made half an hour ago along with the new coffee —
+                    // and had no way to tell which was which.
+                    const sent = (data.new_item_ids || []).join(',');
+                    const ticketUrl = `/restaurant/order/${data.order_id}/ticket/`
+                                    + (sent ? `?items=${sent}` : '');
                     window.PrintNav.go(
                         printWin,
-                        `/restaurant/order/${data.order_id}/ticket/`,
+                        ticketUrl,
                         "{% url 'restaurant:waiter_tables' %}");
                     return;
                 }
@@ -942,7 +955,9 @@ function waiterOrder() {
             // from a user gesture and gets silently blocked by mobile popup blockers
             // (this is exactly why nothing appeared to print for the waiter before).
             // Navigated to the real receipt once the close actually succeeds below.
-            const receiptWin = window.open('', '_blank');
+            // PrintNav.go now always does a single navigation, so there is nothing
+            // left to pre-open a blank tab for.
+            const receiptWin = null;
             const body = new URLSearchParams(params);
             fetch(`/restaurant/order/${this.orderId}/close/`, {
                 method: 'POST', headers: {'X-CSRFToken': getCookie('csrftoken'), 'Content-Type': 'application/x-www-form-urlencoded'},
@@ -955,6 +970,14 @@ function waiterOrder() {
                     // PrintNav, not two separate navigations — in the desktop app both
                     // assignments hit the SAME window and racing them blanks it out
                     // (that was this screen's "close check → print" black-screen crash).
+                    // Nothing left for the browser to print when the receipt already
+                    // came out of the shop's printer — showing the preview anyway just
+                    // leaves a spent page for the waiter to dismiss.
+                    if (data.invoice_printed_directly) {
+                        if (receiptWin) { try { receiptWin.close(); } catch (e) {} }
+                        window.location.href = "{% url 'restaurant:waiter_tables' %}";
+                        return;
+                    }
                     window.PrintNav.go(
                         receiptWin,
                         `/sales/invoice/${this.orderId}/?style=thermal&autoprint=1`,

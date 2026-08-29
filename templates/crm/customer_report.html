@@ -115,7 +115,7 @@
             <span class="bold">الرصيد:</span> 
             <span class="bold" style="float:left; margin-left:10px;">
                 {{ balance|floatformat:2 }} 
-                {% if balance > 0 %}(عليه){% elif balance < 0 %}(له){% else %}(خالص){% endif %}
+                {% if balance > 0 %}(عليه){% elif balance < 0 %}(له){% else %}(مسدَّد){% endif %}
             </span>
             <div style="clear:both;"></div>
         </div>
@@ -222,7 +222,7 @@
                 <span class="label">الرصيد الحالي:</span>
                 <span class="value">
                     {{ balance|floatformat:2 }} ج.م 
-                    {% if balance > 0 %}(عليه){% elif balance < 0 %}(له){% else %}(خالص){% endif %}
+                    {% if balance > 0 %}(عليه){% elif balance < 0 %}(له){% else %}(مسدَّد){% endif %}
                 </span>
             </div>
         </div>

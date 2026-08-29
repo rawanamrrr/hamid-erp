@@ -1,5 +1,5 @@
 from django import template
-from accounts.permissions import has_permission
+from accounts.permissions import has_permission, has_granular_action
 
 register = template.Library()
 
@@ -16,6 +16,27 @@ def can_access(user, permission_string):
         return has_permission(user, module, action)
     except ValueError:
         return False
+
+
+@register.filter
+def can_do(user, spec):
+    """Granular menu gate WITH a fallback: "module:action|fallback_module:fallback_action".
+
+    can_access has no fallback, so gating a menu entry on a fine-grained key hid it from
+    every user whose role could not grant that key -- and roles cannot grant most of them,
+    because they only exist as per-user overrides. This mirrors require_granular_action:
+    the fine-grained key wins when present, an explicit per-user entry for the module is
+    authoritative, and otherwise the permission that guarded the page before applies.
+
+    Usage: {% if request.user|can_do:"products:list|products:view" %}
+    """
+    try:
+        primary, fallback = spec.split('|')
+        module, action = primary.split(':')
+        fb_module, fb_action = fallback.split(':')
+    except ValueError:
+        return False
+    return has_granular_action(user, module, action, fb_module, fb_action)
 
 
 @register.filter

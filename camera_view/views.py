@@ -6,6 +6,7 @@ import urllib.parse
 from django.shortcuts import render, get_object_or_404
 from django.http import StreamingHttpResponse
 from django.contrib.auth.decorators import login_required
+from accounts.permissions import require_permission
 from .models import Camera
 
 # Helper to construct the RTSP URL from the database object
@@ -88,6 +89,7 @@ def gen(camera_object):
             continue
 
 @login_required
+@require_permission('settings', 'view')
 def live_feed(request, camera_id, stream_id=2):
     try:
         camera_stream = VideoCamera(camera_id, int(stream_id))
@@ -98,6 +100,7 @@ def live_feed(request, camera_id, stream_id=2):
         return None
 
 @login_required
+@require_permission('settings', 'view')
 def camera_dashboard(request):
     # Fetch all cameras from the database
     cameras = Camera.objects.all()

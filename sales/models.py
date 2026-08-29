@@ -23,6 +23,28 @@ class DocumentSequence(models.Model):
     def __str__(self):
         return f"{self.doc_type}-{self.year}: {self.last_number}"
 
+    # Sequences are normally scoped per year. A plain running number must NOT be, or it
+    # would restart at 1 every January and collide with last year's numbers — and
+    # Order.invoice_number is unique. Year 0 is the "never resets" bucket.
+    NO_YEAR = 0
+
+    @classmethod
+    def next_plain_number(cls, doc_type):
+        """The next number as a plain running integer, e.g. '440', '441'.
+
+        One continuous sequence for the whole shop: a sale rung up at the till and a check
+        opened by a waiter take the next number between them, in the order they happen,
+        with nothing to say which screen produced which. Same row lock as next_number, so
+        two tills can never be handed the same number.
+        """
+        with db_transaction.atomic():
+            seq, _ = cls.objects.select_for_update().get_or_create(
+                doc_type=doc_type, year=cls.NO_YEAR, defaults={'last_number': 0})
+            seq.last_number = models.F('last_number') + 1
+            seq.save(update_fields=['last_number'])
+            seq.refresh_from_db(fields=['last_number'])
+        return str(seq.last_number)
+
     @classmethod
     def next_number(cls, doc_type, year=None, width=5):
         """Return the next formatted document number, e.g. 'INV-2026-00001'."""
@@ -202,6 +224,15 @@ class Order(models.Model):
     invoice_number = models.CharField(max_length=30, unique=True, null=True, blank=True,
                                       db_index=True, verbose_name="رقم الفاتورة")
 
+    # The number the customer and the kitchen actually see: 1, 2, 3... restarting with
+    # every shift, which is what gets called out across a counter. It cannot live in
+    # invoice_number because that column is unique shop-wide — the second shift's receipt
+    # #1 would collide with the first shift's. So invoice_number stays the internal,
+    # never-repeating accounting reference and this is the human-facing one.
+    # Null on orders created with no shift open, and on everything from before the change.
+    shift_number = models.PositiveIntegerField(null=True, blank=True, db_index=True,
+                                               verbose_name="رقم الفاتورة في الشيفت")
+
     # Lifecycle / audit (Phase 1.10) — orders are never hard-deleted; they are voided.
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=STATUS_ACTIVE, db_index=True, verbose_name="حالة الفاتورة")
     revision_no = models.PositiveIntegerField(default=0, verbose_name="رقم المراجعة")
@@ -232,8 +263,70 @@ class Order(models.Model):
 
     @property
     def display_number(self):
-        """Human-facing invoice number, falling back to the DB id for legacy orders."""
+        """The number shown to people: the position of this receipt within its shift.
+
+        Falls back to the shop-wide invoice number (and then the DB id) for orders that
+        were rung up with no shift open, and for everything created before receipts began
+        restarting each shift — rewriting those would change a number already printed on
+        a receipt in someone's hand.
+        """
+        if self.shift_number:
+            return str(self.shift_number)
         return self.invoice_number or f"#{self.id}"
+
+    @property
+    def accounting_number(self):
+        """The shop-wide unique reference, which never restarts.
+
+        display_number repeats every shift, so anything that has to identify one specific
+        invoice for good — e-invoicing, an external ledger — needs this instead.
+        """
+        return self.invoice_number or f"#{self.id}"
+
+    def save(self, *args, **kwargs):
+        """Give every order its invoice number the moment it is created.
+
+        Numbering used to happen only where a cashier sale was finalised, so a check taken
+        by a waiter never got one and showed its database id instead — two different kinds
+        of number depending on which screen the order came from. Doing it here means one
+        continuous sequence covers every order however it was started.
+        """
+        creating = self._state.adding
+        super().save(*args, **kwargs)
+        if creating:
+            assigned = []
+            if not self.invoice_number:
+                self.invoice_number = DocumentSequence.next_plain_number('INV')
+                assigned.append('invoice_number')
+            # The receipt number people read restarts at 1 each shift. An order rung up
+            # with no shift open simply has none, and falls back to invoice_number.
+            if self.shift_number is None and self.shift_id:
+                self.shift_number = self.shift.next_order_number()
+                assigned.append('shift_number')
+            if assigned:
+                # update_fields so this second write touches nothing else — the caller may
+                # have just saved a carefully built row.
+                super().save(update_fields=assigned)
+
+    @property
+    def kitchen_number(self):
+        """Short number for the kitchen ticket, where it is printed very large.
+
+        Now that every order carries a plain running number, this IS the invoice number —
+        so the ticket in the kitchen and the receipt in the customer's hand show the same
+        thing, which is the whole point of calling a number out.
+
+        Orders from before the change still hold a long INV-YYYY-NNNNN number. Fourteen
+        characters printed at ticket size are wider than the 72mm an "80mm" thermal
+        printer can actually put ink on, so a reprint of one of those falls back to the
+        short id rather than running off the edge of the paper.
+        """
+        if self.shift_number:
+            return str(self.shift_number)
+        number = self.invoice_number or ''
+        if number and len(number) <= 8:
+            return number
+        return f"#{self.id}"
 
     @property
     def outstanding(self):

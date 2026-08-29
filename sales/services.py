@@ -17,6 +17,24 @@ from products.inventory_services import issue_stock, available_quantity
 from .models import OrderItem
 
 
+def cart_product_id(line):
+    """The product a cart line refers to, whichever key the caller used.
+
+    The cashier screen sends 'product_id' when creating an invoice and 'id' when editing
+    one — two names for the same thing in the same screen. Most readers already coped by
+    trying both, but not all of them: the edit path's stock pre-check took line['id']
+    outright and raised a bare KeyError('id') on anything that used the other spelling,
+    surfacing to the cashier as "خطأ: 'id'" on a sale they had already taken payment for.
+
+    One definition, used everywhere, so the two spellings can never disagree again. New
+    code should send 'product_id'; 'id' stays accepted because saved drafts and any POS
+    page a browser still has cached are full of it.
+    """
+    if not isinstance(line, dict):
+        return None
+    return line.get('product_id') or line.get('id')
+
+
 def _deduct_recipe(recipe, qty, warehouse, user, order, product_name):
     """Issue stock for every ingredient a recipe needs to make `qty` units of the menu
     item — expanding any SubRecipe rows (e.g. "عجينة") into their own ingredients too,
@@ -71,7 +89,7 @@ def preview_recipe_shortages(cart_items, warehouse):
 
     needed = {}  # ingredient_id -> {'product': Product, 'qty': Decimal}
     for item in cart_items:
-        prod_id = item.get('id') or item.get('product_id')
+        prod_id = cart_product_id(item)
         if not prod_id:
             continue
         product = Product.objects.filter(id=prod_id).first()
@@ -138,7 +156,7 @@ def issue_cart_items(order, cart_items, warehouse, user, applied_deal=None, note
         deal_product_ids = applied_deal.get_scoped_product_ids() or set()
 
     for item in cart_items:
-        prod_id = item.get('id') or item.get('product_id')
+        prod_id = cart_product_id(item)
         product = Product.objects.get(id=prod_id)
         qty = _to_decimal(item.get('quantity') or item.get('qty', 1), '1')
         price = _to_decimal(item.get('price', 0))
@@ -216,12 +234,21 @@ def issue_cart_items(order, cart_items, warehouse, user, applied_deal=None, note
         # a false "exceeded available stock" warning on every single invoice. A product
         # flagged track_stock_no_recipe (bought ready-made) is excluded from this
         # exemption — its stock is real and must be checked.
-        if product.category_id and product.category.is_menu_category and not product.track_stock_no_recipe:
+        is_menu_item = bool(product.category_id and product.category.is_menu_category
+                            and not product.track_stock_no_recipe)
+        if is_menu_item:
             shortfall = Decimal('0')
         else:
             available = available_quantity(product, warehouse)
             shortfall = max(Decimal('0'), deduction_qty - available)
 
+        # allow_negative for a made-to-order item, for the same reason the variant branch
+        # above already does it: the item is prepared on demand, so its finished-good count
+        # is always ~0 and means nothing. Its real cost comes out of the recipe ingredients,
+        # which are deducted later when the kitchen marks it جاهز. Without this the sale of
+        # every menu item with no stock row was refused outright —
+        # "الكمية غير متوفرة ... (المتاح: 0.00)" — even though the two checks either side of
+        # this call both already recognise the item as one that is never stocked.
         item_cost_price = issue_stock(
             product, warehouse, deduction_qty,
             user=user,
@@ -229,7 +256,7 @@ def issue_cart_items(order, cart_items, warehouse, user, applied_deal=None, note
             note=f"{note_prefix} {sell_unit} #{order.id}",
             transaction_type='OUT',
             unit_price=price,
-            allow_negative=allow_negative_stock,
+            allow_negative=allow_negative_stock or is_menu_item,
         )
 
         OrderItem.objects.create(
@@ -295,7 +322,7 @@ def _expand_units(cart_items, product_ids, *, deal_all=False):
     quantity-based promos (BOGO / N-for-price) operate on whole pieces."""
     units = []
     for it in cart_items or []:
-        pid = it.get('id') or it.get('product_id')
+        pid = cart_product_id(it)
         try:
             pid = int(pid)
         except (TypeError, ValueError):
@@ -651,8 +678,8 @@ def split_order_and_pay(order, item_ids, payments, user):
         payment_method=dominant_method, close_type=close_type,
         kitchen_status=order.kitchen_status,
     )
-    new_order.invoice_number = DocumentSequence.next_number('INV')
-    new_order.save(update_fields=['invoice_number'])
+    # Already numbered by Order.save() when the split order was created — see
+    # sales/models.py. Re-assigning here would give it a second, different number.
 
     OrderItem.objects.filter(id__in=[it.id for it in split_items]).update(order=new_order)
 

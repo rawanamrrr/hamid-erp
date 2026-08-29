@@ -67,7 +67,7 @@
             {% endif %}
             <div class="flex justify-between items-center mt-1">
                 <div class="text-xs {% if balance > 0 %}text-red-500{% elif balance < 0 %}text-green-500{% else %}text-gray-400{% endif %}">
-                    {% if balance > 0 %}مديونية مستحقة{% elif balance < 0 %}رصيد دائن (له){% else %}خالص{% endif %}
+                    {% if balance > 0 %}مديونية مستحقة{% elif balance < 0 %}رصيد دائن (له){% else %}مسدَّد{% endif %}
                 </div>
                 
                 <button onclick="openPayModal()" class="text-xs bg-gray-800 text-white px-3 py-1 rounded shadow hover:bg-gray-900 transition font-bold flex items-center gap-1">
@@ -393,7 +393,9 @@
         // Opened here, synchronously, while the click is still the reason we're running:
         // a window.open() issued later from the fetch's .then() has lost the user gesture
         // and mobile browsers block it silently.
-        const receiptWin = window.open('', '_blank');
+        // PrintNav.go now always does a single navigation, so there is nothing
+        // left to pre-open a blank tab for.
+        const receiptWin = null;
 
         fetch('{% url "customer_pay_debt" customer.pk %}', {
             method: 'POST',

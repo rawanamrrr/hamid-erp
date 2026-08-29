@@ -28,6 +28,48 @@
     {% endfor %}
     {% endif %}
 
+    {% comment %}
+      The address to type into a waiter's phone or tablet. Before this it could only be
+      found by opening a command prompt and reading ipconfig, which is not something a
+      cafe owner is going to do — so setting up the first tablet meant a phone call.
+    {% endcomment %}
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-5 mb-5">
+        <div class="flex items-start gap-4 flex-wrap">
+            <div class="p-2.5 bg-sky-50 text-sky-600 rounded-xl shrink-0">
+                <i class="fa-solid fa-wifi text-lg"></i>
+            </div>
+            <div class="min-w-0 flex-1">
+                <h3 class="text-lg font-semibold text-teal-700">الوصول من الموبايل والتابلت</h3>
+                {% if lan_url %}
+                <p class="text-xs text-gray-500 mt-1 leading-relaxed">
+                    اكتب هذا العنوان في متصفح الموبايل أو التابلت — بشرط أن يكون متصلاً بنفس شبكة الواي فاي.
+                </p>
+                <div class="flex items-center gap-2 mt-3 flex-wrap">
+                    <code id="lanUrl" dir="ltr"
+                          class="text-base font-bold bg-slate-900 text-white px-4 py-2 rounded-lg tracking-wide">{{ lan_url }}</code>
+                    <button type="button" onclick="copyLanUrl()"
+                            class="text-sm font-bold px-3 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 flex items-center gap-1.5">
+                        <i class="fa-solid fa-copy"></i> نسخ
+                    </button>
+                    <span id="lanCopied" class="text-xs font-bold text-green-600 hidden">تم النسخ</span>
+                </div>
+                {% if lan_alternatives %}
+                <p class="text-xs text-gray-400 mt-3">
+                    هذا الجهاز متصل بأكثر من شبكة. إذا لم يعمل العنوان أعلاه، جرّب:
+                    {% for alt in lan_alternatives %}
+                    <code dir="ltr" class="bg-gray-100 px-2 py-0.5 rounded mx-1">{{ alt.url }}</code>
+                    {% endfor %}
+                </p>
+                {% endif %}
+                {% else %}
+                <p class="text-xs text-gray-500 mt-1 leading-relaxed">
+                    تعذّر التعرّف على عنوان الجهاز على الشبكة — تأكد أن الجهاز متصل بشبكة واي فاي أو بكابل شبكة.
+                </p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
     <form method="post" enctype="multipart/form-data"
         class="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
         {% csrf_token %}
@@ -371,5 +413,49 @@
             closeGmailHelpModal();
         }
     });
+
+    // Copy the LAN address so it can be sent to a waiter rather than read out digit by
+    // digit. execCommand is the fallback because navigator.clipboard needs a secure
+    // context, and this page is served over plain http on the shop's own network.
+    function copyLanUrl() {
+        const el = document.getElementById('lanUrl');
+        if (!el) return;
+        const text = el.textContent.trim();
+        const done = () => {
+            const flag = document.getElementById('lanCopied');
+            if (!flag) return;
+            flag.classList.remove('hidden');
+            setTimeout(() => flag.classList.add('hidden'), 1800);
+        };
+        const viaTextarea = () => {
+            const helper = document.createElement('textarea');
+            helper.value = text;
+            helper.style.position = 'fixed';
+            helper.style.opacity = '0';
+            document.body.appendChild(helper);
+            helper.select();
+            let copied = false;
+            try { copied = document.execCommand('copy'); } catch (err) { copied = false; }
+            helper.remove();
+            if (copied) { done(); return; }
+            // Genuinely could not copy. Saying "تم النسخ" anyway would send someone to
+            // paste an address that isn't on the clipboard, so select it instead and let
+            // them copy it themselves.
+            const range = document.createRange();
+            range.selectNodeContents(el);
+            const sel = window.getSelection();
+            sel.removeAllRanges();
+            sel.addRange(range);
+        };
+
+        // The clipboard API rejects when the window isn't focused, and swallowing that
+        // would leave the button looking broken — no copy, no message, nothing. Fall
+        // through to the old method instead of giving up.
+        if (navigator.clipboard && window.isSecureContext) {
+            navigator.clipboard.writeText(text).then(done).catch(viaTextarea);
+            return;
+        }
+        viaTextarea();
+    }
 </script>
 {% endblock %}

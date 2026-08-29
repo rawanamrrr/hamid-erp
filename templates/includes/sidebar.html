@@ -227,7 +227,7 @@ html.fav-only-mode #topnav-items > *:not(.fav-show) { display: none; }
             </a>
             {% endif %}
 
-            {% if request.user|can_access:"pos:cashier_inbound" or request.user.is_superuser %}
+            {% if request.user|can_do:"pos:cashier_inbound|pos:view" or request.user.is_superuser %}
             <!-- شاشة الكاشير: قائمة الطلبات الواردة -->
             <a href="{% url 'restaurant:cashier_dashboard' %}" class="tnav-link {% if request.resolver_match.view_name == 'restaurant:cashier_dashboard' %}active{% endif %}">
                 <i class="fas fa-cash-register text-xs"></i>
@@ -251,7 +251,8 @@ html.fav-only-mode #topnav-items > *:not(.fav-show) { display: none; }
             </a>
             {% endif %}
 
-            {% if request.user|can_access:"pos:custody" or request.user.is_superuser %}
+            {% if request.user|can_access:"financial:view" or request.user|can_access:"products:view" or request.user|can_access:"settings:view" or request.user.is_superuser %}
+            {% if request.user|can_do:"pos:custody|pos:view" or request.user.is_superuser %}
             <!-- الجرد والودائع dropdown -->
             <div class="tnav-dropdown" id="dd-restaurant">
                 {% with vn=request.resolver_match.view_name %}
@@ -261,36 +262,46 @@ html.fav-only-mode #topnav-items > *:not(.fav-show) { display: none; }
                     <i class="fas fa-chevron-down text-[9px] opacity-50"></i>
                 </button>
                 <div class="tnav-dropdown-menu" style="min-width:200px">
-                    <a href="{% url 'restaurant:reconciliation_report' %}" class="tnav-sub {% if vn == 'restaurant:reconciliation_report' %}active{% endif %}"><i class="fas fa-scale-balanced text-emerald-400 w-4"></i> تقرير الجرد اليومي</a>
-                    <a href="{% url 'restaurant:waiter_sales_report' %}" class="tnav-sub {% if vn == 'restaurant:waiter_sales_report' %}active{% endif %}"><i class="fas fa-chart-column text-slate-400 w-4"></i> ريبورت مبيعات الويترز</a>
-                    <a href="{% url 'restaurant:driver_owed_report' %}" class="tnav-sub {% if vn == 'restaurant:driver_owed_report' %}active{% endif %}"><i class="fas fa-clipboard-list text-slate-400 w-4"></i> ريبورت مديونية الطيارين</a>
-                    <a href="{% url 'restaurant:category_sales_report' %}" class="tnav-sub {% if vn == 'restaurant:category_sales_report' %}active{% endif %}"><i class="fas fa-layer-group text-slate-400 w-4"></i> مبيعات كل قسم</a>
-                    <a href="{% url 'restaurant:product_sales_report' %}" class="tnav-sub {% if vn == 'restaurant:product_sales_report' %}active{% endif %}"><i class="fas fa-mug-hot text-slate-400 w-4"></i> أفضل الأصناف مبيعاً</a>
-                    <a href="{% url 'restaurant:raw_material_usage_report' %}" class="tnav-sub {% if vn == 'restaurant:raw_material_usage_report' %}active{% endif %}"><i class="fas fa-flask text-teal-400 w-4"></i> استهلاك المواد الخام</a>
-                    <a href="{% url 'restaurant:setup' %}" class="tnav-sub {% if vn == 'restaurant:setup' %}active{% endif %}"><i class="fas fa-gear text-slate-400 w-4"></i> إعداد الترابيزات والطيارين</a>
+                    {% if request.user|can_access:"financial:view" or request.user.is_superuser %}<a href="{% url 'restaurant:reconciliation_report' %}" class="tnav-sub {% if vn == 'restaurant:reconciliation_report' %}active{% endif %}"><i class="fas fa-scale-balanced text-emerald-400 w-4"></i> تقرير الجرد اليومي</a>{% endif %}
+                    {% if request.user|can_access:"financial:view" or request.user.is_superuser %}<a href="{% url 'restaurant:waiter_sales_report' %}" class="tnav-sub {% if vn == 'restaurant:waiter_sales_report' %}active{% endif %}"><i class="fas fa-chart-column text-slate-400 w-4"></i> ريبورت مبيعات الويترز</a>{% endif %}
+                    {% if request.user|can_access:"financial:view" or request.user.is_superuser %}<a href="{% url 'restaurant:driver_owed_report' %}" class="tnav-sub {% if vn == 'restaurant:driver_owed_report' %}active{% endif %}"><i class="fas fa-clipboard-list text-slate-400 w-4"></i> ريبورت مديونية الطيارين</a>{% endif %}
+                    {% if request.user|can_access:"financial:view" or request.user.is_superuser %}<a href="{% url 'restaurant:category_sales_report' %}" class="tnav-sub {% if vn == 'restaurant:category_sales_report' %}active{% endif %}"><i class="fas fa-layer-group text-slate-400 w-4"></i> مبيعات كل قسم</a>{% endif %}
+                    {% if request.user|can_access:"financial:view" or request.user.is_superuser %}<a href="{% url 'restaurant:product_sales_report' %}" class="tnav-sub {% if vn == 'restaurant:product_sales_report' %}active{% endif %}"><i class="fas fa-mug-hot text-slate-400 w-4"></i> أفضل الأصناف مبيعاً</a>{% endif %}
+                    {% if request.user|can_access:"products:view" or request.user.is_superuser %}<a href="{% url 'restaurant:raw_material_usage_report' %}" class="tnav-sub {% if vn == 'restaurant:raw_material_usage_report' %}active{% endif %}"><i class="fas fa-flask text-teal-400 w-4"></i> استهلاك المواد الخام</a>{% endif %}
+                    {% if request.user|can_access:"settings:view" or request.user.is_superuser %}<a href="{% url 'restaurant:setup' %}" class="tnav-sub {% if vn == 'restaurant:setup' %}active{% endif %}"><i class="fas fa-gear text-slate-400 w-4"></i> إعداد الترابيزات والطيارين</a>{% endif %}
                 </div>
                 {% endwith %}
             </div>
             {% endif %}
+            {% endif %}
 
-            {% if request.user|can_access:"financial:view" or request.user.is_superuser %}
+            {% if request.user|can_access:"financial:view" or request.user|can_access:"financial:manage" or request.user|can_access:"financial:salaries" or request.user|can_access:"financial:advances" or request.user|can_access:"financial:accounts" or request.user|can_access:"financial:withdraw" or request.user|can_access:"financial:shift_history" or can_open_shift or can_see_shift_report or request.user.is_superuser %}
             <!-- الخزنة والشيفتات dropdown -->
             <div class="tnav-dropdown" id="dd-vault">
                 {% with vn=request.resolver_match.view_name %}
-                <button type="button" class="tnav-link {% if vn == 'financial:dashboard' or vn == 'financial:start_shift' or vn == 'financial:shift_history' or vn == 'financial:shift_x_report' or vn == 'financial:add_transaction' or vn == 'financial:withdrawal' or vn == 'financial:account_list' or vn == 'financial:account_create' %}active{% endif %}" onclick="toggleDd('dd-vault')">
+                <button type="button" class="tnav-link {% if vn == 'financial:dashboard' or vn == 'financial:start_shift' or vn == 'financial:shift_history' or vn == 'financial:shift_x_report' or vn == 'financial:add_transaction' or vn == 'financial:withdrawal' or vn == 'financial:account_list' or vn == 'financial:account_create' or vn == 'financial:salary_list' or vn == 'financial:advance_list' %}active{% endif %}" onclick="toggleDd('dd-vault')">
                     <i class="fas fa-vault text-xs"></i>
                     <span>الخزنة والشيفتات</span>
                     <i class="fas fa-chevron-down text-[9px] opacity-50"></i>
                 </button>
                 <div class="tnav-dropdown-menu" style="min-width:200px">
-                    <a href="{% url 'financial:dashboard' %}" class="tnav-sub {% if vn == 'financial:dashboard' %}active{% endif %}"><i class="fas fa-vault text-teal-400 w-4"></i> لوحة الخزنة</a>
-                    <a href="{% url 'financial:start_shift' %}" class="tnav-sub {% if vn == 'financial:start_shift' %}active{% endif %}"><i class="fas fa-door-open text-emerald-400 w-4"></i> فتح وردية</a>
-                    <a href="{% url 'financial:shift_history' %}" class="tnav-sub {% if vn == 'financial:shift_history' %}active{% endif %}"><i class="fas fa-clock-rotate-left text-slate-400 w-4"></i> سجل الورديات</a>
-                    <a href="{% url 'financial:shift_x_report' %}" class="tnav-sub {% if vn == 'financial:shift_x_report' %}active{% endif %}"><i class="fas fa-receipt text-indigo-400 w-4"></i> تقرير الوردية (X)</a>
-                    <a href="{% url 'financial:add_transaction' %}" class="tnav-sub {% if vn == 'financial:add_transaction' %}active{% endif %}"><i class="fas fa-plus text-emerald-400 w-4"></i> إضافة عملية مالية</a>
-                    <a href="{% url 'financial:withdrawal' %}" class="tnav-sub {% if vn == 'financial:withdrawal' %}active{% endif %}"><i class="fas fa-hand-holding-dollar text-red-400 w-4"></i> سحب نقدي</a>
-                    <a href="{% url 'financial:account_list' %}" class="tnav-sub {% if vn == 'financial:account_list' %}active{% endif %}"><i class="fas fa-book text-slate-400 w-4"></i> دليل الحسابات</a>
-                    <a href="{% url 'financial:account_create' %}" class="tnav-sub {% if vn == 'financial:account_create' %}active{% endif %}"><i class="fas fa-plus text-slate-400 w-4"></i> إضافة حساب مالي</a>
+                    {% if request.user|can_access:"financial:view" or request.user.is_superuser %}<a href="{% url 'financial:dashboard' %}" class="tnav-sub {% if vn == 'financial:dashboard' %}active{% endif %}"><i class="fas fa-vault text-teal-400 w-4"></i> لوحة الخزنة</a>{% endif %}
+                    {% if can_open_shift %}<a href="{% url 'financial:start_shift' %}" class="tnav-sub {% if vn == 'financial:start_shift' %}active{% endif %}"><i class="fas fa-door-open text-emerald-400 w-4"></i> فتح وردية</a>{% endif %}
+                    {% if request.user|can_do:"financial:shift_history|financial:view" or request.user.is_superuser %}<a href="{% url 'financial:shift_history' %}" class="tnav-sub {% if vn == 'financial:shift_history' %}active{% endif %}"><i class="fas fa-clock-rotate-left text-slate-400 w-4"></i> سجل الورديات</a>{% endif %}
+                    {% if can_see_shift_report %}<a href="{% url 'financial:shift_x_report' %}" class="tnav-sub {% if vn == 'financial:shift_x_report' %}active{% endif %}"><i class="fas fa-receipt text-indigo-400 w-4"></i> تقرير الوردية (X)</a>{% endif %}
+                    {% if request.user|can_access:"financial:manage" or request.user.is_superuser %}<a href="{% url 'financial:add_transaction' %}" class="tnav-sub {% if vn == 'financial:add_transaction' %}active{% endif %}"><i class="fas fa-plus text-emerald-400 w-4"></i> إضافة عملية مالية</a>{% endif %}
+                    {% if request.user|can_do:"financial:withdraw|financial:manage" or request.user.is_superuser %}<a href="{% url 'financial:withdrawal' %}" class="tnav-sub {% if vn == 'financial:withdrawal' %}active{% endif %}"><i class="fas fa-hand-holding-dollar text-red-400 w-4"></i> سحب نقدي</a>{% endif %}
+                    {% if request.user|can_do:"financial:accounts|financial:view" or request.user.is_superuser %}<a href="{% url 'financial:account_list' %}" class="tnav-sub {% if vn == 'financial:account_list' %}active{% endif %}"><i class="fas fa-book text-slate-400 w-4"></i> دليل الحسابات</a>{% endif %}
+                    {% if request.user|can_do:"financial:accounts|financial:manage" or request.user.is_superuser %}<a href="{% url 'financial:account_create' %}" class="tnav-sub {% if vn == 'financial:account_create' %}active{% endif %}"><i class="fas fa-plus text-slate-400 w-4"></i> إضافة حساب مالي</a>{% endif %}
+                    {% if request.user|can_access:"financial:view" or request.user|can_access:"financial:salaries" or request.user|can_do:"financial:advances|financial:view" or request.user.is_superuser %}
+                    <p class="tnav-section-label">الموظفون</p>
+                    {% if request.user|can_access:"financial:view" or request.user|can_access:"financial:salaries" or request.user.is_superuser %}
+                    {% if request.user|can_do:"financial:salaries|financial:view" or request.user.is_superuser %}<a href="{% url 'financial:salary_list' %}" class="tnav-sub {% if vn == 'financial:salary_list' %}active{% endif %}"><i class="fas fa-money-bill-wave text-green-400 w-4"></i> رواتب الموظفين</a>{% endif %}
+                    {% endif %}
+                    {% if request.user|can_access:"financial:view" or request.user|can_do:"financial:advances|financial:view" or request.user.is_superuser %}
+                    <a href="{% url 'financial:advance_list' %}" class="tnav-sub {% if vn == 'financial:advance_list' %}active{% endif %}"><i class="fas fa-hand-holding-dollar text-green-400 w-4"></i> السلف</a>
+                    {% endif %}
+                    {% endif %}
                 </div>
                 {% endwith %}
             </div>
@@ -322,37 +333,28 @@ html.fav-only-mode #topnav-items > *:not(.fav-show) { display: none; }
             </div>
             {% endif %}
 
-            {% if request.user|can_access:"financial:view" or request.user|can_access:"financial:salaries" or request.user|can_access:"financial:advances" or request.user.is_superuser %}
+            {% if request.user|can_access:"financial:view" or request.user.is_superuser %}
             <!-- التقارير dropdown — رواتب/سلف/تقارير مالية, all financial:* pages. Used to
                  be nested inside the "المبيعات" if-block above (sharing its closing
                  endif) even though none of its content is sales-gated — a role with
                  financial:view but not sales access never saw it at all, and vice versa. -->
             <div class="tnav-dropdown" id="dd-reports">
                 {% with vn=request.resolver_match.view_name %}
-                <button type="button" class="tnav-link {% if vn == 'financial:salary_list' or vn == 'financial:advance_list' or vn == 'financial:deal_list' or vn == 'financial:daily_summary' or vn == 'financial:profitability' or vn == 'financial:sales_analytics' or vn == 'financial:financial_position' or vn == 'financial:income_statement' or vn == 'financial:trial_balance' or vn == 'financial:vat_report' %}active{% endif %}" onclick="toggleDd('dd-reports')">
+                <button type="button" class="tnav-link {% if vn == 'financial:deal_list' or vn == 'financial:daily_summary' or vn == 'financial:profitability' or vn == 'financial:sales_analytics' or vn == 'financial:financial_position' or vn == 'financial:income_statement' or vn == 'financial:trial_balance' or vn == 'financial:vat_report' %}active{% endif %}" onclick="toggleDd('dd-reports')">
                     <i class="fas fa-chart-pie text-xs"></i>
                     <span>التقارير</span>
                     <i class="fas fa-chevron-down text-[9px] opacity-50"></i>
                 </button>
                 <div class="tnav-dropdown-menu" style="min-width:240px; max-height:70vh; overflow-y:auto;">
-                    {% if request.user|can_access:"financial:view" or request.user|can_access:"financial:salaries" or request.user|can_access:"financial:advances" or request.user.is_superuser %}
-                    <p class="tnav-section-label">الموظفون</p>
-                    {% if request.user|can_access:"financial:view" or request.user|can_access:"financial:salaries" or request.user.is_superuser %}
-                    <a href="{% url 'financial:salary_list' %}" class="tnav-sub {% if vn == 'financial:salary_list' %}active{% endif %}"><i class="fas fa-money-bill-wave text-green-400 w-4"></i> رواتب الموظفين</a>
-                    {% endif %}
-                    {% if request.user|can_access:"financial:view" or request.user|can_access:"financial:advances" or request.user.is_superuser %}
-                    <a href="{% url 'financial:advance_list' %}" class="tnav-sub {% if vn == 'financial:advance_list' %}active{% endif %}"><i class="fas fa-hand-holding-dollar text-green-400 w-4"></i> السلف</a>
-                    {% endif %}
-                    {% endif %}
                     {% if request.user|can_access:"financial:view" or request.user.is_superuser %}
                     <a href="{% url 'financial:deal_list' %}" class="tnav-sub {% if vn == 'financial:deal_list' %}active{% endif %}"><i class="fas fa-tags text-purple-400 w-4"></i> العروض والخصومات</a>
 
                     <p class="tnav-section-label">التقارير المالية</p>
                     <a href="{% url 'financial:daily_summary' %}" class="tnav-sub {% if vn == 'financial:daily_summary' %}active{% endif %}"><i class="fas fa-calendar-day text-indigo-400 w-4"></i> ملخص اليوم</a>
-                    <a href="{% url 'financial:profitability' %}" class="tnav-sub {% if vn == 'financial:profitability' %}active{% endif %}"><i class="fas fa-sack-dollar text-emerald-400 w-4"></i> الربحية</a>
-                    <a href="{% url 'financial:sales_analytics' %}" class="tnav-sub {% if vn == 'financial:sales_analytics' %}active{% endif %}"><i class="fas fa-chart-line text-blue-400 w-4"></i> تحليلات المبيعات</a>
+                    {% if can_view_profit %}<a href="{% url 'financial:profitability' %}" class="tnav-sub {% if vn == 'financial:profitability' %}active{% endif %}"><i class="fas fa-sack-dollar text-emerald-400 w-4"></i> الربحية</a>{% endif %}
+                    {% if can_view_profit %}<a href="{% url 'financial:sales_analytics' %}" class="tnav-sub {% if vn == 'financial:sales_analytics' %}active{% endif %}"><i class="fas fa-chart-line text-blue-400 w-4"></i> تحليلات المبيعات</a>{% endif %}
                     <a href="{% url 'financial:financial_position' %}" class="tnav-sub {% if vn == 'financial:financial_position' %}active{% endif %}"><i class="fas fa-scale-unbalanced text-slate-400 w-4"></i> المركز المالي</a>
-                    <a href="{% url 'financial:income_statement' %}" class="tnav-sub {% if vn == 'financial:income_statement' %}active{% endif %}"><i class="fas fa-chart-pie text-fuchsia-400 w-4"></i> قائمة الدخل</a>
+                    {% if can_view_profit %}<a href="{% url 'financial:income_statement' %}" class="tnav-sub {% if vn == 'financial:income_statement' %}active{% endif %}"><i class="fas fa-chart-pie text-fuchsia-400 w-4"></i> قائمة الدخل</a>{% endif %}
                     <a href="{% url 'financial:trial_balance' %}" class="tnav-sub {% if vn == 'financial:trial_balance' %}active{% endif %}"><i class="fas fa-balance-scale text-slate-400 w-4"></i> ميزان المراجعة</a>
                     <a href="{% url 'financial:vat_report' %}" class="tnav-sub {% if vn == 'financial:vat_report' %}active{% endif %}"><i class="fas fa-percent text-amber-400 w-4"></i> تقرير ضريبة القيمة المضافة</a>
                     {% endif %}
@@ -378,7 +380,7 @@ html.fav-only-mode #topnav-items > *:not(.fav-show) { display: none; }
                     <a href="{% url 'transaction_list' %}" class="tnav-sub {% if vn == 'transaction_list' %}active{% endif %}"><i class="fas fa-arrows-rotate text-blue-400 w-4"></i> حركة المخزون</a>
                     <a href="{% url 'transaction_create' %}" class="tnav-sub {% if vn == 'transaction_create' %}active{% endif %}"><i class="fas fa-plus text-blue-400 w-4"></i> إضافة حركة مخزون</a>
                     <a href="{% url 'stocktake_list' %}" class="tnav-sub {% if vn == 'stocktake_list' %}active{% endif %}"><i class="fas fa-clipboard-check text-purple-400 w-4"></i> الجرد</a>
-                    <a href="{% url 'stock_alerts' %}" class="tnav-sub {% if vn == 'stock_alerts' %}active{% endif %}"><i class="fas fa-triangle-exclamation text-red-400 w-4"></i> تنبيهات النواقص</a>
+                    {% if request.user|can_do:"products:alerts|products:view" or request.user.is_superuser %}<a href="{% url 'stock_alerts' %}" class="tnav-sub {% if vn == 'stock_alerts' %}active{% endif %}"><i class="fas fa-triangle-exclamation text-red-400 w-4"></i> تنبيهات النواقص</a>{% endif %}
                     <a href="{% url 'stock_valuation' %}" class="tnav-sub {% if vn == 'stock_valuation' %}active{% endif %}"><i class="fas fa-coins text-amber-400 w-4"></i> تقييم المخزون</a>
                     <a href="{% url 'expiry_report' %}" class="tnav-sub {% if vn == 'expiry_report' %}active{% endif %}"><i class="fas fa-hourglass-end text-rose-400 w-4"></i> تقرير الصلاحية</a>
                 </div>
@@ -440,14 +442,14 @@ html.fav-only-mode #topnav-items > *:not(.fav-show) { display: none; }
                     <i class="fas fa-chevron-down text-[9px] opacity-50"></i>
                 </button>
                 <div class="tnav-dropdown-menu" style="min-width:210px; max-height:70vh; overflow-y:auto;">
-                    <a href="{% url 'product_list' %}" class="tnav-sub {% if vn == 'product_list' %}active{% endif %}"><i class="fas fa-list text-teal-400 w-4"></i> قائمة الأصناف</a>
+                    {% if request.user|can_do:"products:list|products:view" or request.user.is_superuser %}<a href="{% url 'product_list' %}" class="tnav-sub {% if vn == 'product_list' %}active{% endif %}"><i class="fas fa-list text-teal-400 w-4"></i> قائمة الأصناف</a>{% endif %}
                     <a href="{% url 'product_create' %}" class="tnav-sub {% if vn == 'product_create' %}active{% endif %}"><i class="fas fa-plus text-teal-400 w-4"></i> إضافة صنف</a>
                     {% if market_type != 'cafe' %}
-                    <a href="{% url 'bulk_product_add' %}" class="tnav-sub {% if vn == 'bulk_product_add' %}active{% endif %}"><i class="fas fa-layer-group text-teal-400 w-4"></i> إضافة أصناف بالجملة</a>
+                    {% if request.user|can_do:"products:bulk_add|products:view" or request.user.is_superuser %}<a href="{% url 'bulk_product_add' %}" class="tnav-sub {% if vn == 'bulk_product_add' %}active{% endif %}"><i class="fas fa-layer-group text-teal-400 w-4"></i> إضافة أصناف بالجملة</a>{% endif %}
                     {% endif %}
-                    <a href="{% url 'product_list' %}?import=1" class="tnav-sub {% if vn == 'import_products_excel' %}active{% endif %}"><i class="fas fa-file-import text-teal-400 w-4"></i> استيراد أصناف</a>
+                    {% if request.user|can_do:"products:list|products:view" or request.user.is_superuser %}<a href="{% url 'product_list' %}?import=1" class="tnav-sub {% if vn == 'import_products_excel' %}active{% endif %}"><i class="fas fa-file-import text-teal-400 w-4"></i> استيراد أصناف</a>{% endif %}
                     <a href="{% url 'low_stock_report' %}" class="tnav-sub {% if vn == 'low_stock_report' %}active{% endif %}"><i class="fas fa-triangle-exclamation text-red-400 w-4"></i> النواقص</a>
-                    <a href="{% url 'costing_view' %}" class="tnav-sub {% if vn == 'costing_view' %}active{% endif %}"><i class="fas fa-calculator text-emerald-400 w-4"></i> أداة التكليف</a>
+                    {% if request.user|can_do:"products:costing|products:view" or request.user.is_superuser %}<a href="{% url 'costing_view' %}" class="tnav-sub {% if vn == 'costing_view' %}active{% endif %}"><i class="fas fa-calculator text-emerald-400 w-4"></i> أداة التكليف</a>{% endif %}
                     <p class="tnav-section-label">الفئات والتصنيفات</p>
                     <a href="{% url 'category_list' %}" class="tnav-sub {% if vn == 'category_list' %}active{% endif %}"><i class="fas fa-folder-tree text-indigo-400 w-4"></i> الفئات (الكاتيجوري)</a>
                     <a href="{% url 'kind_list' %}" class="tnav-sub {% if vn == 'kind_list' %}active{% endif %}"><i class="fas fa-tags text-indigo-400 w-4"></i> الأنواع</a>
@@ -489,7 +491,7 @@ html.fav-only-mode #topnav-items > *:not(.fav-show) { display: none; }
                 </button>
                 <div class="tnav-dropdown-menu" style="min-width:220px">
                     <a href="{% url 'license_activation' %}" class="tnav-sub {% if 'licensing' in request.path %}active{% endif %}"><i class="fas fa-key text-amber-400 w-4"></i> إدارة الترخيص</a>
-                    <a href="{% url 'activity_logs' %}" class="tnav-sub {% if 'logs' in request.path %}active{% endif %}"><i class="fas fa-clipboard-list text-blue-400 w-4"></i> سجل الأنشطة</a>
+                    {% if request.user|can_do:"users:logs|users:view" or request.user.is_superuser %}<a href="{% url 'activity_logs' %}" class="tnav-sub {% if 'logs' in request.path %}active{% endif %}"><i class="fas fa-clipboard-list text-blue-400 w-4"></i> سجل الأنشطة</a>{% endif %}
                     {% if request.user|can_access:"sales:manage" or request.user.is_superuser %}
                     <a href="{% url 'approvals_log' %}" class="tnav-sub {% if 'approvals' in request.path %}active{% endif %}"><i class="fas fa-user-shield text-indigo-400 w-4"></i> سجل الاعتمادات</a>
                     {% endif %}

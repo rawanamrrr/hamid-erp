@@ -1,8 +1,10 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse, HttpResponse
+from django.core.exceptions import PermissionDenied
 from django.views.decorators.csrf import csrf_exempt
-from accounts.permissions import require_permission, require_granular_action, require_granular_action_open  # RBAC (Phase 3.1)
+from accounts.permissions import (require_permission, require_granular_action,  # RBAC (Phase 3.1)
+                                 require_granular_action_open, has_permission)
 from django.db.models import Q, Sum, Value, DecimalField, Count, F
 from django.db.models.functions import Coalesce
 import json
@@ -117,6 +119,7 @@ class CustomerListView(ListView):
 
 
 @method_decorator(login_required, name='dispatch')
+@method_decorator(require_permission('crm', 'create'), name='dispatch')
 class CustomerBulkAddView(View):
     def post(self, request):
         try:
@@ -207,6 +210,7 @@ def _map_customer_row(raw_row):
 
 
 @method_decorator(login_required, name='dispatch')
+@method_decorator(require_permission('crm', 'create'), name='dispatch')
 class CustomerImportView(View):
     def post(self, request):
         upload = request.FILES.get('file')
@@ -283,6 +287,7 @@ class CustomerImportView(View):
 
 
 @method_decorator(login_required, name='dispatch')
+@method_decorator(require_permission('crm', 'view'), name='dispatch')
 class CustomerTemplateDownloadView(View):
     def get(self, request):
         fmt = request.GET.get('format', 'xlsx').lower()
@@ -726,9 +731,26 @@ def customer_delete(request, pk):
 #  POS delivery-screen quick client lookup/create (phone-first flow)
 # ─────────────────────────────────────────────
 
+
+def _require_crm_or_pos(request, action):
+    """Allow the CRM staff who own these records, and the till staff who need them.
+
+    Raising PermissionDenied rather than returning a response so the caller stays a plain
+    view; the JSON error shape these endpoints use is produced by the 403 handler.
+    """
+    if not (has_permission(request.user, 'crm', action)
+            or has_permission(request.user, 'pos', action)):
+        raise PermissionDenied('لا تمتلك صلاحية الوصول لبيانات العملاء.')
+
+
 @login_required
-@require_permission('crm', 'view')
+# Reachable from the CRM screens and from the POS/waiter phone-first delivery flow, so the
+# test is a plain OR of the two, not require_granular_action. That decorator stops
+# consulting its fallback as soon as the module appears in direct_permissions -- and the
+# per-user page writes an entry for every module on every save, so a cashier whose sidebar
+# had ever been saved would silently lose this again.
 def customer_lookup_by_phone(request):
+    _require_crm_or_pos(request, 'view')
     """Used by the POS delivery screen: enter a phone number, get back the matching
     customer (name/address/phone2) if one already exists, so the cashier never has to
     retype anything already on file."""
@@ -754,9 +776,9 @@ def customer_lookup_by_phone(request):
 
 
 @login_required
-@require_permission('crm', 'create')
 @require_POST
 def customer_quick_create(request):
+    _require_crm_or_pos(request, 'create')
     """Creates a customer from the delivery-screen "no existing client" form. The phone
     number was already entered on the lookup screen, so it's taken as-is here rather than
     asked for again."""
@@ -796,9 +818,9 @@ def customer_quick_create(request):
 
 
 @login_required
-@require_permission('crm', 'edit')
 @require_POST
 def customer_quick_update(request, pk):
+    _require_crm_or_pos(request, 'edit')
     """Inline "تعديل" from the delivery-screen lookup result — edits name/address/phone2
     without leaving the POS screen."""
     customer = get_object_or_404(Customer, pk=pk)

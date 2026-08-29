@@ -35,6 +35,7 @@ logger = logging.getLogger(__name__)
 # 80mm thermal head at 203dpi ≈ 576 printable dots. Matches the @page size the HTML
 # ticket template uses, so both routes produce the same physical width.
 TICKET_WIDTH_PX = 576
+TICKET_MARGIN_PX = 14   # side margin, shared with _fit_font
 _FONT_CANDIDATES = [
     r"C:\Windows\Fonts\tahoma.ttf",     # ships with Windows, good Arabic coverage
     r"C:\Windows\Fonts\arial.ttf",
@@ -75,6 +76,23 @@ def _load_font(size):
     return ImageFont.load_default()
 
 
+def _fit_font(draw, text, size, margin=TICKET_MARGIN_PX):
+    """Largest font at or below `size` that still fits the paper width.
+
+    Text drawn wider than the roll is not wrapped or scaled by the printer — it is simply
+    cut off at the edge, silently. A safety net rather than the main mechanism: the number
+    shown here is already chosen to be short, but a shop that changes its numbering
+    scheme should never end up with tickets that print half a number.
+    """
+    available = TICKET_WIDTH_PX - (margin * 2)
+    while size > 12:
+        font = _load_font(size)
+        if draw.textlength(str(text), font=font) <= available:
+            return font
+        size -= 2
+    return _load_font(12)
+
+
 def render_ticket_image(order, items, station_name='تذكرة المطبخ'):
     """Draw the kitchen ticket as a 1-bit bitmap, mirroring the layout of
     templates/restaurant/kitchen_ticket.html so both routes look the same."""
@@ -92,7 +110,7 @@ def render_ticket_image(order, items, station_name='تذكرة المطبخ'):
     img = Image.new('L', (TICKET_WIDTH_PX, 3000), 255)
     d = ImageDraw.Draw(img)
     y = 16
-    M = 14   # side margin
+    M = TICKET_MARGIN_PX   # side margin
 
     def centered(text, font, gap=10):
         nonlocal y
@@ -116,7 +134,13 @@ def render_ticket_image(order, items, station_name='تذكرة المطبخ'):
         y += gap
 
     centered(station_name, f_station, gap=4)
-    centered(str(order.display_number), f_number, gap=6)
+    # kitchen_number, not display_number — a cashier sale's full accounting number
+    # (INV-2026-00267) is far wider than the paper at this size and simply ran off the
+    # edge, so the ticket came out with no readable number on it. The full number goes
+    # underneath in small print so the ticket can still be matched to the receipt.
+    centered(str(order.kitchen_number), _fit_font(d, str(order.kitchen_number), 64), gap=6)
+    if str(order.display_number) != str(order.kitchen_number):
+        centered(str(order.display_number), _fit_font(d, str(order.display_number), 24), gap=6)
 
     if getattr(order, 'table_id', None) and order.table:
         centered(f'ترابيزة {order.table.number}', f_meta, gap=4)

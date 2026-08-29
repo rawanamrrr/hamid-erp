@@ -33,7 +33,7 @@
         <tbody>
             {% for o in orders %}
             <tr class="border-t text-sm">
-                <td class="p-3 font-semibold">{{ o.invoice_number|default:o.id }}</td>
+                <td class="p-3 font-semibold">{{ o.display_number }}</td>
                 <td class="p-3">{{ o.created_at|date:"Y-m-d H:i" }}</td>
                 <td class="p-3">{{ o.get_order_type_display }}</td>
                 <td class="p-3">{% if o.table %}ترابيزة {{ o.table.number }}{% else %}—{% endif %}</td>

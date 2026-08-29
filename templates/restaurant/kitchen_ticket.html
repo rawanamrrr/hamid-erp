@@ -40,6 +40,9 @@
     .toolbar .btn-print:hover { background: #1f2937; }
     h2 { text-align: center; margin: 0 0 4px; font-size: 14px; font-weight: bold; }
     .order-num { text-align: center; margin: 0 0 4px; font-size: 34px; font-weight: 900; line-height: 1.1; }
+    /* The full accounting number, for matching this ticket to the customer's receipt.
+       Small on purpose — the big number above is the one the kitchen calls out. */
+    .invoice-ref { text-align: center; margin: 0 0 4px; font-size: 13px; font-weight: bold; }
     .meta { text-align: center; font-size: 15px; font-weight: bold; margin-bottom: 10px; border-bottom: 2px dashed #000; padding-bottom: 8px; }
     .item { font-size: 19px; font-weight: 900; margin: 8px 0; }
     .item .mods { font-size: 15px; font-weight: bold; margin-right: 12px; }
@@ -107,7 +110,10 @@
     </script>
     <div class="sheet">
     <h2>{{ station.name }}</h2>
-    <div class="order-num">{{ order.display_number }}</div>
+    <div class="order-num">{{ order.kitchen_number }}</div>
+    {% if order.display_number != order.kitchen_number %}
+    <div class="invoice-ref">{{ order.display_number }}</div>
+    {% endif %}
     <div class="meta">
         {% if order.table %}ترابيزة {{ order.table.number }}{% else %}{{ order.get_order_type_display }}{% endif %}<br>
         {{ order.created_at|date:"Y-m-d H:i" }}

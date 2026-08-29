@@ -53,6 +53,12 @@ hiddenimports += [
     # win32ui/win32print push it through the printer driver, and reshaper+bidi are what
     # make Arabic render as joined right-to-left text instead of reversed loose letters.
     'PIL.ImageWin', 'PIL.ImageDraw', 'PIL.ImageFont',
+    # The receipt QR is drawn locally (settings/templatetags/qr_tags.py) instead of being
+    # fetched from api.qrserver.com, which printed a broken image on every offline till.
+    # Named explicitly because that import sits inside a function, in a templatetags module
+    # Django loads by name — and if it went missing the QR would quietly stop printing
+    # rather than fail loudly.
+    'qrcode', 'qrcode.image.pil', 'qrcode.constants',
     'win32ui', 'win32con', 'win32gui', 'arabic_reshaper', 'bidi', 'bidi.algorithm',
     # ASGI + websockets (realtime KDS/waiter/cashier screens) — see the collect_all loop
     # below for the rest of the twisted stack these pull in dynamically.

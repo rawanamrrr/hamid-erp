@@ -80,8 +80,27 @@ class DailyShift(models.Model):
     notes = models.TextField(blank=True, null=True, verbose_name="ملاحظات الإغلاق")
     is_closed = models.BooleanField(default=False, verbose_name="تم الإغلاق")
 
+    # Receipts are numbered 1, 2, 3... within each shift, so the number the cashier calls
+    # out is short and starts fresh every time a shift is opened. This is the counter
+    # behind that; Order.shift_number is where the number lands.
+    last_order_number = models.PositiveIntegerField(default=0, verbose_name="آخر رقم فاتورة في الشيفت")
+
     def __str__(self):
         return f"Shift #{self.id} - {self.employee.username} - {self.start_time.date()}"
+
+    def next_order_number(self):
+        """The next receipt number inside this shift, counting from 1.
+
+        Locked the same way DocumentSequence is: two tills ringing up a sale at the same
+        moment must not both be handed number 7.
+        """
+        with db_transaction.atomic():
+            shift = DailyShift.objects.select_for_update().get(pk=self.pk)
+            shift.last_order_number = F('last_order_number') + 1
+            shift.save(update_fields=['last_order_number'])
+            shift.refresh_from_db(fields=['last_order_number'])
+        self.last_order_number = shift.last_order_number
+        return shift.last_order_number
 
     def calculate_expected_balance(self):
         """
