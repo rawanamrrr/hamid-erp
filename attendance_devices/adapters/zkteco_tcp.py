@@ -53,6 +53,29 @@ class ZKTecoTcpAdapter(AttendanceDeviceAdapter):
             raise AttendanceDeviceError("مكتبة pyzk غير مثبتة على السيرفر.")
         if not self.device.ip_address:
             raise AttendanceDeviceError("لم يتم إدخال عنوان IP للجهاز.")
+
+        # Fast reachability probe, replacing the ping pyzk would otherwise shell out to
+        # (see ommit_ping below). A plain socket does the same job in-process: no
+        # subprocess, so no console window, and it fails in seconds instead of letting
+        # pyzk burn through its full retry budget on a device that simply isn't there.
+        # TCP only — a UDP-mode device won't answer a TCP handshake, so for those we just
+        # go straight to pyzk rather than reject a device that is actually fine.
+        if (self.device.protocol or '').strip().upper() != 'UDP':
+            import socket as _socket
+            probe = _socket.socket(_socket.AF_INET, _socket.SOCK_STREAM)
+            probe.settimeout(min(self.timeout or 10, 5))
+            try:
+                reachable = probe.connect_ex(
+                    (self.device.ip_address, self.device.port or 4370)) == 0
+            except OSError:
+                reachable = False
+            finally:
+                probe.close()
+            if not reachable:
+                raise AttendanceDeviceError(
+                    f"تعذّر الوصول إلى جهاز {self.device.name} على "
+                    f"{self.device.ip_address}:{self.device.port or 4370} — "
+                    "تأكد أن الجهاز متصل بالشبكة وأن عنوان IP صحيح.")
         try:
             zk = ZK(
                 self.device.ip_address,
@@ -60,6 +83,15 @@ class ZKTecoTcpAdapter(AttendanceDeviceAdapter):
                 timeout=self.timeout,
                 password=self._password(),
                 force_udp=(self.device.protocol or '').strip().upper() == 'UDP',
+                # ommit_ping (pyzk's own spelling) — without it, pyzk shells out to
+                # Windows' ping.exe before every single connect, and its subprocess.call
+                # sets no CREATE_NO_WINDOW. The packaged app is windowed (no console of
+                # its own), so Windows gives that ping a brand new console: a black cmd
+                # box that flashes on screen and closes a second later. It fired on every
+                # auto-sync tick, on app start, and on every "مزامنة الآن" click.
+                # Skipping it costs nothing — the socket connect below already fails on
+                # an unreachable device, within this same timeout.
+                ommit_ping=True,
             )
             self._conn = zk.connect()
         except ZKError as e:

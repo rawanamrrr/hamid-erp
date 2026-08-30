@@ -10,12 +10,49 @@ import os
 import sys
 import time
 import socket
+import subprocess
 import threading
 import webbrowser
 from datetime import datetime
 
 PORT = 8085
 WINDOW_TITLE = 'DigiFlow'
+
+
+def _silence_child_console_windows():
+    """Stop any child process from flashing a black console window on screen.
+
+    This app is built windowed (PyInstaller `console=False`), so it owns no console of
+    its own. When anything here spawns a console program, Windows helpfully creates a
+    BRAND NEW console window for it — which appears as a black cmd box that pops up and
+    vanishes a second later, in the middle of whatever the cashier was doing.
+
+    Our own call sites already pass CREATE_NO_WINDOW, but third-party libraries don't and
+    can't be expected to: pyzk shells out to ping.exe before connecting to the attendance
+    device, and the standard library's own `platform` module runs `cmd /c ver` to read the
+    Windows version. Both fired on a normal working day and both were reported as "why
+    does this cmd keep showing?".
+
+    Rather than chase each caller, default `creationflags` to CREATE_NO_WINDOW for every
+    subprocess started anywhere in this process. Callers that pass their own flags are
+    left alone, so nothing that already made a deliberate choice is overridden. Every
+    subprocess helper (run/call/check_output/Popen) funnels through Popen.__init__, so
+    patching that one place covers all of them.
+    """
+    if sys.platform != 'win32':
+        return
+    CREATE_NO_WINDOW = 0x08000000
+    _original_init = subprocess.Popen.__init__
+
+    def _patched_init(self, *args, **kwargs):
+        if not kwargs.get('creationflags'):
+            kwargs['creationflags'] = CREATE_NO_WINDOW
+        return _original_init(self, *args, **kwargs)
+
+    subprocess.Popen.__init__ = _patched_init
+
+
+_silence_child_console_windows()
 
 
 def _app_dir():
