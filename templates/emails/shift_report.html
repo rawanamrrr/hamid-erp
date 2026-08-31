@@ -9,7 +9,8 @@
       {% endif %}
     </div>
     <div style="background:#0f766e;color:#fff;padding:16px 20px;">
-      <h2 style="margin:0 0 8px 0;">MR MEKAWY - تقرير إغلاق الشيفت</h2>
+      {# The shop's own name, matching the logo shown just above it — this email goes to the owner and reads as coming from their business, not from a name baked into the code. #}
+      <h2 style="margin:0 0 8px 0;">{{ system_settings.shop_name|default:"DigiFlow" }} - تقرير إغلاق الشيفت</h2>
       <div style="font-size:13px;line-height:1.8;">
         <div>رقم الشيفت: <strong>#{{ shift.id }}</strong></div>
         <div>وقت الفتح: {{ shift.start_time }}</div>

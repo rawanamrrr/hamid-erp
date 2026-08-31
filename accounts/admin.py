@@ -4,8 +4,8 @@ from django.contrib.auth.admin import UserAdmin, GroupAdmin
 from .models import SystemError
 
 # تعريب عناوين لوحة التحكم الرئيسية
-admin.site.site_header = "إدارة نظام تكس تايل POS"
-admin.site.site_title = "تكس تايل POS"
+admin.site.site_header = "DigiFlow | لوحة الإدارة"
+admin.site.site_title = "DigiFlow Admin"
 admin.site.index_title = "لوحة التحكم الرئيسية"
 
 # يمكننا إلغاء تسجيل النماذج الافتراضية وإعادة تسجيلها إذا أردنا تخصيصها مستقبلاً

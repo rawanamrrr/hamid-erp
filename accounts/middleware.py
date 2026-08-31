@@ -84,29 +84,25 @@ class SystemErrorCaptureMiddleware:
         return None # Let standard Django exception handling continue (show 500 page)
 
     def _alert_admins(self, request, err):
-        """Notify superusers (in-app + email) about a new server error, throttled per
-        exception-type+path so a repeating crash doesn't flood. All best-effort."""
+        """Email superusers about a new server error, throttled per exception-type+path
+        so a repeating crash doesn't flood. All best-effort — an alert that fails must
+        never turn a handled error into a second one."""
         from django.core.cache import cache
         throttle_key = f"err_alert:{err.exception_type}:{err.path}"
         if cache.get(throttle_key):
             return
         cache.set(throttle_key, 1, 600)  # at most one alert per 10 minutes per signature
 
-        # In-app notifications to superusers
-        try:
-            from django.contrib.auth.models import User
-            from notifications.models import Notification
-            sus = User.objects.filter(is_superuser=True, is_active=True)
-            Notification.objects.bulk_create([
-                Notification(
-                    recipient=su,
-                    title=f"⚠️ خطأ في النظام: {err.exception_type}",
-                    message=f"المسار: {err.path} — {err.message[:180]}",
-                    link="/admin/accounts/systemerror/",
-                ) for su in sus
-            ])
-        except Exception:
-            pass
+        # No in-app notification on purpose. This used to bulk-create one per superuser
+        # pointing at /admin/accounts/systemerror/ — the raw Django admin, which is an
+        # internal developer tool and is deliberately kept out of the shop's UI. The
+        # notification was the one thing still surfacing it: a crash would put a bell
+        # alert in front of the owner whose only action was to open that admin page.
+        #
+        # The error itself is still fully recorded — the SystemError row is written by
+        # process_exception() above (with type, path, message and traceback), and the
+        # email alert below still goes out when email is configured. Nothing about
+        # diagnosing a crash is lost; only the link into the admin is gone.
 
         # Email alert (async, no-ops if email isn't configured)
         try:

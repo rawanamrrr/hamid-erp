@@ -1078,7 +1078,9 @@ def product_report_excel(request, pk):
     )
 
     sys_settings = SystemSetting.objects.first()
-    shop_name = sys_settings.shop_name if sys_settings else 'MR MEKAWY'
+    # Falls back to the product name, never a specific shop's name — this is the header
+    # of an exported report, and the settings row it reads is always present in practice.
+    shop_name = (sys_settings.shop_name if sys_settings else '') or 'DigiFlow'
 
     wb = openpyxl.Workbook()
     ws = wb.active
@@ -4023,7 +4025,9 @@ def warehouse_export_excel(request, pk):
     ).exclude(sold_qty=None).order_by('-sold_qty')[:5]
 
     sys_settings = SystemSetting.objects.first()
-    shop_name = sys_settings.shop_name if sys_settings else 'MR MEKAWY'
+    # Falls back to the product name, never a specific shop's name — this is the header
+    # of an exported report, and the settings row it reads is always present in practice.
+    shop_name = (sys_settings.shop_name if sys_settings else '') or 'DigiFlow'
 
     wb = openpyxl.Workbook()
     ws = wb.active

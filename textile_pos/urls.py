@@ -8,8 +8,8 @@ from textile_pos.admin_site import CustomAdminSite
 # Monkey-patch the default admin.site to use our custom class
 # This preserves all existing model registrations from app admin.py files
 admin.site.__class__ = CustomAdminSite
-admin.site.site_header = "MR MEKAWY | لوحة الإدارة"
-admin.site.site_title  = "MR MEKAWY Admin"
+admin.site.site_header = "DigiFlow | لوحة الإدارة"
+admin.site.site_title  = "DigiFlow Admin"
 admin.site.index_title = "لوحة التحكم الرئيسية"
 
 urlpatterns = [
@@ -66,4 +66,4 @@ elif _os.environ.get('DJANGO_SERVE_MEDIA', '').strip().lower() in ('1', 'true', 
             _serve_media,
             {'document_root': settings.MEDIA_ROOT},
         ),
-    ]
+    ]

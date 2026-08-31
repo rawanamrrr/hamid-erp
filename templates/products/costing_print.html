@@ -61,7 +61,8 @@
 
     <div class="print-page">
         <div class="header">
-            <div class="logo">MR MEKAWY <span style="color: #64748b; font-size: 12px; font-weight: bold;">| تقرير تكاليف المنتج</span></div>
+            {# The shop's own name from الإعدادات, not a hard-coded one — this report is printed and handed around, so it must carry the customer's branding. sys_settings comes from settings.context_processors.system_settings, which every template gets. #}
+            <div class="logo">{{ sys_settings.shop_name|default:"DigiFlow" }} <span style="color: #64748b; font-size: 12px; font-weight: bold;">| تقرير تكاليف المنتج</span></div>
             <div style="text-align: left; font-size: 12px; color: #64748b;">
                 التاريخ: {{ costing.created_at|date:"Y-m-d H:i" }}<br>
                 نوع الحسبة: {% if costing.mode == 'RETAIL' %}شراء مباشر{% else %}تصنيع محلي{% endif %}

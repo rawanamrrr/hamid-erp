@@ -150,6 +150,80 @@ def _log(msg):
         pass
 
 
+_SEP = chr(92)   # backslash; registry paths are built with join() to keep them readable
+
+
+def _webview2_status():
+    """Why (if at all) pywebview would refuse to use WebView2 on this machine.
+
+    Returns '' when WebView2 will be used, or a short Arabic reason when it won't.
+
+    Deliberately mirrors pywebview's own `_is_chromium()`
+    (webview/platforms/winforms.py) condition for condition, because that function is
+    what actually decides. If this check is looser than that one, the app sails past this
+    guard and pywebview still drops to the ancient MSHTML/Internet Explorer engine — which
+    renders the UI as raw unstyled HTML with giant icons and no hint as to why. Matching
+    it exactly means every case that would produce that screen is reported here instead.
+
+    Two requirements, not one — missing the .NET check is precisely how a machine with
+    WebView2 installed could still have fallen through:
+      * .NET Framework >= 4.6.2 (release 394802)
+      * a WebView2 runtime build >= 86.0.622.0, in any of the four channels pywebview
+        accepts (stable/beta/dev/canary), per-user or machine-wide
+    """
+    if sys.platform != 'win32':
+        return ''
+    import winreg
+
+    try:
+        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE,
+                            r'SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full') as key:
+            release, _ = winreg.QueryValueEx(key, 'Release')
+        if release < 394802:
+            return 'إصدار .NET Framework قديم (مطلوب 4.6.2 أو أحدث)'
+    except OSError:
+        return '.NET Framework 4.6.2 غير مثبَّت'
+
+    def _at_least(minimum, found):
+        """True when `found` is >= `minimum`, comparing version parts numerically."""
+        try:
+            want = [int(x) for x in minimum.split('.')]
+            got = [int(x) for x in found.split('.')]
+        except (TypeError, ValueError):
+            return False
+        for i, want_part in enumerate(want):
+            got_part = got[i] if i < len(got) else 0
+            if got_part != want_part:
+                return got_part > want_part
+        return True
+
+    # The four channels pywebview accepts; any one of them satisfies it.
+    channels = (
+        '{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}',   # runtime (what the installer ships)
+        '{2CD8A007-E189-409D-A2C8-9AF4EF3C72AA}',   # beta
+        '{0D50BFEC-CD6A-4F9A-964C-C7416E3ACB10}',   # dev
+        '{65C35B14-6C1D-4122-AC46-7148CC9D6497}',   # canary
+    )
+    for guid in channels:
+        for hive, path in (
+            (winreg.HKEY_LOCAL_MACHINE, _SEP.join(('SOFTWARE', 'WOW6432Node', 'Microsoft', 'EdgeUpdate', 'Clients', guid))),
+            (winreg.HKEY_LOCAL_MACHINE, _SEP.join(('SOFTWARE', 'Microsoft', 'EdgeUpdate', 'Clients', guid))),
+            (winreg.HKEY_CURRENT_USER, _SEP.join(('SOFTWARE', 'Microsoft', 'EdgeUpdate', 'Clients', guid))),
+        ):
+            try:
+                with winreg.OpenKey(hive, path) as key:
+                    build, _ = winreg.QueryValueEx(key, 'pv')
+            except OSError:
+                continue
+            if build and _at_least('86.0.622.0', build):
+                return ''
+    return 'مكوّن Microsoft Edge WebView2 غير مثبَّت (أو إصداره قديم جداً)'
+
+
+def _webview2_present():
+    return _webview2_status() == ''
+
+
 def _error_box(text):
     """Show a native Windows message box (no console needed)."""
     try:
@@ -563,6 +637,33 @@ def main():
     # the main thread and returns when the user closes the window → the process then exits.
     try:
         import webview
+
+        # WebView2 missing → pywebview silently falls back to the ANCIENT Internet
+        # Explorer engine (MSHTML) instead of refusing to start. IE cannot run the modern
+        # JavaScript this app is built on: the whole UI is styled by tailwind.js at
+        # runtime, and the POS/waiter/kitchen screens are Alpine + fetch + websockets.
+        # The result is a window that opens and looks catastrophically broken — raw
+        # unstyled HTML with giant icons — with nothing anywhere saying why. That is
+        # exactly what happened on a customer's Windows 10 machine, which (unlike
+        # Windows 11) does not ship the WebView2 runtime.
+        #
+        # The installer now bundles and installs it, so this should never trigger — but
+        # if the runtime is ever removed or the install is copied to another machine by
+        # hand, say so plainly instead of showing a broken screen.
+        _wv_problem = _webview2_status()
+        if _wv_problem:
+            _log(f'FATAL: {_wv_problem} — refusing to fall back to MSHTML')
+            _error_box(
+                'لا يمكن تشغيل البرنامج على هذا الجهاز.'
+                + chr(10) + chr(10)
+                + f'السبب: {_wv_problem}'
+                + chr(10) + chr(10)
+                + 'الحل: أعد تشغيل ملف تثبيت البرنامج (DigiFlow-Setup) — سيقوم بتثبيت المكوّن الناقص تلقائياً.'
+                + chr(10) + chr(10)
+                + f'Cannot start: {_wv_problem}'
+                + chr(10)
+                + 'Re-run the DigiFlow installer, which installs the missing component automatically.')
+            sys.exit(1)
         # window.open()/target="_blank" popups (invoice & draft printing, payment
         # receipts, etc.) must stay inside this window rather than going to the
         # system's default browser — that's a different browser profile with no

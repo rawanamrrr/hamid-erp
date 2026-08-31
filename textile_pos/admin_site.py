@@ -3,8 +3,8 @@ from django.urls import path
 
 
 class CustomAdminSite(AdminSite):
-    site_header  = "MR MEKAWY | لوحة الإدارة"
-    site_title   = "MR MEKAWY Admin"
+    site_header  = "DigiFlow | لوحة الإدارة"
+    site_title   = "DigiFlow Admin"
     index_title  = "لوحة التحكم الرئيسية"
 
     def get_urls(self):

@@ -51,6 +51,13 @@ Source: "dist\DigiFlow\*"; DestDir: "{app}"; Excludes: "data\*,data,*.log"; Flag
 ; when the customer actually opted into installing it (Check), so a SQLite install pays
 ; no time cost for it.
 Source: "vendor\postgresql-setup.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall; Check: ShouldInstallPostgres
+; Microsoft Edge WebView2 runtime — the engine the app's whole UI renders in. Windows 11
+; ships it; Windows 10 generally does NOT, and without it pywebview silently falls back to
+; the old Internet Explorer engine, which cannot run the app's JavaScript at all: the
+; customer gets a window of raw, unstyled HTML and no explanation. The full offline
+; installer is bundled (rather than the ~2 MB bootstrapper) so a till with no internet
+; still ends up with a working program. Extracted only when it's actually missing.
+Source: "vendor\MicrosoftEdgeWebView2RuntimeInstallerX64.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall; Check: ShouldInstallWebView2
 
 [Dirs]
 ; The app writes its database/media here; keep it on uninstall (don't delete customer data).
@@ -69,6 +76,9 @@ Filename: "{tmp}\postgresql-setup.exe"; \
   Parameters: "--mode unattended --unattendedmodeui minimal --disable-components stackbuilder --superpassword ""{code:GetPgPassword}"" --serverport {code:GetPgPort}"; \
   StatusMsg: "جارٍ تثبيت PostgreSQL (قد يستغرق عدة دقائق)... / Installing PostgreSQL..."; \
   Check: ShouldInstallPostgres; Flags: waituntilterminated
+; Must finish BEFORE the app can be launched below — starting DigiFlow without this
+; present is exactly the broken-looking window this bundle exists to prevent.
+Filename: "{tmp}\MicrosoftEdgeWebView2RuntimeInstallerX64.exe";   Parameters: "/silent /install";   StatusMsg: "جارٍ تثبيت مكوّن Microsoft Edge WebView2... / Installing Microsoft Edge WebView2...";   Check: ShouldInstallWebView2; Flags: waituntilterminated
 Filename: "{app}\{#AppExe}"; Description: "{cm:LaunchProgram,{#AppName}}"; Flags: nowait postinstall skipifsilent
 
 [UninstallDelete]
@@ -232,6 +242,63 @@ end;
 function ShouldSkipPage(PageID: Integer): Boolean;
 begin
   Result := (PageID = PgPage.ID) and (not PgOptPage.Values[0]);
+end;
+
+// Is a USABLE WebView2 runtime already on this machine?
+//
+// 'Usable' means what pywebview means by it (webview/platforms/winforms.py::_is_chromium):
+// build 86.0.622.0 or newer, in any of the four channels it accepts. Merely checking that
+// SOME version key exists is not enough -- a machine carrying an OLD WebView2 would be
+// skipped by this installer, and then the app itself would refuse to start because that
+// build is below pywebview's floor. The customer would be left with an error the
+// installer could have fixed. So the version is compared here, exactly as the app does.
+//
+// Note: // comments, not braces -- a Pascal { } comment does not nest, so a { } pair
+// mentioned inside one would close it early and break the compile.
+// Backslashes are built with Chr(92) rather than typed literally, which keeps the
+// registry paths readable and immune to escaping mistakes.
+function WebView2BuildUsable(const Version: string): Boolean;
+var
+  Have, Need: Int64;
+begin
+  Result := False;
+  if Version = '' then Exit;
+  if not StrToVersion(Version, Have) then Exit;
+  if not StrToVersion('86.0.622.0', Need) then Exit;
+  Result := ComparePackedVersion(Have, Need) >= 0;
+end;
+
+function IsWebView2Present(): Boolean;
+var
+  Version, KeyPath, BS: string;
+  Guids: array[0..3] of string;
+  i: Integer;
+begin
+  Result := False;
+  BS := Chr(92);
+  Guids[0] := '{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}';  // stable runtime (what this installer ships)
+  Guids[1] := '{2CD8A007-E189-409D-A2C8-9AF4EF3C72AA}';  // beta
+  Guids[2] := '{0D50BFEC-CD6A-4F9A-964C-C7416E3ACB10}';  // dev
+  Guids[3] := '{65C35B14-6C1D-4122-AC46-7148CC9D6497}';  // canary
+  for i := 0 to 3 do
+  begin
+    KeyPath := 'Microsoft' + BS + 'EdgeUpdate' + BS + 'Clients' + BS + Guids[i];
+    if RegQueryStringValue(HKLM, 'SOFTWARE' + BS + 'WOW6432Node' + BS + KeyPath, 'pv', Version) then
+      if WebView2BuildUsable(Version) then begin Result := True; Exit; end;
+    if RegQueryStringValue(HKLM, 'SOFTWARE' + BS + KeyPath, 'pv', Version) then
+      if WebView2BuildUsable(Version) then begin Result := True; Exit; end;
+    if RegQueryStringValue(HKCU, 'SOFTWARE' + BS + KeyPath, 'pv', Version) then
+      if WebView2BuildUsable(Version) then begin Result := True; Exit; end;
+  end;
+end;
+
+{ Install the bundled runtime when it is missing OR too old to be usable. The Evergreen
+  installer upgrades an existing runtime in place, so this repairs an outdated machine
+  instead of leaving the app to fail on it. A machine that already has a usable build is
+  skipped, so nothing is reinstalled needlessly. }
+function ShouldInstallWebView2(): Boolean;
+begin
+  Result := not IsWebView2Present();
 end;
 
 { Only install the bundled server when PostgreSQL was chosen AND the customer asked for
