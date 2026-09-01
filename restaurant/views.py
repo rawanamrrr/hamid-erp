@@ -6,6 +6,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db import transaction as db_transaction
 from django.db.models import Exists as _Exists, OuterRef as _OuterRef, Prefetch as _Prefetch
+from django.db.models.functions import Length as _Length
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -181,9 +182,11 @@ def restaurant_setup(request):
     # `section.tables.all`, but leaving the unfiltered prefetch here is a trap for the
     # next person who reaches for section.tables in this template.
     sections = Section.objects.filter(branch=branch, is_active=True).prefetch_related(
-        _Prefetch('tables', queryset=Table.objects.filter(is_active=True).select_related('section'))
+        _Prefetch('tables', queryset=Table.objects.filter(is_active=True).select_related('section')
+                  .annotate(_number_len=_Length('number')).order_by('_number_len', 'number'))
     )
-    tables = Table.objects.filter(branch=branch, is_active=True).select_related('section')
+    tables = (Table.objects.filter(branch=branch, is_active=True).select_related('section')
+              .annotate(_number_len=_Length('number')).order_by('section', '_number_len', 'number'))
     drivers = Driver.objects.filter(branch=branch, is_active=True)
 
     return render(request, 'restaurant/setup.html', {
@@ -229,9 +232,11 @@ def waiter_table_map(request):
     # so a deleted table stayed on the waiter map forever. Only tables with no section
     # vanished correctly, because those render from the filtered `tables` list below.
     sections = Section.objects.filter(branch=branch, is_active=True).prefetch_related(
-        _Prefetch('tables', queryset=Table.objects.filter(is_active=True).select_related('section'))
+        _Prefetch('tables', queryset=Table.objects.filter(is_active=True).select_related('section')
+                  .annotate(_number_len=_Length('number')).order_by('_number_len', 'number'))
     )
-    tables = Table.objects.filter(branch=branch, is_active=True).select_related('section')
+    tables = (Table.objects.filter(branch=branch, is_active=True).select_related('section')
+              .annotate(_number_len=_Length('number')).order_by('section', '_number_len', 'number'))
 
     # Table-less orders (started via "طلب جديد بدون ترابيزة") stay open/in-progress just
     # like a table's tab — list them here too, or a waiter has no way back to one once

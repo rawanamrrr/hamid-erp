@@ -35,7 +35,7 @@
      Height on desktop (xl+) is no longer a hardcoded calc() guess — a small script below measures the real remaining
      viewport space and sets it as an inline height, so the whole page fits in one view with zero outer scrolling,
      regardless of header/top-nav height. Below xl, columns stack and the page scrolls normally (unchanged). -->
-<div id="posPageRoot" class="flex flex-col -mt-6 xl:overflow-hidden min-h-[calc(100dvh-96px)] xl:min-h-0">
+<div id="posPageRoot" class="flex flex-col -mt-6 lg:overflow-hidden min-h-[calc(100dvh-96px)] lg:min-h-0">
 
     {% if editing_order %}
     <!-- Compact Edit Mode Banner -->
@@ -53,7 +53,7 @@
 
     <!-- Top Bar: Consolidated and Uniform -->
     <div
-        class="bg-white px-3 py-2 rounded-xl shadow-sm border border-gray-200 mb-2 flex flex-wrap xl:flex-nowrap items-center gap-2.5 w-full">
+        class="bg-white px-3 py-2 rounded-xl shadow-sm border border-gray-200 mb-2 flex flex-wrap lg:flex-nowrap items-center gap-2.5 w-full">
 
         <!-- Right side (RTL): Shift & Help -->
         <!-- Color change: help + shift + warehouse grouped in one neutral gray cluster instead of separate indigo/blue blocks, so colored buttons (customer/drafts/etc.) remain the visual focus -->
@@ -123,7 +123,7 @@
         </div>
 
         <!-- Center: Customer Search -->
-        <div class="flex-1 min-w-[220px] w-full xl:w-auto relative order-3 xl:order-2" id="customerSearchContainer">
+        <div class="flex-1 min-w-[220px] w-full lg:w-auto relative order-3 lg:order-2" id="customerSearchContainer">
             <div class="flex items-center justify-between mb-1">
                 <label class="block text-[11px] font-bold text-gray-500"><i class="fa-solid fa-user text-teal-400 text-[10px]"></i> العميل الحالي <kbd class="text-[9px] opacity-50 bg-gray-100 border border-gray-200 rounded px-1">F4</kbd></label>
                 <div class="flex items-center gap-1">
@@ -227,7 +227,7 @@
         </div>
 
         <!-- Left side: Actions & Shortcuts -->
-        <div class="flex items-center gap-1.5 shrink-0 order-2 xl:order-3 flex-wrap">
+        <div class="flex items-center gap-1.5 shrink-0 order-2 lg:order-3 flex-wrap">
 
             <!-- Add Customer Chip (F6) -->
             <!-- Color change: neutral gray chip style (was colored bg per market type) — colored icon keeps market-type identity without competing with the primary pay button -->
@@ -417,13 +417,13 @@
 
     <!-- ══════════ MAIN POS LAYOUT: 3 COLUMNS ══════════ -->
     <!-- Layout change: stacks vertically (products → cart → payment) below xl breakpoint so tablet/mobile never overflow; unchanged 3-column row on desktop (xl+) -->
-    <div class="flex flex-col xl:flex-row gap-3 flex-1 min-h-0 xl:overflow-hidden overflow-y-auto">
+    <div class="flex flex-col lg:flex-row gap-3 flex-1 min-h-0 lg:overflow-hidden overflow-y-auto">
 
         <!-- ══ COL 1: Products (flex-1, scrollable) ══ -->
-        <!-- Fix: "min-h-[420px]" is a floor meant only for the stacked mobile layout; without "xl:min-h-0" it also
+        <!-- Fix: "min-h-[420px]" is a floor meant only for the stacked mobile layout; without "lg:min-h-0" it also
              forced this column taller than its allotted flex space on desktop, which pushed the whole page into
              an outer scroll instead of letting the Products Grid below scroll internally. -->
-        <div class="flex-1 min-w-0 flex flex-col gap-2 xl:h-full min-h-[420px] xl:min-h-0 overflow-hidden">
+        <div class="flex-1 min-w-0 flex flex-col gap-2 lg:h-full min-h-[420px] lg:min-h-0 overflow-hidden">
             <!-- Search + Category Filters -->
             <div
                 class="bg-white px-3 py-2.5 rounded-xl shadow-sm border border-gray-200 flex gap-3 shrink-0 overflow-x-auto items-center">
@@ -447,7 +447,7 @@
             </div>
 
             <!-- Products Grid -->
-            <div class="flex-1 overflow-y-auto bg-gray-50 p-2.5 rounded-xl border border-gray-200 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-2.5 content-start"
+            <div class="flex-1 overflow-y-auto bg-gray-50 p-2.5 rounded-xl border border-gray-200 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 xl:grid-cols-5 2xl:grid-cols-6 gap-2.5 content-start"
                 id="productsGrid">
                 {% for product in products %}
                 {% with stock_val=product.stock_quantity|floatformat:0 %}
@@ -602,7 +602,7 @@
         <!-- Fix: same min-height floor issue as COL 1 — "xl:min-h-0" lets this column shrink to its allotted flex
              space on desktop so the Cart Items list scrolls internally instead of overflowing the whole page. -->
         <div
-            class="w-full xl:w-[300px] shrink-0 flex flex-col xl:h-full min-h-[280px] xl:min-h-0 max-h-[70vh] xl:max-h-none bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden">
+            class="w-full lg:w-[300px] shrink-0 flex flex-col lg:h-full min-h-[280px] lg:min-h-0 max-h-[70vh] lg:max-h-none bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden">
 
             <!-- Cart Header -->
             <div
@@ -645,7 +645,7 @@
              column grow to fit all its cards instead of shrinking to the row's available height, so the Main
              Checkout Container below couldn't scroll internally and the whole page scrolled instead. -->
         <div
-            class="w-full xl:w-[320px] shrink-0 flex flex-col xl:h-full xl:min-h-0 bg-slate-50 xl:border-r border-t xl:border-t-0 border-gray-200 shadow-[-10px_0_30px_rgba(0,0,0,0.03)] z-30 overflow-hidden">
+            class="w-full lg:w-[320px] shrink-0 flex flex-col lg:h-full lg:min-h-0 bg-slate-50 lg:border-r border-t lg:border-t-0 border-gray-200 shadow-[-10px_0_30px_rgba(0,0,0,0.03)] z-30 overflow-hidden">
 
             <!-- Total Bill Header -->
             <!-- Layout change: tightened vertical padding/margins and slightly smaller total number so this navy header is more compact (less tall) -->
@@ -704,7 +704,7 @@
             <!-- Layout change: was "flex-1 flex flex-col ... gap-2" which relied on flex-grow + a later "mt-auto" on the settlement section to pin it to the bottom.
                  That combination could leave a large unpredictable blank gap above the payment section when the column was taller than its content.
                  Replaced with a plain block-flow scroll container (space-y-3) so every card just stacks in natural order with no fragile flex math. -->
-            <div class="flex-1 xl:overflow-y-auto overflow-x-hidden checkout-scrollbar p-2.5 space-y-3">
+            <div class="flex-1 lg:overflow-y-auto overflow-x-hidden checkout-scrollbar p-2.5 space-y-3">
 
                 <!-- Invoice summary group label -->
                 <div class="text-[10px] font-black text-slate-400 uppercase tracking-wider px-1">ملخص الفاتورة</div>
@@ -6068,19 +6068,20 @@
             const days = Math.floor(diff / (1000 * 60 * 60 * 24));
             const hours = Math.floor((diff / (1000 * 60 * 60)) % 24);
             const minutes = Math.floor((diff / 1000 / 60) % 60);
-            // const seconds = Math.floor((diff / 1000) % 60); // Optional seconds
+            const seconds = Math.floor((diff / 1000) % 60);
 
             let timeString = "";
             if (days > 0) timeString += days + " يوم ";
             timeString += hours.toString().padStart(2, '0') + ":";
-            timeString += minutes.toString().padStart(2, '0') + " دقيقة"; // Added " دقيقة"
+            timeString += minutes.toString().padStart(2, '0') + ":";
+            timeString += seconds.toString().padStart(2, '0');
 
             const timerElement = document.getElementById('shiftTimer');
             if (timerElement) timerElement.textContent = timeString;
         }
 
-        // Update timer every minute
-        setInterval(updateShiftTimer, 60000);
+        // Update timer every second
+        setInterval(updateShiftTimer, 1000);
         // Initial call
         updateShiftTimer();
     </script>
