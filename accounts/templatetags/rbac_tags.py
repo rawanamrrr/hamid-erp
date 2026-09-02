@@ -1,5 +1,5 @@
 from django import template
-from accounts.permissions import has_permission, has_granular_action
+from accounts.permissions import has_permission, has_granular_action, has_granular_action_open
 
 register = template.Library()
 
@@ -37,6 +37,22 @@ def can_do(user, spec):
     except ValueError:
         return False
     return has_granular_action(user, module, action, fb_module, fb_action)
+
+
+@register.filter
+def can_do_open(user, spec):
+    """Granular menu gate for an "open" action (require_granular_action_open) — default
+    ALLOW unless the module has been explicitly customized for this user and this
+    action left unchecked. Unlike can_do, there is no separate fallback permission
+    (open actions have none): "module:action" only.
+
+    Usage: {% if request.user|can_do_open:"sales:orders" %}
+    """
+    try:
+        module, action = spec.split(':')
+    except ValueError:
+        return False
+    return has_granular_action_open(user, module, action)
 
 
 @register.filter

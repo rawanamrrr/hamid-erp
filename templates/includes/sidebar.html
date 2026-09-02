@@ -307,11 +307,14 @@ html.fav-only-mode #topnav-items > *:not(.fav-show) { display: none; }
             </div>
             {% endif %}
 
-            {% if request.user|can_access:"sales:view_all" or request.user.is_superuser %}
+            {% if request.user|can_access:"sales:view_all" or request.user|can_access:"sales:expenses" or request.user.is_superuser %}
             <!-- المبيعات dropdown. Gate key was "sales:view" — not a real checkbox action
                  (the 'sales' module only offers view_all/edit/delete/manage on صلاحيات),
                  so this was silently unmatchable for every non-superuser role and the
-                 whole dropdown never showed no matter what was actually granted. -->
+                 whole dropdown never showed no matter what was actually granted.
+                 Also gated on "sales:expenses" — a role given ONLY المصروفات (no
+                 view_all) still needs the dropdown itself to be visible to reach the
+                 "المصروفات" link inside it; otherwise the checkbox did nothing. -->
             <div class="tnav-dropdown" id="dd-sales">
                 {% with vn=request.resolver_match.view_name %}
                 <button type="button" class="tnav-link {% if '/sales/' in request.path and '/sales/pos/' not in request.path %}active{% endif %}" onclick="toggleDd('dd-sales')">
@@ -320,14 +323,34 @@ html.fav-only-mode #topnav-items > *:not(.fav-show) { display: none; }
                     <i class="fas fa-chevron-down text-[9px] opacity-50"></i>
                 </button>
                 <div class="tnav-dropdown-menu" style="min-width:240px; max-height:70vh; overflow-y:auto;">
+                    <!-- Each link below is gated on the SAME (module, action) its own view
+                         actually enforces — the outer dropdown gate above only decides
+                         whether the dropdown is reachable at all, it does not mean every
+                         page inside it is permitted. Without these, a role granted only
+                         "المصروفات" (or only "مرتجعات", etc.) saw every other page's link
+                         too, not just the one it was actually given. -->
+                    {% if request.user|can_do_open:"sales:orders" or request.user.is_superuser %}
                     <a href="{% url 'order_list' %}" class="tnav-sub {% if vn == 'order_list' %}active{% endif %}"><i class="fas fa-file-invoice text-indigo-400 w-4"></i> سجل الفواتير</a>
+                    {% endif %}
+                    {% if request.user|can_do:"sales:voided|financial:view" or request.user.is_superuser %}
                     <a href="{% url 'voided_register' %}" class="tnav-sub {% if vn == 'voided_register' %}active{% endif %}"><i class="fas fa-ban text-red-400 w-4"></i> الفواتير الملغاة</a>
+                    {% endif %}
+                    {% if request.user|can_do:"sales:sold_items|products:view" or request.user.is_superuser %}
                     <a href="{% url 'sold_items_list' %}" class="tnav-sub {% if vn == 'sold_items_list' %}active{% endif %}"><i class="fas fa-boxes-stacked text-teal-400 w-4"></i> مبيعات الأصناف</a>
                     <a href="{% url 'sold_items_report' %}" class="tnav-sub {% if vn == 'sold_items_report' %}active{% endif %}"><i class="fas fa-chart-simple text-teal-400 w-4"></i> تقرير مبيعات الأصناف</a>
+                    {% endif %}
+                    {% if request.user|can_do:"sales:refunds|sales:refund" or request.user.is_superuser %}
                     <a href="{% url 'refund_view' %}" class="tnav-sub {% if vn == 'refund_view' %}active{% endif %}"><i class="fas fa-rotate-left text-rose-400 w-4"></i> مرتجع جديد</a>
+                    {% endif %}
+                    {% if request.user|can_do:"sales:returns_register|sales:refund" or request.user.is_superuser %}
                     <a href="{% url 'returns_register' %}" class="tnav-sub {% if vn == 'returns_register' %}active{% endif %}"><i class="fas fa-clock-rotate-left text-rose-400 w-4"></i> سجل المرتجعات</a>
+                    {% endif %}
+                    {% if request.user|can_do:"sales:oversold|sales:view" or request.user.is_superuser %}
                     <a href="{% url 'oversold_register' %}" class="tnav-sub {% if vn == 'oversold_register' %}active{% endif %}"><i class="fas fa-triangle-exclamation text-amber-500 w-4"></i> سجل مبيعات تجاوزت المخزون المتاح</a>
+                    {% endif %}
+                    {% if request.user|can_do:"sales:expenses|financial:view" or request.user.is_superuser %}
                     <a href="{% url 'expense_list' %}" class="tnav-sub {% if vn == 'expense_list' %}active{% endif %}"><i class="fas fa-receipt text-orange-400 w-4"></i> المصروفات</a>
+                    {% endif %}
                 </div>
                 {% endwith %}
             </div>

@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>تقرير المصروفات</title>
+    <script src="/static/vendor/js/tailwind.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;700&display=swap');
+
+        body {
+            font-family: 'IBM Plex Sans Arabic', sans-serif;
+            background: #525252;
+            padding: 20px;
+            margin: 0;
+        }
+
+        .sheet {
+            background: white;
+            margin: 0 auto;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            border: 2px solid #ddd;
+            width: 210mm;
+            min-height: 297mm;
+            padding: 15mm;
+        }
+
+        table { border-collapse: collapse; width: 100%; }
+        th, td { border: 1px solid #e5e7eb; padding: 6px 10px; }
+
+        @media print {
+            body { background: none; padding: 0; margin: 0; }
+            .no-print, .no-print * {
+                display: none !important;
+                height: 0 !important; width: 0 !important;
+                opacity: 0 !important; visibility: hidden !important;
+            }
+            .sheet { border: none; box-shadow: none; width: 100%; margin: 0; padding: 0; }
+            @page { margin: 10mm; size: A4; }
+            * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+            tr { break-inside: avoid; }
+        }
+    </style>
+</head>
+<body>
+    <div class="no-print fixed top-0 left-0 right-0 w-full bg-white p-2 shadow-md flex justify-center gap-2 z-50">
+        <button onclick="window.print()" class="px-6 py-1 bg-black text-white rounded font-bold hover:bg-gray-800 transition flex items-center gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2z"></path></svg>
+            طباعة
+        </button>
+        <button onclick="window.close()" class="px-4 py-1 bg-gray-300 text-gray-800 rounded font-bold hover:bg-gray-400 transition">إغلاق</button>
+    </div>
+    <div class="h-14 no-print"></div>
+
+    <div class="sheet">
+        <div class="text-center mb-6 border-b-2 border-gray-100 pb-4">
+            <h1 class="text-xl font-bold text-gray-800">{{ sys_settings.shop_name }}</h1>
+            <h2 class="text-lg bg-gray-100 text-gray-700 inline-block px-6 py-1 rounded-full mt-2 border border-gray-200 shadow-sm font-bold">تقرير المصروفات</h2>
+            <p class="text-sm text-gray-500 mt-2">
+                {% if date_from or date_to %}
+                    الفترة: {{ date_from|default:"البداية" }} — {{ date_to|default:"اليوم" }}
+                {% else %}
+                    كل الفترات
+                {% endif %}
+            </p>
+        </div>
+
+        <table class="text-sm text-right mb-6">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th>#</th>
+                    <th>البند</th>
+                    <th>التصنيف</th>
+                    <th>المبلغ</th>
+                    <th>طريقة الدفع</th>
+                    <th>التاريخ</th>
+                    <th>بواسطة</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for expense in expenses %}
+                <tr>
+                    <td>{{ forloop.counter }}</td>
+                    <td class="font-bold">{{ expense.title }}</td>
+                    <td>{{ expense.get_category_display }}{% if expense.category == 'other' and expense.description %} - {{ expense.description }}{% endif %}</td>
+                    <td class="font-bold">{{ expense.amount }}</td>
+                    <td>{{ expense.get_payment_method_display }}</td>
+                    <td>{{ expense.date|date:"Y-m-d" }}</td>
+                    <td>{{ expense.user.get_full_name|default:expense.user.username }}</td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="7" class="text-center text-gray-400 py-6">لا توجد مصروفات في هذه الفترة</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <div class="flex justify-end">
+            <div class="bg-red-50 border border-red-100 rounded-xl px-6 py-3 flex items-center gap-3">
+                <span class="text-sm font-bold text-red-600">إجمالي المصروفات:</span>
+                <span class="text-xl font-black text-red-800">{{ total_expenses|floatformat:2 }} ج.م</span>
+            </div>
+        </div>
+
+        <div class="mt-10 text-center text-[10px] text-gray-400 font-mono">
+            تمت الطباعة بواسطة النظام في {% now "Y-m-d H:i" %}
+        </div>
+    </div>
+</body>
+</html>

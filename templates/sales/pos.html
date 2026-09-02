@@ -5,6 +5,7 @@
 
 {% block title %}{{ title }}{% endblock %}
 {% block page_nav %}{% if not cashier_only_user %}{% include 'includes/sidebar.html' %}{% endif %}{% endblock %}
+{% block page_header %}{% if cashier_only_user or waiter_only_user %}{% include 'includes/header.html' %}{% endif %}{% endblock %}
 
 {% block extra_head %}
 <style>
@@ -27,6 +28,13 @@
     .category-scrollbar::-webkit-scrollbar-track { background: transparent; }
     .category-scrollbar::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 999px; }
     .category-scrollbar::-webkit-scrollbar-thumb:hover { background-color: #94a3b8; }
+
+    /* Cart/checkout columns shrink proportionally with viewport width instead of
+       eating a fixed px amount that starves the product grid on smaller screens. */
+    @media (min-width: 1024px) {
+        #posCartCol { width: clamp(240px, 22vw, 300px) !important; }
+        #posCheckoutCol { width: clamp(295px, 26vw, 320px) !important; }
+    }
 </style>
 {% endblock %}
 
@@ -53,11 +61,11 @@
 
     <!-- Top Bar: Consolidated and Uniform -->
     <div
-        class="bg-white px-3 py-2 rounded-xl shadow-sm border border-gray-200 mb-2 flex flex-wrap lg:flex-nowrap items-center gap-2.5 w-full">
+        class="bg-white px-3 py-2 rounded-xl shadow-sm border border-gray-200 mb-2 flex flex-wrap lg:flex-nowrap items-center gap-1.5 xl:gap-2.5 w-full">
 
         <!-- Right side (RTL): Shift & Help -->
         <!-- Color change: help + shift + warehouse grouped in one neutral gray cluster instead of separate indigo/blue blocks, so colored buttons (customer/drafts/etc.) remain the visual focus -->
-        <div class="flex items-center gap-2 shrink-0 order-1 bg-gray-50/70 rounded-xl p-1 border border-gray-100">
+        <div class="flex items-center gap-1 xl:gap-2 shrink-0 order-1 bg-gray-50/70 rounded-xl p-1 border border-gray-100">
             <button onclick="openHelpModal()"
                 class="h-11 w-11 flex items-center justify-center bg-white text-gray-500 rounded-lg border border-gray-200 hover:text-indigo-600 hover:border-indigo-200 transition shadow-sm"
                 title="دليل الاستخدام">
@@ -65,9 +73,9 @@
             </button>
 
             <!-- Shift Info Widget -->
-            <div class="h-11 flex items-center gap-3 bg-white px-3 rounded-lg border border-gray-200 shadow-sm">
+            <div class="h-11 flex items-center gap-2 xl:gap-3 bg-white px-2 xl:px-3 rounded-lg border border-gray-200 shadow-sm">
                 {% if current_shift %}
-                <div class="flex items-center gap-2 border-l border-gray-200 pl-3 ml-3 h-full">
+                <div class="flex items-center gap-2 border-l border-gray-200 pl-2 xl:pl-3 ml-2 xl:ml-3 h-full">
                     <span class="relative flex h-2.5 w-2.5">
                         <span
                             class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
@@ -101,9 +109,9 @@
 
             <!-- Warehouse Selection -->
             <div
-                class="h-11 flex items-center gap-2 bg-white px-3 rounded-lg border border-gray-200 shadow-sm transition hover:border-blue-200">
+                class="h-11 flex items-center gap-2 bg-white px-2 xl:px-3 rounded-lg border border-gray-200 shadow-sm transition hover:border-blue-200">
                 <i class="fa-solid fa-warehouse text-blue-500 text-sm"></i>
-                <div class="flex flex-col justify-center relative min-w-[100px] h-full">
+                <div class="flex flex-col justify-center relative min-w-[70px] xl:min-w-[100px] h-full">
                     <span class="text-[9px] font-bold text-gray-500 uppercase leading-none mb-1">مخزن الصرف</span>
                     <select id="warehouseSelect" onchange="changeWarehouse(this.value)"
                         class="appearance-none bg-transparent border-none p-0 pr-0 text-xs font-bold text-blue-700 focus:ring-0 cursor-pointer w-full leading-none">
@@ -123,7 +131,7 @@
         </div>
 
         <!-- Center: Customer Search -->
-        <div class="flex-1 min-w-[220px] w-full lg:w-auto relative order-3 lg:order-2" id="customerSearchContainer">
+        <div class="flex-1 min-w-[160px] xl:min-w-[220px] w-full lg:w-auto relative order-3 lg:order-2" id="customerSearchContainer">
             <div class="flex items-center justify-between mb-1">
                 <label class="block text-[11px] font-bold text-gray-500"><i class="fa-solid fa-user text-teal-400 text-[10px]"></i> العميل الحالي <kbd class="text-[9px] opacity-50 bg-gray-100 border border-gray-200 rounded px-1">F4</kbd></label>
                 <div class="flex items-center gap-1">
@@ -227,27 +235,27 @@
         </div>
 
         <!-- Left side: Actions & Shortcuts -->
-        <div class="flex items-center gap-1.5 shrink-0 order-2 lg:order-3 flex-wrap">
+        <div class="flex items-center gap-1 xl:gap-1.5 shrink-0 order-2 lg:order-3 flex-wrap">
 
             <!-- Add Customer Chip (F6) -->
             <!-- Color change: neutral gray chip style (was colored bg per market type) — colored icon keeps market-type identity without competing with the primary pay button -->
-            <button onclick="openModal()" title="إضافة عميل (F6)" class="h-11 px-3 flex items-center gap-1.5 rounded-xl border-2 border-gray-200 bg-white text-gray-700 hover:bg-gray-50 hover:border-gray-300 transition text-xs font-bold whitespace-nowrap shadow-sm active:scale-95">
+            <button onclick="openModal()" title="إضافة عميل (F6)" class="h-11 px-2 xl:px-3 flex items-center gap-1.5 rounded-xl border-2 border-gray-200 bg-white text-gray-700 hover:bg-gray-50 hover:border-gray-300 transition text-xs font-bold whitespace-nowrap shadow-sm active:scale-95">
                 <i class="fa-solid fa-user-plus
                     {% if sys_settings.market_type == 'pharmacy' %}text-teal-500
                     {% elif sys_settings.market_type == 'electronics' %}text-blue-500
                     {% elif sys_settings.market_type == 'grocery' %}text-green-500
                     {% elif sys_settings.market_type == 'clothes' %}text-indigo-500
                     {% else %}text-gray-400{% endif %}"></i>
-                <span>عميل</span>
+                <span class="hidden xl:inline">عميل</span>
                 <kbd
                     class="hidden xl:inline text-[9px] opacity-50 bg-gray-50 border border-gray-200 rounded px-1 ml-0.5">F6</kbd>
             </button>
 
             <!-- Drafts Chip (F7) -->
             <button onclick="openDraftsModal()" title="المسودات (F7)"
-                class="h-11 px-3 flex items-center gap-1.5 bg-white text-gray-700 border-2 border-gray-200 hover:bg-gray-50 hover:border-gray-300 rounded-xl transition text-xs font-bold whitespace-nowrap shadow-sm active:scale-95">
+                class="h-11 px-2 xl:px-3 flex items-center gap-1.5 bg-white text-gray-700 border-2 border-gray-200 hover:bg-gray-50 hover:border-gray-300 rounded-xl transition text-xs font-bold whitespace-nowrap shadow-sm active:scale-95">
                 <i class="fa-solid fa-clock-rotate-left text-purple-500"></i>
-                <span>مسودات</span>
+                <span class="hidden xl:inline">مسودات</span>
                 <kbd
                     class="hidden xl:inline text-[9px] opacity-50 bg-gray-50 border border-gray-200 rounded px-1 ml-0.5">F7</kbd>
             </button>
@@ -265,21 +273,21 @@
                          restricted to takeaway+dine-in never sees "دليفري" at all, not just
                          a disabled version of it. See allowed_order_types in context. -->
                     {% if 'dine_in' in allowed_order_types %}
-                    <button type="button" id="orderModeDineInBtn" onclick="setOrderMode('dine_in')"
-                            class="h-full px-2.5 flex items-center gap-1 rounded-lg text-xs font-bold whitespace-nowrap transition-colors">
-                        <i class="fa-solid fa-utensils text-[11px]"></i> صالة
+                    <button type="button" id="orderModeDineInBtn" onclick="setOrderMode('dine_in')" title="صالة"
+                            class="h-full px-2 xl:px-2.5 flex items-center gap-1 rounded-lg text-xs font-bold whitespace-nowrap transition-colors">
+                        <i class="fa-solid fa-utensils text-[11px]"></i> <span class="hidden xl:inline">صالة</span>
                     </button>
                     {% endif %}
                     {% if 'takeaway' in allowed_order_types %}
-                    <button type="button" id="orderModeTakeawayBtn" onclick="setOrderMode('takeaway')"
-                            class="h-full px-2.5 flex items-center gap-1 rounded-lg text-xs font-bold whitespace-nowrap transition-colors">
-                        <i class="fa-solid fa-bag-shopping text-[11px]"></i> تيك أواي
+                    <button type="button" id="orderModeTakeawayBtn" onclick="setOrderMode('takeaway')" title="تيك أواي"
+                            class="h-full px-2 xl:px-2.5 flex items-center gap-1 rounded-lg text-xs font-bold whitespace-nowrap transition-colors">
+                        <i class="fa-solid fa-bag-shopping text-[11px]"></i> <span class="hidden xl:inline">تيك أواي</span>
                     </button>
                     {% endif %}
                     {% if 'delivery' in allowed_order_types %}
-                    <button type="button" id="orderModeOnlineBtn" onclick="setOrderMode('online')"
-                            class="h-full px-2.5 flex items-center gap-1 rounded-lg text-xs font-bold whitespace-nowrap transition-colors">
-                        <i class="fa-solid fa-motorcycle text-[11px]"></i> دليفري
+                    <button type="button" id="orderModeOnlineBtn" onclick="setOrderMode('online')" title="دليفري"
+                            class="h-full px-2 xl:px-2.5 flex items-center gap-1 rounded-lg text-xs font-bold whitespace-nowrap transition-colors">
+                        <i class="fa-solid fa-motorcycle text-[11px]"></i> <span class="hidden xl:inline">دليفري</span>
                     </button>
                     {% endif %}
                 </div>
@@ -292,7 +300,7 @@
                  setOrderMode()/toggleOnlineMode() same as the driver picker used to be. -->
             <div class="hidden" id="dineInTableWrap">
                 <button type="button" id="dineInTableBtn" onclick="toggleTablePicker(event)"
-                        class="h-11 px-3 flex items-center gap-1.5 bg-gray-50 border-2 border-gray-200 hover:bg-gray-100 rounded-xl text-xs font-bold text-gray-700 whitespace-nowrap transition-colors">
+                        class="h-11 px-2 xl:px-3 flex items-center gap-1.5 bg-gray-50 border-2 border-gray-200 hover:bg-gray-100 rounded-xl text-xs font-bold text-gray-700 whitespace-nowrap transition-colors">
                     <i class="fa-solid fa-chair text-gray-400"></i>
                     <span id="dineInTableBtnLabel">بدون ترابيزة</span>
                 </button>
@@ -332,9 +340,9 @@
             <!-- Overflow "More" menu: online toggle + price type -->
             <div class="relative" id="posMoreWrap">
                 <button type="button" onclick="togglePosMore(event)" title="المزيد" id="posMoreBtn"
-                    class="h-11 px-3 flex items-center gap-1.5 bg-gray-50 text-gray-600 border-2 border-gray-200 hover:bg-gray-100 rounded-xl transition text-xs font-bold whitespace-nowrap shadow-sm active:scale-95">
+                    class="h-11 px-2 xl:px-3 flex items-center gap-1.5 bg-gray-50 text-gray-600 border-2 border-gray-200 hover:bg-gray-100 rounded-xl transition text-xs font-bold whitespace-nowrap shadow-sm active:scale-95">
                     <i class="fa-solid fa-ellipsis text-base"></i>
-                    <span>المزيد</span>
+                    <span class="hidden xl:inline">المزيد</span>
                     <!-- Online active indicator dot -->
                     <span id="posMoreOnlineDot" class="hidden w-1.5 h-1.5 rounded-full bg-blue-500"></span>
                 </button>
@@ -426,7 +434,7 @@
         <div class="flex-1 min-w-0 flex flex-col gap-2 lg:h-full min-h-[420px] lg:min-h-0 overflow-hidden">
             <!-- Search + Category Filters -->
             <div
-                class="bg-white px-3 py-2.5 rounded-xl shadow-sm border border-gray-200 flex gap-3 shrink-0 overflow-x-auto items-center">
+                class="bg-white px-3 py-2.5 rounded-xl shadow-sm border border-gray-200 flex gap-3 shrink-0 items-center">
                 <div class="w-1/3 min-w-[170px] relative shrink-0">
                     <input type="text" id="productSearch" placeholder="بحث منتج بالاسم أو الباركود (F2)..."
                         class="w-full h-10 pl-9 pr-3 border-2 border-gray-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-teal-400 focus:border-teal-400 outline-none bg-gray-50">
@@ -436,18 +444,33 @@
                             d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
                     </svg>
                 </div>
-                <div class="flex-1 flex gap-1.5 overflow-x-auto items-center category-scrollbar" id="categoryFilters">
-                    <button onclick="filterCategory('all')"
-                        class="px-4 py-2 bg-gray-800 text-white rounded-lg text-xs whitespace-nowrap font-bold shadow-sm">الكل</button>
-                    {% for category in categories %}
-                    <button onclick="filterCategory('{{ category.id }}')"
-                        class="px-4 py-2 bg-gray-100 text-gray-700 hover:bg-teal-600 hover:text-white rounded-lg text-xs whitespace-nowrap font-bold transition-colors">{{ category.name }}</button>
-                    {% endfor %}
+                <div class="flex-1 min-w-0 relative">
+                    <div class="flex gap-1.5 items-center overflow-hidden" id="categoryFilters">
+                        <button onclick="filterCategory('all')"
+                            class="px-4 py-2 bg-gray-800 text-white rounded-lg text-xs whitespace-nowrap font-bold shadow-sm shrink-0">الكل</button>
+                        {% for category in categories %}
+                        <button onclick="filterCategory('{{ category.id }}')"
+                            class="px-4 py-2 bg-gray-100 text-gray-700 hover:bg-teal-600 hover:text-white rounded-lg text-xs whitespace-nowrap font-bold transition-colors shrink-0">{{ category.name }}</button>
+                        {% endfor %}
+                        <!-- Overflow trigger: categories that don't fit the single line get moved
+                             in here by JS (layoutCategoryFilters) instead of being reachable only
+                             via a hidden horizontal scroll — cashiers kept missing categories off
+                             the right edge with no visual hint more existed. -->
+                        <button type="button" onclick="toggleCategoryMore(event)" id="categoryMoreBtn"
+                            class="hidden shrink-0 items-center gap-1 px-3 py-2 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg text-xs whitespace-nowrap font-bold transition-colors">
+                            <span id="categoryMoreLabel">المزيد</span>
+                            <i class="fa-solid fa-chevron-down text-[9px]"></i>
+                        </button>
+                    </div>
+                    <div id="categoryMorePanel"
+                        class="hidden absolute top-full left-0 mt-1.5 bg-white border border-gray-200 rounded-xl shadow-xl z-50 p-2 flex flex-wrap gap-1.5 max-w-xs">
+                    </div>
                 </div>
             </div>
 
             <!-- Products Grid -->
-            <div class="flex-1 overflow-y-auto bg-gray-50 p-2.5 rounded-xl border border-gray-200 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 xl:grid-cols-5 2xl:grid-cols-6 gap-2.5 content-start"
+            <div class="flex-1 overflow-y-auto bg-gray-50 p-2.5 rounded-xl border border-gray-200 grid gap-2.5 content-start"
+                style="grid-template-columns: repeat(auto-fill, minmax(clamp(85px, 11vw, 160px), 1fr));"
                 id="productsGrid">
                 {% for product in products %}
                 {% with stock_val=product.stock_quantity|floatformat:0 %}
@@ -601,7 +624,7 @@
         <!-- ══ COL 2: Cart (xl:w-[300px] fixed on desktop, full width when stacked) header + scrollable items + subtotal ══ -->
         <!-- Fix: same min-height floor issue as COL 1 — "xl:min-h-0" lets this column shrink to its allotted flex
              space on desktop so the Cart Items list scrolls internally instead of overflowing the whole page. -->
-        <div
+        <div id="posCartCol"
             class="w-full lg:w-[300px] shrink-0 flex flex-col lg:h-full min-h-[280px] lg:min-h-0 max-h-[70vh] lg:max-h-none bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden">
 
             <!-- Cart Header -->
@@ -644,7 +667,7 @@
         <!-- Fix: added "xl:min-h-0" — flex items default to min-height:auto (content-based), which was letting this
              column grow to fit all its cards instead of shrinking to the row's available height, so the Main
              Checkout Container below couldn't scroll internally and the whole page scrolled instead. -->
-        <div
+        <div id="posCheckoutCol"
             class="w-full lg:w-[320px] shrink-0 flex flex-col lg:h-full lg:min-h-0 bg-slate-50 lg:border-r border-t lg:border-t-0 border-gray-200 shadow-[-10px_0_30px_rgba(0,0,0,0.03)] z-30 overflow-hidden">
 
             <!-- Total Bill Header -->
@@ -675,27 +698,20 @@
             <!-- Customer Balance Row (Hidden if using Smart Pay) -->
             <div id="checkoutCustomerBalanceRow"
                 class="hidden px-4 py-2 bg-white border-b border-gray-100 shrink-0 shadow-sm z-10 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHBhdGggZD0iTTAgNDBMNDAgME0tMTAgMTBMMTAgLTEwTTMwIDUwbDIwIC0yMCIgc3Ryb2tlPSJyZ2JhKDAsMCwwLDAuMDIpIiBmaWxsPSJub25lIi8+PC9zdmc+')]">
-                <div class="flex items-center justify-between">
-                    <div class="flex items-center gap-2 text-[10px] font-bold text-slate-800">
-                        <div
-                            class="w-5 h-5 rounded-md bg-teal-100 text-teal-700 flex items-center justify-center shadow-sm">
-                            <i class="fa-solid fa-user text-[8px]"></i>
-                        </div>
-                        <span id="checkoutCustomerName" class="truncate max-w-[130px]">—</span>
-                    </div>
+                <div class="flex items-center justify-end">
+                    <span id="checkoutCustomerName" class="hidden truncate max-w-[130px]">—</span>
                     <div class="flex items-center gap-2">
                         <!-- Persistent Smart Pay Trigger (Visible when credit available) -->
                         <button id="persistentSmartPayBtn" onclick="openSmartPayOverlay()"
                             class="hidden animate-pulse flex items-center gap-1.5 px-2 py-0.5 bg-emerald-500 text-white rounded-md text-[9px] font-bold shadow-lg shadow-emerald-200 hover:bg-emerald-600 transition-all active:scale-95">
                             <i class="fa-solid fa-wallet"></i> دفع بالرصيد
                         </button>
-                        <div id="checkoutBalanceDisplay"
-                            class="text-[10px] font-black px-1.5 py-0.5 rounded-md text-slate-800"></div>
+                        <div id="checkoutBalanceDisplay" class="hidden" style="display:none"></div>
                     </div>
                 </div>
                 <!-- Credit limit / available + last price (Phase 6.8) -->
-                <div class="flex items-center justify-between mt-1 text-[9px] font-bold">
-                    <span id="checkoutCreditInfo" class="text-slate-400"></span>
+                <div class="flex items-center justify-end mt-1 text-[9px] font-bold">
+                    <span id="checkoutCreditInfo" class="hidden" style="display:none"></span>
                     <span id="checkoutLastPrice" class="text-indigo-500"></span>
                 </div>
             </div>
@@ -766,7 +782,7 @@
                                 <option value="">-- بدون عرض تلقائي --</option>
                             </select>
                             <input type="text" id="couponCodeInput" placeholder="كود..." oninput="checkCouponCode()"
-                                class="w-20 shrink-0 h-9 px-1 text-[11px] font-mono text-slate-800 border border-gray-200 focus:border-purple-500 rounded-lg outline-none text-center"
+                                class="w-16 xl:w-20 shrink-0 h-9 px-1 text-[11px] font-mono text-slate-800 border border-gray-200 focus:border-purple-500 rounded-lg outline-none text-center"
                                 dir="ltr">
                         </div>
                         <div id="appliedDealBadge" class="hidden flex items-center justify-between bg-purple-50 border border-purple-200 rounded-lg px-2 py-1 text-[10px] text-purple-700">
@@ -879,20 +895,20 @@
                     </div>
 
                     <!-- Received amount + Change -->
-                    <div class="flex gap-2 items-stretch">
-                        <div class="flex-1 min-w-0 bg-white rounded-xl border-2 border-slate-200 focus-within:border-teal-500 px-3 py-2 flex flex-col justify-center shadow-sm transition-colors"
+                    <div class="flex gap-1.5 xl:gap-2 items-stretch">
+                        <div class="flex-1 min-w-0 bg-white rounded-xl border-2 border-slate-200 focus-within:border-teal-500 px-1.5 xl:px-3 py-2 flex flex-col justify-center shadow-sm transition-colors"
                             id="payReceivedRow">
-                            <label class="text-[9px] font-black text-slate-400 uppercase leading-none mb-1">المبلغ المستلم</label>
+                            <label class="text-[9px] font-black text-slate-400 uppercase leading-none mb-1 whitespace-nowrap">المستلم</label>
                             <input type="number" id="payReceivedInput" min="0" step="0.5" placeholder="0.00"
                                 oninput="onReceivedInput()" onclick="this.select()"
-                                class="w-full min-w-0 text-xl font-black text-slate-800 bg-transparent border-none focus:ring-0 outline-none leading-none p-0"
+                                class="w-full min-w-0 text-base xl:text-xl font-black text-slate-800 bg-transparent border-none focus:ring-0 outline-none leading-none p-0"
                                 dir="ltr">
                         </div>
-                        <div class="flex flex-col items-end justify-center px-3 py-2 rounded-xl border transition-all min-w-[92px] shrink-0 bg-emerald-50 border-emerald-200" id="remainingBox">
+                        <div class="flex flex-col items-end justify-center px-1 xl:px-3 py-2 rounded-xl border transition-all min-w-[42px] xl:min-w-[92px] shrink-0 bg-emerald-50 border-emerald-200" id="remainingBox">
                             <span id="remainingLabel"
                                 class="text-[9px] font-black text-emerald-600 uppercase leading-none mb-1">الباقي</span>
                             <div id="payRemaining"
-                                class="font-black text-2xl font-mono text-emerald-600 leading-none tracking-tighter">
+                                class="font-black text-base xl:text-2xl font-mono text-emerald-600 leading-none tracking-tighter">
                                 0.00</div>
                         </div>
                         <div id="creditAppliedHint"
@@ -902,7 +918,7 @@
                             </div>
                         </div>
                         <button type="button" onclick="openDetailsModal()"
-                            class="w-10 shrink-0 bg-slate-100 text-slate-500 rounded-xl flex items-center justify-center border border-slate-200 hover:bg-amber-50 hover:text-amber-600 hover:border-amber-200 transition-colors shadow-sm"
+                            class="w-6 xl:w-10 shrink-0 bg-slate-100 text-slate-500 rounded-xl flex items-center justify-center border border-slate-200 hover:bg-amber-50 hover:text-amber-600 hover:border-amber-200 transition-colors shadow-sm"
                             title="ملاحظات / تفاصيل">
                             <i class="fa-solid fa-pen-nib text-sm"></i>
                         </button>
@@ -1700,7 +1716,7 @@
         function fitCashierViewport() {
             const root = document.getElementById('posPageRoot');
             if (!root) return;
-            if (window.matchMedia('(min-width: 1280px)').matches) {
+            if (window.matchMedia('(min-width: 1024px)').matches) {
                 const top = root.getBoundingClientRect().top;
                 const available = window.innerHeight - top - 24; // 24px = <main>'s own bottom padding (pb-6)
                 root.style.height = Math.max(available, 400) + 'px';
@@ -2671,15 +2687,15 @@
         });
 
         function filterCategory(catId, btn = null) {
-            const buttons = document.querySelectorAll('#categoryFilters button');
+            const buttons = document.querySelectorAll('#categoryFilters button:not(#categoryMoreBtn), #categoryMorePanel button');
             buttons.forEach(b => {
                 b.classList.remove('bg-gray-800', 'text-white', 'shadow-md');
                 b.classList.add('bg-gray-100', 'text-gray-700');
             });
-            
+
             let targetBtn = btn || (event ? event.currentTarget : null);
             if (!targetBtn && event) targetBtn = event.target.closest('button');
-            
+
             if (targetBtn) {
                 targetBtn.classList.remove('bg-gray-100', 'text-gray-700');
                 targetBtn.classList.add('bg-gray-800', 'text-white', 'shadow-md');
@@ -2691,7 +2707,85 @@
                 // except kitchen-routed items, which never carry a stock count (see cardHasStock).
                 c.style.display = (catMatch && cardHasStock(c)) ? 'flex' : 'none';
             });
+
+            // If the selected chip lives in the overflow panel, close it and reflect the
+            // pick on the toggle button so the cashier isn't left staring at "المزيد" with
+            // no clue which category is actually active.
+            const morePanel = document.getElementById('categoryMorePanel');
+            const moreLabel = document.getElementById('categoryMoreLabel');
+            if (targetBtn && morePanel && morePanel.contains(targetBtn)) {
+                morePanel.classList.add('hidden');
+                if (moreLabel) moreLabel.textContent = targetBtn.textContent.trim();
+            } else if (moreLabel && moreLabel.dataset.overflowCount) {
+                moreLabel.textContent = `+${moreLabel.dataset.overflowCount} المزيد`;
+            }
         }
+
+        // --- Category overflow: keep every category one click away without a scrollbar ---
+        function layoutCategoryFilters() {
+            const container = document.getElementById('categoryFilters');
+            const moreBtn = document.getElementById('categoryMoreBtn');
+            const panel = document.getElementById('categoryMorePanel');
+            const label = document.getElementById('categoryMoreLabel');
+            if (!container || !moreBtn || !panel || !label) return;
+
+            // Move everything back into the main row first so widths are measured fresh —
+            // otherwise a category removed from the overflow panel (e.g. window resized wider)
+            // would never come back.
+            while (panel.firstChild) container.insertBefore(panel.firstChild, moreBtn);
+
+            moreBtn.style.display = 'none';
+            const containerWidth = container.clientWidth;
+            const gap = 6; // gap-1.5
+            const moreBtnWidth = moreBtn.getBoundingClientRect().width || 70;
+
+            const buttons = Array.from(container.children).filter(b => b !== moreBtn);
+            let usedWidth = 0;
+            const overflow = [];
+            buttons.forEach((btn, i) => {
+                const w = btn.getBoundingClientRect().width;
+                const withGap = w + (i > 0 ? gap : 0);
+                const isLast = i === buttons.length - 1;
+                const reserve = isLast ? 0 : gap + moreBtnWidth;
+                if (i === 0 || usedWidth + withGap + reserve <= containerWidth) {
+                    usedWidth += withGap;
+                } else {
+                    overflow.push(btn);
+                }
+            });
+
+            if (overflow.length) {
+                overflow.forEach(btn => panel.appendChild(btn));
+                moreBtn.style.display = 'flex';
+                label.dataset.overflowCount = overflow.length;
+                // Keep showing the active category's name if it got pushed into overflow.
+                const activeInOverflow = overflow.find(b => b.classList.contains('bg-gray-800'));
+                label.textContent = activeInOverflow ? activeInOverflow.textContent.trim() : `+${overflow.length} المزيد`;
+            } else {
+                delete label.dataset.overflowCount;
+            }
+        }
+
+        function toggleCategoryMore(e) {
+            e.stopPropagation();
+            document.getElementById('categoryMorePanel').classList.toggle('hidden');
+        }
+
+        document.addEventListener('click', function (e) {
+            const panel = document.getElementById('categoryMorePanel');
+            const moreBtn = document.getElementById('categoryMoreBtn');
+            if (!panel || panel.classList.contains('hidden')) return;
+            if (panel.contains(e.target) || (moreBtn && moreBtn.contains(e.target))) return;
+            panel.classList.add('hidden');
+        });
+
+        window.addEventListener('resize', function () {
+            clearTimeout(window.__categoryLayoutTimer);
+            window.__categoryLayoutTimer = setTimeout(layoutCategoryFilters, 150);
+        });
+        document.addEventListener('DOMContentLoaded', layoutCategoryFilters);
+        window.addEventListener('load', layoutCategoryFilters);
+        setTimeout(layoutCategoryFilters, 300);
 
         // --- Cart & Calculator Logic ---
         let pendingProduct = null;

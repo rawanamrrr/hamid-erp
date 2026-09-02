@@ -755,6 +755,10 @@ def user_sidebar_permissions(request, pk):
                 {'id': 'sales:returns_register', 'name': 'سجل المرتجعات', 'icon': 'fas fa-clock-rotate-left'},
                 {'id': 'sales:oversold', 'name': 'سجل مبيعات تجاوزت المخزون', 'icon': 'fas fa-triangle-exclamation'},
                 {'id': 'sales:expenses', 'name': 'المصروفات', 'icon': 'fas fa-receipt'},
+                {'id': 'sales:expenses_edit', 'name': 'تعديل المصروفات', 'icon': 'fas fa-pen',
+                 'fb': 'financial:manage'},
+                {'id': 'sales:expenses_payroll', 'name': 'رؤية رواتب وسلف الموظفين في المصروفات',
+                 'icon': 'fas fa-money-bill-wave', 'fb': 'financial:manage'},
                 {'id': 'financial:statement', 'name': 'كشف الحساب', 'icon': 'fas fa-wallet'},
             ]
         },

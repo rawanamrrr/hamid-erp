@@ -123,8 +123,10 @@ def financial_position(date_from=None, date_to=None):
     for b in StockBatch.objects.filter(current_quantity__gt=0).only('current_quantity', 'purchase_price'):
         inv_value += (b.current_quantity or ZERO) * (b.purchase_price or ZERO)
 
-    # Expenses by category for the period.
-    exp = Expense.objects.all()
+    # Expenses by category for the period. "سلفة موظفين" excluded — it's an auto-logged
+    # receivable (see sales.Expense.EXPENSE_CATEGORIES), not a real operating cost, and
+    # counting it here would overstate this box's total.
+    exp = Expense.objects.exclude(category='advance')
     if date_from:
         exp = exp.filter(date__gte=date_from)
     if date_to:

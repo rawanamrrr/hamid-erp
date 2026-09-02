@@ -13,14 +13,14 @@
         </div>
         <div>
             <label class="block text-sm font-bold text-gray-700 mb-1">قيمة السلفة</label>
-            <input name="amount" type="number" step="0.01" min="0" required value="{{ advance.amount|default:''|unlocalize }}" class="w-full p-2.5 border rounded-lg">
+            <input id="amountInput" name="amount" type="number" step="0.01" min="0" required value="{{ advance.amount|default:''|unlocalize }}" class="w-full p-2.5 border rounded-lg">
         </div>
         {% if advance %}
         {% if advance.source_account %}
         <div>
             <label class="block text-sm font-bold text-gray-700 mb-1">صُرفت من حساب</label>
             <p class="p-2.5 bg-gray-50 border rounded-lg text-gray-600">{{ advance.source_account.name }}</p>
-            <p class="text-xs text-gray-400 mt-1">لتصحيح المبلغ بعد صرفه فعلياً، عدّلي الحركة المالية نفسها من دفتر الحسابات بدل هذا الحقل.</p>
+            <p class="text-xs text-gray-400 mt-1">تعديل "قيمة السلفة" يُصحّح تلقائياً المبلغ المخصوم من هذا الحساب (الفرق فقط) — لا حاجة لتعديل دفتر الحسابات يدوياً.</p>
         </div>
         {% endif %}
         {% else %}
@@ -41,9 +41,31 @@
         {% if advance %}
         <div>
             <label class="block text-sm font-bold text-gray-700 mb-1">المتبقي</label>
-            <input name="remaining" type="number" step="0.01" min="0" value="{{ advance.remaining|unlocalize }}" class="w-full p-2.5 border rounded-lg">
-            <p class="text-xs text-gray-400 mt-1">تعديل هذا الحقل يُحدّث حالة السداد تلقائياً (صفر = مسدّدة بالكامل).</p>
+            <input id="remainingInput" name="remaining" type="number" step="0.01" min="0" value="{{ advance.remaining|unlocalize }}" class="w-full p-2.5 border rounded-lg">
+            <p class="text-xs text-gray-400 mt-1">يتحدّث فورًا مع "قيمة السلفة" (يحافظ على أي مبلغ مسدّد بالفعل) — عدّليه يدوياً فقط لتصحيح خطأ في السداد. صفر = مسدّدة بالكامل.</p>
         </div>
+        <script>
+            (function () {
+                const amountEl = document.getElementById('amountInput');
+                const remainingEl = document.getElementById('remainingInput');
+                if (!amountEl || !remainingEl) return;
+                const origAmount = parseFloat('{{ advance.amount|default:"0"|unlocalize }}') || 0;
+                const origRemaining = parseFloat('{{ advance.remaining|default:"0"|unlocalize }}') || 0;
+                const repaidSoFar = origAmount - origRemaining;
+                // Live mirror of what advance_edit computes server-side on save — lets the
+                // cashier SEE the correction before submitting, instead of only finding out
+                // after. Stops auto-updating the moment the manager types into "المتبقي"
+                // themselves, same rule the server applies (an explicit value there wins).
+                let remainingTouched = false;
+                remainingEl.addEventListener('input', function () { remainingTouched = true; });
+                amountEl.addEventListener('input', function () {
+                    if (remainingTouched) return;
+                    const newAmount = parseFloat(amountEl.value) || 0;
+                    const newRemaining = Math.max(newAmount - repaidSoFar, 0);
+                    remainingEl.value = newRemaining.toFixed(2);
+                });
+            })();
+        </script>
         <div>
             <label class="block text-sm font-bold text-gray-700 mb-1">تاريخ السلفة</label>
             <input name="date_taken" type="date" value="{{ advance.date_taken|date:'Y-m-d' }}" class="w-full p-2.5 border rounded-lg">

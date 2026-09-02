@@ -772,6 +772,13 @@ class Expense(models.Model):
         ('goods', 'نقل ومشال'),
         ('hospitality', 'ضيافة وبوفيه'),
         ('marketing', 'دعاية وإعلان'),
+        ('merchandise', 'بضاعة'),
+        # Auto-logged by financial.advance_create — never offered in the manual "تسجيل
+        # مصروف جديد" form (see ExpenseForm.__init__) since an advance is a receivable,
+        # not a real operating cost; it exists purely so the payout is visible in سجل
+        # المصروفات the same way a salary payout is. Excluded from every "إجمالي
+        # المصروفات" total for that same reason — see expense_list/expense_report.
+        ('advance', 'سلفة موظفين'),
         ('other', 'نثريات / أخرى')
     ]
     PAYMENT_METHODS = [

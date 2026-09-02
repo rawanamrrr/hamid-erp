@@ -74,6 +74,18 @@
                     <i class="fa-solid fa-print text-xs"></i> <span class="hidden sm:inline">تذكرة المطبخ</span>
                 </a>
             </template>
+            <!-- Waiter-only scratchpad note for THIS order, e.g. "allergic to nuts" — lives
+                 on Order.notes so it's gone on its own once the check closes and the table
+                 frees up (see waiter_set_order_note). Deliberately NOT shown on the
+                 table-map grid — that screen already has a waiter/customer label to read at
+                 a glance and a note there would just compete with it. -->
+            <template x-if="orderId || tableId">
+                <button @click="noteOpen()" class="relative px-3.5 py-2.5 rounded-xl border border-gray-200 bg-white text-sm font-bold text-gray-600 hover:bg-gray-50 hover:border-gray-300 flex items-center gap-1.5 transition-colors shadow-sm">
+                    <i class="fa-solid fa-note-sticky text-xs" :class="order && order.notes ? 'text-amber-500' : ''"></i>
+                    <span class="hidden sm:inline">ملاحظة</span>
+                    <span x-show="order && order.notes" x-cloak class="absolute -top-1 -left-1 w-2.5 h-2.5 rounded-full bg-amber-400 border-2 border-white"></span>
+                </button>
+            </template>
             <!-- Print the customer's bill WITHOUT closing/paying the check — lets the
                  table see the total and decide how they want to pay (cash/card/split...)
                  before the waiter/cashier actually closes it. Same invoice preview the
@@ -396,12 +408,28 @@
 
             <template x-if="wcm.step === 'phone'">
                 <div class="space-y-3">
-                    <label class="block text-xs font-bold text-gray-500">رقم الموبايل</label>
-                    <input type="tel" x-model="wcm.phone" @keydown.enter="wcmLookupPhone()" dir="ltr"
-                           placeholder="01xxxxxxxxx" autofocus
-                           class="w-full border border-gray-200 rounded-xl p-3 text-sm focus:border-emerald-400 outline-none">
+                    <label class="block text-xs font-bold text-gray-500">اسم العميل أو رقم الموبايل</label>
+                    <div class="relative">
+                        <input type="text" x-model="wcm.query" @keydown.enter="wcmLookupPhone()"
+                               placeholder="ابحث بالاسم أو الرقم..." autofocus autocomplete="off"
+                               class="w-full border border-gray-200 rounded-xl p-3 text-sm focus:border-emerald-400 outline-none">
+                        <!-- Live name/phone match from the customers already loaded on this
+                             page — picking one attaches straight away, no extra request.
+                             Falls back to "متابعة" below (server phone lookup) only when
+                             typing an actual number that isn't in this local list. -->
+                        <div x-show="wcm.query.trim() && wcmMatches().length" x-cloak
+                             class="absolute top-full inset-x-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-xl max-h-40 overflow-y-auto z-10">
+                            <template x-for="c in wcmMatches()" :key="c.id">
+                                <div @click="wcmAttach(c.id, c.name)"
+                                     class="px-3 py-2 text-xs hover:bg-emerald-50 cursor-pointer border-b border-gray-50 flex justify-between items-center">
+                                    <span class="font-bold" x-text="c.name"></span>
+                                    <span class="text-gray-400" dir="ltr" x-text="c.phone"></span>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
                     <button @click="wcmLookupPhone()" class="w-full py-3 rounded-2xl bg-gradient-to-l from-emerald-600 to-emerald-500 text-white font-black transition-all shadow-md shadow-emerald-100">
-                        متابعة
+                        متابعة برقم الموبايل
                     </button>
                 </div>
             </template>
@@ -411,7 +439,7 @@
                     <p class="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">لا يوجد عميل مسجَّل بهذا الرقم — يُرجى إضافة الاسم فقط.</p>
                     <div>
                         <label class="block text-xs font-bold text-gray-500 mb-1">رقم الموبايل</label>
-                        <input type="tel" x-model="wcm.phone" dir="ltr" class="w-full border border-gray-200 rounded-xl p-3 text-sm bg-gray-50" disabled>
+                        <input type="tel" x-model="wcm.query" dir="ltr" class="w-full border border-gray-200 rounded-xl p-3 text-sm bg-gray-50" disabled>
                     </div>
                     <div>
                         <label class="block text-xs font-bold text-gray-500 mb-1">اسم العميل</label>
@@ -425,6 +453,23 @@
                     </div>
                 </div>
             </template>
+        </div>
+    </div>
+
+    <!-- Table note modal — free-text scratchpad tied to this order only -->
+    <div x-show="note.open" x-cloak class="fixed inset-0 bg-black/50 backdrop-blur-[2px] flex items-center justify-center z-50 p-4" @click.self="noteClose()">
+        <div class="bg-white rounded-3xl p-5 w-full max-w-sm shadow-2xl wo-pop-in">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="font-black text-gray-900 flex items-center gap-2"><i class="fa-solid fa-note-sticky text-amber-500"></i> ملاحظة الترابيزة</h3>
+                <button @click="noteClose()" class="w-8 h-8 rounded-xl bg-gray-50 text-gray-400 hover:bg-gray-100 flex items-center justify-center"><i class="fa-solid fa-xmark text-xs"></i></button>
+            </div>
+            <textarea x-model="note.text" rows="4" placeholder="مثال: العميل حساس من المكسرات..." autofocus
+                      class="w-full border border-gray-200 rounded-xl p-3 text-sm focus:border-amber-400 outline-none resize-none"></textarea>
+            <p x-show="note.error" x-text="note.error" class="text-red-600 text-xs font-bold bg-red-50 rounded-lg px-3 py-2 mt-2"></p>
+            <div class="flex gap-2 mt-3">
+                <button @click="noteClose()" class="flex-1 py-3 rounded-2xl border border-gray-200 text-gray-600 font-bold">إلغاء</button>
+                <button @click="noteSave()" :disabled="note.saving" class="flex-1 py-3 rounded-2xl bg-gradient-to-l from-amber-600 to-amber-500 text-white font-black shadow-md shadow-amber-100 disabled:opacity-50">حفظ</button>
+            </div>
         </div>
     </div>
 
@@ -495,9 +540,16 @@ function waiterOrder() {
         recipeProductIds: new Set(({{ recipe_product_ids_json|default:"[]"|safe }}).map(String)),
         productSpecs: {{ product_specs_json|default:"{}"|safe }},
         customers: {{ customers_json|default:"[]"|safe }},
-        customerId: '',
-        customerSearch: '',
+        // Pre-filled from the order's already-attached customer (set via the header's
+        // "إضافة عميل" button) so the آجل/partial-payment picker near checkout starts in
+        // sync with it instead of looking empty until re-picked in two places.
+        customerId: {% if order.customer_id %}{{ order.customer_id }}{% else %}''{% endif %},
+        customerSearch: {% if order.customer %}'{{ order.customer.first_name|escapejs }} {{ order.customer.last_name|escapejs }}'{% else %}''{% endif %},
         headerCustomerName: {% if order.customer %}'{{ order.customer.first_name|escapejs }} {{ order.customer.last_name|escapejs }}'{% else %}''{% endif %},
+        // Which close type ("cl"/cash/etc.) was blocked on needing a customer, so the
+        // "إضافة عميل" flow it opens instead of the old dead-end alert can resume the
+        // close automatically once a customer is actually picked/created.
+        pendingCloseType: null,
         seatsInc() { this.seatsChange(this.seats + 1); },
         seatsDec() { if (this.seats > 1) this.seatsChange(this.seats - 1); },
         seatsChange(newSeats) {
@@ -589,13 +641,71 @@ function waiterOrder() {
                 this.split.error = 'تعذر الاتصال بالسيرفر';
             });
         },
+        note: {open: false, text: '', saving: false, error: ''},
+        noteOpen() {
+            this.note = {open: true, text: (this.order && this.order.notes) || '', saving: false, error: ''};
+        },
+        noteClose() { this.note.open = false; },
+        noteSave() {
+            if (this.note.saving) return;
+            // A fresh table has no order yet (nothing added to the cart) — open an empty
+            // tab first so there's something to attach the note to, same as wcmAttach does
+            // for the customer button.
+            if (!this.orderId) {
+                if (!this.tableId) { this.noteClose(); return; }
+                this.note.saving = true;
+                fetch(`/restaurant/waiter/tables/${this.tableId}/ensure-order/`, {
+                    method: 'POST',
+                    headers: {'X-CSRFToken': getCookie('csrftoken')},
+                    keepalive: true,
+                }).then(r => r.json()).then(res => {
+                    if (res.status === 'ok') {
+                        this.orderId = res.order_id;
+                        this.note.saving = false;
+                        this._noteSaveToOrder();
+                    } else {
+                        this.note.saving = false;
+                        this.note.error = res.message || 'حدث خطأ';
+                    }
+                }).catch(() => { this.note.saving = false; this.note.error = 'تعذر الاتصال بالسيرفر'; });
+                return;
+            }
+            this._noteSaveToOrder();
+        },
+        _noteSaveToOrder() {
+            this.note.saving = true;
+            this.note.error = '';
+            fetch(`/restaurant/waiter/order/${this.orderId}/set-note/`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken')},
+                body: JSON.stringify({note: this.note.text}),
+            }).then(r => r.json()).then(data => {
+                this.note.saving = false;
+                if (data.status === 'ok') {
+                    if (this.order) this.order.notes = data.note;
+                    this.noteClose();
+                } else {
+                    this.note.error = data.message || 'حدث خطأ';
+                }
+            }).catch(() => { this.note.saving = false; this.note.error = 'تعذر الاتصال بالسيرفر'; });
+        },
         wcm: {open: false, step: 'phone', phone: '', name: '', found: null, error: ''},
         wcmOpen() {
-            this.wcm = {open: true, step: 'phone', phone: '', name: '', found: null, error: ''};
+            // Cleared here (not in wcmClose) so a stale pending close from an earlier
+            // cancelled attempt never resurfaces on a later, unrelated "إضافة عميل" —
+            // closeCheck sets pendingCloseType right AFTER calling this, so that value
+            // survives.
+            this.pendingCloseType = null;
+            this.wcm = {open: true, step: 'phone', query: '', name: '', found: null, error: ''};
         },
         wcmClose() { this.wcm.open = false; },
+        wcmMatches() {
+            const q = (this.wcm.query || '').trim();
+            if (!q) return [];
+            return this.customers.filter(c => c.name.includes(q) || c.phone.includes(q)).slice(0, 8);
+        },
         wcmLookupPhone() {
-            const phone = this.wcm.phone.trim();
+            const phone = this.wcm.query.trim();
             if (!phone) return;
             fetch(`/crm/api/customer-lookup/?phone=${encodeURIComponent(phone)}`)
                 .then(r => r.json())
@@ -610,7 +720,7 @@ function waiterOrder() {
                 });
         },
         wcmCreateClient() {
-            const phone = this.wcm.phone.trim();
+            const phone = this.wcm.query.trim();
             const name = this.wcm.name.trim();
             if (!name) { this.wcm.error = 'من فضلك أدخل اسم العميل'; return; }
             fetch(`/crm/api/customer-quick-create/`, {
@@ -664,7 +774,22 @@ function waiterOrder() {
             .then(res => {
                 if (res.status === 'ok') {
                     this.headerCustomerName = name;
+                    // Keep the آجل/partial-payment picker near checkout in sync with
+                    // whichever customer was just attached — it used to have its own
+                    // separate customerId that only this box's own dropdown ever set,
+                    // so attaching a customer here still left closeCheck('cl') thinking
+                    // no customer was chosen at all.
+                    this.customerId = customerId;
+                    this.customerSearch = name;
+                    if (this.order) this.order.customer_id = customerId;
                     this.wcmClose();
+                    // This modal may have been opened automatically because closeCheck
+                    // was blocked on needing a customer — finish what they were doing.
+                    if (this.pendingCloseType) {
+                        const type = this.pendingCloseType;
+                        this.pendingCloseType = null;
+                        this.closeCheck(type);
+                    }
                 } else {
                     this.wcm.error = res.message || 'حدث خطأ';
                 }
@@ -935,15 +1060,31 @@ function waiterOrder() {
         },
         closeCheck(type) {
             const params = {close_type: type};
+            // Falls back to whatever customer is already attached to the order (e.g. via
+            // the header's "إضافة عميل" button) — this box's own customerId used to be
+            // the ONLY thing checked here, so a customer picked up top still triggered
+            // "اختر عميلاً أولاً" even though one was already selected.
+            if (!this.customerId && this.order && this.order.customer_id) {
+                this.customerId = this.order.customer_id;
+            }
             if (type === 'cl') {
-                if (!this.customerId) { alert('اختر عميلاً أولاً لتسجيل قيمة الشيك كمديونية آجلة عليه'); return; }
+                if (!this.customerId) {
+                    // No dead-end alert — jump straight into picking/registering a
+                    // customer, then finish closing the check automatically once one
+                    // is attached (see _wcmAttachToOrder).
+                    this.wcmOpen();
+                    this.pendingCloseType = type;
+                    return;
+                }
                 params.customer_id = this.customerId;
             } else if (this.showPartialPay) {
                 const total = this.order ? this.order.total_amount : 0;
                 const received = parseFloat(this.receivedAmount);
                 if (isNaN(received) || received < 0) { alert('أدخل المبلغ المستلم'); return; }
                 if (received < total - 0.01 && !this.customerId) {
-                    alert('يوجد باقي على العميل، اختر عميلاً لتسجيله كمديونية عليه'); return;
+                    this.wcmOpen();
+                    this.pendingCloseType = type;
+                    return;
                 }
                 params.received_amount = received;
                 if (this.customerId) params.customer_id = this.customerId;

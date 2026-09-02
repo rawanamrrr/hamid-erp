@@ -49,6 +49,21 @@
         </div>
     </div>
 
+    <!-- Search: table number, waiter name, or note text — matched against data-search
+         on each card (see _table_card.html). Client-side only (no round trip) since
+         every card is already rendered on the page. -->
+    <div class="relative mb-4 max-w-md">
+        <i class="fa-solid fa-magnifying-glass absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-300 text-sm"></i>
+        <input type="text" x-model="tableSearch" @input="filterTables()"
+               placeholder="ابحث برقم الترابيزة، اسم الويتر، أو الملاحظة..."
+               class="w-full pr-10 pl-9 py-2.5 rounded-xl border border-gray-200 bg-white text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-50">
+        <button x-show="tableSearch" @click="tableSearch=''; filterTables()"
+                class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-gray-200 hover:bg-gray-300 text-gray-500 flex items-center justify-center">
+            <i class="fa-solid fa-xmark text-[10px]"></i>
+        </button>
+    </div>
+    <p x-show="tableSearch && visibleCount === 0" class="text-sm text-gray-400 mb-4">لا توجد نتائج مطابقة لـ "<span x-text="tableSearch"></span>"</p>
+
     <!-- Status summary chips -->
     <div class="flex items-center gap-2 mb-6 flex-wrap" x-show="totalTables > 0">
         <div class="flex items-center gap-1.5 bg-emerald-50 border border-emerald-100 rounded-xl px-3 py-1.5">
@@ -76,6 +91,7 @@
         <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-3">
             {% for o in no_table_orders %}
             <a href="{% url 'restaurant:waiter_order_no_table' o.id %}"
+               data-search="{{ o.id }} {% if o.waiter %}{{ o.waiter.get_full_name|default:o.waiter.username }}{% endif %} {% if o.notes %}{{ o.notes }}{% endif %}"
                class="relative block rounded-2xl border-2 border-indigo-200 bg-indigo-50/70 hover:bg-indigo-100/70 hover:shadow-md transition-all p-4 text-center">
                 <span class="absolute top-2 left-2 text-[9px] font-black bg-indigo-600 text-white px-1.5 py-0.5 rounded-md">قيد التنفيذ</span>
                 <div class="w-9 h-9 mx-auto rounded-xl bg-white shadow-sm text-indigo-500 flex items-center justify-center mb-2">
@@ -222,6 +238,29 @@ function waiterTables(branchId) {
         branchId: branchId,
         counts: {available: 0, busy: 0, reserved: 0},
         totalTables: 0,
+        tableSearch: '',
+        visibleCount: 0,
+        // Filters every card (table AND "بدون ترابيزة" order) by data-search — set once
+        // per card in _table_card.html / the no-table-orders loop below. Also hides a
+        // section's own heading when every card under it is filtered out, so searching
+        // doesn't leave a page full of empty "صالة" headings with nothing under them.
+        filterTables() {
+            const q = (this.tableSearch || '').trim().toLowerCase();
+            let visible = 0;
+            document.querySelectorAll('[data-search]').forEach(card => {
+                const hay = (card.dataset.search || '').toLowerCase();
+                const match = !q || hay.includes(q);
+                card.classList.toggle('hidden', !match);
+                if (match) visible++;
+            });
+            this.visibleCount = visible;
+            document.querySelectorAll('.grid').forEach(grid => {
+                const section = grid.closest('div.mb-8');
+                if (!section) return;
+                const anyVisible = Array.from(grid.children).some(c => !c.classList.contains('hidden'));
+                section.classList.toggle('hidden', q !== '' && !anyVisible);
+            });
+        },
         reserveModal: {open: false, tableId: null, tableNumber: '', name: '', phone: '', partySize: '', time: '', notes: '', error: ''},
         wcm: {open: false, step: 'phone', phone: '', name: '', foundName: '', error: ''},
         wcmOpen() { this.wcm = {open: true, step: 'phone', phone: '', name: '', foundName: '', error: ''}; },
@@ -303,6 +342,7 @@ function waiterTables(branchId) {
             });
 
             this.recomputeCounts();
+            this.filterTables();
             if (!this.branchId) return;
             // Safety net if the websocket below never connects (see window.LiveRefresh in
             // base.html) — without it a waiter's table map can sit stale indefinitely.

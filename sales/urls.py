@@ -61,7 +61,9 @@ urlpatterns = [
     
     # Expenses
     path('expenses/', views.expense_list, name='expense_list'),
+    path('expenses/<int:pk>/edit/', views.expense_edit, name='expense_edit'),
     path('expenses/invoice/<int:pk>/', views.expense_invoice, name='expense_invoice'),
+    path('expenses/report/', views.expense_report, name='expense_report'),
     
     # Financial Statement
     path('financial/', views.financial_statement, name='financial_statement'),

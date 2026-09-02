@@ -75,6 +75,13 @@ def _payment_method_label(order):
     if visa > 0 and cash == 0 and wallet == 0 and instapay == 0 and credit == 0:
         return 'فيزا'
     if credit > 0 and cash == 0 and wallet == 0 and wallet == 0 and instapay == 0 and visa == 0:
+        # credit_paid is reused for two opposite things: real prior-balance applied
+        # (رصيد سابق, correct here) vs. close_check's آجل shortcut of just stashing the
+        # unpaid total in this same field (order.close_type == 'cl') — a NEW debt, not
+        # money taken from an existing balance. Mislabeling the latter as "رصيد سابق"
+        # reads as if the customer already had money on account, which they didn't.
+        if getattr(order, 'close_type', None) == 'cl':
+            return 'آجل'
         return 'رصيد سابق'
     return 'مقسم (Split)'
 
@@ -297,11 +304,18 @@ def render_receipt_image(order, sys_settings=None):
         row('المدفوع:', _money(order.received_amount), f_small)
     row('طريقة الدفع:', _payment_method_label(order), f_small)
 
-    if order.payment_method == 'custom' or (order.credit_paid or 0) > 0:
+    is_pure_cl = (getattr(order, 'close_type', None) == 'cl' and not any(
+        (order.cash_paid or 0, order.wallet_paid or 0, order.instapay_paid or 0, order.visa_paid or 0)))
+    if (order.payment_method == 'custom' or (order.credit_paid or 0) > 0) and not is_pure_cl:
+        # Suppressed for a pure single-method آجل close — "طريقة الدفع" above already
+        # says it, and repeating it here as "- رصيد سابق" would be both redundant and
+        # wrong (see _payment_method_label). Still shown when آجل is mixed into an
+        # actual split payment.
+        credit_label = '- آجل:' if getattr(order, 'close_type', None) == 'cl' else '- رصيد سابق:'
         for amount, label in (
             (order.cash_paid, '- نقدي:'), (order.wallet_paid, '- فودافون كاش:'),
             (order.instapay_paid, '- إنستا باي:'), (order.visa_paid, '- فيزا:'),
-            (order.credit_paid, '- رصيد سابق:'),
+            (order.credit_paid, credit_label),
         ):
             if (amount or 0) > 0:
                 row(label, _money(amount), f_small, indent=12)
@@ -311,7 +325,7 @@ def render_receipt_image(order, sys_settings=None):
     elif (order.remaining_amount or 0) > 0:
         # No warning glyph (⚠️) — the printer font (Tahoma) has no emoji coverage, which
         # rendered as an empty box rather than the actual symbol.
-        row('المتبقي (عليه):', _money(order.remaining_amount), f_small)
+        row('الرصيد المستحق:', _money(order.remaining_amount), f_small)
     elif (order.remaining_amount or 0) < 0:
         row('الباقي:', _money(-order.remaining_amount), f_small)
 

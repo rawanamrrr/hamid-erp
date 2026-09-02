@@ -1535,7 +1535,49 @@ def _get_or_create_payslip(cfg, period):
         if due:
             ps.advance_deducted = due
             ps.save(update_fields=['advance_deducted'])
+    elif ps.status != 'paid':
+        # An UNPAID payslip for this period already existed (e.g. auto-created on an
+        # earlier visit to this page) — إعدادات مرتب الموظف (EmployeeSalary) may have been
+        # edited since, and get_or_create's `defaults` are silently ignored on the
+        # fetch-existing path, so without this the draft kept paying out on whatever
+        # basic_salary/deductions were in effect the first time it was ever touched this
+        # month. A PAID payslip is a closed financial record and must never be rewritten
+        # after the fact — only ever resync a still-open draft.
+        fixed_ded = ps.adjustments.filter(kind='deduction', label='خصومات ثابتة').first()
+        cfg_deductions = cfg.deductions or Decimal('0.00')
+        needs_save = False
+        if ps.basic_salary != cfg.basic_salary:
+            ps.basic_salary = cfg.basic_salary
+            needs_save = True
+        if ps.allowances != cfg.allowances:
+            ps.allowances = cfg.allowances
+            needs_save = True
+        if needs_save:
+            ps.save(update_fields=['basic_salary', 'allowances'])
+        if cfg_deductions > 0:
+            if fixed_ded:
+                if fixed_ded.amount != cfg_deductions:
+                    fixed_ded.amount = cfg_deductions
+                    fixed_ded.save(update_fields=['amount'])
+            else:
+                PayslipAdjustment.objects.create(payslip=ps, kind='deduction',
+                                                 label='خصومات ثابتة', amount=cfg_deductions)
+        elif fixed_ded:
+            fixed_ded.delete()
     return ps, created
+
+
+def _expense_payment_method(account):
+    """Map an Account's account_type to sales.Expense.payment_method (cash/bank/wallet/
+    instapay) — Expense doesn't share Account's account_type vocabulary, so anything
+    that logs a payout as an Expense (salary, advance) needs this to show the REAL
+    method paid instead of silently defaulting to 'cash' regardless of which
+    account/instapay/vodafone-cash was actually used.
+    """
+    return {
+        'CASH_DRAWER': 'cash', 'SAFE': 'cash',
+        'VODAFONE_CASH': 'wallet', 'INSTAPAY': 'instapay', 'BANK': 'bank',
+    }.get(account.account_type, 'cash')
 
 
 def _pay_payslip(ps, account, user):
@@ -1572,18 +1614,23 @@ def _pay_payslip(ps, account, user):
         for a, due in plan:
             a.apply(due)
         desc = f"صرف راتب {ps.period_month} - {ps.employee.username}"
-        Transaction.objects.create(
-            account=account, transaction_type='EXPENSE', amount=net,
-            description=desc,
-            created_by=user,
-        )
         # Categorized "رواتب موظفين" so this payout also appears in the position
         # report's "المصروفات حسب التصنيف" box, which only reads sales.Expense.
         from sales.models import Expense
-        Expense.objects.create(
+        expense = Expense.objects.create(
             title=desc, category='salary', amount=net,
             description=f"صرف راتب {ps.employee.username} — {ps.period_month}",
+            payment_method=_expense_payment_method(account),
             user=user,
+        )
+        # Linked via expense= so later editing this row's amount/payment method in سجل
+        # المصروفات (sales.expense_edit) reverses/reapplies THIS transaction's account
+        # balance exactly like any manually-entered expense — without this FK the edit
+        # form found no transaction to sync and only ever updated the display row.
+        Transaction.objects.create(
+            account=account, transaction_type='EXPENSE', amount=net,
+            description=desc, expense=expense,
+            created_by=user,
         )
         ps.status = 'paid'
         ps.paid_at = timezone.now()
@@ -1744,17 +1791,40 @@ def advance_create(request):
                     notes=request.POST.get('notes', ''),
                     source_account=account,
                 )
+                # Logged to سجل المصروفات (category='advance') purely so the payout is
+                # visible there the same way a salary payout is. See EXPENSE_CATEGORIES
+                # for why it's excluded from every "إجمالي المصروفات" total — an advance
+                # is a receivable, not a real cost.
+                from sales.models import Expense
+                expense = Expense.objects.create(
+                    title=f"سلفة موظف: {emp.get_full_name() or emp.username}",
+                    category='advance', amount=amount,
+                    description=request.POST.get('notes', ''),
+                    payment_method=_expense_payment_method(account),
+                    user=request.user,
+                )
                 # WITHDRAWAL, not EXPENSE: the money isn't spent, it's a receivable the
                 # employee will repay through payroll deductions — an EXPENSE transaction
                 # would also count it as an operating cost in the P&L, overstating it.
                 # _pay_payslip already posts the correct, smaller EXPENSE when the salary
                 # is later paid net of the installment, so nothing else needs to change
                 # there for the books to balance.
-                Transaction.objects.create(
+                # Linked via expense= so editing this row's amount/payment method later in
+                # سجل المصروفات (sales.expense_edit) reverses/reapplies the SAME balance
+                # change any other expense edit does — same mechanism as the salary
+                # payout above. NOTE: this only corrects the money movement; it does NOT
+                # touch EmployeeAdvance.amount/remaining, so a real change to the loan
+                # itself (not just a data-entry fix) still belongs on صفحة السلف.
+                txn = Transaction.objects.create(
                     account=account, transaction_type='WITHDRAWAL', amount=amount,
                     description=f"سلفة موظف: {emp.get_full_name() or emp.username} (تُخصم من الراتب)",
+                    expense=expense,
                     created_by=request.user,
                 )
+                # advance_edit uses this link to correct the ACTUAL money movement when
+                # قيمة السلفة changes, instead of only ever updating this row's numbers.
+                advance.transaction = txn
+                advance.save(update_fields=['transaction'])
             messages.success(request, f"تم تسجيل سلفة للموظف {emp.username} وخصم {amount} ج.م من {account.name}.")
             return redirect('financial:advance_list')
         except ValueError:
@@ -1775,10 +1845,40 @@ def advance_edit(request, pk):
     advance = get_object_or_404(EmployeeAdvance, pk=pk)
     if request.method == 'POST':
         try:
+            old_amount = advance.amount
+            old_remaining = advance.remaining
+            repaid_so_far = old_amount - old_remaining
+
+            new_amount = Decimal(str(request.POST.get('amount')))
+            posted_remaining = Decimal(str(request.POST.get('remaining') or 0))
+
             advance.employee = get_object_or_404(User, pk=request.POST.get('employee'))
-            advance.amount = Decimal(str(request.POST.get('amount')))
             advance.per_period_deduction = Decimal(str(request.POST.get('per_period_deduction') or 0))
-            advance.remaining = Decimal(str(request.POST.get('remaining') or 0))
+
+            # "المتبقي" tracks automatically with a قيمة السلفة change as long as it was
+            # left showing what the page loaded with (not deliberately retyped) —
+            # preserving whatever's already been repaid rather than resetting it to the
+            # full new amount. Nothing repaid yet (remaining == old amount) simply
+            # becomes remaining = new amount.
+            if posted_remaining == old_remaining and new_amount != old_amount:
+                advance.remaining = max(new_amount - repaid_so_far, Decimal('0.00'))
+            else:
+                advance.remaining = posted_remaining
+
+            # Correct the ACTUAL money moved — extra خصم from (or رد to) the SAME
+            # account the advance was originally paid from, exactly like editing any
+            # other expense's amount. Only when the amount actually changed and there's
+            # a real transaction to correct (an advance entered with no source_account,
+            # or from before this link existed, has none — nothing here to adjust).
+            if new_amount != old_amount and advance.transaction_id:
+                txn = advance.transaction
+                txn.amount = new_amount
+                txn.save(update_fields=['amount'])
+                if txn.expense_id:
+                    txn.expense.amount = new_amount
+                    txn.expense.save(update_fields=['amount'])
+
+            advance.amount = new_amount
             date_taken = request.POST.get('date_taken')
             if date_taken:
                 advance.date_taken = date_taken

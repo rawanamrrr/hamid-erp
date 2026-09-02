@@ -24,7 +24,14 @@ AVAILABLE_SHORTCUTS = [
     ('oversold_register',            'سجل مبيعات تجاوزت المخزون المتاح', 'fa-triangle-exclamation', 'المبيعات', ('sales', 'view'),  False),
     ('quotation_list',               'عروض الأسعار',       'fa-file-lines',            'المبيعات',            ('pos', 'view'),          False),
     ('reservation_list',             'الحجوزات',           'fa-calendar-check',        'المبيعات',            ('pos', 'view'),          False),
-    ('expense_list',                 'المصروفات',          'fa-receipt',               'المبيعات',            ('financial', 'view'),    False),
+    # Was gated on ('financial', 'view') — a stale mismatch against the page's real gate
+    # (require_granular_action('sales', 'expenses', 'financial', 'view')). _can() below
+    # only calls plain has_permission, not the fallback-aware has_granular_action, so a
+    # role granted ONLY "المصروفات" (sales:expenses) with no financial:view satisfied
+    # neither this shortcut NOR — since get_best_landing_url falls back to
+    # available_for() when nothing else matches — could even land anywhere after login,
+    # landing on "لا توجد صلاحيات" instead of سجل المصروفات.
+    ('expense_list',                 'المصروفات',          'fa-receipt',               'المبيعات',            ('sales', 'expenses'),    False),
     ('financial:salary_list',        'رواتب الموظفين',     'fa-money-bill-wave',       'المبيعات',            ('financial', 'view'),    False),
     ('financial:deal_list',          'العروض والخصومات',   'fa-tags',                  'المبيعات',            ('financial', 'view'),    False),
 

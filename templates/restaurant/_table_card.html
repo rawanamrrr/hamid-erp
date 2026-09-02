@@ -2,6 +2,10 @@
 <a href="{% url 'restaurant:waiter_order' table.id %}"
    data-table-id="{{ table.id }}" data-status="{{ table.status }}"
    data-kitchen-ready="{% if table.status == 'busy' and table.open_order.kitchen_status == 'ready' %}1{% else %}0{% endif %}"
+   {% comment %} Searchable blob for the table-map search bar (waiter_tables.html) — table
+        number, the waiter who opened it, and any note left on it, so a waiter can find a
+        table by any of those instead of scanning every card by eye. {% endcomment %}
+   data-search="{{ table.number }} {% if table.open_order.waiter %}{{ table.open_order.waiter.get_full_name|default:table.open_order.waiter.username }}{% endif %} {% if table.open_order.notes %}{{ table.open_order.notes }}{% endif %}"
    class="table-card relative block rounded-2xl border-2 p-4 text-center shadow-sm hover:shadow-md transition-all
           {% if table.status == 'busy' %}bg-red-50/80 border-red-200
           {% elif table.status == 'reserved' %}bg-amber-50/80 border-amber-200
@@ -48,12 +52,28 @@
         {{ table.reserved_name }}{% if table.reserved_time %} — {{ table.reserved_time|date:"H:i" }}{% endif %}
     </div>
     {% endif %}
+    {% if table.status == 'busy' and table.open_order.waiter %}
+    <!-- Which waiter opened this table's order — lets any waiter glance at a busy table
+         and see whose it is without opening it, e.g. to know who to ask about it. -->
+    <div class="text-[10px] text-red-700/80 mt-0.5 truncate flex items-center justify-center gap-1" title="{{ table.open_order.waiter.get_full_name|default:table.open_order.waiter.username }}">
+        <i class="fa-solid fa-user-tie text-[8px]"></i> {{ table.open_order.waiter.get_full_name|default:table.open_order.waiter.username }}
+    </div>
+    {% endif %}
     {% if table.status == 'busy' and table.open_order.customer %}
     <!-- Read-only — visible to every waiter regardless of whether they have
          waiter:add_customer, so someone without the permission can still see WHO the
          table is busy for, just can't add/change/remove that customer themselves. -->
     <div class="text-[10px] text-red-700 mt-1 truncate flex items-center justify-center gap-1" title="{{ table.open_order.customer.first_name }} {{ table.open_order.customer.last_name }}">
         <i class="fa-solid fa-user text-[8px]"></i> {{ table.open_order.customer.first_name }} {{ table.open_order.customer.last_name }}
+    </div>
+    {% endif %}
+    {% if table.status == 'busy' and table.open_order.notes %}
+    <!-- The waiter's own scratchpad note for this order (see waiter_order.html's
+         "ملاحظة" button) — shown here so it's visible from the grid without opening the
+         table, but deliberately its own line/style rather than tucked under the waiter
+         name, so it doesn't read as if it were part of that label. -->
+    <div class="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1 mt-1.5 truncate flex items-center justify-center gap-1" title="{{ table.open_order.notes }}">
+        <i class="fa-solid fa-note-sticky text-[8px]"></i> {{ table.open_order.notes }}
     </div>
     {% endif %}
     {% if table.status == 'busy' and not table.open_order and request.user|can_access:"waiter:edit" %}

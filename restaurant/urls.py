@@ -20,6 +20,7 @@ urlpatterns = [
     path('waiter/order/<int:order_id>/', views.waiter_order_screen_no_table, name='waiter_order_no_table'),
     path('waiter/order/<int:order_id>/add-items/', views.waiter_add_items_no_table, name='waiter_add_items_no_table'),
     path('waiter/order/<int:order_id>/set-customer/', views.waiter_set_order_customer, name='waiter_set_order_customer'),
+    path('waiter/order/<int:order_id>/set-note/', views.waiter_set_order_note, name='waiter_set_order_note'),
     path('order-item/<int:item_id>/void/', views.void_order_item, name='void_order_item'),
     path('order/<int:order_id>/void/', views.void_order, name='void_order'),
     path('order/<int:order_id>/close/', views.close_check, name='close_check'),

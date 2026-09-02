@@ -226,6 +226,15 @@ class EmployeeAdvance(models.Model):
     # eventually deducted from a payslip.
     source_account = models.ForeignKey(Account, on_delete=models.SET_NULL, null=True, blank=True,
                                        related_name='employee_advances', verbose_name="صُرفت من حساب")
+    # The WITHDRAWAL Transaction financial.advance_create posted for this advance —
+    # lets advance_edit correct the actual money movement (via Transaction.save()'s
+    # built-in reverse-old/apply-new balance logic) when قيمة السلفة is edited, instead
+    # of only ever updating this row's own amount/remaining while the account balance
+    # silently drifts away from what's shown here. Null for advances recorded with no
+    # source_account (money already handed over in cash before this existed) and for
+    # any advance from before this field was added.
+    transaction = models.OneToOneField(Transaction, on_delete=models.SET_NULL, null=True, blank=True,
+                                       related_name='employee_advance', verbose_name="حركة الصرف")
 
     class Meta:
         verbose_name = "سلفة موظف"

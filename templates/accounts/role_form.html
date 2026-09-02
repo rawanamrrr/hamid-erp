@@ -99,7 +99,7 @@
         // already existed as an enforced granular action (sales.views.expense_list —
         // مصاريف يومية) but had no checkbox anywhere to actually grant it from a role;
         // it fell back to plain financial:view for anyone without an explicit override.
-        { id: 'sales', name: 'فواتير المبيعات', actions: ['view', 'view_all', 'edit', 'delete', 'refund', 'manage', 'expenses'] },
+        { id: 'sales', name: 'فواتير المبيعات', actions: ['view', 'view_all', 'edit', 'delete', 'refund', 'manage', 'expenses', 'expenses_edit', 'expenses_payroll'] },
         { id: 'users', name: 'إدارة المستخدمين والأدوار', actions: ['view', 'create', 'edit', 'delete'] },
         // Previously had no entry at all — store settings/policies pages were unreachable
         // for any role without superuser/master status.
@@ -153,7 +153,9 @@
                                 act === 'add_customer' ? 'إضافة عميل جديد (بالاسم ورقم الموبايل)' :
                                 act === 'salaries' ? 'رواتب الموظفين' :
                                 act === 'advances' ? 'السلف' :
-                                act === 'expenses' ? 'مصاريف يومية' : act;
+                                act === 'expenses' ? 'مصاريف يومية' :
+                                act === 'expenses_edit' ? 'تعديل المصروفات' :
+                                act === 'expenses_payroll' ? 'رؤية رواتب وسلف الموظفين في المصروفات' : act;
                                 
             html += `
                 <label class="flex items-center gap-2 cursor-pointer hover:bg-gray-50 p-2 rounded-lg transition border border-transparent hover:border-gray-100">

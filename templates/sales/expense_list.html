@@ -1,6 +1,16 @@
 ﻿{% extends 'base.html' %}
 
 {% block content %}
+<style>
+    /* Thin, visible scrollbar for the "تسجيل مصروف جديد" card — it now scrolls
+       internally (see max-h/overflow-y-auto below) instead of relying on the page
+       itself to scroll it into view, so it needs its own scroll affordance. */
+    .expense-form-scrollbar { scrollbar-width: thin; scrollbar-color: #cbd5e1 transparent; scroll-behavior: smooth; }
+    .expense-form-scrollbar::-webkit-scrollbar { width: 8px; }
+    .expense-form-scrollbar::-webkit-scrollbar-track { background: transparent; }
+    .expense-form-scrollbar::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 999px; }
+    .expense-form-scrollbar::-webkit-scrollbar-thumb:hover { background-color: #94a3b8; }
+</style>
 <div class="space-y-6">
     <!-- Header & Summary -->
     <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -17,7 +27,12 @@
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <!-- Add Expense Form -->
         <div class="lg:col-span-1">
-            <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200 sticky top-4">
+            <!-- max-h + overflow-y-auto so this card scrolls smoothly WITHIN itself once
+                 stuck, instead of relying on the whole page to scroll it into view first
+                 (sticky alone has no scroll of its own — a form taller than the viewport
+                 just got cut off at the bottom until the outer page scrolled far enough,
+                 which felt like two separate, janky scroll motions). -->
+            <div class="expense-form-scrollbar bg-white p-5 rounded-xl shadow-sm border border-gray-200 sticky top-4 max-h-[calc(100vh-2rem)] overflow-y-auto">
                 <h3 class="font-bold text-gray-800 mb-4 pb-2 border-b">تسجيل مصروف جديد</h3>
                 {% if approval_error %}
                 <div class="mb-4 px-3 py-2.5 rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs font-bold">
@@ -53,8 +68,9 @@
                         {{ form.receipt }}
                     </div>
                     <div>
-                        <label class="block text-xs font-bold text-gray-500 mb-1">ملاحظات</label>
+                        <label class="block text-xs font-bold text-gray-500 mb-1 js-description-label">ملاحظات</label>
                         {{ form.description }}
+                        {% if form.description.errors %}<p class="text-red-600 text-xs font-bold mt-1">{{ form.description.errors.0 }}</p>{% endif %}
                     </div>
 
                     {% if approval_threshold %}
@@ -111,11 +127,16 @@
                     <a href="{% url 'expense_list' %}" class="px-4 py-2.5 bg-gray-100 text-gray-600 rounded-xl hover:bg-gray-200 smooth-transition text-sm flex items-center justify-center btn-press" title="مسح الفلاتر">
                         <i class="fas fa-times"></i>
                     </a>
+                    <a id="printReportLink" href="{% url 'expense_report' %}?date_from={{ request.GET.date_from }}&date_to={{ request.GET.date_to }}"
+                       target="_blank" onclick="updatePrintReportLink()"
+                       class="px-4 py-2.5 bg-gray-800 text-white rounded-xl hover:bg-gray-900 smooth-transition text-sm flex items-center gap-1.5 btn-press whitespace-nowrap" title="طباعة تقرير للفترة المحددة">
+                        <i class="fas fa-print"></i> طباعة تقرير
+                    </a>
                 </form>
             </div>
 
             <!-- Table -->
-            <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-x-auto">
                 <table class="w-full text-right text-sm">
                     <thead class="bg-gray-50 text-gray-600 font-medium border-b">
                         <tr>
@@ -125,15 +146,18 @@
                             <th class="p-4">طريقة الدفع</th>
                             <th class="p-4">التاريخ</th>
                             <th class="p-4">بواسطة</th>
-                            <th class="p-4">إيصال</th>
-                            <th class="p-4">طباعة</th>
+                            <th class="p-4">إجراءات</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-100">
                         {% for expense in expenses %}
                         <tr class="hover:bg-gray-50">
                             <td class="p-4 font-bold text-gray-800">{{ expense.title }}</td>
-                            <td class="p-4"><span class="bg-gray-100 text-gray-600 px-2 py-1 rounded text-xs">{{ expense.get_category_display }}</span></td>
+                            <td class="p-4">
+                                <span class="bg-gray-100 text-gray-600 px-2 py-1 rounded text-xs">
+                                    {{ expense.get_category_display }}{% if expense.category == 'other' and expense.description %} - {{ expense.description }}{% endif %}
+                                </span>
+                            </td>
                             <td class="p-4 font-bold text-red-600">{{ expense.amount }}</td>
                             <td class="p-4 text-gray-500 text-xs">{{ expense.get_payment_method_display }}</td>
                             <td class="p-4 text-gray-500">{{ expense.date|date:"Y-m-d" }}</td>
@@ -144,28 +168,31 @@
                                 {% endif %}
                             </td>
                             <td class="p-4">
-                                {% if expense.receipt %}
-                                {% comment %} Shown in a dialog on this page rather than opened as a
-                                   link. The receipt is a raw uploaded image, and in the
-                                   desktop app window — which has no address bar and no
-                                   Back button — navigating to a bare image file leaves
-                                   the user staring at it with no way back. {% endcomment %}
-                                <button type="button" onclick="showReceipt('{{ expense.receipt.url }}')"
-                                        class="text-emerald-600 hover:text-emerald-800" title="عرض الإيصال">
-                                    <i class="fas fa-receipt"></i>
-                                </button>
-                                {% else %}
-                                <span class="text-gray-300">—</span>
-                                {% endif %}
-                            </td>
-                            <td class="p-4">
-                                <a href="{% url 'expense_invoice' expense.id %}" class="text-blue-600 hover:text-blue-800">
-                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
-                                </a>
+                                <div class="flex items-center gap-3">
+                                    {% if can_edit_expenses %}
+                                    <button type="button" onclick="openEditExpense({{ expense.id }})" class="text-amber-600 hover:text-amber-800" title="تعديل المصروف">
+                                        <i class="fas fa-pen"></i>
+                                    </button>
+                                    {% endif %}
+                                    <a href="{% url 'expense_invoice' expense.id %}" class="text-blue-600 hover:text-blue-800" title="طباعة">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
+                                    </a>
+                                    {% if expense.receipt %}
+                                    {% comment %} Shown in a dialog on this page rather than opened as a
+                                       link. The receipt is a raw uploaded image, and in the
+                                       desktop app window — which has no address bar and no
+                                       Back button — navigating to a bare image file leaves
+                                       the user staring at it with no way back. {% endcomment %}
+                                    <button type="button" onclick="showReceipt('{{ expense.receipt.url }}')"
+                                            class="text-emerald-600 hover:text-emerald-800" title="عرض الإيصال">
+                                        <i class="fas fa-receipt"></i>
+                                    </button>
+                                    {% endif %}
+                                </div>
                             </td>
                         </tr>
                         {% empty %}
-                        <tr><td colspan="8" class="p-8 text-center text-gray-400">لا توجد مصروفات مسجلة</td></tr>
+                        <tr><td colspan="7" class="p-8 text-center text-gray-400">لا توجد مصروفات مسجلة</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>
@@ -174,6 +201,18 @@
     </div>
 </div>
 <script>
+// Keep "طباعة تقرير" pointed at whatever dates are currently typed in the filter —
+// it's a plain link (opens a new tab), so unlike the "تصفية" submit button it never
+// otherwise sees an unsaved change to the date inputs.
+function updatePrintReportLink() {
+    const from = document.getElementById('date_from').value;
+    const to = document.getElementById('date_to').value;
+    const params = new URLSearchParams();
+    if (from) params.set('date_from', from);
+    if (to) params.set('date_to', to);
+    document.getElementById('printReportLink').href = `{% url 'expense_report' %}?${params.toString()}`;
+}
+
 // Quick-range buttons (اليوم/أمس/7 أيام/الشهر) — fills the two date inputs and submits
 // the same filter form the manual date pickers already use.
 function setRange(kind) {
@@ -225,6 +264,83 @@ function closeReceipt() {
 document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape') closeReceipt();
 });
+
+// When "نثريات / أخرى" is picked, the ملاحظات field is the only place that says what
+// the expense actually WAS — repurpose it into a required "specify" prompt instead of
+// an optional note, in both the create form and the edit modal (each has its own
+// category select + description field, matched by .js-description-label sharing a
+// form with the select that changed).
+document.addEventListener('DOMContentLoaded', function () {
+    // Re-apply the "specify" prompt if the create form re-rendered with category=أخرى
+    // already selected (e.g. after a validation error on submit).
+    const createCategory = document.querySelector('form[method=post] select[name=category]');
+    if (createCategory) handleOtherCategory(createCategory);
+});
+function handleOtherCategory(selectEl) {
+    const form = selectEl.closest('form');
+    if (!form) return;
+    const label = form.querySelector('.js-description-label');
+    const desc = form.querySelector('[name=description]');
+    if (!label || !desc) return;
+    const isOther = selectEl.value === 'other';
+    label.textContent = isOther ? 'اكتب نوع المصروف (اختياري)' : 'ملاحظات';
+    desc.placeholder = isOther ? 'مثال: اشتراك انترنت الفرع...' : '';
+}
+
+// --- Edit expense modal ---
+function openEditExpense(id) {
+    fetch(`/sales/expenses/${id}/edit/`)
+        .then(r => r.json())
+        .then(data => {
+            const f = document.getElementById('editExpenseForm');
+            f.action = `/sales/expenses/${id}/edit/`;
+            f.querySelector('[name=title]').value = data.title;
+            f.querySelector('[name=category]').value = data.category;
+            f.querySelector('[name=amount]').value = data.amount;
+            f.querySelector('[name=date]').value = data.date;
+            f.querySelector('[name=payment_method]').value = data.payment_method;
+            f.querySelector('[name=description]').value = data.description;
+            handleOtherCategory(f.querySelector('[name=category]'));
+            document.getElementById('editExpenseError').classList.add('hidden');
+            document.getElementById('editExpenseModal').classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+        })
+        .catch(() => alert('تعذر تحميل بيانات المصروف'));
+}
+function closeEditExpense() {
+    document.getElementById('editExpenseModal').classList.add('hidden');
+    document.body.style.overflow = '';
+}
+// Delegated on document (not the form element directly) because this script tag runs
+// before #editExpenseForm exists further down the page — a direct getElementById here
+// would silently find nothing and the form would fall back to a plain native submit,
+// navigating the whole page to the raw JSON response instead of updating in place.
+document.addEventListener('submit', function (e) {
+    if (e.target.id !== 'editExpenseForm') return;
+    e.preventDefault();
+    const form = e.target;
+    const errBox = document.getElementById('editExpenseError');
+    fetch(form.action, {
+        method: 'POST',
+        headers: {'X-CSRFToken': getCookie('csrftoken')},
+        body: new FormData(form),
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.status === 'ok') {
+            location.reload();
+        } else {
+            errBox.textContent = data.message || 'حدث خطأ أثناء الحفظ';
+            errBox.classList.remove('hidden');
+        }
+    })
+    .catch(() => { errBox.textContent = 'تعذر الاتصال بالسيرفر'; errBox.classList.remove('hidden'); });
+});
+function getCookie(name) {
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) return parts.pop().split(';').shift();
+}
 </script>
 
 <!-- Receipt preview dialog -->
@@ -243,6 +359,61 @@ document.addEventListener('keydown', function (e) {
         <div class="p-4 overflow-auto bg-gray-50 flex items-center justify-center">
             <img id="receiptImg" src="" alt="إيصال المصروف" class="max-w-full h-auto rounded-lg shadow">
         </div>
+    </div>
+</div>
+
+<!-- Edit expense dialog -->
+<div id="editExpenseModal" class="hidden fixed inset-0 z-[9999] bg-black/70 flex items-center justify-center p-4"
+     onclick="if(event.target===this)closeEditExpense()">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full max-h-[90vh] flex flex-col overflow-hidden">
+        <div class="flex items-center justify-between gap-3 px-5 py-3 border-b border-gray-100">
+            <h3 class="font-black text-gray-800">تعديل المصروف</h3>
+            <button type="button" onclick="closeEditExpense()" class="text-gray-400 hover:text-gray-600">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <form id="editExpenseForm" method="post" class="p-5 space-y-4 overflow-y-auto">
+            {% csrf_token %}
+            <div id="editExpenseError" class="hidden px-3 py-2.5 rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs font-bold"></div>
+            <div>
+                <label class="block text-xs font-bold text-gray-500 mb-1">بند الصرف</label>
+                <input type="text" name="title" required class="w-full p-2 border rounded">
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-gray-500 mb-1">التصنيف</label>
+                <select name="category" required class="w-full p-2 border rounded" onchange="handleOtherCategory(this)">
+                    {% for val, label in all_categories %}
+                    <option value="{{ val }}">{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-xs font-bold text-gray-500 mb-1">المبلغ</label>
+                    <input type="number" step="0.01" name="amount" required class="w-full p-2 border rounded">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-500 mb-1">التاريخ</label>
+                    <input type="date" name="date" required class="w-full p-2 border rounded">
+                </div>
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-gray-500 mb-1">طريقة الدفع</label>
+                <select name="payment_method" required class="w-full p-2 border rounded">
+                    {% for val, label in form.fields.payment_method.choices %}
+                    <option value="{{ val }}">{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-gray-500 mb-1 js-description-label">ملاحظات</label>
+                <textarea name="description" rows="2" class="w-full p-2 border rounded"></textarea>
+            </div>
+            <div class="flex gap-2 pt-2">
+                <button type="button" onclick="closeEditExpense()" class="flex-1 py-2 rounded-lg border border-gray-200 text-gray-600 font-bold">إلغاء</button>
+                <button type="submit" class="flex-1 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 font-bold">حفظ التعديل</button>
+            </div>
+        </form>
     </div>
 </div>
 {% endblock %}

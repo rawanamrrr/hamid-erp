@@ -536,6 +536,8 @@
                                 إنستا باي
                             {% elif order.visa_paid > 0 and order.cash_paid == 0 and order.wallet_paid == 0 and order.instapay_paid == 0 and order.credit_paid == 0 %}
                                 فيزا
+                            {% elif order.close_type == 'cl' and order.credit_paid > 0 and order.cash_paid == 0 and order.wallet_paid == 0 and order.instapay_paid == 0 and order.visa_paid == 0 %}
+                                آجل
                             {% elif order.credit_paid > 0 and order.cash_paid == 0 and order.wallet_paid == 0 and order.instapay_paid == 0 and order.visa_paid == 0 %}
                                 رصيد سابق
                             {% else %}
@@ -545,13 +547,22 @@
                     </div>
 
                     {% if order.payment_method == 'custom' or order.credit_paid > 0 %}
+                        {% if not order.close_type == 'cl' or order.cash_paid > 0 or order.wallet_paid > 0 or order.instapay_paid > 0 or order.visa_paid > 0 %}
+                        <!-- Suppressed for a pure single-method آجل close (nothing else paid
+                             alongside it) — the "طريقة الدفع: آجل" line above already says it;
+                             repeating it here as "- رصيد سابق" was both redundant AND wrong
+                             (that label means money applied FROM a prior balance, not a new
+                             debt being created). Still shown when آجل is mixed into an actual
+                             split payment, so the itemized breakdown isn't missing a leg. -->
                         <div class="mt-1 space-y-0.5">
                             {% if order.cash_paid > 0 %}<div class="flex justify-between text-[10px] pr-3 text-gray-500 italic"><span>- نقدي:</span><span class="num">{{ order.cash_paid }}</span></div>{% endif %}
                             {% if order.wallet_paid > 0 %}<div class="flex justify-between text-[10px] pr-3 text-gray-500 italic"><span>- فودافون كاش:</span><span class="num">{{ order.wallet_paid }}</span></div>{% endif %}
                             {% if order.instapay_paid > 0 %}<div class="flex justify-between text-[10px] pr-3 text-gray-500 italic"><span>- إنستا باي:</span><span class="num">{{ order.instapay_paid }}</span></div>{% endif %}
                             {% if order.visa_paid > 0 %}<div class="flex justify-between text-[10px] pr-3 text-gray-500 italic"><span>- فيزا:</span><span class="num">{{ order.visa_paid }}</span></div>{% endif %}
-                            {% if order.credit_paid > 0 %}<div class="flex justify-between text-[10px] pr-3 text-emerald-600 font-bold"><span>- رصيد سابق:</span><span class="num">{{ order.credit_paid }}</span></div>{% endif %}
+                            {% if order.credit_paid > 0 and order.close_type == 'cl' %}<div class="flex justify-between text-[10px] pr-3 text-amber-600 font-bold"><span>- آجل:</span><span class="num">{{ order.credit_paid }}</span></div>
+                            {% elif order.credit_paid > 0 %}<div class="flex justify-between text-[10px] pr-3 text-emerald-600 font-bold"><span>- رصيد سابق:</span><span class="num">{{ order.credit_paid }}</span></div>{% endif %}
                         </div>
+                        {% endif %}
                     {% endif %}
                     {% if order.is_online_order and not order.driver_settled_at %}
                     <!-- COD delivery order: the customer owes nothing on the invoice itself —
@@ -559,7 +570,7 @@
                          "paid" line at all — the receipt just reads like a normal sale. -->
                     {% elif order.remaining_amount > 0 %}
                     <div class="flex justify-between text-sm text-red-600 font-bold mt-1 border-t border-red-100 pt-1">
-                        <span>⚠️ المتبقي (عليه):</span>
+                        <span>الرصيد المستحق:</span>
                         <span class="num">{{ order.remaining_amount }}</span>
                     </div>
                     {% elif order.remaining_amount < 0 %}

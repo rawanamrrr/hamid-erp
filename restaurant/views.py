@@ -356,6 +356,8 @@ def _waiter_menu_context(order):
         svc = order.service_charge_breakdown()
         order_json = json.dumps({
             'id': order.id,
+            'customer_id': order.customer_id,
+            'notes': order.notes or '',
             'subtotal_amount': float(order.subtotal_amount),
             'service_charge': float(svc['amount']) if svc else 0,
             'service_charge_included': svc['included'] if svc else False,
@@ -803,6 +805,30 @@ def waiter_set_order_customer(request, order_id):
     # in an admin list but is just noise next to a name on the waiter's own screens.
     display_name = f"{customer.first_name} {customer.last_name}".strip()
     return JsonResponse({'status': 'ok', 'customer': {'id': customer.id, 'name': display_name}})
+
+
+@login_required
+@require_permission('waiter', 'view')
+@require_POST
+def waiter_set_order_note(request, order_id):
+    """Save a free-text note on the CURRENT open order for a table (e.g. "extra napkins",
+    "allergic to nuts") — a waiter-only scratchpad for this table's live order, not a
+    kitchen ticket note. Lives on Order.notes, so it disappears on its own once the order
+    closes and the table frees up: the next order opened on that table is a fresh row
+    with an empty notes field. Deliberately NOT shown on the table-map grid
+    (_table_card.html) — that view is a shared glance-and-go screen for every waiter, and
+    a scribbled note there would visually compete with the far more load-bearing
+    waiter/customer labels already on each busy card.
+    """
+    order = get_object_or_404(Order, pk=order_id)
+    try:
+        data = json.loads(request.body or b'{}')
+    except (ValueError, json.JSONDecodeError):
+        return JsonResponse({'status': 'error', 'message': 'بيانات غير صالحة'}, status=400)
+
+    order.notes = (data.get('note') or '').strip()
+    order.save(update_fields=['notes'])
+    return JsonResponse({'status': 'ok', 'note': order.notes})
 
 
 def _print_kitchen_tickets(request, order, items):

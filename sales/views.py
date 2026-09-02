@@ -2172,6 +2172,60 @@ def refund_view(request):
     return render(request, 'sales/refund_form.html', context)
 
 @login_required
+@require_granular_action('sales', 'expenses_edit', 'financial', 'manage')
+def expense_edit(request, pk):
+    """Edit an already-saved daily expense. Gated by its own صلاحيات → المبيعات →
+    "تعديل المصروفات" action (separate from 'expenses', which only gates SEEING سجل
+    المصروفات) — falls back to financial:manage for any role that predates this and
+    was never explicitly customized on the 'sales' module.
+
+    GET returns the current field values as JSON (used to prefill the edit modal in
+    expense_list.html); POST validates and saves the change, then updates the linked
+    Transaction in place (amount/account/description) so the accounts stay correct
+    instead of silently drifting from what the expense row now says. Does NOT re-run
+    the over-threshold manager-approval flow — that's a create-time gate on money
+    actually leaving the drawer; a correction to a category/description/date after the
+    fact isn't a new spend decision. If a correction pushes the amount importantly
+    higher, void the expense and re-enter it instead so the approval trail stays honest.
+    """
+    from financial.models import PeriodLock
+    from financial.posting import cash_account
+
+    exp = get_object_or_404(Expense, pk=pk)
+
+    if request.method == 'GET':
+        return JsonResponse({
+            'title': exp.title, 'category': exp.category, 'amount': str(exp.amount),
+            'date': exp.date.isoformat(), 'payment_method': exp.payment_method,
+            'description': exp.description,
+        })
+
+    form = ExpenseForm(request.POST, request.FILES, instance=exp)
+    if not form.is_valid():
+        return JsonResponse({'status': 'error', 'message': 'بيانات غير صالحة', 'errors': form.errors}, status=400)
+
+    new_exp = form.save(commit=False)
+    if PeriodLock.is_locked(new_exp.date) and not has_permission(request.user, 'financial', 'manage'):
+        return JsonResponse({'status': 'error',
+                             'message': 'الفترة المحاسبية لهذا التاريخ مغلقة، لا يمكن التعديل.'}, status=400)
+    new_exp.save()
+
+    txn = Transaction.objects.filter(expense=exp).first()
+    if txn:
+        try:
+            txn.account = cash_account(new_exp.payment_method)
+            txn.amount = new_exp.amount
+            txn.description = (f"مصروف: {new_exp.title}" +
+                               (f" — {new_exp.description}" if new_exp.description else ""))
+            txn.save(update_fields=['account', 'amount', 'description'])
+        except Exception:
+            logger.exception("Failed to update financial transaction for expense %s", exp.pk)
+            return JsonResponse({'status': 'ok', 'warning': 'تم حفظ التعديل، لكن حدث خطأ في تحديث الحسابات.'})
+
+    return JsonResponse({'status': 'ok'})
+
+
+@login_required
 @require_granular_action('sales', 'expenses', 'financial', 'view')
 def expense_list(request):
     """مصاريف يومية — small operational purchases with no product/order behind them
@@ -2196,7 +2250,16 @@ def expense_list(request):
         expenses = expenses.filter(date__gte=filter_date_from)
     if filter_date_to:
         expenses = expenses.filter(date__lte=filter_date_to)
-    total_expenses = expenses.aggregate(total=Sum('amount'))['total'] or Decimal('0')
+    # صلاحيات → المبيعات → "رؤية رواتب وسلف الموظفين في المصروفات" — رواتب/سلف rows are
+    # auto-logged here purely for visibility (see EXPENSE_CATEGORIES); a role without
+    # this granted never sees them at all, on this page or in its total.
+    can_view_payroll = has_granular_action(request.user, 'sales', 'expenses_payroll', 'financial', 'manage')
+    if not can_view_payroll:
+        expenses = expenses.exclude(category__in=['salary', 'advance'])
+    # "سلفة موظفين" rows are a receivable, not a real cost (see EXPENSE_CATEGORIES) —
+    # counted in the list below for visibility, but excluded from this total so
+    # "إجمالي المصروفات" doesn't overstate actual spend.
+    total_expenses = expenses.exclude(category='advance').aggregate(total=Sum('amount'))['total'] or Decimal('0')
 
     if request.method == 'POST':
         form = ExpenseForm(request.POST, request.FILES)
@@ -2265,6 +2328,13 @@ def expense_list(request):
     return render(request, 'sales/expense_list.html', {
         'expenses': expenses, 'form': form, 'total_expenses': total_expenses,
         'approval_threshold': threshold,
+        # Full category list (unlike form.fields.category.choices, which hides "سلفة
+        # موظفين" for the create form) — the edit modal needs every value an EXISTING
+        # row could already have, including an auto-logged advance, or picking one to
+        # edit would silently drop its category to whatever option renders first.
+        'all_categories': Expense.EXPENSE_CATEGORIES,
+        'can_edit_expenses': has_granular_action(request.user, 'sales', 'expenses_edit', 'financial', 'manage'),
+        'can_view_payroll': can_view_payroll,
     })
 
 @login_required
@@ -2273,6 +2343,32 @@ def expense_invoice(request, pk):
     expense = get_object_or_404(Expense, pk=pk)
     sys_settings = SystemSetting.objects.first()
     return render(request, 'sales/expense_invoice.html', {'expense': expense, 'sys_settings': sys_settings})
+
+
+@login_required
+@require_granular_action('sales', 'expenses', 'financial', 'view')
+def expense_report(request):
+    """Printable A4 summary of expenses for a date range — a one-page report to print/
+    hand to an accountant/owner, separate from expense_invoice's single-receipt print
+    (that one is a per-expense slip; this is the whole filtered list with a grand total).
+    """
+    expenses = Expense.objects.select_related('user', 'approved_by').order_by('date', 'id')
+    date_from = request.GET.get('date_from')
+    date_to = request.GET.get('date_to')
+    if date_from:
+        expenses = expenses.filter(date__gte=date_from)
+    if date_to:
+        expenses = expenses.filter(date__lte=date_to)
+    # Same صلاحية check as expense_list.
+    if not has_granular_action(request.user, 'sales', 'expenses_payroll', 'financial', 'manage'):
+        expenses = expenses.exclude(category__in=['salary', 'advance'])
+    # Same exclusion as expense_list — "سلفة موظفين" is a receivable, not a real cost.
+    total_expenses = expenses.exclude(category='advance').aggregate(total=Sum('amount'))['total'] or Decimal('0')
+    sys_settings = SystemSetting.objects.first()
+    return render(request, 'sales/expense_report.html', {
+        'expenses': expenses, 'total_expenses': total_expenses,
+        'date_from': date_from, 'date_to': date_to, 'sys_settings': sys_settings,
+    })
 
 # --- Helper for Financials ---
 def calculate_system_cash():
