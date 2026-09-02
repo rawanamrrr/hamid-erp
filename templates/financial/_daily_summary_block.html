@@ -1,0 +1,48 @@
+{% load humanize %}
+<!-- One شيفت's or the whole day's movement summary — same shape either way (see
+     financial.reports._movement_summary), so this partial renders both. -->
+<div class="space-y-3">
+    <!-- Sales -->
+    <div class="bg-white rounded-xl border divide-y">
+        <div class="px-5 py-3 bg-teal-50 font-black text-teal-800 flex justify-between">
+            <span>المبيعات ({{ s.sales.count }} فاتورة)</span>
+            <span class="dir-ltr">{{ s.sales.total|floatformat:2|intcomma }}</span>
+        </div>
+        <div class="flex justify-between px-5 py-2 text-sm"><span class="text-gray-600">نقدي</span><span class="dir-ltr">{{ s.sales.cash|floatformat:2|intcomma }}</span></div>
+        <div class="flex justify-between px-5 py-2 text-sm"><span class="text-gray-600">محفظة</span><span class="dir-ltr">{{ s.sales.wallet|floatformat:2|intcomma }}</span></div>
+        <div class="flex justify-between px-5 py-2 text-sm"><span class="text-gray-600">إنستا باي</span><span class="dir-ltr">{{ s.sales.instapay|floatformat:2|intcomma }}</span></div>
+        <div class="flex justify-between px-5 py-2 text-sm"><span class="text-gray-600">فيزا</span><span class="dir-ltr">{{ s.sales.visa|floatformat:2|intcomma }}</span></div>
+        <div class="flex justify-between px-5 py-2 text-sm"><span class="text-gray-600">آجل (مديونية)</span><span class="dir-ltr text-red-600">{{ s.credit_sales|floatformat:2|intcomma }}</span></div>
+    </div>
+
+    <!-- Cash in / out -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="bg-white rounded-xl border divide-y">
+            <div class="px-5 py-3 bg-green-50 font-black text-green-800">داخل للخزينة</div>
+            <div class="flex justify-between px-5 py-2 text-sm"><span class="text-gray-600">مبيعات نقدية</span><span class="dir-ltr">{{ s.sales.cash|floatformat:2|intcomma }}</span></div>
+            <div class="flex justify-between px-5 py-2 text-sm"><span class="text-gray-600">سندات قبض ({{ s.receipts.count }})</span><span class="dir-ltr">{{ s.receipts.total|floatformat:2|intcomma }}</span></div>
+            <div class="flex justify-between px-5 py-2 text-sm"><span class="text-gray-600">إيرادات أخرى</span><span class="dir-ltr">{{ s.other_income|floatformat:2|intcomma }}</span></div>
+            <div class="flex justify-between px-5 py-2 font-bold bg-green-50"><span>إجمالي الداخل</span><span class="dir-ltr">{{ s.cash_in|floatformat:2|intcomma }}</span></div>
+        </div>
+        <div class="bg-white rounded-xl border divide-y">
+            <div class="px-5 py-3 bg-red-50 font-black text-red-800">خارج من الخزينة</div>
+            <div class="flex justify-between px-5 py-2 text-sm"><span class="text-gray-600">مرتجعات نقدية</span><span class="dir-ltr">{{ s.cash_refunds|floatformat:2|intcomma }}</span></div>
+            <div class="flex justify-between px-5 py-2 text-sm"><span class="text-gray-600">مصروفات</span><span class="dir-ltr">{{ s.expenses|floatformat:2|intcomma }}</span></div>
+            <div class="flex justify-between px-5 py-2 text-sm"><span class="text-gray-600">سحوبات</span><span class="dir-ltr">{{ s.withdrawals|floatformat:2|intcomma }}</span></div>
+            <div class="flex justify-between px-5 py-2 text-sm"><span class="text-gray-600">سندات صرف موردين ({{ s.supplier_pay.count }})</span><span class="dir-ltr">{{ s.supplier_pay.total|floatformat:2|intcomma }}</span></div>
+            <div class="flex justify-between px-5 py-2 font-bold bg-red-50"><span>إجمالي الخارج</span><span class="dir-ltr">{{ s.cash_out|floatformat:2|intcomma }}</span></div>
+        </div>
+    </div>
+
+    <!-- Returns -->
+    <div class="bg-white rounded-xl border flex justify-between px-5 py-3">
+        <span class="font-bold text-gray-700">المرتجعات ({{ s.returns.count }})</span>
+        <span class="dir-ltr text-red-600 font-bold">{{ s.returns.total|floatformat:2|intcomma }}</span>
+    </div>
+
+    <!-- Net -->
+    <div class="bg-gray-800 text-white rounded-xl px-5 py-4 flex justify-between items-center">
+        <span class="font-black text-lg">صافي الحركة النقدية</span>
+        <span class="dir-ltr font-black text-2xl {% if s.net_cash < 0 %}text-red-300{% else %}text-green-300{% endif %}">{{ s.net_cash|floatformat:2|intcomma }}</span>
+    </div>
+</div>

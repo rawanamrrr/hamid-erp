@@ -2208,6 +2208,16 @@ def expense_edit(request, pk):
 
     exp = get_object_or_404(Expense, pk=pk)
 
+    # سلف/رواتب rows are auto-logged mirrors of financial.EmployeeAdvance/Payslip (see
+    # ExpenseForm.__init__ and EXPENSE_CATEGORIES) — they have their own dedicated edit
+    # flows (financial.advance_edit / صفحة الرواتب) that keep the advance/payslip record
+    # itself in sync. Editing them here would only ever touch this Expense row (and the
+    # linked Transaction), silently drifting from what صفحة السلف/الرواتب shows.
+    if exp.category in ('advance', 'salary'):
+        message = ('سلف الموظفين تُعدَّل من صفحة السلف فقط.' if exp.category == 'advance'
+                   else 'رواتب الموظفين تُعدَّل من صفحة الرواتب فقط.')
+        return JsonResponse({'status': 'error', 'message': message}, status=403)
+
     if request.method == 'GET':
         return JsonResponse({
             'title': exp.title, 'category': exp.category, 'amount': str(exp.amount),

@@ -18,48 +18,34 @@
 
     <div class="text-center text-gray-500 text-sm">ملخص يوم <b>{{ d.day }}</b></div>
 
-    <!-- Sales -->
-    <div class="bg-white rounded-xl border divide-y">
-        <div class="px-5 py-3 bg-teal-50 font-black text-teal-800 flex justify-between">
-            <span>المبيعات ({{ d.sales.count }} فاتورة)</span>
-            <span class="dir-ltr">{{ d.sales.total|floatformat:2|intcomma }}</span>
+    <!-- Per-shift breakdown, one section per شيفت بدأ هذا اليوم — before the day's total. -->
+    {% for s in d.shifts %}
+    <div class="space-y-3 border-2 border-indigo-100 rounded-2xl p-4 bg-indigo-50/30">
+        <div class="flex items-center justify-between">
+            <span class="font-black text-indigo-800">
+                <i class="fas fa-user-clock ms-1"></i>
+                شيفت #{{ s.shift.id }} — {{ s.shift.employee.get_full_name|default:s.shift.employee.username }}
+            </span>
+            <span class="text-xs font-bold text-indigo-500 dir-ltr">
+                {{ s.shift.start_time|date:"H:i" }}
+                –
+                {% if s.shift.end_time %}{{ s.shift.end_time|date:"H:i" }}{% else %}جارٍ الآن{% endif %}
+            </span>
         </div>
-        <div class="flex justify-between px-5 py-2 text-sm"><span class="text-gray-600">نقدي</span><span class="dir-ltr">{{ d.sales.cash|floatformat:2|intcomma }}</span></div>
-        <div class="flex justify-between px-5 py-2 text-sm"><span class="text-gray-600">محفظة</span><span class="dir-ltr">{{ d.sales.wallet|floatformat:2|intcomma }}</span></div>
-        <div class="flex justify-between px-5 py-2 text-sm"><span class="text-gray-600">إنستا باي</span><span class="dir-ltr">{{ d.sales.instapay|floatformat:2|intcomma }}</span></div>
-        <div class="flex justify-between px-5 py-2 text-sm"><span class="text-gray-600">فيزا</span><span class="dir-ltr">{{ d.sales.visa|floatformat:2|intcomma }}</span></div>
-        <div class="flex justify-between px-5 py-2 text-sm"><span class="text-gray-600">آجل (مديونية)</span><span class="dir-ltr text-red-600">{{ d.credit_sales|floatformat:2|intcomma }}</span></div>
+        {% include 'financial/_daily_summary_block.html' %}
     </div>
+    {% empty %}
+    <p class="text-center text-sm text-gray-400">لا توجد شيفتات بدأت في هذا اليوم.</p>
+    {% endfor %}
 
-    <!-- Cash in / out -->
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div class="bg-white rounded-xl border divide-y">
-            <div class="px-5 py-3 bg-green-50 font-black text-green-800">داخل للخزينة</div>
-            <div class="flex justify-between px-5 py-2 text-sm"><span class="text-gray-600">مبيعات نقدية</span><span class="dir-ltr">{{ d.sales.cash|floatformat:2|intcomma }}</span></div>
-            <div class="flex justify-between px-5 py-2 text-sm"><span class="text-gray-600">سندات قبض ({{ d.receipts.count }})</span><span class="dir-ltr">{{ d.receipts.total|floatformat:2|intcomma }}</span></div>
-            <div class="flex justify-between px-5 py-2 text-sm"><span class="text-gray-600">إيرادات أخرى</span><span class="dir-ltr">{{ d.other_income|floatformat:2|intcomma }}</span></div>
-            <div class="flex justify-between px-5 py-2 font-bold bg-green-50"><span>إجمالي الداخل</span><span class="dir-ltr">{{ d.cash_in|floatformat:2|intcomma }}</span></div>
+    <!-- Day total -->
+    <div class="space-y-3 border-2 border-gray-300 rounded-2xl p-4 bg-gray-50">
+        <div class="font-black text-gray-700 flex items-center gap-1.5">
+            <i class="fas fa-calendar-day"></i> إجمالي اليوم كله
         </div>
-        <div class="bg-white rounded-xl border divide-y">
-            <div class="px-5 py-3 bg-red-50 font-black text-red-800">خارج من الخزينة</div>
-            <div class="flex justify-between px-5 py-2 text-sm"><span class="text-gray-600">مرتجعات نقدية</span><span class="dir-ltr">{{ d.cash_refunds|floatformat:2|intcomma }}</span></div>
-            <div class="flex justify-between px-5 py-2 text-sm"><span class="text-gray-600">مصروفات</span><span class="dir-ltr">{{ d.expenses|floatformat:2|intcomma }}</span></div>
-            <div class="flex justify-between px-5 py-2 text-sm"><span class="text-gray-600">سحوبات</span><span class="dir-ltr">{{ d.withdrawals|floatformat:2|intcomma }}</span></div>
-            <div class="flex justify-between px-5 py-2 text-sm"><span class="text-gray-600">سندات صرف موردين ({{ d.supplier_pay.count }})</span><span class="dir-ltr">{{ d.supplier_pay.total|floatformat:2|intcomma }}</span></div>
-            <div class="flex justify-between px-5 py-2 font-bold bg-red-50"><span>إجمالي الخارج</span><span class="dir-ltr">{{ d.cash_out|floatformat:2|intcomma }}</span></div>
-        </div>
-    </div>
-
-    <!-- Returns -->
-    <div class="bg-white rounded-xl border flex justify-between px-5 py-3">
-        <span class="font-bold text-gray-700">المرتجعات ({{ d.returns.count }})</span>
-        <span class="dir-ltr text-red-600 font-bold">{{ d.returns.total|floatformat:2|intcomma }}</span>
-    </div>
-
-    <!-- Net -->
-    <div class="bg-gray-800 text-white rounded-xl px-5 py-4 flex justify-between items-center">
-        <span class="font-black text-lg">صافي الحركة النقدية</span>
-        <span class="dir-ltr font-black text-2xl {% if d.net_cash < 0 %}text-red-300{% else %}text-green-300{% endif %}">{{ d.net_cash|floatformat:2|intcomma }}</span>
+        {% with s=d %}
+        {% include 'financial/_daily_summary_block.html' %}
+        {% endwith %}
     </div>
     <p class="text-center text-xs text-gray-400">صافي الداخل ناقص الخارج لليوم المحدد.</p>
 </div>

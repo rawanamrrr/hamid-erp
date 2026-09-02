@@ -314,16 +314,13 @@ def profitability(date_from=None, date_to=None, group='product'):
     return rows, totals
 
 
-def daily_summary(day):
-    """One-day movement summary (Phase 9.1): sales, returns, receipts, expenses,
-    withdrawals, supplier payments, and the net cash position — all for `day`."""
+def _movement_summary(orders, returns, txn_qs, receipts_qs, supplier_pay_qs):
+    """Shared shape for a movement summary — sales/returns/cash in-out/net — built from
+    already-scoped querysets. Used both for a single day (daily_summary) and for one
+    shift within that day (_shift_summary), so the two render with the same template.
+    """
     from django.db.models import Count
-    from sales.models import Order, ReturnInvoice
-    from financial.models import Transaction
-    from crm.models import CustomerPayment
-    from products.models import SupplierPayment
 
-    orders = Order.objects.active().filter(created_at__date=day)
     o = orders.aggregate(
         count=Count('id'),
         total=Coalesce(Sum('total_amount'), ZERO),
@@ -335,32 +332,24 @@ def daily_summary(day):
     )
     credit_sales = (o['total'] or ZERO) - (o['received'] or ZERO)
 
-    returns = ReturnInvoice.objects.filter(created_at__date=day)
     r = returns.aggregate(count=Count('id'), total=Coalesce(Sum('total_refund_amount'), ZERO))
     cash_refunds = returns.filter(refund_method='cash').aggregate(
         t=Coalesce(Sum('total_refund_amount'), ZERO))['t']
 
     def _txn_sum(ttype):
-        return Transaction.objects.filter(transaction_type=ttype, created_at__date=day).aggregate(
-            t=Coalesce(Sum('amount'), ZERO))['t']
+        return txn_qs.filter(transaction_type=ttype).aggregate(t=Coalesce(Sum('amount'), ZERO))['t']
 
     expenses = _txn_sum('EXPENSE')
     withdrawals = _txn_sum('WITHDRAWAL')
     other_income = _txn_sum('INCOME')
 
-    # Genuine customer cash receipts (exclude the internal return ledger entries).
-    receipts_qs = CustomerPayment.objects.filter(transaction_type='payment', created_at__date=day).exclude(
-        payment_method__in=['return_credit', 'return_cash_payout'])
     receipts = receipts_qs.aggregate(count=Count('id'), total=Coalesce(Sum('amount'), ZERO))
-
-    supplier_pay = SupplierPayment.objects.filter(date__date=day).aggregate(
-        count=Count('id'), total=Coalesce(Sum('amount'), ZERO))
+    supplier_pay = supplier_pay_qs.aggregate(count=Count('id'), total=Coalesce(Sum('amount'), ZERO))
 
     cash_in = (o['cash'] or ZERO) + (receipts['total'] or ZERO) + other_income
     cash_out = (cash_refunds or ZERO) + expenses + withdrawals + (supplier_pay['total'] or ZERO)
 
     return {
-        'day': day,
         'sales': o,
         'credit_sales': credit_sales,
         'returns': r,
@@ -374,6 +363,61 @@ def daily_summary(day):
         'cash_out': cash_out,
         'net_cash': cash_in - cash_out,
     }
+
+
+def _shift_summary(shift):
+    """Same breakdown as daily_summary, scoped to one شيفت instead of a calendar day.
+
+    Order/Transaction carry a real `shift` FK (set at checkout/expense-entry time), so
+    those are scoped precisely. ReturnInvoice/CustomerPayment/SupplierPayment don't
+    (Phase 9.1 never added one) — those fall back to the shift's own time window,
+    open-ended at `now()` for a still-open shift.
+    """
+    from django.utils import timezone
+    from sales.models import Order, ReturnInvoice
+    from financial.models import Transaction
+    from crm.models import CustomerPayment
+    from products.models import SupplierPayment
+
+    start = shift.start_time
+    end = shift.end_time or timezone.now()
+
+    orders = Order.objects.active().filter(shift=shift)
+    returns = ReturnInvoice.objects.filter(created_at__range=(start, end))
+    txn_qs = Transaction.objects.filter(shift=shift)
+    receipts_qs = CustomerPayment.objects.filter(
+        transaction_type='payment', created_at__range=(start, end)
+    ).exclude(payment_method__in=['return_credit', 'return_cash_payout'])
+    supplier_pay_qs = SupplierPayment.objects.filter(date__range=(start, end))
+
+    summary = _movement_summary(orders, returns, txn_qs, receipts_qs, supplier_pay_qs)
+    summary['shift'] = shift
+    return summary
+
+
+def daily_summary(day):
+    """One-day movement summary (Phase 9.1): sales, returns, receipts, expenses,
+    withdrawals, supplier payments, and the net cash position — all for `day` — plus
+    the same breakdown per individual شيفت that started that day."""
+    from sales.models import Order, ReturnInvoice
+    from financial.models import Transaction, DailyShift
+    from crm.models import CustomerPayment
+    from products.models import SupplierPayment
+
+    orders = Order.objects.active().filter(created_at__date=day)
+    returns = ReturnInvoice.objects.filter(created_at__date=day)
+    txn_qs = Transaction.objects.filter(created_at__date=day)
+    receipts_qs = CustomerPayment.objects.filter(transaction_type='payment', created_at__date=day).exclude(
+        payment_method__in=['return_credit', 'return_cash_payout'])
+    supplier_pay_qs = SupplierPayment.objects.filter(date__date=day)
+
+    summary = _movement_summary(orders, returns, txn_qs, receipts_qs, supplier_pay_qs)
+    summary['day'] = day
+    summary['shifts'] = [
+        _shift_summary(s) for s in
+        DailyShift.objects.filter(start_time__date=day).order_by('start_time')
+    ]
+    return summary
 
 
 def income_statement(date_from=None, date_to=None):
