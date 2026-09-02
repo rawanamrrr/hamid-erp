@@ -60,6 +60,14 @@ hiddenimports += [
     # rather than fail loudly.
     'qrcode', 'qrcode.image.pil', 'qrcode.constants',
     'win32ui', 'win32con', 'win32gui', 'arabic_reshaper', 'bidi', 'bidi.algorithm',
+    # ZKTeco fingerprint-device sync (attendance_devices/adapters/zkteco_tcp.py) imports
+    # `zk` lazily inside connect() (so a server with no device configured never needs it
+    # installed) — that import sits inside a try/except ImportError, so PyInstaller's
+    # static scan silently never follows it and the EXE shipped with no zk/pyzk files at
+    # all. Every sync then failed at import time with "مكتبة pyzk غير مثبتة على
+    # السيرفر", even with the correct device IP and a healthy network path — the
+    # adapter's own network-reachability check further down never even ran.
+    'zk', 'zk.base', 'zk.user', 'zk.finger', 'zk.attendance', 'zk.const', 'zk.exception',
     # ASGI + websockets (realtime KDS/waiter/cashier screens) — see the collect_all loop
     # below for the rest of the twisted stack these pull in dynamically.
     'daphne', 'daphne.server', 'daphne.endpoints', 'channels', 'channels.layers',

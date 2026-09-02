@@ -257,7 +257,8 @@ def waiter_table_map(request):
         .exclude(status='void').select_related('table').order_by('ready_at')
     )
     ready_orders_json = json.dumps([
-        {'order_id': o.id, 'table': o.table.number if o.table_id else None}
+        {'order_id': o.id, 'display_number': o.display_number,
+         'table': o.table.number if o.table_id else None}
         for o in ready_orders
     ])
 
@@ -358,6 +359,7 @@ def _waiter_menu_context(order):
             'id': order.id,
             'customer_id': order.customer_id,
             'notes': order.notes or '',
+            'kitchen_status': order.kitchen_status,
             'subtotal_amount': float(order.subtotal_amount),
             'service_charge': float(svc['amount']) if svc else 0,
             'service_charge_included': svc['included'] if svc else False,
@@ -370,6 +372,7 @@ def _waiter_menu_context(order):
                 'product_name': it.product.name if it.product else '',
                 'variant_label': it.variant.label if it.variant_id else '',
                 'quantity': float(it.quantity),
+                'price': float(it.price),
                 'subtotal': float(it.subtotal),
                 'is_void': it.is_void,
                 'note': it.note,
@@ -919,35 +922,98 @@ def _print_kitchen_tickets(request, order, items):
 @require_permission('waiter', 'void')
 @require_POST
 def void_order_item(request, item_id):
-    """Cancel one line of an open/active check (void item)."""
+    """Cancel one line of an open/active check (void item) — or, for a line with
+    quantity > 1, just PART of it ("cancel 2 of the 3")."""
+    from decimal import Decimal, InvalidOperation
+
     item = get_object_or_404(OrderItem, pk=item_id)
     order = item.order
     if order.is_void:
         return JsonResponse({'status': 'error', 'message': 'الفاتورة ملغاة بالفعل'}, status=400)
+    # Same rule as void_order (whole check) — once the kitchen has actually finished
+    # cooking it, an individual line can't be cancelled away either.
+    if order.kitchen_status in (Order.PREP_READY, Order.PREP_DELIVERED):
+        return JsonResponse({
+            'status': 'error',
+            'message': 'لا يمكن إلغاء صنف بعد أن جهّز المطبخ الطلب بالكامل.',
+        }, status=400)
 
     reason = ''
+    requested_qty = None
     if request.body:
         try:
-            reason = json.loads(request.body).get('reason', '')
+            payload = json.loads(request.body)
+            reason = payload.get('reason', '')
+            requested_qty = payload.get('quantity')
         except (ValueError, json.JSONDecodeError):
             pass
 
+    qty = None
+    if requested_qty is not None:
+        try:
+            qty = Decimal(str(requested_qty))
+        except InvalidOperation:
+            return JsonResponse({'status': 'error', 'message': 'كمية غير صالحة'}, status=400)
+        if qty <= 0:
+            return JsonResponse({'status': 'error', 'message': 'كمية غير صالحة'}, status=400)
+
+    table_freed = False
     with db_transaction.atomic():
-        item.is_void = True
-        item.void_reason = reason
-        item.voided_by = request.user
-        item.voided_at = timezone_now()
-        item.save(update_fields=['is_void', 'void_reason', 'voided_by', 'voided_at'])
+        if qty is not None and qty < item.quantity:
+            # Partial cancel: carve the cancelled quantity into its OWN voided row
+            # (same "split a whole row off" approach as sales.services._split_order_item,
+            # just landing straight in is_void=True instead of a new order) — leaves the
+            # rest of this line active and completely untouched.
+            OrderItem.objects.create(
+                order=item.order, product=item.product, variant=item.variant,
+                quantity=qty, price=item.price, sell_unit=item.sell_unit,
+                serial_number=item.serial_number, cost_price=item.cost_price,
+                price_tier=item.price_tier, modifiers=item.modifiers, note=item.note,
+                kitchen_status=item.kitchen_status, printed=item.printed,
+                recipe_deducted=item.recipe_deducted,
+                is_void=True, void_reason=reason, voided_by=request.user, voided_at=timezone_now(),
+            )
+            item.quantity = item.quantity - qty
+            item.save(update_fields=['quantity'])
+        else:
+            item.is_void = True
+            item.void_reason = reason
+            item.voided_by = request.user
+            item.voided_at = timezone_now()
+            item.save(update_fields=['is_void', 'void_reason', 'voided_by', 'voided_at'])
 
         _recompute_order_totals(order)
-        order.save(update_fields=['subtotal_amount', 'service_charge', 'vat_amount', 'total_amount'])
+        update_fields = ['subtotal_amount', 'service_charge', 'vat_amount', 'total_amount']
+
+        # Cancelling the last remaining item leaves this tab genuinely empty — same as a
+        # table nobody ever ordered on, so it should go back to free rather than sitting
+        # busy over nothing. Only when the table has no OTHER still-open order (normally
+        # true — a table only ever has one open tab at a time via table.open_order — but
+        # checked explicitly rather than assumed); if one exists, that order keeps the
+        # table occupied and this order alone doesn't get to free it.
+        if order.is_open and not order.items.filter(is_void=False).exists():
+            other_open = Order.objects.filter(
+                table_id=order.table_id, is_open=True
+            ).exclude(id=order.id).exists() if order.table_id else False
+            if not other_open:
+                order.is_open = False
+                update_fields.append('is_open')
+                if order.table_id:
+                    Table.objects.filter(pk=order.table_id).update(status=Table.STATUS_FREE)
+                    table_freed = True
+
+        order.save(update_fields=update_fields)
 
     if order.warehouse_id:
         push_event('kds', order.warehouse_id, {
             'event': 'item_voided', 'order_id': order.id, 'item_id': item.id,
         })
+        if table_freed:
+            push_event('waiter', order.warehouse_id, {
+                'event': 'table_status', 'table_id': order.table_id, 'status': Table.STATUS_FREE,
+            })
 
-    return JsonResponse({'status': 'ok', 'total_amount': float(order.total_amount)})
+    return JsonResponse({'status': 'ok', 'total_amount': float(order.total_amount), 'table_freed': table_freed})
 
 
 @login_required
@@ -956,6 +1022,16 @@ def void_order_item(request, item_id):
 def void_order(request, order_id):
     """Void the whole check (existing Order.STATUS_VOID lifecycle) and free its table."""
     order = get_object_or_404(Order, pk=order_id)
+    # Once the kitchen has actually finished making it (جاهز/تم التسليم), the food is
+    # real — cancelling the whole check at that point would silently write off cooked
+    # food/ingredients with no trace. A still-preparing (or not-yet-sent) check is fine
+    # to cancel outright; anything already voided line-by-line down to nothing never
+    # reaches here since void_order_item auto-closes it instead (see table_freed above).
+    if order.kitchen_status in (Order.PREP_READY, Order.PREP_DELIVERED):
+        return JsonResponse({
+            'status': 'error',
+            'message': 'لا يمكن إلغاء الشيك بعد أن جهّزه المطبخ بالكامل — أَلغِ الأصناف المطلوبة يدوياً إن لزم.',
+        }, status=400)
     reason = ''
     if request.body:
         try:
@@ -1053,7 +1129,7 @@ def cashier_set_order_status(request, order_id):
         })
         if new_status == Order.PREP_READY:
             push_event('waiter', order.warehouse_id, {
-                'event': 'order_ready', 'order_id': order.id,
+                'event': 'order_ready', 'order_id': order.id, 'display_number': order.display_number,
                 'table': order.table.number if order.table_id else None,
             })
 
@@ -1415,7 +1491,7 @@ def kds_set_order_status(request, order_id):
                 'event': 'order_status', 'order_id': order.id, 'status': order.kitchen_status,
             })
             push_event('waiter', order.warehouse_id, {
-                'event': 'order_ready', 'order_id': order.id,
+                'event': 'order_ready', 'order_id': order.id, 'display_number': order.display_number,
                 'table': order.table.number if order.table_id else None,
                 'table_id': order.table_id,
             })
@@ -1955,7 +2031,11 @@ def split_order_pay(request, order_id):
     close_check (waiter:edit) — available to both the waiter and cashier screens, since
     both render this same order screen for a dine-in/takeaway ticket.
 
-    Payload: {"item_ids": [1,2,...], "payments": {"cash": "10.00", "visa": "0", ...}}
+    Payload: {"item_quantities": {"1": "2", "2": "6", ...}, "payments": {"cash": "10.00", ...}}
+    — each value is how much of that line to split off; omit an item entirely to
+    leave all of it on the original check. `item_ids: [1,2,...]` (no quantities) is
+    still accepted for old clients/cached pages — each listed id splits off in full,
+    same as before partial-quantity splitting existed.
     """
     from decimal import Decimal, InvalidOperation
     from sales.services import split_order_and_pay
@@ -1966,10 +2046,17 @@ def split_order_pay(request, order_id):
     except (ValueError, json.JSONDecodeError):
         return JsonResponse({'status': 'error', 'message': 'بيانات غير صالحة'}, status=400)
 
-    item_ids = data.get('item_ids') or []
+    raw_quantities = data.get('item_quantities')
+    item_quantities = {}
     try:
-        item_ids = [int(i) for i in item_ids]
-    except (TypeError, ValueError):
+        if raw_quantities is not None:
+            for item_id, qty in raw_quantities.items():
+                item_quantities[int(item_id)] = Decimal(str(qty))
+        else:
+            # Legacy shape: a bare list of ids, each meaning "split off the whole line".
+            for item_id in (data.get('item_ids') or []):
+                item_quantities[int(item_id)] = None
+    except (TypeError, ValueError, InvalidOperation):
         return JsonResponse({'status': 'error', 'message': 'أصناف غير صالحة'}, status=400)
 
     raw_payments = data.get('payments') or {}
@@ -1982,7 +2069,7 @@ def split_order_pay(request, order_id):
 
     try:
         with db_transaction.atomic():
-            new_order = split_order_and_pay(order, item_ids, payments, request.user)
+            new_order = split_order_and_pay(order, item_quantities, payments, request.user)
     except ValueError as e:
         return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
 

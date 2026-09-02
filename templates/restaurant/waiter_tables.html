@@ -418,7 +418,7 @@ function waiterTables(branchId) {
             const existingBox = document.getElementById('ready-toasts');
             if (existingBox && existingBox.querySelector('[data-order-id="' + data.order_id + '"]')) return;
 
-            const text = 'طلب #' + data.order_id + (data.table ? ' - ترابيزة ' + data.table : '') + ' جاهز للاستلام';
+            const text = 'طلب #' + (data.display_number || data.order_id) + (data.table ? ' - ترابيزة ' + data.table : '') + ' جاهز للاستلام';
 
             // Re-rendering banners the server already told us are still ready (on page
             // load) is a REPLAY, not a new event — the waiter already heard/saw it the

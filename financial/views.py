@@ -720,18 +720,41 @@ def close_shift(request, pk):
         transaction_type__in=['EXPENSE', 'WITHDRAWAL', 'REFUND', 'SUPPLIER_PAYMENT']
     ).exclude(description__startswith='عجز افتتاحي في الشيفت').aggregate(Sum('amount'))['amount__sum'] or Decimal('0.00')
 
-    # FIX #11: احسب المسحوبات والمرتجعات منفصلة للعرض
-    total_withdrawals_display = shift_transactions.filter(
-        transaction_type='WITHDRAWAL'
+    # "ملخص العمليات"'s المصروفات/مسحوبات cards are a business-expense summary — every
+    # سلفة/راتب/مصروف for the shift regardless of WHICH account paid it (cash, bank,
+    # wallet...) — unlike removed_money/drawer_expenses_display right below, which must
+    # stay scoped to shift_transactions (CASH_DRAWER only) since those specifically
+    # answer "what happened to the physical drawer". Using shift_transactions here too
+    # under-counted anything paid from a non-drawer account — e.g. a سلفة paid by bank
+    # transfer showed in its preview list below (never drawer-scoped) but not in the
+    # "إجمالي المصروفات" total itself, so the two visibly disagreed.
+    shift_all_transactions = Transaction.objects.filter(shift=shift)
+
+    # سلفة موظف is posted as a WITHDRAWAL, not an EXPENSE (see financial.advance_create —
+    # it's a receivable, not a real operating cost, so it must stay out of removed_money's
+    # EXPENSE-only siblings and out of the P&L). But on THIS screen's "ملخص العمليات" the
+    # cashier wants to see سلف/رواتب together under "المصروفات", not buried inside the
+    # generic "مسحوبات" line next to actual owner drawings — so pull it out of one and
+    # into the other for display only; removed_money/expected_balance above are untouched
+    # (an advance still correctly reduces the drawer either way, when paid from one).
+    advance_display = shift_all_transactions.filter(
+        transaction_type='WITHDRAWAL', expense__category='advance'
     ).aggregate(Sum('amount'))['amount__sum'] or Decimal('0.00')
 
-    total_refunds_display = shift_transactions.filter(
+    # FIX #11: احسب المسحوبات والمرتجعات منفصلة للعرض
+    total_withdrawals_display = shift_all_transactions.filter(
+        transaction_type='WITHDRAWAL'
+    ).exclude(expense__category='advance').aggregate(Sum('amount'))['amount__sum'] or Decimal('0.00')
+
+    total_refunds_display = shift_all_transactions.filter(
         transaction_type='REFUND'
     ).aggregate(Sum('amount'))['amount__sum'] or Decimal('0.00')
 
-    total_expenses_display = shift_transactions.filter(
+    # صرف راتب already posts as a real EXPENSE Transaction (see _pay_payslip) so it's
+    # included here automatically; سلفة موظف (WITHDRAWAL) is added in separately above.
+    total_expenses_display = (shift_all_transactions.filter(
         transaction_type='EXPENSE'
-    ).aggregate(Sum('amount'))['amount__sum'] or Decimal('0.00')
+    ).aggregate(Sum('amount'))['amount__sum'] or Decimal('0.00')) + advance_display
 
     # Same exclusion as removed_money, but scoped to EXPENSE only — for the "حالة الدرج
     # (المتوقع)" breakdown specifically. total_expenses_display above (used in "ملخص
@@ -743,6 +766,26 @@ def close_shift(request, pk):
     drawer_expenses_display = shift_transactions.filter(
         transaction_type='EXPENSE'
     ).exclude(description__startswith='عجز افتتاحي في الشيفت').aggregate(Sum('amount'))['amount__sum'] or Decimal('0.00')
+
+    # A سلفة موظف paid out of THIS shift's cash drawer already reduced removed_money/
+    # expected_balance above like any other WITHDRAWAL — it always has, that part was
+    # never broken. What was missing is a matching row here: the breakdown only ever
+    # showed "− مصروفات" (EXPENSE-only), so a cash-drawer advance vanished from the
+    # displayed rows even though "المتوقع" already accounted for it, making the rows
+    # not sum to the total and reading as if it hadn't been deducted at all.
+    drawer_advance_display = shift_transactions.filter(
+        transaction_type='WITHDRAWAL', expense__category='advance'
+    ).aggregate(Sum('amount'))['amount__sum'] or Decimal('0.00')
+
+    # Drawer-scoped owner-drawings only (mirrors total_withdrawals_display's own
+    # exclusion, but from shift_transactions — CASH_DRAWER accounts — not the unscoped
+    # shift_all_transactions total_withdrawals_display uses). Needed as its own figure
+    # because this "حالة الدرج" box must reflect only what actually moved the physical
+    # drawer, while the "ملخص العمليات" card above it (total_withdrawals) intentionally
+    # counts owner drawings from ANY account.
+    drawer_withdrawals_display = shift_transactions.filter(
+        transaction_type='WITHDRAWAL'
+    ).exclude(expense__category='advance').aggregate(Sum('amount'))['amount__sum'] or Decimal('0.00')
 
     # Cash paid out of the drawer to settle a supplier's invoice during this shift — part
     # of `removed_money` above (so it's already subtracted from `expected_balance`), but
@@ -756,9 +799,13 @@ def close_shift(request, pk):
     start_bal = shift.start_balance or Decimal('0.00')
     expected_balance = start_bal + sales_cash + added_money - removed_money
 
-    # للعرض
-    all_expenses = Transaction.objects.filter(shift=shift, transaction_type='EXPENSE')
-    all_withdrawals = Transaction.objects.filter(shift=shift, transaction_type='WITHDRAWAL')
+    # للعرض — سلفة موظف (WITHDRAWAL) moves into the "المصروفات" preview list too, same
+    # display-only reclassification as advance_display/total_expenses_display above.
+    all_expenses = Transaction.objects.filter(shift=shift, transaction_type='EXPENSE') | \
+        Transaction.objects.filter(shift=shift, transaction_type='WITHDRAWAL', expense__category='advance')
+    all_withdrawals = Transaction.objects.filter(
+        shift=shift, transaction_type='WITHDRAWAL'
+    ).exclude(expense__category='advance')
     all_refunds = Transaction.objects.filter(shift=shift, transaction_type='REFUND')
     other_transactions = Transaction.objects.filter(shift=shift).exclude(
         transaction_type__in=['SALE', 'EXPENSE', 'WITHDRAWAL', 'REFUND']
@@ -853,6 +900,8 @@ def close_shift(request, pk):
         'expenses': all_expenses,
         'total_expenses': total_expenses_display,
         'drawer_expenses': drawer_expenses_display,
+        'drawer_advance': drawer_advance_display,
+        'drawer_withdrawals': drawer_withdrawals_display,
         'withdrawals': all_withdrawals,
         'total_withdrawals': total_withdrawals_display,
         'refunds': all_refunds,
@@ -882,11 +931,16 @@ def print_shift_summary(request, pk):
     total_collected = orders.aggregate(Sum('received_amount'))['received_amount__sum'] or 0
     total_deferred = total_sales_amount - total_collected
 
-    expenses = Transaction.objects.filter(shift=shift, transaction_type='EXPENSE')
+    # سلفة موظف (WITHDRAWAL) is shown under المصروفات here too — same reclassification
+    # as close_shift(), for display only (see advance_display there for the full why).
+    expenses = Transaction.objects.filter(shift=shift, transaction_type='EXPENSE') | \
+        Transaction.objects.filter(shift=shift, transaction_type='WITHDRAWAL', expense__category='advance')
     total_expenses = expenses.aggregate(Sum('amount'))['amount__sum'] or 0
 
     # FIX #14: إضافة المسحوبات والمرتجعات للطباعة
-    withdrawals = Transaction.objects.filter(shift=shift, transaction_type='WITHDRAWAL')
+    withdrawals = Transaction.objects.filter(
+        shift=shift, transaction_type='WITHDRAWAL'
+    ).exclude(expense__category='advance')
     total_withdrawals = withdrawals.aggregate(Sum('amount'))['amount__sum'] or 0
 
     refunds = Transaction.objects.filter(shift=shift, transaction_type='REFUND')
@@ -1616,9 +1670,13 @@ def _pay_payslip(ps, account, user):
         desc = f"صرف راتب {ps.period_month} - {ps.employee.username}"
         # Categorized "رواتب موظفين" so this payout also appears in the position
         # report's "المصروفات حسب التصنيف" box, which only reads sales.Expense.
+        # البند (title) is kept generic — no employee name — per سجل المصروفات wanting
+        # a plain "صرف راتب" line; التصنيف already says "رواتب موظفين" and the fuller
+        # "صرف راتب {period} - {employee}" wording (desc) still lives in the linked
+        # Transaction's own description and in this row's description field below.
         from sales.models import Expense
         expense = Expense.objects.create(
-            title=desc, category='salary', amount=net,
+            title='صرف راتب', category='salary', amount=net,
             description=f"صرف راتب {ps.employee.username} — {ps.period_month}",
             payment_method=_expense_payment_method(account),
             user=user,
@@ -1627,7 +1685,9 @@ def _pay_payslip(ps, account, user):
         # المصروفات (sales.expense_edit) reverses/reapplies THIS transaction's account
         # balance exactly like any manually-entered expense — without this FK the edit
         # form found no transaction to sync and only ever updated the display row.
+        from sales.utils import get_active_shift
         Transaction.objects.create(
+            shift=get_active_shift(),
             account=account, transaction_type='EXPENSE', amount=net,
             description=desc, expense=expense,
             created_by=user,
@@ -1795,11 +1855,16 @@ def advance_create(request):
                 # visible there the same way a salary payout is. See EXPENSE_CATEGORIES
                 # for why it's excluded from every "إجمالي المصروفات" total — an advance
                 # is a receivable, not a real cost.
+                # البند (title) is kept generic — no employee name — per سجل المصروفات
+                # wanting a plain "سلفة موظف" line; التصنيف already says "سلفة موظفين"
+                # and the employee is still named in this row's description.
+                _emp_name = emp.get_full_name() or emp.username
+                _notes = request.POST.get('notes', '')
                 from sales.models import Expense
                 expense = Expense.objects.create(
-                    title=f"سلفة موظف: {emp.get_full_name() or emp.username}",
+                    title='سلفة موظف',
                     category='advance', amount=amount,
-                    description=request.POST.get('notes', ''),
+                    description=f"الموظف: {_emp_name}" + (f" — {_notes}" if _notes else ''),
                     payment_method=_expense_payment_method(account),
                     user=request.user,
                 )
@@ -1815,7 +1880,9 @@ def advance_create(request):
                 # payout above. NOTE: this only corrects the money movement; it does NOT
                 # touch EmployeeAdvance.amount/remaining, so a real change to the loan
                 # itself (not just a data-entry fix) still belongs on صفحة السلف.
+                from sales.utils import get_active_shift
                 txn = Transaction.objects.create(
+                    shift=get_active_shift(),
                     account=account, transaction_type='WITHDRAWAL', amount=amount,
                     description=f"سلفة موظف: {emp.get_full_name() or emp.username} (تُخصم من الراتب)",
                     expense=expense,

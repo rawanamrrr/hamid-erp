@@ -19,7 +19,7 @@
                     {% elif order.kitchen_status == 'preparing' %}bg-amber-50 border-amber-300
                     {% else %}bg-emerald-50 border-emerald-300{% endif %}">
             <div class="flex items-center justify-between mb-1">
-                <span class="font-bold">طلب #{{ order.id }}</span>
+                <span class="font-bold">طلب #{{ order.display_number }}</span>
                 <span class="text-xs text-gray-500">{{ order.created_at|time:"H:i" }}</span>
             </div>
             <div class="text-xs text-gray-600 mb-2">

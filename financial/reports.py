@@ -339,8 +339,17 @@ def _movement_summary(orders, returns, txn_qs, receipts_qs, supplier_pay_qs):
     def _txn_sum(ttype):
         return txn_qs.filter(transaction_type=ttype).aggregate(t=Coalesce(Sum('amount'), ZERO))['t']
 
-    expenses = _txn_sum('EXPENSE')
-    withdrawals = _txn_sum('WITHDRAWAL')
+    # سلفة موظف posts as a WITHDRAWAL (financial.advance_create — it's a receivable, not
+    # a real cost, so it must stay out of the P&L's EXPENSE-only siblings) but on ملخص
+    # اليوم it belongs under مصروفات alongside صرف راتب (a genuine EXPENSE), not lumped
+    # into "سحوبات" next to actual owner drawings — same reclassification as
+    # financial.views.close_shift's total_expenses_display/advance_display.
+    advance_amount = txn_qs.filter(
+        transaction_type='WITHDRAWAL', expense__category='advance'
+    ).aggregate(t=Coalesce(Sum('amount'), ZERO))['t']
+
+    expenses = _txn_sum('EXPENSE') + advance_amount
+    withdrawals = _txn_sum('WITHDRAWAL') - advance_amount
     other_income = _txn_sum('INCOME')
 
     receipts = receipts_qs.aggregate(count=Count('id'), total=Coalesce(Sum('amount'), ZERO))

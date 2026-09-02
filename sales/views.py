@@ -2268,7 +2268,10 @@ def expense_list(request):
     # template, but this view never actually read date_from/date_to or computed a
     # total — the filter silently did nothing. Wired up for real now, since a running
     # total for the selected range is exactly what a "daily expenses" screen needs.
-    expenses = Expense.objects.select_related('user', 'approved_by').order_by('-date', '-id')
+    # Grouped by category (not purely by date) so the page can show a per-بند total
+    # first, with "تفاصيل" expanding to that بند's own rows — sorted newest-first
+    # within each group, same as before.
+    expenses = Expense.objects.select_related('user', 'approved_by').order_by('category', '-date', '-id')
     filter_date_from = request.GET.get('date_from')
     filter_date_to = request.GET.get('date_to')
     if filter_date_from:
@@ -2286,6 +2289,13 @@ def expense_list(request):
     # "إجمالي المصروفات" doesn't overstate actual spend.
     total_expenses = expenses.exclude(category='advance').aggregate(total=Sum('amount'))['total'] or Decimal('0')
 
+    cat_labels = dict(Expense.EXPENSE_CATEGORIES)
+    category_totals = list(
+        expenses.values('category').annotate(total=Sum('amount'), count=Count('id')).order_by('-total')
+    )
+    for row in category_totals:
+        row['label'] = cat_labels.get(row['category'], row['category'])
+
     if request.method == 'POST':
         form = ExpenseForm(request.POST, request.FILES)
         if form.is_valid():
@@ -2295,6 +2305,7 @@ def expense_list(request):
                 messages.error(request, "الفترة المحاسبية لهذا التاريخ مغلقة، لا يمكن تسجيل مصروف بتاريخها.")
                 return render(request, 'sales/expense_list.html', {
                     'expenses': expenses, 'form': form, 'total_expenses': total_expenses,
+                    'category_totals': category_totals,
                 })
 
             # Amounts over the configurable threshold (ثوابت النظام → المصاريف
@@ -2317,6 +2328,7 @@ def expense_list(request):
                     return render(request, 'sales/expense_list.html', {
                         'expenses': expenses, 'form': form, 'total_expenses': total_expenses,
                         'approval_error': approval_error, 'approval_threshold': threshold,
+                        'category_totals': category_totals,
                     })
 
             exp.user = request.user
@@ -2352,6 +2364,7 @@ def expense_list(request):
     threshold = Decimal(str(get_policy('expenses.approval_threshold') or 0))
     return render(request, 'sales/expense_list.html', {
         'expenses': expenses, 'form': form, 'total_expenses': total_expenses,
+        'category_totals': category_totals,
         'approval_threshold': threshold,
         # Full category list (unlike form.fields.category.choices, which hides "سلفة
         # موظفين" for the create form) — the edit modal needs every value an EXISTING

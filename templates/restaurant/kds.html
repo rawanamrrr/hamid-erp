@@ -83,7 +83,7 @@
                     {% if ticket.is_cancelled %}
                     <span class="text-[11px] font-black text-white bg-red-600 rounded-md px-1.5 py-0.5 animate-pulse">ملغي</span>
                     {% endif %}
-                    <span class="text-base font-black text-gray-900 bg-white/80 border border-gray-300 rounded-md px-2 py-0.5">#{{ ticket.order.id }}</span>
+                    <span class="text-base font-black text-gray-900 bg-white/80 border border-gray-300 rounded-md px-2 py-0.5">#{{ ticket.order.display_number }}</span>
                     {% if ticket.total_parts > 1 %}
                     <span class="text-[11px] font-black text-white bg-indigo-600 rounded-md px-1.5 py-0.5">{{ ticket.part_num }}/{{ ticket.total_parts }}</span>
                     {% endif %}

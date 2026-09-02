@@ -101,9 +101,9 @@
                         <span>إجمالي المصروفات:</span>
                         <span class="font-bold">{{ total_expenses|floatformat:2|intcomma }}</span>
                     </div>
-                    <div class="text-xs text-red-600 mt-2">
-                        {% for exp in expenses|slice:":3" %}
-                            <div class="truncate">- {{ exp.description }} ({{ exp.amount }})</div>
+                    <div class="text-xs text-red-600 mt-2 space-y-0.5 max-h-40 overflow-y-auto">
+                        {% for exp in expenses %}
+                            <div class="truncate">- {{ exp.description }} ({{ exp.amount }}) — {{ exp.account.name }}</div>
                         {% endfor %}
                     </div>
                 </div>
@@ -122,7 +122,7 @@
                     {% if withdrawals %}
                     <div class="text-xs text-orange-600 mt-2 border-t border-orange-200 pt-2">
                         {% for w in withdrawals|slice:":2" %}
-                            <div class="truncate">- {{ w.description }} ({{ w.amount }})</div>
+                            <div class="truncate">- {{ w.description }} ({{ w.amount }}) — {{ w.account.name }}</div>
                         {% endfor %}
                     </div>
                     {% endif %}
@@ -149,10 +149,16 @@
                         <span class="text-red-400">- مصروفات:</span>
                         <span class="font-mono">{{ drawer_expenses|floatformat:2|intcomma }}</span>
                     </div>
-                    {% if total_withdrawals %}
+                    {% if drawer_advance %}
+                    <div class="flex justify-between text-sm mb-1">
+                        <span class="text-red-400">- سلف موظفين:</span>
+                        <span class="font-mono">{{ drawer_advance|floatformat:2|intcomma }}</span>
+                    </div>
+                    {% endif %}
+                    {% if drawer_withdrawals %}
                     <div class="flex justify-between text-sm mb-1">
                         <span class="text-orange-400">- مسحوبات:</span>
-                        <span class="font-mono">{{ total_withdrawals|floatformat:2|intcomma }}</span>
+                        <span class="font-mono">{{ drawer_withdrawals|floatformat:2|intcomma }}</span>
                     </div>
                     {% endif %}
                     {% if total_refunds %}

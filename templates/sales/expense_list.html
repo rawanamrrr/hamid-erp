@@ -127,8 +127,33 @@
                 </form>
             </div>
 
-            <!-- Table -->
-            <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-x-auto">
+            <!-- Category summary — totals first, "تفاصيل" expands that بند's own rows
+                 in the table below (same rows, just grouped/hidden by category). -->
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200 divide-y divide-gray-100">
+                {% for cat in category_totals %}
+                <div class="flex items-center justify-between p-4">
+                    <div class="flex items-center gap-3">
+                        <span class="font-bold text-gray-800">{{ cat.label }}</span>
+                        <span class="text-xs text-gray-400">({{ cat.count }})</span>
+                    </div>
+                    <div class="flex items-center gap-4">
+                        <span class="font-black text-red-600">{{ cat.total|floatformat:2 }} ج.م</span>
+                        <button type="button" onclick="toggleCategoryDetails('{{ cat.category }}', this)"
+                                class="text-xs font-bold text-gray-500 hover:text-gray-800 flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors">
+                            <span>تفاصيل</span>
+                            <i class="fas fa-chevron-down text-[10px] cat-details-icon"></i>
+                        </button>
+                    </div>
+                </div>
+                {% empty %}
+                <p class="p-8 text-center text-gray-400">لا توجد مصروفات مسجلة</p>
+                {% endfor %}
+            </div>
+
+            <!-- Details table — rows are grouped by category (see ordering in
+                 sales.views.expense_list) and start hidden; toggleCategoryDetails above
+                 reveals just the one بند the waiter clicked "تفاصيل" on. -->
+            <div id="expenseDetailsTable" class="hidden bg-white rounded-xl shadow-sm border border-gray-200 overflow-x-auto">
                 <table class="w-full text-right text-sm">
                     <thead class="bg-gray-50 text-gray-600 font-medium border-b">
                         <tr>
@@ -143,7 +168,7 @@
                     </thead>
                     <tbody class="divide-y divide-gray-100">
                         {% for expense in expenses %}
-                        <tr class="hover:bg-gray-50">
+                        <tr class="hover:bg-gray-50 hidden expense-row" data-category="{{ expense.category }}">
                             <td class="p-4 font-bold text-gray-800">{{ expense.title }}</td>
                             <td class="p-4">
                                 <span class="bg-gray-100 text-gray-600 px-2 py-1 rounded text-xs">
@@ -201,6 +226,23 @@
     </div>
 </div>
 <script>
+// Reveals/hides one بند's rows in the details table below the summary — independent
+// per category, so more than one can be open at once. The table itself starts hidden
+// and only appears once at least one category is expanded, so an empty details table
+// with just a header never sits there before anyone's asked for anything.
+function toggleCategoryDetails(category, btn) {
+    const table = document.getElementById('expenseDetailsTable');
+    const rows = table.querySelectorAll('.expense-row[data-category="' + category + '"]');
+    const icon = btn.querySelector('.cat-details-icon');
+    const opening = rows.length && rows[0].classList.contains('hidden');
+    rows.forEach(r => r.classList.toggle('hidden', !opening));
+    icon.classList.toggle('fa-chevron-down', !opening);
+    icon.classList.toggle('fa-chevron-up', opening);
+    const anyVisible = table.querySelector('.expense-row:not(.hidden)');
+    table.classList.toggle('hidden', !anyVisible);
+    if (opening) rows[0].scrollIntoView({behavior: 'smooth', block: 'nearest'});
+}
+
 // Keep "طباعة تقرير" pointed at whatever dates are currently typed in the filter —
 // it's a plain link (opens a new tab), so unlike the "تصفية" submit button it never
 // otherwise sees an unsaved change to the date inputs.

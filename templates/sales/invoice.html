@@ -368,7 +368,15 @@
                 <tr>
                     <td class="info-label">التاريخ</td>
                     <td class="info-sep">:</td>
-                    <td class="info-val"><span class="num">{{ order.created_at|date:"d/m/Y H:i" }}</span></td>
+                    <!-- Print time, not order.created_at — a POS/cashier sale prints the
+                         instant it's created so the two never differed there, but a
+                         waiter tab is opened when the table sits down and only printed
+                         much later at closeCheck/split-pay, so created_at showed a
+                         stale "check-in" time instead of when the receipt actually
+                         left the printer. This template is only ever rendered to be
+                         printed (see PrintNav), so {% templatetag openblock %} now
+                         {% templatetag closeblock %} IS the print time. -->
+                    <td class="info-val"><span class="num">{% now "d/m/Y H:i" %}</span></td>
                 </tr>
                 {% if policies.receipts.show_salesman_name %}
                 <tr>
@@ -610,7 +618,7 @@
             </div>
             {% endif %}
 
-            <p class="num text-gray-500">*** {{ order.created_at|date:"d-m-Y H:i:s" }} ***</p>
+            <p class="num text-gray-500">*** {% now "d-m-Y H:i:s" %} ***</p>
         </div>
 
     </div>

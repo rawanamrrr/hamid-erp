@@ -546,7 +546,55 @@ def collect_tailoring_payment(order, amount, user, *, note=''):
     )
 
 
-def split_order_and_pay(order, item_ids, payments, user):
+def _split_order_item(item, qty):
+    """Split one OrderItem of quantity N into two whole rows: a NEW row of quantity
+    `qty` (returned, still on the same order for now — split_order_and_pay moves it)
+    and the original row reduced to (N - qty). Lets "pay for 2 of the 6" reuse the
+    exact same whole-row move logic split_order_and_pay already has, instead of that
+    logic having to understand partial rows.
+
+    Also splits the matching stock-out StockTransaction the same way (matched by
+    product/quantity/unit_price the same way split_order_and_pay's own re-stamping
+    does — StockTransaction has no FK to OrderItem), so the 1-OUT-row-per-item
+    assumption downstream still holds and revenue/stock don't drift after the split.
+    """
+    from .models import OrderItem
+    from products.models import StockTransaction
+
+    remaining_qty = item.quantity - qty
+    new_item = OrderItem.objects.create(
+        order=item.order, product=item.product, variant=item.variant,
+        quantity=qty, price=item.price, sell_unit=item.sell_unit,
+        serial_number=item.serial_number, cost_price=item.cost_price,
+        price_tier=item.price_tier, modifiers=item.modifiers, note=item.note,
+        kitchen_status=item.kitchen_status, printed=item.printed,
+        recipe_deducted=item.recipe_deducted,
+    )
+    item.quantity = remaining_qty
+    item.save(update_fields=['quantity'])
+
+    txn = StockTransaction.objects.filter(
+        reference_number=str(item.order_id), transaction_type='OUT',
+        product_id=item.product_id, quantity=item.quantity + qty,
+        unit_price=item.price,
+    ).order_by('id').first()
+    if txn:
+        share = (qty / (remaining_qty + qty)) if (remaining_qty + qty) else Decimal('0')
+        split_discount = (txn.discount * share).quantize(Decimal('0.01'))
+        StockTransaction.objects.create(
+            product=txn.product, warehouse=txn.warehouse, transaction_type='OUT',
+            quantity=qty, unit_price=txn.unit_price, cost_price=txn.cost_price,
+            discount=split_discount, reference_number=txn.reference_number,
+            created_by=txn.created_by,
+        )
+        txn.quantity = remaining_qty
+        txn.discount = txn.discount - split_discount
+        txn.save(update_fields=['quantity', 'discount'])
+
+    return new_item
+
+
+def split_order_and_pay(order, item_quantities, payments, user):
     """تقسيم الفاتورة — pay for a subset of an open order's items now (e.g. the tea)
     while the rest (the coffee) stays on the original check, still unpaid, for later.
 
@@ -563,6 +611,11 @@ def split_order_and_pay(order, item_ids, payments, user):
     PROPORTIONALLY by each side's share of the subtotal — a 10 ج.م discount on a 40/60
     item split becomes 4/6 ج.م. Same treatment for delivery_cost/tailoring_cost, even
     though both are normally 0 for a dine-in split.
+
+    `item_quantities` = {item_id: qty} — qty may be the item's FULL quantity (moves
+    the whole row, same as before) or LESS than it ("pay for 2 of the 6") — a partial
+    pick is first carved off into its own whole OrderItem row by _split_order_item, so
+    everything below still only ever deals with whole rows.
 
     `payments` = {'cash': Decimal, 'wallet': Decimal, 'instapay': Decimal, 'visa': Decimal}
     — must sum to (at least) the split invoice's total; the split invoice is always
@@ -590,13 +643,31 @@ def split_order_and_pay(order, item_ids, payments, user):
     was_already_posted = bool(order.close_type)
 
     all_items = list(order.items.filter(is_void=False).select_related('product').order_by('id'))
-    split_items = [it for it in all_items if it.id in set(item_ids)]
+    items_by_id = {it.id: it for it in all_items}
+    split_item_ids = set()
+    for item_id, qty in (item_quantities or {}).items():
+        item = items_by_id.get(int(item_id))
+        if not item:
+            continue
+        qty = _to_decimal(qty) if qty is not None else item.quantity
+        if qty <= 0:
+            continue
+        if qty >= item.quantity:
+            split_item_ids.add(item.id)
+        else:
+            new_item = _split_order_item(item, qty)
+            split_item_ids.add(new_item.id)
+
+    # Re-fetch: a partial pick above added a row (and shrank another), so `all_items`
+    # from before the loop no longer reflects what's actually on the order.
+    all_items = list(order.items.filter(is_void=False).select_related('product').order_by('id'))
+    split_items = [it for it in all_items if it.id in split_item_ids]
     if not split_items:
         raise ValueError("لم يتم اختيار أي أصناف للتقسيم.")
     # Selecting every remaining item is allowed — it's the natural way an order that's
     # been split down piece by piece (تاي paid earlier, قهوة now) eventually finishes:
     # the last split invoice pays it off entirely and the original auto-closes below.
-    remaining_items = [it for it in all_items if it.id not in set(item_ids)]
+    remaining_items = [it for it in all_items if it.id not in split_item_ids]
 
     subtotal = order.subtotal_amount or Decimal('0')
     split_subtotal = sum((it.price * it.quantity for it in split_items), Decimal('0'))
