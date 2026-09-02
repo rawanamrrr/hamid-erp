@@ -317,7 +317,10 @@ function confirmAssignDriver() {
     .then(r => r.json())
     .then(res => {
         if (res.status === 'ok') {
-            if (res.print_url) window.open(res.print_url, '_blank', 'width=340,height=600');
+            if (res.print_url) {
+                window.PrintNav.go(null, res.print_url, window.location.href);
+                return;
+            }
             closeAssignModal();
             refreshDeliveryFeed();
         } else {

@@ -81,21 +81,28 @@
         <div class="dashed-line"></div>
 
         <!-- رصيد العميل الحالي -->
+        {% with balance=customer.get_balance %}
         <div class="bg-gray-100 p-2 rounded text-center">
-            <p class="text-xs text-gray-600">رصيد العميل الحالي (الآن)</p>
+            <p class="text-xs text-gray-600">
+                رصيد العميل الحالي (الآن)
+                {% if balance > 0 %}
+                    <span class="text-red-600 font-bold">— مستحق على العميل</span>
+                {% elif balance < 0 %}
+                    <span class="text-green-600 font-bold">— رصيد دائن للعميل</span>
+                {% endif %}
+            </p>
             <p class="font-bold num text-lg dir-ltr">
-                {% with balance=customer.get_balance %}
-                    {% if balance > 0 %}
-                        <span class="text-red-600">{{ balance }} (عليه)</span>
-                    {% elif balance < 0 %}
-                        <!-- تم التعديل هنا: استخدام stringformat وحذف أول حرف (السالب) لعرض الرقم موجب -->
-                        <span class="text-green-600">{{ balance|stringformat:".2f"|slice:"1:" }} (له)</span>
-                    {% else %}
-                        0.00 (مسدَّد)
-                    {% endif %}
-                {% endwith %}
+                {% if balance > 0 %}
+                    <span class="text-red-600">{{ balance }}</span>
+                {% elif balance < 0 %}
+                    <!-- تم التعديل هنا: استخدام stringformat وحذف أول حرف (السالب) لعرض الرقم موجب -->
+                    <span class="text-green-600">{{ balance|stringformat:".2f"|slice:"1:" }}</span>
+                {% else %}
+                    0.00
+                {% endif %}
             </p>
         </div>
+        {% endwith %}
 
         <div class="text-center text-[10px] mt-4">
             <p>توقيع المستلم</p>

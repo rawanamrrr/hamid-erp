@@ -673,7 +673,7 @@
             <!-- Total Bill Header -->
             <!-- Layout change: tightened vertical padding/margins and slightly smaller total number so this navy header is more compact (less tall) -->
             <div
-                class="relative bg-slate-900 px-4 py-2 shrink-0 flex flex-col overflow-hidden z-20">
+                class="relative bg-slate-900 px-4 py-1.5 shrink-0 flex flex-col overflow-hidden z-20">
                 <div class="absolute -right-12 -top-12 w-28 h-28 bg-teal-500 rounded-full blur-[70px] opacity-25"></div>
 
                 <div class="relative z-10 flex items-center gap-1.5 mb-0.5">
@@ -684,7 +684,7 @@
                 </div>
 
                 <div class="relative z-10 flex items-baseline gap-2 justify-center mb-1">
-                    <div class="font-black text-3xl font-mono tracking-tighter text-white leading-none drop-shadow-lg" id="grandTotalDisplay">0.00</div>
+                    <div class="font-black text-2xl font-mono tracking-tighter text-white leading-none drop-shadow-lg" id="grandTotalDisplay">0.00</div>
                     <div class="text-teal-400 font-bold text-[11px] bg-white/5 px-1.5 py-0.5 rounded-md border border-white/5">ج.م</div>
                 </div>
 
@@ -827,22 +827,30 @@
                             class="text-[10px] font-black text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-2.5 py-1.5 rounded-lg border border-indigo-200 transition flex items-center gap-1">
                             <i class="fa-solid fa-scissors text-[9px]"></i> تقسيم الدفع</button>
                     </div>
-                    <div id="payMethodSelector" class="grid grid-cols-4 gap-2">
+                    <div id="payMethodSelector" class="grid grid-cols-5 gap-1.5">
                         <button onclick="selectPayMethod('cash')" id="payBtnCash"
-                            class="py-3 rounded-xl border-2 font-black text-xs bg-emerald-50 border-emerald-500 text-emerald-700 shadow-md ring-2 ring-emerald-500/20 flex flex-col items-center gap-1.5 transition-all active:scale-95">
-                            <i class="fa-solid fa-money-bill-wave text-lg"></i> نقدي
+                            class="py-3 rounded-xl border-2 font-black text-[11px] whitespace-nowrap bg-emerald-50 border-emerald-500 text-emerald-700 shadow-md ring-2 ring-emerald-500/20 flex flex-col items-center gap-1.5 transition-all active:scale-95">
+                            <i class="fa-solid fa-money-bill-wave text-base"></i> نقدي
                         </button>
                         <button onclick="selectPayMethod('wallet')" id="payBtnWallet"
-                            class="py-3 rounded-xl border-2 font-black text-xs bg-white border-gray-200 text-gray-400 flex flex-col items-center gap-1.5 transition-all hover:bg-gray-50 active:scale-95">
-                            <i class="fa-solid fa-mobile-screen text-lg"></i> محفظة
+                            class="py-3 rounded-xl border-2 font-black text-[11px] whitespace-nowrap bg-white border-gray-200 text-gray-400 flex flex-col items-center gap-1.5 transition-all hover:bg-gray-50 active:scale-95">
+                            <i class="fa-solid fa-mobile-screen text-base"></i> محفظة
                         </button>
                         <button onclick="selectPayMethod('insta')" id="payBtnInsta"
-                            class="py-3 rounded-xl border-2 font-black text-xs bg-white border-gray-200 text-gray-400 flex flex-col items-center gap-1.5 transition-all hover:bg-gray-50 active:scale-95">
-                            <i class="fa-solid fa-building-columns text-lg"></i> إنستا
+                            class="py-3 rounded-xl border-2 font-black text-[11px] whitespace-nowrap bg-white border-gray-200 text-gray-400 flex flex-col items-center gap-1.5 transition-all hover:bg-gray-50 active:scale-95">
+                            <i class="fa-solid fa-building-columns text-base"></i> إنستا
                         </button>
                         <button onclick="selectPayMethod('visa')" id="payBtnVisa"
-                            class="py-3 rounded-xl border-2 font-black text-xs bg-white border-gray-200 text-gray-400 flex flex-col items-center gap-1.5 transition-all hover:bg-gray-50 active:scale-95">
-                            <i class="fa-solid fa-credit-card text-lg"></i> فيزا
+                            class="py-3 rounded-xl border-2 font-black text-[11px] whitespace-nowrap bg-white border-gray-200 text-gray-400 flex flex-col items-center gap-1.5 transition-all hover:bg-gray-50 active:scale-95">
+                            <i class="fa-solid fa-credit-card text-base"></i> فيزا
+                        </button>
+                        <!-- Deferred/credit sale — nothing collected now, the full total is
+                             recorded as a debt on the selected customer (see
+                             syncPaymentMethodToTotal/selectPayMethod's 'cl' handling and
+                             submitOrder's require-customer check). -->
+                        <button onclick="selectPayMethod('cl')" id="payBtnCL"
+                            class="py-3 rounded-xl border-2 font-black text-[11px] whitespace-nowrap bg-white border-gray-200 text-gray-400 flex flex-col items-center gap-1.5 transition-all hover:bg-gray-50 active:scale-95">
+                            <i class="fa-solid fa-file-invoice-dollar text-base"></i> آجل
                         </button>
                     </div>
                     <div id="paySplitInputs" class="hidden grid grid-cols-4 gap-2 mt-2 pt-2 border-t border-slate-100">
@@ -2053,6 +2061,10 @@
         let currentCustomerBalance = 0;
         let currentCustomerCreditLimit = 0;  // 0 = unlimited
         let useCustomerCredit = false;
+        // Set when submitOrder() was blocked on "no customer for آجل/partial payment" and
+        // sent the cashier into the customer search instead of a dead-end alert — resumed
+        // automatically in selectCustomer() once they actually pick/create one.
+        let pendingSubmitPrint = null;
 
         function selectCustomer(id, type, name, address, balance, creditLimit = 0, phone = '') {
             // Some callers (reopening a draft, editing an order, various shortcuts) don't have
@@ -2083,6 +2095,15 @@
             // TRIGGER SMART CREDIT OVERLAY
             if (currentCustomerBalance < -0.01) {
                 openSmartPayOverlay();
+            }
+
+            // Finish a checkout that was waiting on "pick a customer for آجل/partial
+            // payment" (see submitOrder) — only for a REAL customer (id truthy); picking
+            // "عميل نقدي" again would just re-hit the same block pointlessly.
+            if (id && pendingSubmitPrint !== null) {
+                const printFlag = pendingSubmitPrint;
+                pendingSubmitPrint = null;
+                submitOrder(printFlag);
             }
         }
 
@@ -4543,6 +4564,18 @@
             wallet.value = '';
             insta.value = '';
             visa.value = '';
+
+            // آجل: nothing is collected now — every payment field (and the received
+            // display) stays at 0 regardless of the total, instead of the auto-fill-to-
+            // total behavior every other method gets. This is the actual fix for آجل
+            // sales silently recording as fully paid: the auto-fill used to leave the
+            // full total sitting in whichever method was active unless the cashier
+            // noticed and cleared it by hand.
+            if (activePayMethod === 'cl') {
+                if (received) { received.value = '0.00'; received.style.color = ''; }
+                return;
+            }
+
             const amount = paymentRequired > 0 ? paymentRequired.toFixed(2) : '';
             if (activePayMethod === 'cash') cash.value = amount;
             else if (activePayMethod === 'wallet') wallet.value = amount;
@@ -4599,7 +4632,9 @@
             activePayMethod = method;
             isSplitMode = false;
             const qc = document.getElementById('quickCashRow');
-            if (qc) qc.classList.remove('hidden');
+            // مضبوط/+50/+100/+200 are "how much cash was handed over" shortcuts — nothing
+            // is ever collected on an آجل sale, so they'd only invite mistakes here.
+            if (qc) qc.classList.toggle('hidden', method === 'cl');
 
             document.getElementById('payMethodSelector').classList.remove('hidden');
             document.getElementById('payReceivedRow').classList.remove('hidden');
@@ -4611,7 +4646,8 @@
                 cash: { active: 'border-emerald-500 bg-emerald-50 text-emerald-700 shadow-md ring-2 ring-emerald-500/20', inactive: 'border-gray-200 bg-white text-gray-400 hover:bg-gray-50' },
                 wallet: { active: 'border-indigo-500 bg-indigo-50 text-indigo-700 shadow-md ring-2 ring-indigo-500/20', inactive: 'border-gray-200 bg-white text-gray-400 hover:bg-gray-50' },
                 insta: { active: 'border-purple-500 bg-purple-50 text-purple-700 shadow-md ring-2 ring-purple-500/20', inactive: 'border-gray-200 bg-white text-gray-400 hover:bg-gray-50' },
-                visa: { active: 'border-blue-500 bg-blue-50 text-blue-700 shadow-md ring-2 ring-blue-500/20', inactive: 'border-gray-200 bg-white text-gray-400 hover:bg-gray-50' }
+                visa: { active: 'border-blue-500 bg-blue-50 text-blue-700 shadow-md ring-2 ring-blue-500/20', inactive: 'border-gray-200 bg-white text-gray-400 hover:bg-gray-50' },
+                cl: { active: 'border-amber-500 bg-amber-50 text-amber-700 shadow-md ring-2 ring-amber-500/20', inactive: 'border-gray-200 bg-white text-gray-400 hover:bg-gray-50' }
             };
             const base = 'flex-1 py-3 rounded-xl border-2 font-black text-xs transition-all active:scale-95 flex flex-col items-center gap-1.5';
 
@@ -4619,19 +4655,34 @@
             const btnWallet = document.getElementById('payBtnWallet');
             const btnInsta = document.getElementById('payBtnInsta');
             const btnVisa = document.getElementById('payBtnVisa');
+            const btnCL = document.getElementById('payBtnCL');
 
             btnCash.className = base + ' ' + (method === 'cash' ? styles.cash.active : styles.cash.inactive);
             btnWallet.className = base + ' ' + (method === 'wallet' ? styles.wallet.active : styles.wallet.inactive);
             btnInsta.className = base + ' ' + (method === 'insta' ? styles.insta.active : styles.insta.inactive);
             btnVisa.className = base + ' ' + (method === 'visa' ? styles.visa.active : styles.visa.inactive);
+            if (btnCL) btnCL.className = base + ' ' + (method === 'cl' ? styles.cl.active : styles.cl.inactive);
 
-            // Auto-fill received input and hidden pay field with the grand total
+            // Auto-fill received input and hidden pay field with the grand total — skipped
+            // entirely for آجل (see syncPaymentMethodToTotal), which always zeroes every
+            // payment field instead since nothing is actually collected.
             const total = parseFloat(document.getElementById('grandTotalDisplay').innerText) || 0;
             syncPaymentMethodToTotal(total);
-            // Focus & select the received input so cashier can type over it
+            // Focus & select the received input so cashier can type over it — not for
+            // آجل, where it's locked to 0 and there's nothing to type over.
             const ri = document.getElementById('payReceivedInput');
-            if (ri) { ri.focus(); ri.select(); }
+            if (ri) {
+                ri.readOnly = (method === 'cl');
+                if (method !== 'cl') { ri.focus(); ri.select(); }
+            }
             calculateRemaining();
+
+            // آجل requires a real customer to carry the debt — same fix as submitOrder's
+            // own check, but surfaced immediately on picking the method instead of only
+            // at submit time, so the cashier isn't confused why دفع "did nothing".
+            if (method === 'cl' && !currentCustomerId) {
+                searchInput.focus();
+            }
         }
 
         function toggleSplitPayment() {
@@ -4852,7 +4903,13 @@
 
             {% if policies.sales.require_customer_on_credit %}
             if (paid < total && !customerId) {
-                alert('لا يمكن تسجيل مديونية أو دفع آجل لعميل نقدي (عام). يرجى اختيار عميل مسجل.');
+                // Same fix as waiter_order.html's closeCheck: don't dead-end on an alert —
+                // jump straight into the existing customer search/add UI (type a name or
+                // phone, register on the spot if not found), then finish this exact
+                // checkout automatically once a customer is actually picked. See the
+                // resume in selectCustomer().
+                pendingSubmitPrint = print;
+                searchInput.focus();
                 return;
             }
             {% endif %}
@@ -4938,6 +4995,7 @@
                 instapay_paid: insta,
                 visa_paid: visa,
                 credit_paid: creditPaid,
+                close_type: activePayMethod === 'cl' ? 'cl' : '',
 
                 // Flags
                 is_online: isOnline,

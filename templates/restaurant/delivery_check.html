@@ -29,6 +29,7 @@
 <body onload="window.print()">
     <div class="toolbar no-print">
         <button onclick="closePrintPage()">إغلاق</button>
+        <button onclick="window.print()">🖨 طباعة</button>
     </div>
     <h2>تذكرة تسليم دليفري</h2>
     <div class="meta">
@@ -56,6 +57,17 @@
 
     <div class="footer">الطيار: {{ order.driver.name|default:"—" }}</div>
     <script>
+        // Same mechanism as restaurant/kitchen_ticket.html: no auto-print, the person
+        // presses طباعة, and once the print dialog closes (printed OR cancelled) the page
+        // advances on its own via ?then=/?next= — no popup, no manual "إغلاق" needed.
+        var printAdvanced = false;
+        function afterPrintAdvance() {
+            if (printAdvanced) return;
+            printAdvanced = true;
+            closePrintPage();
+        }
+        window.addEventListener('afterprint', function () { setTimeout(afterPrintAdvance, 300); });
+
         // Closing this print-preview page. window.close() only works when the page was
         // opened as a real popup (window.open()) — in the packaged desktop app there is
         // just one window that NAVIGATED here, so window.close() silently does nothing

@@ -892,6 +892,12 @@ def submit_order_ajax(request):
             instapay_paid = Decimal(str(data.get('instapay_paid', 0)))
             visa_paid = Decimal(str(data.get('visa_paid', 0)))
             credit_paid = Decimal(str(data.get('credit_paid', 0)))
+            # POS آجل button: mirrors the waiter page's closeCheck(close_type='cl') so the
+            # invoice's "طريقة الدفع" line reads "آجل" instead of falling through to
+            # "رصيد سابق"/"مقسم" — see templates/sales/invoice.html's close_type check.
+            close_type = data.get('close_type') or ''
+            if close_type not in dict(Order.CLOSE_TYPE_CHOICES) and close_type != '':
+                close_type = ''
 
             # CRITICAL: received_amount for Customer Balance calculation
             # MUST only include NEW money (Cash, Wallet, Insta, Visa).
@@ -1217,6 +1223,7 @@ def submit_order_ajax(request):
                     instapay_paid=instapay_paid,
                     visa_paid=visa_paid,
                     credit_paid=credit_paid,
+                    close_type=close_type,
                     is_online_order=requires_shipping,
                     # A driver assigned at POS time (or the online/delivery-cost flag) always
                     # wins and routes this straight to the restaurant app's delivery dashboard
@@ -1324,6 +1331,14 @@ def submit_order_ajax(request):
                                                'available': float(customer.credit_available() or 0)},
                                 }])
                     order.is_completed = False # Means there is debt/COD
+
+                # POS آجل button: fold the unpaid remainder into credit_paid AFTER the
+                # blacklist/credit-limit gates above have already run against the real
+                # remaining_amount — doing this earlier would zero out remaining_amount
+                # and silently skip those gates (see close_type comment near payload
+                # parsing above).
+                if close_type == Order.CLOSE_TYPE_CL and order.remaining_amount > 0:
+                    order.credit_paid = order.credit_paid + order.remaining_amount
 
                 order.save()
 
